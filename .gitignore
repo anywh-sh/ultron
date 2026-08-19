@@ -8,3 +8,4 @@ client/src-tauri/gen/
 
 # os
 .DS_Store
+Screenshot*.png
