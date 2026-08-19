@@ -13,8 +13,7 @@
     "withGlobalTauri": true,
     "windows": [
       {
-        "title": "ultron — pessoal",
-        "url": "http://100.64.0.1:7681",
+        "title": "ultron",
         "width": 1000,
         "height": 700
       }
