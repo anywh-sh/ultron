@@ -2,6 +2,7 @@
 // funcionalidades do relay aparecem certas: texto, chamada de ferramenta,
 // resultado de ferramenta, estado de conexão).
 import { RelayClient, type ClaudeContentBlock, type ClaudeEvent } from "./relayClient";
+import { startRecording, stopRecordingAndTranscribe } from "./voice";
 import type { Profile } from "./profiles";
 
 function renderContentBlock(block: ClaudeContentBlock, log: HTMLElement): void {
@@ -40,10 +41,14 @@ export function mountChatView(root: HTMLElement, profile: Profile, sessionName: 
   input.id = "chat-input";
   input.placeholder = "Escreva uma mensagem…";
   input.rows = 2;
+  const micButton = document.createElement("button");
+  micButton.type = "button";
+  micButton.id = "chat-mic";
+  micButton.textContent = "🎤";
   const sendButton = document.createElement("button");
   sendButton.type = "submit";
   sendButton.textContent = "Enviar";
-  form.append(input, sendButton);
+  form.append(input, micButton, sendButton);
 
   root.append(log, status, form);
 
@@ -93,5 +98,35 @@ export function mountChatView(root: HTMLElement, profile: Profile, sessionName: 
     input.value = "";
     sendButton.disabled = true;
     status.textContent = "pensando…";
+  });
+
+  let isRecording = false;
+  micButton.addEventListener("click", () => {
+    void (async () => {
+      if (!isRecording) {
+        try {
+          await startRecording();
+          isRecording = true;
+          micButton.textContent = "⏹️";
+          status.textContent = "gravando…";
+        } catch (error) {
+          window.alert(`Não foi possível iniciar a gravação: ${error instanceof Error ? error.message : String(error)}`);
+        }
+        return;
+      }
+
+      isRecording = false;
+      micButton.textContent = "🎤";
+      status.textContent = "transcrevendo…";
+      try {
+        const transcribed = await stopRecordingAndTranscribe();
+        input.value = input.value ? `${input.value} ${transcribed}` : transcribed;
+        status.textContent = "";
+        input.focus();
+      } catch (error) {
+        status.textContent = "";
+        window.alert(`Falha na transcrição: ${error instanceof Error ? error.message : String(error)}`);
+      }
+    })();
   });
 }
