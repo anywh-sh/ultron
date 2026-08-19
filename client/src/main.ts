@@ -1,25 +1,23 @@
 import { WebviewWindow } from "@tauri-apps/api/webviewWindow";
 import { PROFILES, findProfile, type Profile } from "./profiles";
 import { mountChatView } from "./chatView";
+import { mountSessionPicker } from "./sessionPicker";
 
-function windowLabelFor(profile: Profile): string {
+function profileWindowLabel(profile: Profile): string {
   return `profile-${profile.id}`;
 }
 
-async function openProfileWindow(profile: Profile): Promise<void> {
-  const label = windowLabelFor(profile);
+function sessionWindowLabel(profile: Profile, sessionName: string): string {
+  return `profile-${profile.id}-session-${sessionName}`;
+}
+
+async function focusOrCreateWindow(label: string, url: string, title: string): Promise<void> {
   const existing = await WebviewWindow.getByLabel(label);
   if (existing) {
     await existing.setFocus();
     return;
   }
-
-  new WebviewWindow(label, {
-    url: `index.html?profile=${profile.id}`,
-    title: `ultron — ${profile.label}`,
-    width: 1000,
-    height: 700,
-  });
+  new WebviewWindow(label, { url, title, width: 1000, height: 700 });
 }
 
 function renderProfilePicker(root: HTMLElement): void {
@@ -39,7 +37,11 @@ function renderProfilePicker(root: HTMLElement): void {
     button.textContent = profile.label;
     button.dataset.profileId = profile.id;
     button.addEventListener("click", () => {
-      void openProfileWindow(profile);
+      void focusOrCreateWindow(
+        profileWindowLabel(profile),
+        `index.html?profile=${profile.id}`,
+        `ultron — ${profile.label}`,
+      );
     });
     list.appendChild(button);
   }
@@ -48,13 +50,26 @@ function renderProfilePicker(root: HTMLElement): void {
   root.appendChild(picker);
 }
 
-function renderChat(root: HTMLElement, profile: Profile): void {
+function renderSessionPicker(root: HTMLElement, profile: Profile): void {
+  document.title = `ultron — ${profile.label}`;
+  void mountSessionPicker(root, profile, {
+    onOpenSession: (sessionName) => {
+      void focusOrCreateWindow(
+        sessionWindowLabel(profile, sessionName),
+        `index.html?profile=${profile.id}&session=${encodeURIComponent(sessionName)}`,
+        `ultron — ${profile.label} — ${sessionName}`,
+      );
+    },
+  });
+}
+
+function renderChat(root: HTMLElement, profile: Profile, sessionName: string): void {
   const container = document.createElement("div");
   container.id = "chat-container";
   root.appendChild(container);
 
-  document.title = `ultron — ${profile.label}`;
-  mountChatView(container, profile);
+  document.title = `ultron — ${profile.label} — ${sessionName}`;
+  mountChatView(container, profile, sessionName);
 }
 
 window.addEventListener("DOMContentLoaded", () => {
@@ -63,7 +78,8 @@ window.addEventListener("DOMContentLoaded", () => {
     throw new Error("#app not found in index.html");
   }
 
-  const profileId = new URLSearchParams(window.location.search).get("profile");
+  const params = new URLSearchParams(window.location.search);
+  const profileId = params.get("profile");
   if (profileId === null) {
     renderProfilePicker(root);
     return;
@@ -73,5 +89,12 @@ window.addEventListener("DOMContentLoaded", () => {
   if (!profile) {
     throw new Error(`perfil desconhecido: ${profileId}`);
   }
-  renderChat(root, profile);
+
+  const sessionName = params.get("session");
+  if (sessionName === null) {
+    renderSessionPicker(root, profile);
+    return;
+  }
+
+  renderChat(root, profile, sessionName);
 });

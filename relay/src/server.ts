@@ -1,16 +1,13 @@
+import { createServer } from "node:http";
 import { WebSocketServer, type WebSocket } from "ws";
-import { ClaudeSession, type ClaudeEvent } from "./claudeSession.js";
+import { SessionManager } from "./sessionManager.js";
 
 // Config via env — permite rodar uma instância por perfil (systemd,
 // infra/systemd/) sem mudar código, igual o ttyd fazia (docs/08).
 const PORT = Number(process.env.RELAY_PORT ?? 8765);
 const HOST = process.env.RELAY_HOST ?? "127.0.0.1";
 const HOME_OVERRIDE = process.env.RELAY_HOME_OVERRIDE;
-
-type BroadcastMessage =
-  | { type: "claude_event"; event: ClaudeEvent }
-  | { type: "turn_complete" }
-  | { type: "turn_error"; message: string };
+const DEFAULT_SESSION = "default";
 
 interface UserMessage {
   type: "user_message";
@@ -26,64 +23,31 @@ function isUserMessage(value: unknown): value is UserMessage {
   );
 }
 
-/**
- * Uma sessão do Claude compartilhada por todos os clientes conectados nesse
- * processo (= um perfil). Novos clientes recebem replay do histórico antes
- * de passar a receber eventos ao vivo — é isso que dá a "sessão
- * compartilhada em tempo real" entre dispositivos, equivalente ao que o
- * tmux dava de graça na arquitetura anterior (docs/04).
- */
-class SharedSession {
-  private readonly claude = new ClaudeSession({ homeOverride: HOME_OVERRIDE });
-  private readonly history: BroadcastMessage[] = [];
-  private readonly clients = new Set<WebSocket>();
-  private turnQueue: Promise<void> = Promise.resolve();
+const sessionManager = new SessionManager(HOME_OVERRIDE);
 
-  addClient(socket: WebSocket): void {
-    for (const message of this.history) {
-      socket.send(JSON.stringify(message));
-    }
-    this.clients.add(socket);
+const httpServer = createServer((req, res) => {
+  if (req.url?.startsWith("/sessions")) {
+    res.setHeader("Content-Type", "application/json");
+    res.setHeader("Access-Control-Allow-Origin", "*");
+    res.end(JSON.stringify({ sessions: sessionManager.listNames() }));
+    return;
   }
+  res.writeHead(426);
+  res.end();
+});
 
-  removeClient(socket: WebSocket): void {
-    this.clients.delete(socket);
-  }
+const wss = new WebSocketServer({ server: httpServer });
 
-  submitTurn(text: string): void {
-    // Enfileira: só um turno do `claude -p` roda por vez nessa sessão.
-    this.turnQueue = this.turnQueue.then(() => this.runTurn(text));
-  }
+httpServer.listen(PORT, HOST, () => {
+  console.log(`[relay] listening on ws://${HOST}:${PORT}`, HOME_OVERRIDE ? `(HOME=${HOME_OVERRIDE})` : "");
+});
 
-  private async runTurn(text: string): Promise<void> {
-    try {
-      await this.claude.sendTurn(text, (event) => {
-        this.broadcast({ type: "claude_event", event });
-      });
-      this.broadcast({ type: "turn_complete" });
-    } catch (error) {
-      const message = error instanceof Error ? error.message : String(error);
-      console.error("[relay] turno falhou:", message);
-      this.broadcast({ type: "turn_error", message });
-    }
-  }
+wss.on("connection", (socket: WebSocket, request) => {
+  const url = new URL(request.url ?? "/", `http://${request.headers.host ?? "localhost"}`);
+  const sessionName = url.searchParams.get("session")?.trim() || DEFAULT_SESSION;
 
-  private broadcast(message: BroadcastMessage): void {
-    this.history.push(message);
-    const payload = JSON.stringify(message);
-    for (const client of this.clients) {
-      client.send(payload);
-    }
-  }
-}
-
-const session = new SharedSession();
-
-const wss = new WebSocketServer({ port: PORT, host: HOST });
-console.log(`[relay] listening on ws://${HOST}:${PORT}`, HOME_OVERRIDE ? `(HOME=${HOME_OVERRIDE})` : "");
-
-wss.on("connection", (socket: WebSocket) => {
-  console.log("[relay] client connected");
+  console.log(`[relay] client connected (session: ${sessionName})`);
+  const session = sessionManager.getOrCreate(sessionName);
   session.addClient(socket);
 
   socket.on("message", (raw: Buffer) => {
@@ -97,6 +61,6 @@ wss.on("connection", (socket: WebSocket) => {
 
   socket.on("close", () => {
     session.removeClient(socket);
-    console.log("[relay] client disconnected");
+    console.log(`[relay] client disconnected (session: ${sessionName})`);
   });
 });

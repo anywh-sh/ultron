@@ -26,7 +26,7 @@ function renderContentBlock(block: ClaudeContentBlock, log: HTMLElement): void {
   // "thinking" e outros tipos de bloco: ignorados por enquanto.
 }
 
-export function mountChatView(root: HTMLElement, profile: Profile): void {
+export function mountChatView(root: HTMLElement, profile: Profile, sessionName: string): void {
   const log = document.createElement("div");
   log.id = "chat-log";
 
@@ -47,7 +47,7 @@ export function mountChatView(root: HTMLElement, profile: Profile): void {
 
   root.append(log, status, form);
 
-  const client = new RelayClient(profile.host, profile.relayPort, {
+  const client = new RelayClient(profile.host, profile.relayPort, sessionName, {
     onEvent: (event: ClaudeEvent) => {
       if ((event.type === "assistant" || event.type === "user") && event.message?.content) {
         for (const block of event.message.content) {
