@@ -1,0 +1,16 @@
+[Unit]
+Description=ultron - terminal web (ttyd+tmux) para o perfil de trabalho (claude-comp)
+After=network-online.target tailscaled.service
+Wants=network-online.target tailscaled.service
+
+[Service]
+Type=simple
+User=youruser
+Environment=HOME=/home/user/.ultron-trabalho-home
+WorkingDirectory=/home/user/.ultron-trabalho-home
+ExecStart=/home/user/.local/bin/ttyd --writable -p 7682 -i tailscale0 tmux -L claude-trabalho new-session -A -s claude-trabalho
+Restart=always
+RestartSec=3
+
+[Install]
+WantedBy=multi-user.target
