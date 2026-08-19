@@ -1,6 +1,6 @@
 import { WebviewWindow } from "@tauri-apps/api/webviewWindow";
 import { PROFILES, findProfile, type Profile } from "./profiles";
-import { mountTerminalView } from "./terminalView";
+import { mountChatView } from "./chatView";
 
 function windowLabelFor(profile: Profile): string {
   return `profile-${profile.id}`;
@@ -48,13 +48,13 @@ function renderProfilePicker(root: HTMLElement): void {
   root.appendChild(picker);
 }
 
-function renderTerminal(root: HTMLElement, profile: Profile): void {
+function renderChat(root: HTMLElement, profile: Profile): void {
   const container = document.createElement("div");
-  container.id = "terminal-container";
+  container.id = "chat-container";
   root.appendChild(container);
 
   document.title = `ultron — ${profile.label}`;
-  mountTerminalView(container, profile);
+  mountChatView(container, profile);
 }
 
 window.addEventListener("DOMContentLoaded", () => {
@@ -73,5 +73,5 @@ window.addEventListener("DOMContentLoaded", () => {
   if (!profile) {
     throw new Error(`perfil desconhecido: ${profileId}`);
   }
-  renderTerminal(root, profile);
+  renderChat(root, profile);
 });

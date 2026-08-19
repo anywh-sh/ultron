@@ -1,9 +1,9 @@
-/* Fundo escuro já na pintura inicial (antes do JS montar o terminal) pra
-   evitar o flash de fundo claro ao abrir uma janela — ver docs/09. */
+/* Estilo mínimo funcional — fase de UI/UX de verdade vem depois (fim do
+   MVP), isso aqui só existe pra dar pra usar/testar. */
 :root {
   font-family: Inter, Avenir, Helvetica, Arial, sans-serif;
   font-size: 16px;
-  line-height: 24px;
+  line-height: 1.4;
   font-weight: 400;
 
   color: #d4d4d4;
@@ -22,11 +22,6 @@ body,
   height: 100%;
   margin: 0;
   background-color: #1e1e1e;
-}
-
-#terminal-container {
-  height: 100vh;
-  width: 100vw;
 }
 
 #profile-picker {
@@ -65,4 +60,86 @@ button:hover {
 button:active {
   border-color: #396cd8;
   background-color: #0f0f0f69;
+}
+
+#chat-container {
+  height: 100vh;
+  width: 100vw;
+  display: flex;
+  flex-direction: column;
+  padding: 0.5em;
+  box-sizing: border-box;
+  gap: 0.5em;
+}
+
+#chat-log {
+  flex: 1;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 0.5em;
+  padding: 0.5em;
+}
+
+.msg {
+  margin: 0;
+  padding: 0.5em 0.75em;
+  border-radius: 8px;
+  max-width: 80%;
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
+.msg-user {
+  align-self: flex-end;
+  background-color: #2d5a8c;
+}
+
+.msg-assistant {
+  align-self: flex-start;
+  background-color: #333333;
+}
+
+.msg-tool-call {
+  align-self: flex-start;
+  background-color: #3a3320;
+  font-family: ui-monospace, Menlo, Consolas, monospace;
+  font-size: 0.9em;
+}
+
+.msg-tool-result {
+  align-self: flex-start;
+  background-color: #222222;
+  font-family: ui-monospace, Menlo, Consolas, monospace;
+  font-size: 0.85em;
+  max-height: 12em;
+  overflow-y: auto;
+}
+
+.msg-tool-result-error {
+  background-color: #4a1f1f;
+}
+
+#chat-status {
+  min-height: 1.2em;
+  font-size: 0.85em;
+  color: #999999;
+  padding: 0 0.5em;
+}
+
+#chat-form {
+  display: flex;
+  gap: 0.5em;
+}
+
+#chat-input {
+  flex: 1;
+  resize: none;
+  font-family: inherit;
+  font-size: 1em;
+  padding: 0.5em;
+  border-radius: 8px;
+  border: 1px solid #444;
+  background-color: #2a2a2a;
+  color: #d4d4d4;
 }
