@@ -23,7 +23,8 @@ async function openProfileWindow(profile: Profile): Promise<void> {
 }
 
 function renderProfilePicker(root: HTMLElement): void {
-  root.id = "profile-picker";
+  const picker = document.createElement("main");
+  picker.id = "profile-picker";
 
   const heading = document.createElement("h1");
   heading.textContent = "ultron";
@@ -43,13 +44,17 @@ function renderProfilePicker(root: HTMLElement): void {
     list.appendChild(button);
   }
 
-  root.append(heading, hint, list);
+  picker.append(heading, hint, list);
+  root.appendChild(picker);
 }
 
 function renderTerminal(root: HTMLElement, profile: Profile): void {
-  root.id = "terminal-container";
+  const container = document.createElement("div");
+  container.id = "terminal-container";
+  root.appendChild(container);
+
   document.title = `ultron — ${profile.label}`;
-  mountTerminalView(root, profile);
+  mountTerminalView(container, profile);
 }
 
 window.addEventListener("DOMContentLoaded", () => {
