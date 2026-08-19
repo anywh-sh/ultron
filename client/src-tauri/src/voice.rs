@@ -23,6 +23,8 @@ pub struct VoiceState {
     input_sample_rate: Arc<Mutex<u32>>,
     input_channels: Arc<Mutex<u16>>,
     recording_thread: Mutex<Option<std::thread::JoinHandle<()>>>,
+    active_device_name: Arc<Mutex<Option<String>>>,
+    recording_started_at: Mutex<Option<std::time::Instant>>,
 }
 
 impl Default for VoiceState {
@@ -33,32 +35,60 @@ impl Default for VoiceState {
             input_sample_rate: Arc::new(Mutex::new(WHISPER_SAMPLE_RATE)),
             input_channels: Arc::new(Mutex::new(1)),
             recording_thread: Mutex::new(None),
+            active_device_name: Arc::new(Mutex::new(None)),
+            recording_started_at: Mutex::new(None),
         }
     }
 }
 
 #[tauri::command]
-pub fn start_recording(state: tauri::State<VoiceState>) -> Result<(), String> {
+pub fn list_input_devices() -> Result<Vec<String>, String> {
+    let host = cpal::default_host();
+    let devices = host.input_devices().map_err(|e| e.to_string())?;
+    Ok(devices.filter_map(|d| d.name().ok()).collect())
+}
+
+#[tauri::command]
+pub fn start_recording(
+    device_name: Option<String>,
+    state: tauri::State<VoiceState>,
+) -> Result<(), String> {
     state.buffer.lock().map_err(|e| e.to_string())?.clear();
     state.should_stop.store(false, Ordering::SeqCst);
+    *state.recording_started_at.lock().map_err(|e| e.to_string())? = Some(std::time::Instant::now());
 
     let buffer = Arc::clone(&state.buffer);
     let should_stop = Arc::clone(&state.should_stop);
     let sample_rate_out = Arc::clone(&state.input_sample_rate);
     let channels_out = Arc::clone(&state.input_channels);
+    let active_device_name_out = Arc::clone(&state.active_device_name);
 
     // cpal::Stream não é Send em todas as plataformas, então ela precisa
     // nascer, viver e morrer inteiramente dentro dessa thread dedicada —
     // não dá pra devolver o Stream pro chamador.
     let handle = std::thread::spawn(move || {
         let host = cpal::default_host();
-        let device = match host.default_input_device() {
+        let device = match &device_name {
+            Some(wanted) => host
+                .input_devices()
+                .ok()
+                .and_then(|mut devices| devices.find(|d| d.name().ok().as_deref() == Some(wanted.as_str())))
+                .or_else(|| {
+                    eprintln!("[voice] dispositivo '{wanted}' não encontrado, usando o padrão");
+                    host.default_input_device()
+                }),
+            None => host.default_input_device(),
+        };
+        let device = match device {
             Some(d) => d,
             None => {
                 eprintln!("[voice] nenhum dispositivo de entrada de áudio encontrado");
                 return;
             }
         };
+
+        *active_device_name_out.lock().unwrap() = device.name().ok();
+
         let config = match device.default_input_config() {
             Ok(c) => c,
             Err(e) => {
@@ -132,7 +162,22 @@ pub fn stop_recording_and_transcribe(
 
     let raw_samples = state.buffer.lock().map_err(|e| e.to_string())?.clone();
     if raw_samples.is_empty() {
-        return Err("nenhum áudio foi capturado".to_string());
+        let device = state
+            .active_device_name
+            .lock()
+            .map_err(|e| e.to_string())?
+            .clone()
+            .unwrap_or_else(|| "desconhecido".to_string());
+        let elapsed = state
+            .recording_started_at
+            .lock()
+            .map_err(|e| e.to_string())?
+            .map(|t| t.elapsed().as_secs_f32())
+            .unwrap_or(0.0);
+        return Err(format!(
+            "nenhum áudio foi capturado (dispositivo: \"{device}\", gravou por {elapsed:.1}s) — \
+             tente escolher outro microfone no seletor, ou verifique a permissão de microfone do Windows pro app"
+        ));
     }
 
     let channels = *state.input_channels.lock().map_err(|e| e.to_string())?;

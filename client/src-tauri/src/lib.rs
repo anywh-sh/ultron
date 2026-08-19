@@ -13,6 +13,7 @@ pub fn run() {
         .manage(voice::VoiceState::default())
         .invoke_handler(tauri::generate_handler![
             greet,
+            voice::list_input_devices,
             voice::start_recording,
             voice::stop_recording_and_transcribe
         ])

@@ -2,7 +2,7 @@
 // funcionalidades do relay aparecem certas: texto, chamada de ferramenta,
 // resultado de ferramenta, estado de conexão).
 import { RelayClient, type ClaudeContentBlock, type ClaudeEvent } from "./relayClient";
-import { startRecording, stopRecordingAndTranscribe } from "./voice";
+import { listInputDevices, startRecording, stopRecordingAndTranscribe } from "./voice";
 import type { Profile } from "./profiles";
 
 function renderContentBlock(block: ClaudeContentBlock, log: HTMLElement): void {
@@ -41,6 +41,8 @@ export function mountChatView(root: HTMLElement, profile: Profile, sessionName: 
   input.id = "chat-input";
   input.placeholder = "Escreva uma mensagem…";
   input.rows = 2;
+  const micSelect = document.createElement("select");
+  micSelect.id = "chat-mic-select";
   const micButton = document.createElement("button");
   micButton.type = "button";
   micButton.id = "chat-mic";
@@ -48,9 +50,29 @@ export function mountChatView(root: HTMLElement, profile: Profile, sessionName: 
   const sendButton = document.createElement("button");
   sendButton.type = "submit";
   sendButton.textContent = "Enviar";
-  form.append(input, micButton, sendButton);
+  form.append(input, micSelect, micButton, sendButton);
 
   root.append(log, status, form);
+
+  void listInputDevices()
+    .then((devices) => {
+      for (const name of devices) {
+        const option = document.createElement("option");
+        option.value = name;
+        option.textContent = name;
+        micSelect.appendChild(option);
+      }
+      if (devices.length === 0) {
+        const option = document.createElement("option");
+        option.textContent = "nenhum microfone encontrado";
+        micSelect.appendChild(option);
+        micSelect.disabled = true;
+        micButton.disabled = true;
+      }
+    })
+    .catch((error: unknown) => {
+      console.error("[ultron] falha ao listar microfones", error);
+    });
 
   const client = new RelayClient(profile.host, profile.relayPort, sessionName, {
     onEvent: (event: ClaudeEvent) => {
@@ -105,7 +127,8 @@ export function mountChatView(root: HTMLElement, profile: Profile, sessionName: 
     void (async () => {
       if (!isRecording) {
         try {
-          await startRecording();
+          const deviceName = micSelect.value || undefined;
+          await startRecording(deviceName);
           isRecording = true;
           micButton.textContent = "⏹️";
           status.textContent = "gravando…";
