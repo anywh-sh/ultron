@@ -7,14 +7,19 @@
 // usuário baixa uma vez e a gente só checa se o arquivo existe.
 
 use cpal::traits::{DeviceTrait, HostTrait, StreamTrait};
+use rubato::{Resampler, SincFixedIn, SincInterpolationParameters, SincInterpolationType, WindowFunction};
 use std::path::PathBuf;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{Arc, Mutex};
 use tauri::Manager;
 use whisper_rs::{FullParams, SamplingStrategy, WhisperContext, WhisperContextParameters};
 
-const MODEL_FILENAME: &str = "whisper-ggml-base.bin";
-const MODEL_DOWNLOAD_URL: &str = "https://huggingface.co/ggerganov/whisper.cpp/resolve/main/ggml-base.bin";
+// "small" em vez de "base": no teste real do usuário, "base" errou uma
+// frase curta com uma palavra em inglês misturada ("digite echo teste" ->
+// "de gite, ecotece") — "small" é notavelmente mais preciso nesse tipo de
+// caso, e o hardware do cliente aguenta tranquilo (docs/14).
+const MODEL_FILENAME: &str = "whisper-ggml-small.bin";
+const MODEL_DOWNLOAD_URL: &str = "https://huggingface.co/ggerganov/whisper.cpp/resolve/main/ggml-small.bin";
 const WHISPER_SAMPLE_RATE: u32 = 16_000;
 
 pub struct VoiceState {
@@ -184,7 +189,7 @@ pub fn stop_recording_and_transcribe(
     let source_rate = *state.input_sample_rate.lock().map_err(|e| e.to_string())?;
 
     let mono = to_mono(&raw_samples, channels);
-    let resampled = resample_linear(&mono, source_rate, WHISPER_SAMPLE_RATE);
+    let resampled = resample(&mono, source_rate, WHISPER_SAMPLE_RATE)?;
 
     transcribe(&app, &resampled)
 }
@@ -200,21 +205,48 @@ fn to_mono(samples: &[f32], channels: u16) -> Vec<f32> {
         .collect()
 }
 
-fn resample_linear(samples: &[f32], from_rate: u32, to_rate: u32) -> Vec<f32> {
+/// Reamostragem de qualidade (sinc/windowed-sinc) via `rubato`, em vez da
+/// interpolação linear simples da primeira versão — que provavelmente
+/// contribuía pra transcrições erradas tipo "digite echo teste" virar
+/// "de gite, ecotece" (ver docs/14).
+fn resample(samples: &[f32], from_rate: u32, to_rate: u32) -> Result<Vec<f32>, String> {
     if from_rate == to_rate || samples.is_empty() {
-        return samples.to_vec();
+        return Ok(samples.to_vec());
     }
-    let ratio = from_rate as f64 / to_rate as f64;
-    let out_len = (samples.len() as f64 / ratio) as usize;
-    (0..out_len)
-        .map(|i| {
-            let src_pos = i as f64 * ratio;
-            let i0 = src_pos.floor() as usize;
-            let i1 = (i0 + 1).min(samples.len() - 1);
-            let frac = (src_pos - i0 as f64) as f32;
-            samples[i0] * (1.0 - frac) + samples[i1] * frac
-        })
-        .collect()
+
+    let params = SincInterpolationParameters {
+        sinc_len: 256,
+        f_cutoff: 0.95,
+        oversampling_factor: 256,
+        interpolation: SincInterpolationType::Cubic,
+        window: WindowFunction::BlackmanHarris2,
+    };
+
+    let chunk_size = 1024;
+    let mut resampler = SincFixedIn::<f32>::new(
+        to_rate as f64 / from_rate as f64,
+        2.0,
+        params,
+        chunk_size,
+        1,
+    )
+    .map_err(|e| format!("falha ao criar resampler: {e}"))?;
+
+    let mut output = Vec::new();
+    let mut offset = 0;
+    while offset < samples.len() {
+        let end = (offset + chunk_size).min(samples.len());
+        let mut chunk = samples[offset..end].to_vec();
+        chunk.resize(chunk_size, 0.0); // último pedaço: preenche com silêncio
+        offset = end;
+
+        let processed = resampler
+            .process(&[chunk], None)
+            .map_err(|e| format!("falha ao reamostrar áudio: {e}"))?;
+        output.extend_from_slice(&processed[0]);
+    }
+
+    Ok(output)
 }
 
 fn model_path(app: &tauri::AppHandle) -> Result<PathBuf, String> {
@@ -245,7 +277,10 @@ fn transcribe(app: &tauri::AppHandle, samples: &[f32]) -> Result<String, String>
         .create_state()
         .map_err(|e| format!("falha ao criar estado do Whisper: {e}"))?;
 
-    let mut params = FullParams::new(SamplingStrategy::Greedy { best_of: 1 });
+    let mut params = FullParams::new(SamplingStrategy::BeamSearch {
+        beam_size: 5,
+        patience: 1.0,
+    });
     params.set_print_progress(false);
     params.set_print_special(false);
     params.set_print_realtime(false);

@@ -54,6 +54,7 @@ export function mountChatView(root: HTMLElement, profile: Profile, sessionName: 
 
   root.append(log, status, form);
 
+  const MIC_STORAGE_KEY = "ultron:selected-mic";
   void listInputDevices()
     .then((devices) => {
       for (const name of devices) {
@@ -68,11 +69,19 @@ export function mountChatView(root: HTMLElement, profile: Profile, sessionName: 
         micSelect.appendChild(option);
         micSelect.disabled = true;
         micButton.disabled = true;
+        return;
+      }
+      const saved = localStorage.getItem(MIC_STORAGE_KEY);
+      if (saved && devices.includes(saved)) {
+        micSelect.value = saved;
       }
     })
     .catch((error: unknown) => {
       console.error("[ultron] falha ao listar microfones", error);
     });
+  micSelect.addEventListener("change", () => {
+    localStorage.setItem(MIC_STORAGE_KEY, micSelect.value);
+  });
 
   const client = new RelayClient(profile.host, profile.relayPort, sessionName, {
     onEvent: (event: ClaudeEvent) => {
