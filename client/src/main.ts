@@ -1,22 +1,7 @@
-import { invoke } from "@tauri-apps/api/core";
+// Milestone 1 (shell mínimo): redireciona pro terminal web do perfil pessoal.
+// Feito via JS (não via `windows[].url` do tauri.conf.json) porque em modo
+// `tauri dev` o Tauri prioriza o devUrl (servidor Vite) independente do que
+// está configurado na janela — isso garante o mesmo comportamento em dev e build.
+const TTYD_URL = "http://100.64.0.1:7681";
 
-let greetInputEl: HTMLInputElement | null;
-let greetMsgEl: HTMLElement | null;
-
-async function greet() {
-  if (greetMsgEl && greetInputEl) {
-    // Learn more about Tauri commands at https://tauri.app/develop/calling-rust/
-    greetMsgEl.textContent = await invoke("greet", {
-      name: greetInputEl.value,
-    });
-  }
-}
-
-window.addEventListener("DOMContentLoaded", () => {
-  greetInputEl = document.querySelector("#greet-input");
-  greetMsgEl = document.querySelector("#greet-msg");
-  document.querySelector("#greet-form")?.addEventListener("submit", (e) => {
-    e.preventDefault();
-    greet();
-  });
-});
+window.location.replace(TTYD_URL);
