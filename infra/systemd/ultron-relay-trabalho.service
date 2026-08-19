@@ -1,0 +1,18 @@
+[Unit]
+Description=ultron - relay stream-json (Claude Code) para o perfil de trabalho
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=youruser
+WorkingDirectory=/home/user/personal/ultron/relay
+Environment=RELAY_PORT=8766
+Environment=RELAY_HOST=100.64.0.1
+Environment=RELAY_HOME_OVERRIDE=/home/user/.ultron-trabalho-home
+ExecStart=/home/user/.nvm/versions/node/v20.19.0/bin/node dist/server.js
+Restart=always
+RestartSec=3
+
+[Install]
+WantedBy=multi-user.target
