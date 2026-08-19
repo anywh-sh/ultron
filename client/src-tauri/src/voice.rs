@@ -211,15 +211,16 @@ fn transcribe(app: &tauri::AppHandle, samples: &[f32]) -> Result<String, String>
         .full(params, samples)
         .map_err(|e| format!("falha ao rodar transcrição: {e}"))?;
 
-    let num_segments = whisper_state
-        .full_n_segments()
-        .map_err(|e| format!("falha ao ler segmentos: {e}"))?;
+    let num_segments = whisper_state.full_n_segments();
 
     let mut text = String::new();
     for i in 0..num_segments {
         let segment = whisper_state
-            .full_get_segment_text(i)
-            .map_err(|e| format!("falha ao ler texto do segmento: {e}"))?;
+            .get_segment(i)
+            .ok_or_else(|| format!("segmento {i} não encontrado"))?
+            .to_str()
+            .map_err(|e| format!("falha ao ler texto do segmento: {e}"))?
+            .to_string();
         text.push_str(&segment);
     }
 
