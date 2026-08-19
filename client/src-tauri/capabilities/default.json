@@ -1,8 +1,8 @@
 {
   "$schema": "../gen/schemas/desktop-schema.json",
   "identifier": "default",
-  "description": "Capability for the main window",
-  "windows": ["main"],
+  "description": "Capability for all app windows (main, profile pickers, session chats) — they all need to be able to open further windows (profile -> session -> chat), and it's all trusted first-party content.",
+  "windows": ["*"],
   "permissions": [
     "core:default",
     "core:webview:allow-create-webview-window",

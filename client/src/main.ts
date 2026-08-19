@@ -17,7 +17,21 @@ async function focusOrCreateWindow(label: string, url: string, title: string): P
     await existing.setFocus();
     return;
   }
-  new WebviewWindow(label, { url, title, width: 1000, height: 700 });
+
+  const created = new WebviewWindow(label, { url, title, width: 1000, height: 700 });
+  created.once("tauri://error", (event) => {
+    console.error("[ultron] falha ao criar janela", label, event);
+    window.alert(`Não foi possível abrir a janela "${title}": ${JSON.stringify(event.payload)}`);
+  });
+}
+
+async function focusOrCreateWindowSafe(label: string, url: string, title: string): Promise<void> {
+  try {
+    await focusOrCreateWindow(label, url, title);
+  } catch (error) {
+    console.error("[ultron] falha ao criar/focar janela", label, error);
+    window.alert(`Não foi possível abrir "${title}": ${error instanceof Error ? error.message : String(error)}`);
+  }
 }
 
 function renderProfilePicker(root: HTMLElement): void {
@@ -37,7 +51,7 @@ function renderProfilePicker(root: HTMLElement): void {
     button.textContent = profile.label;
     button.dataset.profileId = profile.id;
     button.addEventListener("click", () => {
-      void focusOrCreateWindow(
+      void focusOrCreateWindowSafe(
         profileWindowLabel(profile),
         `index.html?profile=${profile.id}`,
         `ultron — ${profile.label}`,
@@ -54,7 +68,7 @@ function renderSessionPicker(root: HTMLElement, profile: Profile): void {
   document.title = `ultron — ${profile.label}`;
   void mountSessionPicker(root, profile, {
     onOpenSession: (sessionName) => {
-      void focusOrCreateWindow(
+      void focusOrCreateWindowSafe(
         sessionWindowLabel(profile, sessionName),
         `index.html?profile=${profile.id}&session=${encodeURIComponent(sessionName)}`,
         `ultron — ${profile.label} — ${sessionName}`,
