@@ -1,7 +1,24 @@
+import { WebviewWindow } from "@tauri-apps/api/webviewWindow";
 import { PROFILES, type Profile } from "./profiles";
 
-function navigateToProfile(profile: Profile): void {
-  window.location.replace(profile.url);
+function windowLabelFor(profile: Profile): string {
+  return `profile-${profile.id}`;
+}
+
+async function openProfileWindow(profile: Profile): Promise<void> {
+  const label = windowLabelFor(profile);
+  const existing = await WebviewWindow.getByLabel(label);
+  if (existing) {
+    await existing.setFocus();
+    return;
+  }
+
+  new WebviewWindow(label, {
+    url: profile.url,
+    title: `ultron — ${profile.label}`,
+    width: 1000,
+    height: 700,
+  });
 }
 
 function renderProfilePicker(container: HTMLElement): void {
@@ -9,7 +26,9 @@ function renderProfilePicker(container: HTMLElement): void {
     const button = document.createElement("button");
     button.textContent = profile.label;
     button.dataset.profileId = profile.id;
-    button.addEventListener("click", () => navigateToProfile(profile));
+    button.addEventListener("click", () => {
+      void openProfileWindow(profile);
+    });
     container.appendChild(button);
   }
 }
