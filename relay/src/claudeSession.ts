@@ -8,6 +8,14 @@ import { createInterface } from "node:readline";
 // ANTHROPIC_API_KEY é sempre removida do ambiente do processo filho: é a
 // regra de ouro do projeto (docs/00) — se essa env var vazar, o Claude Code
 // passa a cobrar por API em vez de usar o plano.
+//
+// Caminho absoluto e PATH explícito: rodando via systemd o processo não tem
+// o PATH do shell interativo do usuário (não sourca .bashrc/.profile), então
+// nem o binário nem ferramentas que ele invoca internamente (node, git...)
+// seriam encontrados só pelo nome — mesma classe de bug que já corrigimos
+// pro tmux em docs/08.
+const CLAUDE_BIN = process.env.CLAUDE_BIN ?? "/home/user/.local/bin/claude";
+const EXTRA_PATH_DIRS = ["/home/user/.local/bin", "/home/user/.nvm/versions/node/v20.19.0/bin"];
 
 export interface ClaudeEvent {
   type: string;
@@ -43,28 +51,37 @@ export class ClaudeSession {
     if (this.options.homeOverride) {
       env.HOME = this.options.homeOverride;
     }
+    env.PATH = [...EXTRA_PATH_DIRS, env.PATH ?? ""].join(":");
 
-    const child = spawn("claude", args, {
+    const child = spawn(CLAUDE_BIN, args, {
       env,
       cwd: this.options.homeOverride,
+    });
+
+    const spawnError = new Promise<never>((_, reject) => {
+      child.on("error", (error) => reject(error));
     });
 
     child.stderr.on("data", (chunk: Buffer) => {
       console.error("[relay] claude stderr:", chunk.toString());
     });
 
-    const rl = createInterface({ input: child.stdout });
-    for await (const line of rl) {
-      if (!line.trim()) continue;
-      const event = JSON.parse(line) as ClaudeEvent;
-      if (event.type === "result" && typeof event.session_id === "string") {
-        this.sessionId = event.session_id;
+    const readLines = (async () => {
+      const rl = createInterface({ input: child.stdout });
+      for await (const line of rl) {
+        if (!line.trim()) continue;
+        const event = JSON.parse(line) as ClaudeEvent;
+        if (event.type === "result" && typeof event.session_id === "string") {
+          this.sessionId = event.session_id;
+        }
+        onEvent(event);
       }
-      onEvent(event);
-    }
+    })();
 
-    await new Promise<void>((resolve) => {
+    const closed = new Promise<void>((resolve) => {
       child.on("close", () => resolve());
     });
+
+    await Promise.race([spawnError, Promise.all([readLines, closed])]);
   }
 }
