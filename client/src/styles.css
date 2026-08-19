@@ -120,6 +120,12 @@ button:active {
   background-color: #4a1f1f;
 }
 
+.msg-error {
+  align-self: flex-start;
+  background-color: #4a1f1f;
+  color: #ff9b9b;
+}
+
 #chat-status {
   min-height: 1.2em;
   font-size: 0.85em;

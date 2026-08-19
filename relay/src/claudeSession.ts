@@ -20,6 +20,9 @@ const EXTRA_PATH_DIRS = ["/home/user/.local/bin", "/home/user/.nvm/versions/node
 export interface ClaudeEvent {
   type: string;
   session_id?: string;
+  is_error?: boolean;
+  result?: string;
+  errors?: string[];
   [key: string]: unknown;
 }
 
@@ -42,6 +45,10 @@ export class ClaudeSession {
       "--verbose",
       "--include-partial-messages",
     ];
+    // Se um `--resume` anterior tiver falhado (sessão inválida, histórico
+    // não encontrado etc.), sessionId já foi limpo abaixo — a próxima
+    // chamada começa uma conversa nova automaticamente em vez de repetir
+    // o mesmo erro pra sempre.
     if (this.sessionId) {
       args.push("--resume", this.sessionId);
     }
@@ -62,26 +69,49 @@ export class ClaudeSession {
       child.on("error", (error) => reject(error));
     });
 
+    let stderrOutput = "";
     child.stderr.on("data", (chunk: Buffer) => {
-      console.error("[relay] claude stderr:", chunk.toString());
+      const text = chunk.toString();
+      stderrOutput += text;
+      console.error("[relay] claude stderr:", text);
     });
+
+    let eventCount = 0;
+    let lastErrorResult: string | undefined;
 
     const readLines = (async () => {
       const rl = createInterface({ input: child.stdout });
       for await (const line of rl) {
         if (!line.trim()) continue;
         const event = JSON.parse(line) as ClaudeEvent;
-        if (event.type === "result" && typeof event.session_id === "string") {
-          this.sessionId = event.session_id;
+        eventCount++;
+        if (event.type === "result") {
+          if (event.is_error) {
+            lastErrorResult =
+              event.errors?.join("; ") || event.result || "erro desconhecido retornado pelo claude";
+          } else if (typeof event.session_id === "string") {
+            this.sessionId = event.session_id;
+          }
         }
         onEvent(event);
       }
     })();
 
-    const closed = new Promise<void>((resolve) => {
-      child.on("close", () => resolve());
+    const exitCode = await new Promise<number | null>((resolve) => {
+      child.on("close", (code) => resolve(code));
     });
 
-    await Promise.race([spawnError, Promise.all([readLines, closed])]);
+    await Promise.race([spawnError, readLines]);
+
+    if (lastErrorResult) {
+      this.sessionId = undefined;
+      throw new Error(lastErrorResult);
+    }
+    if (eventCount === 0 || exitCode !== 0) {
+      this.sessionId = undefined;
+      throw new Error(
+        stderrOutput.trim() || `claude saiu com código ${String(exitCode)} sem produzir nenhum evento`,
+      );
+    }
   }
 }

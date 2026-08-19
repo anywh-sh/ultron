@@ -63,7 +63,13 @@ export function mountChatView(root: HTMLElement, profile: Profile): void {
       sendButton.disabled = false;
     },
     onTurnError: (message: string) => {
-      status.textContent = `Erro: ${message}`;
+      const el = document.createElement("p");
+      el.className = "msg msg-error";
+      el.textContent = `Erro: ${message}`;
+      log.appendChild(el);
+      log.scrollTop = log.scrollHeight;
+
+      status.textContent = "";
       sendButton.disabled = false;
     },
     onConnectionChange: (connected: boolean) => {
