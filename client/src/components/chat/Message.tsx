@@ -3,6 +3,7 @@ import remarkGfm from "remark-gfm";
 import rehypeHighlight from "rehype-highlight";
 import type { PendingImage } from "@/hooks/useImageUpload";
 import { renderTextWithLinks } from "@/lib/composerLinks";
+import { handleExternalLinkClick } from "@/lib/externalLink";
 
 interface UserBubbleProps {
   text: string;
@@ -36,7 +37,15 @@ export function UserBubble({ text, images }: UserBubbleProps) {
 export function AssistantText({ text }: { text: string }) {
   return (
     <div className="prose-chat text-sm text-foreground">
-      <ReactMarkdown remarkPlugins={[remarkGfm]} rehypePlugins={[rehypeHighlight]}>
+      <ReactMarkdown
+        remarkPlugins={[remarkGfm]}
+        rehypePlugins={[rehypeHighlight]}
+        components={{
+          a: ({ href, ...props }) => (
+            <a {...props} href={href} rel="noopener noreferrer" onClick={(event) => href && handleExternalLinkClick(event, href)} />
+          ),
+        }}
+      >
         {text}
       </ReactMarkdown>
     </div>

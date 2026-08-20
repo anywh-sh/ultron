@@ -1,5 +1,6 @@
 import type { ReactNode } from "react";
 import type { JSONContent } from "@tiptap/core";
+import { handleExternalLinkClick } from "@/lib/externalLink";
 
 /**
  * Formato de fio (wire) pros links criados via paste-to-link no composer:
@@ -45,7 +46,13 @@ export function renderTextWithLinks(text: string): ReactNode[] {
     if (match.index > lastIndex) nodes.push(text.slice(lastIndex, match.index));
     const [full, label, href] = match;
     nodes.push(
-      <a key={`link-${key++}`} href={href} target="_blank" rel="noopener noreferrer" className="composer-link">
+      <a
+        key={`link-${key++}`}
+        href={href}
+        rel="noopener noreferrer"
+        className="composer-link"
+        onClick={(event) => handleExternalLinkClick(event, href)}
+      >
         {label}
       </a>,
     );
