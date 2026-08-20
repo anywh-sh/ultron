@@ -31,6 +31,10 @@ function isUserMessage(value: unknown): value is UserMessage {
   );
 }
 
+function isStopTurnMessage(value: unknown): value is { type: "stop_turn" } {
+  return typeof value === "object" && value !== null && (value as { type?: unknown }).type === "stop_turn";
+}
+
 const sessionStore = new SessionStore(SESSIONS_FILE);
 const sessionManager = new SessionManager(HOME_OVERRIDE, sessionStore);
 
@@ -89,6 +93,10 @@ wss.on("connection", (socket: WebSocket, request) => {
 
   socket.on("message", (raw: Buffer) => {
     const parsed: unknown = JSON.parse(raw.toString());
+    if (isStopTurnMessage(parsed)) {
+      session.stopTurn();
+      return;
+    }
     if (!isUserMessage(parsed)) {
       console.warn("[relay] mensagem ignorada, formato inesperado:", parsed);
       return;

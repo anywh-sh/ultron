@@ -4,7 +4,7 @@ import type { Profile } from "@/lib/profiles";
 
 export interface UseRelayClientOptions {
   onEvent?: (event: ClaudeEvent) => void;
-  onTurnComplete?: () => void;
+  onTurnComplete?: (stopped: boolean) => void;
   onTurnError?: (message: string) => void;
   onCaughtUp?: () => void;
 }
@@ -12,6 +12,7 @@ export interface UseRelayClientOptions {
 export interface UseRelayClientResult {
   connected: boolean;
   sendMessage: (text: string) => void;
+  stopTurn: () => void;
 }
 
 /**
@@ -35,7 +36,7 @@ export function useRelayClient(
   useEffect(() => {
     const client = new RelayClient(profile.host, profile.relayPort, sessionName, {
       onEvent: (event) => optionsRef.current.onEvent?.(event),
-      onTurnComplete: () => optionsRef.current.onTurnComplete?.(),
+      onTurnComplete: (stopped) => optionsRef.current.onTurnComplete?.(stopped),
       onTurnError: (message) => optionsRef.current.onTurnError?.(message),
       onCaughtUp: () => optionsRef.current.onCaughtUp?.(),
       onConnectionChange: setConnected,
@@ -53,5 +54,9 @@ export function useRelayClient(
     clientRef.current?.sendMessage(text);
   }, []);
 
-  return { connected, sendMessage };
+  const stopTurn = useCallback(() => {
+    clientRef.current?.stopTurn();
+  }, []);
+
+  return { connected, sendMessage, stopTurn };
 }

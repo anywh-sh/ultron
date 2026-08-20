@@ -62,14 +62,14 @@ export function ChatPanel({ profile, sessionName, onTurnComplete, onTurnActiveCh
     onTurnActiveChangeRef.current?.(turnInFlight);
   }, [turnInFlight]);
 
-  const { connected, sendMessage } = useRelayClient(profile, sessionName, {
+  const { connected, sendMessage, stopTurn } = useRelayClient(profile, sessionName, {
     onEvent: (event) => logRef.current.handleEvent(event),
     onCaughtUp: () => {
       caughtUpRef.current = true;
       setReady(true);
     },
-    onTurnComplete: () => {
-      logRef.current.handleTurnComplete();
+    onTurnComplete: (stopped) => {
+      logRef.current.handleTurnComplete(stopped);
       setTurnInFlight(false);
       if (caughtUpRef.current) onTurnComplete?.();
     },
@@ -117,6 +117,8 @@ export function ChatPanel({ profile, sessionName, onTurnComplete, onTurnActiveCh
       <Composer
         ref={composerRef}
         disabled={!connected}
+        turnInFlight={turnInFlight}
+        onStop={stopTurn}
         pendingImages={images.pending}
         uploadingImage={images.uploading}
         onAddFiles={(files) => void images.addFiles(files)}

@@ -16,7 +16,7 @@ export async function fetchSessionNames(host: string, port: number): Promise<str
 
 export interface RelayClientCallbacks {
   onEvent: (event: ClaudeEvent) => void;
-  onTurnComplete: () => void;
+  onTurnComplete: (stopped: boolean) => void;
   onTurnError: (message: string) => void;
   /** Fim do replay do histórico dessa sessão — turnos concluídos recebidos
    * depois disso são de verdade novos, não reconstrução (ver sharedSession.ts). */
@@ -49,7 +49,7 @@ export class RelayClient {
       if (parsed.type === "claude_event") {
         this.callbacks.onEvent(parsed.event);
       } else if (parsed.type === "turn_complete") {
-        this.callbacks.onTurnComplete();
+        this.callbacks.onTurnComplete(parsed.stopped === true);
       } else if (parsed.type === "turn_error") {
         this.callbacks.onTurnError(parsed.message);
       } else if (parsed.type === "caught_up") {
@@ -61,6 +61,11 @@ export class RelayClient {
   sendMessage(text: string): void {
     if (this.socket?.readyState !== WebSocket.OPEN) return;
     this.socket.send(JSON.stringify({ type: "user_message", text }));
+  }
+
+  stopTurn(): void {
+    if (this.socket?.readyState !== WebSocket.OPEN) return;
+    this.socket.send(JSON.stringify({ type: "stop_turn" }));
   }
 
   disconnect(): void {

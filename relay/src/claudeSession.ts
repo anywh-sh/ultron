@@ -1,4 +1,4 @@
-import { spawn } from "node:child_process";
+import { spawn, type ChildProcessWithoutNullStreams } from "node:child_process";
 import { createInterface } from "node:readline";
 
 // Um turno = um processo `claude -p`. Continuidade entre turnos vem de
@@ -35,8 +35,16 @@ export interface ClaudeSessionOptions {
   initialSessionId?: string;
 }
 
+export interface SendTurnResult {
+  /** `true` quando o turno terminou porque `stop()` foi chamado, não porque
+   * o `claude` de fato concluiu ou deu erro. */
+  stopped: boolean;
+}
+
 export class ClaudeSession {
   private sessionId: string | undefined;
+  private currentChild: ChildProcessWithoutNullStreams | undefined;
+  private stopRequested = false;
 
   constructor(private readonly options: ClaudeSessionOptions = {}) {
     this.sessionId = options.initialSessionId;
@@ -46,7 +54,23 @@ export class ClaudeSession {
     return this.sessionId;
   }
 
-  async sendTurn(text: string, onEvent: (event: ClaudeEvent) => void): Promise<void> {
+  /**
+   * Interrompe o turno em andamento, se houver — usado pelo botão "Parar" no
+   * cliente. Testado direto contra o binário: `claude -p` captura `SIGINT` e
+   * sai com código 0 (não morre "cru"), inclusive mandando um `result` final
+   * com `session_id` válido mesmo quando interrompido no meio do streaming
+   * — `sendTurn` usa `stopRequested` pra não tratar isso como erro de
+   * verdade (o que apagaria a continuidade da sessão à toa).
+   */
+  stop(): boolean {
+    if (!this.currentChild) return false;
+    this.stopRequested = true;
+    this.currentChild.kill("SIGINT");
+    return true;
+  }
+
+  async sendTurn(text: string, onEvent: (event: ClaudeEvent) => void): Promise<SendTurnResult> {
+    this.stopRequested = false;
     const args = [
       "-p",
       text,
@@ -80,54 +104,65 @@ export class ClaudeSession {
       env,
       cwd: this.options.homeOverride,
     });
+    this.currentChild = child;
 
-    const spawnError = new Promise<never>((_, reject) => {
-      child.on("error", (error) => reject(error));
-    });
+    try {
+      const spawnError = new Promise<never>((_, reject) => {
+        child.on("error", (error) => reject(error));
+      });
 
-    let stderrOutput = "";
-    child.stderr.on("data", (chunk: Buffer) => {
-      const text = chunk.toString();
-      stderrOutput += text;
-      console.error("[relay] claude stderr:", text);
-    });
+      let stderrOutput = "";
+      child.stderr.on("data", (chunk: Buffer) => {
+        const text = chunk.toString();
+        stderrOutput += text;
+        console.error("[relay] claude stderr:", text);
+      });
 
-    let eventCount = 0;
-    let lastErrorResult: string | undefined;
+      let eventCount = 0;
+      let lastErrorResult: string | undefined;
 
-    const readLines = (async () => {
-      const rl = createInterface({ input: child.stdout });
-      for await (const line of rl) {
-        if (!line.trim()) continue;
-        const event = JSON.parse(line) as ClaudeEvent;
-        eventCount++;
-        if (event.type === "result") {
-          if (event.is_error) {
-            lastErrorResult =
-              event.errors?.join("; ") || event.result || "erro desconhecido retornado pelo claude";
-          } else if (typeof event.session_id === "string") {
-            this.sessionId = event.session_id;
+      const readLines = (async () => {
+        const rl = createInterface({ input: child.stdout });
+        for await (const line of rl) {
+          if (!line.trim()) continue;
+          const event = JSON.parse(line) as ClaudeEvent;
+          eventCount++;
+          if (event.type === "result") {
+            // Capturado sempre que presente, erro ou não — um turno
+            // interrompido por `stop()` ainda manda um `result` com
+            // `session_id` válido (testado contra o binário real), e sem
+            // isso a continuidade da sessão se perdia à toa num stop.
+            if (typeof event.session_id === "string") this.sessionId = event.session_id;
+            if (event.is_error) {
+              lastErrorResult =
+                event.errors?.join("; ") || event.result || "erro desconhecido retornado pelo claude";
+            }
           }
+          onEvent(event);
         }
-        onEvent(event);
+      })();
+
+      const exitCode = await new Promise<number | null>((resolve) => {
+        child.on("close", (code) => resolve(code));
+      });
+
+      await Promise.race([spawnError, readLines]);
+
+      if (lastErrorResult) {
+        if (this.stopRequested) return { stopped: true };
+        this.sessionId = undefined;
+        throw new Error(lastErrorResult);
       }
-    })();
-
-    const exitCode = await new Promise<number | null>((resolve) => {
-      child.on("close", (code) => resolve(code));
-    });
-
-    await Promise.race([spawnError, readLines]);
-
-    if (lastErrorResult) {
-      this.sessionId = undefined;
-      throw new Error(lastErrorResult);
-    }
-    if (eventCount === 0 || exitCode !== 0) {
-      this.sessionId = undefined;
-      throw new Error(
-        stderrOutput.trim() || `claude saiu com código ${String(exitCode)} sem produzir nenhum evento`,
-      );
+      if (eventCount === 0 || exitCode !== 0) {
+        if (this.stopRequested) return { stopped: true };
+        this.sessionId = undefined;
+        throw new Error(
+          stderrOutput.trim() || `claude saiu com código ${String(exitCode)} sem produzir nenhum evento`,
+        );
+      }
+      return { stopped: false };
+    } finally {
+      this.currentChild = undefined;
     }
   }
 }

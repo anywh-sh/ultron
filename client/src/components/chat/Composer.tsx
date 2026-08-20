@@ -22,6 +22,8 @@ import { serializeEditorContent } from "@/lib/composerLinks";
 interface ComposerProps {
   onSend: (text: string, images: PendingImage[]) => void;
   disabled?: boolean;
+  turnInFlight: boolean;
+  onStop: () => void;
   pendingImages: PendingImage[];
   uploadingImage: boolean;
   onAddFiles: (files: FileList | File[]) => void;
@@ -89,7 +91,7 @@ const EXTENSIONS = [
  * — colar uma URL sobre um texto selecionado vira link, sem seleção a URL
  * colada já entra como link (comportamento nativo do `Link` do Tiptap). */
 export const Composer = forwardRef<ComposerHandle, ComposerProps>(function Composer(
-  { onSend, disabled, pendingImages, uploadingImage, onAddFiles, onRemoveImage },
+  { onSend, disabled, turnInFlight, onStop, pendingImages, uploadingImage, onAddFiles, onRemoveImage },
   ref,
 ) {
   const [focused, setFocused] = useState(false);
@@ -270,9 +272,16 @@ export const Composer = forwardRef<ComposerHandle, ComposerProps>(function Compo
               </DropdownMenu>
             )}
           </div>
-          <Button type="submit" size="sm" disabled={!canSend}>
-            Enviar
-          </Button>
+          {turnInFlight ? (
+            <Button type="button" size="sm" variant="secondary" onClick={onStop}>
+              <Square className="size-3" />
+              Parar
+            </Button>
+          ) : (
+            <Button type="submit" size="sm" disabled={!canSend}>
+              Enviar
+            </Button>
+          )}
         </div>
       </div>
     </form>

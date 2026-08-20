@@ -14,7 +14,8 @@ export type LogEntry =
       isError: boolean;
       structuredPatch?: StructuredPatchHunk[];
     }
-  | { kind: "error"; id: string; message: string };
+  | { kind: "error"; id: string; message: string }
+  | { kind: "stopped"; id: string };
 
 interface StreamingTextBlock {
   index: number;
@@ -30,7 +31,7 @@ type Action =
   | { type: "USER_MESSAGE"; text: string; images?: PendingImage[] }
   | { type: "CLAUDE_EVENT"; event: ClaudeEvent }
   | { type: "TURN_ERROR"; message: string }
-  | { type: "TURN_COMPLETE" };
+  | { type: "TURN_COMPLETE"; stopped?: boolean };
 
 const initialState: MessageLogState = { entries: [], streamingText: [] };
 
@@ -131,8 +132,18 @@ function reducer(state: MessageLogState, action: Action): MessageLogState {
         streamingText: [],
       };
 
-    case "TURN_COMPLETE":
-      return { ...state, streamingText: [] };
+    case "TURN_COMPLETE": {
+      // Parar no meio do streaming corta antes do evento `assistant` final
+      // que normalmente comita o texto em `entries` — sem isso o texto
+      // parcial, que só existia em `streamingText` (preview ao vivo),
+      // simplesmente sumiria da tela ao marcar o turno como concluído.
+      const entries = [...state.entries];
+      for (const block of state.streamingText) {
+        if (block.text.length > 0) entries.push({ kind: "text", id: newId(), text: block.text, streaming: false });
+      }
+      if (action.stopped) entries.push({ kind: "stopped", id: newId() });
+      return { ...state, entries, streamingText: [] };
+    }
 
     default:
       return state;
@@ -145,7 +156,7 @@ export interface UseMessageLogResult {
   addUserMessage: (text: string, images?: PendingImage[]) => void;
   handleEvent: (event: ClaudeEvent) => void;
   handleTurnError: (message: string) => void;
-  handleTurnComplete: () => void;
+  handleTurnComplete: (stopped?: boolean) => void;
 }
 
 export function useMessageLog(): UseMessageLogResult {
@@ -161,6 +172,6 @@ export function useMessageLog(): UseMessageLogResult {
     addUserMessage: (text, images) => dispatch({ type: "USER_MESSAGE", text, images }),
     handleEvent: (event) => dispatch({ type: "CLAUDE_EVENT", event }),
     handleTurnError: (message) => dispatch({ type: "TURN_ERROR", message }),
-    handleTurnComplete: () => dispatch({ type: "TURN_COMPLETE" }),
+    handleTurnComplete: (stopped) => dispatch({ type: "TURN_COMPLETE", stopped }),
   };
 }

@@ -4,7 +4,7 @@ import { readHistoryFromTranscript } from "./transcriptReader.js";
 
 export type BroadcastMessage =
   | { type: "claude_event"; event: ClaudeEvent }
-  | { type: "turn_complete" }
+  | { type: "turn_complete"; stopped?: boolean }
   | { type: "turn_error"; message: string };
 
 export interface SharedSessionOptions {
@@ -69,14 +69,20 @@ export class SharedSession {
     this.turnQueue = this.turnQueue.then(() => this.runTurn(text));
   }
 
+  /** Interrompe o turno em andamento, se houver — não mexe na fila (turnos
+   * enfileirados, se algum dia existirem, continuam normalmente depois). */
+  stopTurn(): void {
+    this.claude.stop();
+  }
+
   private async runTurn(text: string): Promise<void> {
     try {
-      await this.claude.sendTurn(text, (event) => {
+      const { stopped } = await this.claude.sendTurn(text, (event) => {
         this.broadcast({ type: "claude_event", event });
       });
       const sessionId = this.claude.getSessionId();
       if (sessionId) this.options.onSessionIdChange?.(sessionId);
-      this.broadcast({ type: "turn_complete" });
+      this.broadcast({ type: "turn_complete", stopped });
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error);
       console.error("[relay] turno falhou:", message);

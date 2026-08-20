@@ -60,6 +60,12 @@ function renderItem(item: RenderItem) {
           <ErrorMessage message={entry.message} />
         </LogEntryRow>
       );
+    case "stopped":
+      return (
+        <LogEntryRow key={entry.id} rail="none">
+          <p className="text-xs text-muted-foreground">Interrompido pelo usuário.</p>
+        </LogEntryRow>
+      );
     default:
       return null;
   }
