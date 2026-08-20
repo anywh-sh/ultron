@@ -51,12 +51,18 @@ export default function App() {
   }, []);
 
   // Primeiro lançamento (ou primeira vez visitando um perfil nesta sessão do
-  // app): restaura a última sessão usada — docs/18. Só roda quando o perfil
-  // ativo ainda não tem nenhuma aba aberta.
+  // app): restaura as abas da última vez (lista completa + ordem + qual
+  // estava ativa). Só roda quando o perfil ativo ainda não tem nenhuma aba
+  // aberta. Deep-link de teste via query string (docs/13) tem prioridade e
+  // continua abrindo só a sessão pedida.
   useEffect(() => {
     if (profileTabs.getTabs(activeProfile.id).tabs.length > 0) return;
-    const sessionToOpen = queryOverride.session ?? profileTabs.getLastSession(activeProfile.id);
-    if (sessionToOpen) profileTabs.openTab(activeProfile.id, sessionToOpen);
+    if (queryOverride.session) {
+      profileTabs.openTab(activeProfile.id, queryOverride.session);
+      return;
+    }
+    const persisted = profileTabs.getPersistedTabs(activeProfile.id);
+    if (persisted) profileTabs.restoreTabs(activeProfile.id, persisted.sessionNames, persisted.activeTabId);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [activeProfile.id]);
 
@@ -238,6 +244,7 @@ export default function App() {
                       profileId={profile.id}
                       onSelect={(tabId) => profileTabs.setActiveTab(profile.id, tabId)}
                       onClose={(tabId) => profileTabs.closeTab(profile.id, tabId)}
+                      onReorder={(activeTabId, overTabId) => profileTabs.reorderTabs(profile.id, activeTabId, overTabId)}
                       renderPanel={(tab) => (
                         <ChatPanel
                           profile={findProfile(profile.id) ?? profile}

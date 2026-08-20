@@ -1,5 +1,14 @@
 import type { ReactNode } from "react";
 import { X } from "lucide-react";
+import {
+  DndContext,
+  PointerSensor,
+  type DragEndEvent,
+  useSensor,
+  useSensors,
+} from "@dnd-kit/core";
+import { SortableContext, horizontalListSortingStrategy, useSortable } from "@dnd-kit/sortable";
+import { CSS } from "@dnd-kit/utilities";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { cn } from "@/lib/utils";
 import type { Tab } from "@/hooks/useProfileTabs";
@@ -10,52 +19,95 @@ interface TabBarProps {
   profileId: string;
   onSelect: (tabId: string) => void;
   onClose: (tabId: string) => void;
+  onReorder: (activeTabId: string, overTabId: string) => void;
   renderPanel: (tab: Tab) => ReactNode;
+}
+
+interface SortableTabProps {
+  tab: Tab;
+  profileId: string;
+  onClose: (tabId: string) => void;
+}
+
+/**
+ * Só espalha `listeners`/`setNodeRef` do dnd-kit, não `attributes` — evita
+ * `role`/`tabIndex` genéricos colidindo com o `role="tab"` que o Radix já
+ * expõe corretamente no `TabsTrigger` (RovingFocusGroup, WAI-ARIA Tabs).
+ * Sem `KeyboardSensor` no `DndContext` pelo mesmo motivo: ArrowLeft/Right já
+ * move o foco entre abas via Radix, colidiria com "mover item arrastado".
+ */
+function SortableTab({ tab, profileId, onClose }: SortableTabProps) {
+  const { setNodeRef, listeners, transform, transition, isDragging } = useSortable({ id: tab.id });
+
+  return (
+    <div
+      ref={setNodeRef}
+      {...listeners}
+      style={{
+        transform: CSS.Transform.toString(transform),
+        transition,
+        opacity: isDragging ? 0.5 : 1,
+        zIndex: isDragging ? 1 : undefined,
+      }}
+      className="group relative flex items-center"
+    >
+      <TabsTrigger
+        value={tab.id}
+        className="gap-1.5 rounded-none py-2 pr-7 pl-3 font-mono text-xs data-[state=active]:bg-bg-elevated"
+      >
+        <span
+          className={cn(
+            "size-1.5 shrink-0 rounded-full",
+            profileId === "trabalho" ? "bg-profile-work" : "bg-profile-personal",
+          )}
+        />
+        {tab.hasUnreadCompletion && <span className="size-1.5 shrink-0 rounded-full bg-primary" />}
+        <span className="max-w-[120px] truncate">{tab.sessionName}</span>
+      </TabsTrigger>
+      <button
+        type="button"
+        onClick={(event) => {
+          event.stopPropagation();
+          onClose(tab.id);
+        }}
+        aria-label={`Fechar aba ${tab.sessionName}`}
+        className={cn(
+          "absolute right-1.5 cursor-pointer rounded p-0.5 opacity-0 transition-opacity",
+          "hover:bg-border group-hover:opacity-100",
+        )}
+      >
+        <X className="size-3" />
+      </button>
+    </div>
+  );
 }
 
 /**
  * `forceMount` + `data-[state=inactive]:hidden` em vez de render condicional:
  * é isso que mantém a conexão WS de abas em background viva (docs/18).
  */
-export function TabBar({ tabs, activeTabId, profileId, onSelect, onClose, renderPanel }: TabBarProps) {
+export function TabBar({ tabs, activeTabId, profileId, onSelect, onClose, onReorder, renderPanel }: TabBarProps) {
+  const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 8 } }));
+
+  function handleDragEnd(event: DragEndEvent): void {
+    const { active, over } = event;
+    if (over && over.id !== active.id) onReorder(String(active.id), String(over.id));
+  }
+
   return (
     <Tabs value={activeTabId ?? undefined} onValueChange={onSelect} className="h-full gap-0">
-      <TabsList
-        variant="line"
-        className="h-auto w-full justify-start gap-0 rounded-none border-b border-border-soft bg-transparent p-0"
-      >
-        {tabs.map((tab) => (
-          <div key={tab.id} className="group relative flex items-center">
-            <TabsTrigger
-              value={tab.id}
-              className="gap-1.5 rounded-none py-2 pr-7 pl-3 font-mono text-xs data-[state=active]:bg-bg-elevated"
-            >
-              <span
-                className={cn(
-                  "size-1.5 shrink-0 rounded-full",
-                  profileId === "trabalho" ? "bg-profile-work" : "bg-profile-personal",
-                )}
-              />
-              {tab.hasUnreadCompletion && <span className="size-1.5 shrink-0 rounded-full bg-primary" />}
-              <span className="max-w-[120px] truncate">{tab.sessionName}</span>
-            </TabsTrigger>
-            <button
-              type="button"
-              onClick={(event) => {
-                event.stopPropagation();
-                onClose(tab.id);
-              }}
-              aria-label={`Fechar aba ${tab.sessionName}`}
-              className={cn(
-                "absolute right-1.5 cursor-pointer rounded p-0.5 opacity-0 transition-opacity",
-                "hover:bg-border group-hover:opacity-100",
-              )}
-            >
-              <X className="size-3" />
-            </button>
-          </div>
-        ))}
-      </TabsList>
+      <DndContext sensors={sensors} onDragEnd={handleDragEnd}>
+        <SortableContext items={tabs.map((tab) => tab.id)} strategy={horizontalListSortingStrategy}>
+          <TabsList
+            variant="line"
+            className="h-auto w-full justify-start gap-0 rounded-none border-b border-border-soft bg-transparent p-0"
+          >
+            {tabs.map((tab) => (
+              <SortableTab key={tab.id} tab={tab} profileId={profileId} onClose={onClose} />
+            ))}
+          </TabsList>
+        </SortableContext>
+      </DndContext>
 
       {tabs.map((tab) => (
         <TabsContent key={tab.id} value={tab.id} forceMount className="mt-0 h-[calc(100%-2.25rem)] data-[state=inactive]:hidden">
