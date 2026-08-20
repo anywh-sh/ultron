@@ -22,7 +22,7 @@ export function SessionList({ sessions, loading, selected, onSelect }: SessionLi
             type="button"
             onClick={() => onSelect(name)}
             className={cn(
-              "cursor-pointer rounded-md px-2 py-1.5 text-left text-sm text-foreground transition-colors hover:bg-bg-elevated",
+              "block w-full cursor-pointer truncate rounded-md px-2 py-1.5 text-left text-sm text-foreground transition-colors hover:bg-bg-elevated",
               selected === name && "bg-bg-elevated",
             )}
           >

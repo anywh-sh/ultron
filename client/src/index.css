@@ -138,6 +138,19 @@ body {
   transform-origin: center;
 }
 
+/* O `ScrollArea` do Radix injeta um wrapper interno com
+ * `display:table; min-width:100%` (via inline style, não classe) em volta
+ * do conteúdo — table cresce pro tamanho do conteúdo sem quebra de linha
+ * (nosso `truncate` usa `white-space:nowrap`), então nenhum filho nunca
+ * chega a "estourar" localmente pra disparar o `text-overflow:ellipsis`; o
+ * corte que aparece vem de um `overflow-hidden` mais acima, sem reticências
+ * (achado testando nome de sessão longo na sidebar — docs/21). `!important`
+ * é necessário pra vencer o inline style; sem isso não tem outra forma de
+ * sobrescrever (não é uma classe que dê pra trocar via props do componente). */
+[data-radix-scroll-area-viewport] > div {
+  display: block !important;
+}
+
 /* Scrollbars finas/customizadas (sidebar + log de mensagens) — docs/17. */
 .scrollbar-thin {
   scrollbar-width: thin;
