@@ -18,7 +18,13 @@ async function focusOrCreateWindow(label: string, url: string, title: string): P
     return;
   }
 
-  const created = new WebviewWindow(label, { url, title, width: 1000, height: 700 });
+  const created = new WebviewWindow(label, {
+    url,
+    title,
+    width: 1000,
+    height: 700,
+    dragDropEnabled: false,
+  });
   created.once("tauri://error", (event) => {
     console.error("[ultron] falha ao criar janela", label, event);
     window.alert(`Não foi possível abrir a janela "${title}": ${JSON.stringify(event.payload)}`);

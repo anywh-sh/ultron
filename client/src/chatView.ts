@@ -3,6 +3,7 @@
 // resultado de ferramenta, estado de conexão).
 import { RelayClient, type ClaudeContentBlock, type ClaudeEvent } from "./relayClient";
 import { listInputDevices, startRecording, stopRecordingAndTranscribe } from "./voice";
+import { uploadImage } from "./imageUpload";
 import type { Profile } from "./profiles";
 
 function renderContentBlock(block: ClaudeContentBlock, log: HTMLElement): void {
@@ -47,12 +48,73 @@ export function mountChatView(root: HTMLElement, profile: Profile, sessionName: 
   micButton.type = "button";
   micButton.id = "chat-mic";
   micButton.textContent = "🎤";
+  const attachButton = document.createElement("button");
+  attachButton.type = "button";
+  attachButton.id = "chat-attach";
+  attachButton.textContent = "📎";
+  const fileInput = document.createElement("input");
+  fileInput.type = "file";
+  fileInput.accept = "image/*";
+  fileInput.style.display = "none";
+  const pendingImages = document.createElement("div");
+  pendingImages.id = "chat-pending-images";
   const sendButton = document.createElement("button");
   sendButton.type = "submit";
   sendButton.textContent = "Enviar";
-  form.append(input, micSelect, micButton, sendButton);
+  form.append(input, micSelect, micButton, attachButton, fileInput, sendButton);
 
-  root.append(log, status, form);
+  root.append(log, pendingImages, status, form);
+
+  const pendingImagePaths: string[] = [];
+
+  function addPendingImage(path: string, file: File): void {
+    pendingImagePaths.push(path);
+    const chip = document.createElement("div");
+    chip.className = "pending-image-chip";
+    const thumb = document.createElement("img");
+    thumb.src = URL.createObjectURL(file);
+    const remove = document.createElement("button");
+    remove.type = "button";
+    remove.textContent = "✕";
+    remove.addEventListener("click", () => {
+      const index = pendingImagePaths.indexOf(path);
+      if (index !== -1) pendingImagePaths.splice(index, 1);
+      chip.remove();
+    });
+    chip.append(thumb, remove);
+    pendingImages.appendChild(chip);
+  }
+
+  async function handleImageFiles(files: FileList | File[]): Promise<void> {
+    for (const file of Array.from(files)) {
+      if (!file.type.startsWith("image/")) continue;
+      try {
+        status.textContent = "enviando imagem…";
+        const path = await uploadImage(profile, file);
+        addPendingImage(path, file);
+        status.textContent = "";
+      } catch (error) {
+        status.textContent = "";
+        window.alert(`Falha ao enviar imagem: ${error instanceof Error ? error.message : String(error)}`);
+      }
+    }
+  }
+
+  attachButton.addEventListener("click", () => fileInput.click());
+  fileInput.addEventListener("change", () => {
+    if (fileInput.files) void handleImageFiles(fileInput.files);
+    fileInput.value = "";
+  });
+
+  root.addEventListener("dragover", (event) => {
+    event.preventDefault();
+  });
+  root.addEventListener("drop", (event) => {
+    event.preventDefault();
+    if (event.dataTransfer?.files.length) {
+      void handleImageFiles(event.dataTransfer.files);
+    }
+  });
 
   const MIC_STORAGE_KEY = "ultron:selected-mic";
   void listInputDevices()
@@ -117,16 +179,21 @@ export function mountChatView(root: HTMLElement, profile: Profile, sessionName: 
   form.addEventListener("submit", (event) => {
     event.preventDefault();
     const text = input.value.trim();
-    if (!text) return;
+    if (!text && pendingImagePaths.length === 0) return;
+
+    const imageRefs = pendingImagePaths.map((path) => `[imagem anexada: ${path}]`).join("\n");
+    const fullMessage = [text, imageRefs].filter(Boolean).join("\n\n");
 
     const userEl = document.createElement("p");
     userEl.className = "msg msg-user";
-    userEl.textContent = text;
+    userEl.textContent = text || "(imagem)";
     log.appendChild(userEl);
     log.scrollTop = log.scrollHeight;
 
-    client.sendMessage(text);
+    client.sendMessage(fullMessage);
     input.value = "";
+    pendingImagePaths.length = 0;
+    pendingImages.innerHTML = "";
     sendButton.disabled = true;
     status.textContent = "pensando…";
   });

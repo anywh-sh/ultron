@@ -9,6 +9,7 @@ User=youruser
 WorkingDirectory=/home/user/personal/ultron/relay
 Environment=RELAY_PORT=8765
 Environment=RELAY_HOST=100.64.0.1
+Environment=RELAY_UPLOAD_DIR=/tmp/ultron-uploads-pessoal
 ExecStart=/home/user/.nvm/versions/node/v20.19.0/bin/node dist/server.js
 Restart=always
 RestartSec=3

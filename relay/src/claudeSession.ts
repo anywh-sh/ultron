@@ -44,6 +44,12 @@ export class ClaudeSession {
       "stream-json",
       "--verbose",
       "--include-partial-messages",
+      // Mesmo modo que o usuário já usa nos dois perfis interativos
+      // (alias `claude`/`claude-comp`, ver docs/08) — sem isso, qualquer
+      // ferramenta tocando um caminho novo (ex: imagem recém-enviada)
+      // fica presa pedindo aprovação que ninguém pode dar num processo
+      // não-interativo (achado real testando upload de imagem, docs/15).
+      "--dangerously-skip-permissions",
     ];
     // Se um `--resume` anterior tiver falhado (sessão inválida, histórico
     // não encontrado etc.), sessionId já foi limpo abaixo — a próxima

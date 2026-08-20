@@ -1,6 +1,7 @@
 import { createServer } from "node:http";
 import { WebSocketServer, type WebSocket } from "ws";
 import { SessionManager } from "./sessionManager.js";
+import { saveUpload } from "./uploads.js";
 
 // Config via env — permite rodar uma instância por perfil (systemd,
 // infra/systemd/) sem mudar código, igual o ttyd fazia (docs/08).
@@ -26,12 +27,40 @@ function isUserMessage(value: unknown): value is UserMessage {
 const sessionManager = new SessionManager(HOME_OVERRIDE);
 
 const httpServer = createServer((req, res) => {
-  if (req.url?.startsWith("/sessions")) {
+  if (req.method === "OPTIONS") {
+    res.setHeader("Access-Control-Allow-Origin", "*");
+    res.setHeader("Access-Control-Allow-Methods", "GET, POST, OPTIONS");
+    res.setHeader("Access-Control-Allow-Headers", "*");
+    res.writeHead(204);
+    res.end();
+    return;
+  }
+
+  if (req.method === "GET" && req.url?.startsWith("/sessions")) {
     res.setHeader("Content-Type", "application/json");
     res.setHeader("Access-Control-Allow-Origin", "*");
     res.end(JSON.stringify({ sessions: sessionManager.listNames() }));
     return;
   }
+
+  if (req.method === "POST" && req.url?.startsWith("/upload")) {
+    const url = new URL(req.url, `http://${req.headers.host ?? "localhost"}`);
+    const ext = url.searchParams.get("ext") ?? "bin";
+    saveUpload(req, ext)
+      .then((path) => {
+        res.setHeader("Content-Type", "application/json");
+        res.setHeader("Access-Control-Allow-Origin", "*");
+        res.end(JSON.stringify({ path }));
+      })
+      .catch((error: unknown) => {
+        console.error("[relay] falha no upload:", error);
+        res.setHeader("Access-Control-Allow-Origin", "*");
+        res.writeHead(500);
+        res.end(String(error instanceof Error ? error.message : error));
+      });
+    return;
+  }
+
   res.writeHead(426);
   res.end();
 });
