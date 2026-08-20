@@ -11,6 +11,7 @@ Environment=RELAY_PORT=8766
 Environment=RELAY_HOST=100.64.0.1
 Environment=RELAY_HOME_OVERRIDE=/home/user/.ultron-trabalho-home
 Environment=RELAY_UPLOAD_DIR=/tmp/ultron-uploads-trabalho
+Environment=RELAY_SESSIONS_FILE=/home/user/.ultron-sessions/trabalho.json
 ExecStart=/home/user/.nvm/versions/node/v20.19.0/bin/node dist/server.js
 Restart=always
 RestartSec=3
