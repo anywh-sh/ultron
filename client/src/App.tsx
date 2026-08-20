@@ -28,7 +28,7 @@ function readQueryOverride(): { profile: string | null; session: string | null }
 export default function App() {
   const queryOverride = useMemo(readQueryOverride, []);
   const [activeProfile, setActiveProfileId] = useActiveProfile(queryOverride.profile);
-  const { sessions, loading: sessionsLoading } = useSessionNames(activeProfile);
+  const { sessions, loading: sessionsLoading, addSession } = useSessionNames(activeProfile);
   const isCompact = useIsCompactViewport();
   const resizable = useResizableSidebar();
   const profileTabs = useProfileTabs();
@@ -107,7 +107,10 @@ export default function App() {
       setEmptyVariant("new");
     } else {
       const name = window.prompt("Nome da nova sessão:")?.trim();
-      if (name) profileTabs.openTab(activeProfile.id, name);
+      if (name) {
+        profileTabs.openTab(activeProfile.id, name);
+        addSession(name);
+      }
     }
     setDrawerOpen(false);
   }
@@ -262,7 +265,10 @@ export default function App() {
                     isActiveProfile && (
                       <EmptyState
                         variant={emptyVariant}
-                        onCreateSession={(name) => profileTabs.openTab(profile.id, name)}
+                        onCreateSession={(name) => {
+                          profileTabs.openTab(profile.id, name);
+                          addSession(name);
+                        }}
                       />
                     )
                   )}
