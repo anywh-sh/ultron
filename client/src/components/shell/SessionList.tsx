@@ -22,8 +22,8 @@ export function SessionList({ sessions, loading, selected, onSelect }: SessionLi
             type="button"
             onClick={() => onSelect(name)}
             className={cn(
-              "block w-full cursor-pointer truncate rounded-md px-2 py-1.5 text-left text-sm text-foreground transition-colors hover:bg-bg-elevated",
-              selected === name && "bg-bg-elevated",
+              "block w-full cursor-pointer truncate rounded-md px-2 py-1.5 text-left text-sm text-foreground transition-[background-color,opacity] hover:bg-bg-elevated hover:opacity-100",
+              selected === name ? "bg-bg-elevated opacity-100" : "opacity-60",
             )}
           >
             {name}
