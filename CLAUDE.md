@@ -2,6 +2,8 @@
 
 Wrapper multiplataforma para o Claude Code CLI (máquina Debian headless central, acesso via SSH/Tailscale).
 
-Fundação de arquitetura: relay próprio (Claude Code em modo `stream-json`) + Tauri client — ver [`docs/11-decisao-pivo-stream-json.md`](./docs/11-decisao-pivo-stream-json.md) pra decisão mais recente (substitui a fundação original de tmux+ttyd).
+MVP funcional completo e validado (chat, dois perfis, multi-sessão, voz, imagem). Projeto está prestes a entrar na fase de UI/UX.
 
-Toda a documentação vive em [`/docs`](./docs). Comece por [`docs/00-premissa.md`](./docs/00-premissa.md) e siga a ordem numérica.
+**Próxima sessão: comece por [`docs/16-fase-uiux-preparacao.md`](./docs/16-fase-uiux-preparacao.md).** Ele resume onde o projeto está, o que o usuário já disse sobre a fase de UI/UX, e a lista de pendências/oportunidades levantadas durante a construção do MVP — não precisa reler tudo de `docs/00` a `docs/15` pra começar.
+
+Toda a documentação (histórico de decisão completo) vive em [`/docs`](./docs), em ordem numérica, começando por [`docs/00-premissa.md`](./docs/00-premissa.md).
