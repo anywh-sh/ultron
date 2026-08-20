@@ -2,6 +2,7 @@ import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import rehypeHighlight from "rehype-highlight";
 import type { PendingImage } from "@/hooks/useImageUpload";
+import { renderTextWithLinks } from "@/lib/composerLinks";
 
 interface UserBubbleProps {
   text: string;
@@ -26,7 +27,7 @@ export function UserBubble({ text, images }: UserBubbleProps) {
             ))}
           </div>
         )}
-        {text && <p className="whitespace-pre-wrap">{text}</p>}
+        {text && <p className="whitespace-pre-wrap">{renderTextWithLinks(text)}</p>}
       </div>
     </div>
   );

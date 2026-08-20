@@ -1,5 +1,9 @@
-import { forwardRef, useEffect, useImperativeHandle, useRef, useState } from "react";
+import { forwardRef, useImperativeHandle, useRef, useState } from "react";
 import { Check, ChevronDown, Mic, Paperclip, Square, X } from "lucide-react";
+import { EditorContent, ReactMarkViewRenderer, useEditor } from "@tiptap/react";
+import StarterKit from "@tiptap/starter-kit";
+import { Link } from "@tiptap/extension-link";
+import { Placeholder } from "@tiptap/extension-placeholder";
 import { Button } from "@/components/ui/button";
 import {
   DropdownMenu,
@@ -12,6 +16,8 @@ import {
 import { cn } from "@/lib/utils";
 import { useVoiceRecording } from "@/hooks/useVoiceRecording";
 import type { PendingImage } from "@/hooks/useImageUpload";
+import { ComposerLinkView } from "@/components/chat/ComposerLinkView";
+import { serializeEditorContent } from "@/lib/composerLinks";
 
 interface ComposerProps {
   onSend: (text: string, images: PendingImage[]) => void;
@@ -36,45 +42,107 @@ function formatTimer(seconds: number): string {
 
 const WAVEFORM_BARS = [0, 1, 2, 3, 4];
 
+/**
+ * Só o link ganha um mark view interativo (hover card + editar) — o resto
+ * do schema (bold, itálico, listas, heading etc) fica desativado: o
+ * composer é uma caixa de texto simples, o pedido era só suportar link via
+ * paste-to-link, não virar um editor rich-text completo.
+ */
+const ComposerLink = Link.extend({
+  addMarkView() {
+    return ReactMarkViewRenderer(ComposerLinkView);
+  },
+}).configure({
+  autolink: false,
+  linkOnPaste: true,
+  openOnClick: false,
+  HTMLAttributes: { class: "composer-link", rel: "noopener noreferrer nofollow" },
+});
+
+const EXTENSIONS = [
+  StarterKit.configure({
+    blockquote: false,
+    bold: false,
+    bulletList: false,
+    code: false,
+    codeBlock: false,
+    heading: false,
+    horizontalRule: false,
+    italic: false,
+    link: false,
+    listItem: false,
+    listKeymap: false,
+    orderedList: false,
+    strike: false,
+    underline: false,
+  }),
+  ComposerLink,
+  Placeholder.configure({ placeholder: "Escreva uma mensagem…" }),
+];
+
 /** Foco de teclado destaca o container inteiro (textarea + toolbar), não só
  * a textarea isolada — docs/17. Fluxo de voz: gravar → waveform+timer →
  * cancelar ou parar → transcrever → texto cai aqui pra revisão (não envia
- * sozinho) — docs/17 + docs/18 (waveform é animação genérica, não áudio real). */
+ * sozinho) — docs/17 + docs/18 (waveform é animação genérica, não áudio real).
+ * Campo de texto é um editor Tiptap (não `<textarea>`): precisa suportar
+ * hyperlink inline (cor própria, hover com editar) criado via paste-to-link
+ * — colar uma URL sobre um texto selecionado vira link, sem seleção a URL
+ * colada já entra como link (comportamento nativo do `Link` do Tiptap). */
 export const Composer = forwardRef<ComposerHandle, ComposerProps>(function Composer(
   { onSend, disabled, pendingImages, uploadingImage, onAddFiles, onRemoveImage },
   ref,
 ) {
-  const [value, setValue] = useState("");
   const [focused, setFocused] = useState(false);
-  const textareaRef = useRef<HTMLTextAreaElement>(null);
+  const [isEmpty, setIsEmpty] = useState(true);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const submitRef = useRef<() => void>(() => {});
+
+  const editor = useEditor({
+    extensions: EXTENSIONS,
+    onFocus: () => setFocused(true),
+    onBlur: () => setFocused(false),
+    onUpdate: ({ editor: current }) => setIsEmpty(current.isEmpty),
+    editorProps: {
+      attributes: { class: "composer-prosemirror", "aria-label": "Escreva uma mensagem…" },
+      handleKeyDown: (_view, event) => {
+        if (event.key === "Enter" && !event.shiftKey) {
+          event.preventDefault();
+          submitRef.current();
+          return true;
+        }
+        return false;
+      },
+    },
+  });
 
   useImperativeHandle(ref, () => ({
-    focus: () => textareaRef.current?.focus(),
+    focus: () => editor?.commands.focus(),
   }));
 
   const voice = useVoiceRecording({
-    onTranscribed: (text) => setValue((prev) => (prev ? `${prev} ${text}` : text)),
+    onTranscribed: (text) => {
+      if (!editor) return;
+      editor
+        .chain()
+        .focus("end")
+        .insertContent(editor.isEmpty ? text : ` ${text}`)
+        .run();
+    },
     onError: (message) => window.alert(message),
   });
 
-  useEffect(() => {
-    const el = textareaRef.current;
-    if (!el) return;
-    el.style.height = "auto";
-    el.style.height = `${Math.min(el.scrollHeight, 160)}px`;
-  }, [value]);
-
   function submit(): void {
-    const trimmed = value.trim();
-    if (!trimmed && pendingImages.length === 0) return;
-    onSend(trimmed, pendingImages);
-    setValue("");
+    if (!editor) return;
+    const text = serializeEditorContent(editor.getJSON()).trim();
+    if (!text && pendingImages.length === 0) return;
+    onSend(text, pendingImages);
+    editor.commands.clearContent(true);
   }
+  submitRef.current = submit;
 
   const isRecording = voice.state === "recording";
   const isTranscribing = voice.state === "transcribing";
-  const canSend = !disabled && (value.trim().length > 0 || pendingImages.length > 0);
+  const canSend = !disabled && (!isEmpty || pendingImages.length > 0);
 
   return (
     <form
@@ -105,22 +173,7 @@ export const Composer = forwardRef<ComposerHandle, ComposerProps>(function Compo
         </div>
       )}
 
-      <textarea
-        ref={textareaRef}
-        value={value}
-        onChange={(event) => setValue(event.target.value)}
-        onFocus={() => setFocused(true)}
-        onBlur={() => setFocused(false)}
-        onKeyDown={(event) => {
-          if (event.key === "Enter" && !event.shiftKey) {
-            event.preventDefault();
-            submit();
-          }
-        }}
-        placeholder="Escreva uma mensagem…"
-        rows={1}
-        className="max-h-40 min-h-8 flex-1 resize-none bg-transparent px-1 py-1 text-sm text-foreground outline-none placeholder:text-muted-foreground"
-      />
+      <EditorContent editor={editor} className="composer-editor" />
 
       <div className="flex items-center justify-between gap-2">
         <div className="flex min-w-0 flex-1 items-center gap-2 px-1">
@@ -164,7 +217,7 @@ export const Composer = forwardRef<ComposerHandle, ComposerProps>(function Compo
                 onChange={(event) => {
                   if (event.target.files) onAddFiles(event.target.files);
                   event.target.value = "";
-                  textareaRef.current?.focus();
+                  editor?.commands.focus();
                 }}
               />
               <button

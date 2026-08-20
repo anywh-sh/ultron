@@ -167,6 +167,36 @@ body {
   border-radius: 9999px;
 }
 
+/* Composer rich-text (Tiptap) — placeholder do campo vazio e link criado
+ * por paste-to-link, que miram pseudo-elemento/nó gerado pelo ProseMirror
+ * e por isso não dá pra alcançar só com classes utilitárias. */
+.composer-editor .ProseMirror {
+  outline: none;
+  min-height: 2rem;
+  max-height: 480px;
+  overflow-y: auto;
+  padding: 0.25rem;
+  font-size: 0.875rem;
+  line-height: 1.4;
+  color: var(--foreground);
+}
+.composer-editor .ProseMirror p {
+  margin: 0;
+}
+.composer-editor .ProseMirror p.is-editor-empty:first-child::before {
+  content: attr(data-placeholder);
+  color: var(--muted-foreground);
+  float: left;
+  height: 0;
+  pointer-events: none;
+}
+.composer-link {
+  color: var(--primary);
+  text-decoration: underline;
+  text-underline-offset: 2px;
+  cursor: text;
+}
+
 /* Markdown das respostas do assistente (react-markdown). Sem plugin de
  * typography — o app é pequeno o bastante pra escrever isso à mão em vez de
  * puxar mais uma dependência. */
