@@ -37,6 +37,12 @@ export class SharedSession {
     for (const message of this.history) {
       socket.send(JSON.stringify(message));
     }
+    // Marca o fim do replay pra esse cliente — não entra em `history` (não é
+    // um evento da sessão, é por-conexão), então nunca é reenviado pros
+    // próximos clientes que conectarem. É o que deixa o cliente distinguir
+    // "turn_complete" de reconstrução de histórico vs turno de verdade
+    // concluído depois que ele conectou (relevante pra notificação do SO).
+    socket.send(JSON.stringify({ type: "caught_up" }));
     this.clients.add(socket);
   }
 

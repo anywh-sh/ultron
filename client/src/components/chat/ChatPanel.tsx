@@ -27,6 +27,14 @@ export function ChatPanel({ profile, sessionName, onTurnComplete, onTurnActiveCh
   const onTurnActiveChangeRef = useRef(onTurnActiveChange);
   onTurnActiveChangeRef.current = onTurnActiveChange;
 
+  // O relay reenvia o histórico inteiro da sessão a cada conexão nova
+  // (`SharedSession.addClient`), inclusive `turn_complete` de turnos
+  // antigos — necessário pra reconstruir o log de mensagens ao reabrir uma
+  // aba, mas não deve contar como "turno concluído" pra badge/notificação.
+  // `caughtUpRef` fica `true` só depois do marcador `caught_up`, que o relay
+  // manda logo após o replay — daí em diante os eventos são mesmo ao vivo.
+  const caughtUpRef = useRef(false);
+
   const images = useImageUpload(profile, (message) => window.alert(message));
   const composerRef = useRef<ComposerHandle>(null);
 
@@ -50,10 +58,13 @@ export function ChatPanel({ profile, sessionName, onTurnComplete, onTurnActiveCh
 
   const { connected, sendMessage } = useRelayClient(profile, sessionName, {
     onEvent: (event) => logRef.current.handleEvent(event),
+    onCaughtUp: () => {
+      caughtUpRef.current = true;
+    },
     onTurnComplete: () => {
       logRef.current.handleTurnComplete();
       setTurnInFlight(false);
-      onTurnComplete?.();
+      if (caughtUpRef.current) onTurnComplete?.();
     },
     onTurnError: (message) => {
       logRef.current.handleTurnError(message);

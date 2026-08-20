@@ -18,6 +18,9 @@ export interface RelayClientCallbacks {
   onEvent: (event: ClaudeEvent) => void;
   onTurnComplete: () => void;
   onTurnError: (message: string) => void;
+  /** Fim do replay do histórico dessa sessão — turnos concluídos recebidos
+   * depois disso são de verdade novos, não reconstrução (ver sharedSession.ts). */
+  onCaughtUp: () => void;
   onConnectionChange?: (connected: boolean) => void;
 }
 
@@ -49,6 +52,8 @@ export class RelayClient {
         this.callbacks.onTurnComplete();
       } else if (parsed.type === "turn_error") {
         this.callbacks.onTurnError(parsed.message);
+      } else if (parsed.type === "caught_up") {
+        this.callbacks.onCaughtUp();
       }
     });
   }

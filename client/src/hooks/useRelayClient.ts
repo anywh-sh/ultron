@@ -6,6 +6,7 @@ export interface UseRelayClientOptions {
   onEvent?: (event: ClaudeEvent) => void;
   onTurnComplete?: () => void;
   onTurnError?: (message: string) => void;
+  onCaughtUp?: () => void;
 }
 
 export interface UseRelayClientResult {
@@ -36,6 +37,7 @@ export function useRelayClient(
       onEvent: (event) => optionsRef.current.onEvent?.(event),
       onTurnComplete: () => optionsRef.current.onTurnComplete?.(),
       onTurnError: (message) => optionsRef.current.onTurnError?.(message),
+      onCaughtUp: () => optionsRef.current.onCaughtUp?.(),
       onConnectionChange: setConnected,
     });
     clientRef.current = client;

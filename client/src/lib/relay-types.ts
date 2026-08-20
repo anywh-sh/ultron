@@ -80,4 +80,5 @@ export interface ClaudeEvent {
 export type RelayMessage =
   | { type: "claude_event"; event: ClaudeEvent }
   | { type: "turn_complete" }
-  | { type: "turn_error"; message: string };
+  | { type: "turn_error"; message: string }
+  | { type: "caught_up" };
