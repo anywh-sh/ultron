@@ -1,16 +1,10 @@
 import type { ReactNode } from "react";
 import { ChevronLeft, ChevronRight, Copy, Minus, PanelLeftClose, PanelLeftOpen, Search, Square, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
+import { Tooltip, TooltipContent, TooltipShortcut, TooltipTrigger } from "@/components/ui/tooltip";
 import { useWindowControls } from "@/hooks/useWindowControls";
+import { isMacOS, shortcutLabel } from "@/lib/platform";
 import { cn } from "@/lib/utils";
-
-/** macOS mantém os semáforos nativos (modo overlay do Tauri — docs/21), então
- * não desenhamos minimizar/maximizar/fechar lá, só reservamos o espaço deles
- * à esquerda pra nada ficar embaixo. */
-function isMacOS(): boolean {
-  return typeof navigator !== "undefined" && /Mac/.test(navigator.userAgent);
-}
 
 /** Sem tooltip de propósito — são os 3 controles nativos de janela (convenção
  * Fluent do Windows), universalmente reconhecíveis sem rótulo. */
@@ -59,6 +53,9 @@ export function TitleBar({
   onToggleSidebar: () => void;
   onOpenSearch: () => void;
 }) {
+  // macOS mantém os semáforos nativos (modo overlay do Tauri — docs/21), então
+  // não desenhamos minimizar/maximizar/fechar lá, só reservamos o espaço deles
+  // à esquerda pra nada ficar embaixo.
   const mac = isMacOS();
   const { isMaximized, minimize, toggleMaximize, close } = useWindowControls();
 
@@ -93,7 +90,10 @@ export function TitleBar({
                 {sidebarCollapsed ? <PanelLeftOpen className="size-4" /> : <PanelLeftClose className="size-4" />}
               </Button>
             </TooltipTrigger>
-            <TooltipContent side="bottom">{sidebarCollapsed ? "Expandir barra lateral" : "Colapsar barra lateral"}</TooltipContent>
+            <TooltipContent side="bottom">
+              {sidebarCollapsed ? "Expandir barra lateral" : "Colapsar barra lateral"}
+              <TooltipShortcut>{shortcutLabel("B")}</TooltipShortcut>
+            </TooltipContent>
           </Tooltip>
         )}
         <Tooltip>
@@ -102,7 +102,10 @@ export function TitleBar({
               <Search className="size-4" />
             </Button>
           </TooltipTrigger>
-          <TooltipContent side="bottom">Buscar sessão (Ctrl+K)</TooltipContent>
+          <TooltipContent side="bottom">
+            Buscar sessão
+            <TooltipShortcut>{shortcutLabel("K")}</TooltipShortcut>
+          </TooltipContent>
         </Tooltip>
       </div>
 

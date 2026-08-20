@@ -1,9 +1,10 @@
 import { Plus } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
+import { Tooltip, TooltipContent, TooltipShortcut, TooltipTrigger } from "@/components/ui/tooltip";
 import { SessionList } from "@/components/shell/SessionList";
 import { ProfileSwitcher } from "@/components/shell/ProfileSwitcher";
 import type { Profile } from "@/lib/profiles";
+import { shortcutLabel } from "@/lib/platform";
 
 interface SidebarProps {
   activeProfile: Profile;
@@ -34,7 +35,10 @@ export function Sidebar({
               <Plus className="size-4" />
             </Button>
           </TooltipTrigger>
-          <TooltipContent side="bottom">Nova conversa</TooltipContent>
+          <TooltipContent side="bottom">
+            Nova conversa
+            <TooltipShortcut>{shortcutLabel("N")}</TooltipShortcut>
+          </TooltipContent>
         </Tooltip>
       </div>
 

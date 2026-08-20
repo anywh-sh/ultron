@@ -116,6 +116,45 @@ export default function App() {
     profileTabs.openTab(profileId, sessionName);
   }
 
+  function handleCloseActiveTab(): void {
+    if (!activeTabIdOfActiveProfile) return;
+    profileTabs.closeTab(activeProfile.id, activeTabIdOfActiveProfile);
+  }
+
+  function handleToggleSidebarShortcut(): void {
+    if (isCompact) {
+      setDrawerOpen((open) => !open);
+    } else {
+      resizable.toggleCollapsed();
+    }
+  }
+
+  // Atalhos padrão de qualquer app (equivalentes em Ctrl no Windows/Linux e
+  // Cmd no macOS, via metaKey || ctrlKey): novo (N), fechar aba atual (W),
+  // mostrar/esconder painel lateral (B).
+  useEffect(() => {
+    function handleKeyDown(event: KeyboardEvent): void {
+      if (!(event.metaKey || event.ctrlKey)) return;
+      switch (event.key.toLowerCase()) {
+        case "n":
+          event.preventDefault();
+          handleNewConversation();
+          break;
+        case "w":
+          event.preventDefault();
+          handleCloseActiveTab();
+          break;
+        case "b":
+          event.preventDefault();
+          handleToggleSidebarShortcut();
+          break;
+      }
+    }
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [activeProfile.id, activeTabIdOfActiveProfile, isCompact, profileTabs.closeTab, profileTabs.openTab, resizable.toggleCollapsed]);
+
   const sidebarProps = {
     activeProfile,
     onProfileChange: handleProfileChange,
