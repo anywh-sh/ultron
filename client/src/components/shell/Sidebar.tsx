@@ -12,6 +12,7 @@ interface SidebarProps {
   sessions: string[];
   sessionsLoading: boolean;
   selectedSession: string | null;
+  runningSessions: Set<string>;
   onSelectSession: (name: string) => void;
   onNewConversation: () => void;
 }
@@ -22,6 +23,7 @@ export function Sidebar({
   sessions,
   sessionsLoading,
   selectedSession,
+  runningSessions,
   onSelectSession,
   onNewConversation,
 }: SidebarProps) {
@@ -46,6 +48,7 @@ export function Sidebar({
         sessions={sessions}
         loading={sessionsLoading}
         selected={selectedSession}
+        running={runningSessions}
         onSelect={onSelectSession}
       />
 

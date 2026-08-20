@@ -1,12 +1,6 @@
 import { useCallback, useEffect, useState } from "react";
 import { getCurrentWindow } from "@tauri-apps/api/window";
-
-/** Fora do Tauri (ex.: `npm run dev` aberto num browser comum pra inspeção
- * via Playwright — docs/21) `getCurrentWindow()` explode, porque lê
- * `window.__TAURI_INTERNALS__`. Os controles viram no-op nesse caso. */
-function inTauri(): boolean {
-  return typeof window !== "undefined" && "__TAURI_INTERNALS__" in window;
-}
+import { inTauri } from "@/lib/tauri";
 
 export function useWindowControls(): {
   isMaximized: boolean;

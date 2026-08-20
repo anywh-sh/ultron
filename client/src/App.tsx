@@ -15,7 +15,9 @@ import { useSessionNames } from "@/hooks/useSessionNames";
 import { useResizableSidebar } from "@/hooks/useResizableSidebar";
 import { useIsCompactViewport } from "@/hooks/useIsCompactViewport";
 import { useProfileTabs } from "@/hooks/useProfileTabs";
+import { useWindowFocus } from "@/hooks/useWindowFocus";
 import { PROFILES, findProfile } from "@/lib/profiles";
+import { ensureNotificationPermission, notifyTurnComplete } from "@/lib/notifications";
 import { cn } from "@/lib/utils";
 
 /** Override opcional via query string (`?profile=&session=`) — só pra permitir
@@ -33,10 +35,15 @@ export default function App() {
   const resizable = useResizableSidebar();
   const profileTabs = useProfileTabs();
   const nav = useNavigationHistory();
+  const windowFocused = useWindowFocus();
 
   const [emptyVariant, setEmptyVariant] = useState<"new" | "switch">("switch");
   const [drawerOpen, setDrawerOpen] = useState(false);
   const [searchOpen, setSearchOpen] = useState(false);
+
+  useEffect(() => {
+    void ensureNotificationPermission();
+  }, []);
 
   // Atalho global de busca (Ctrl/Cmd+K — docs/21), em qualquer tela.
   useEffect(() => {
@@ -164,12 +171,20 @@ export default function App() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [activeProfile.id, activeTabIdOfActiveProfile, isCompact, profileTabs.closeTab, profileTabs.openTab, resizable.toggleCollapsed]);
 
+  const runningSessions = new Set(
+    profileTabs
+      .getTabs(activeProfile.id)
+      .tabs.filter((tab) => tab.isRunning)
+      .map((tab) => tab.sessionName),
+  );
+
   const sidebarProps = {
     activeProfile,
     onProfileChange: handleProfileChange,
     sessions,
     sessionsLoading,
     selectedSession: activeTabIdOfActiveProfile,
+    runningSessions,
     onSelectSession: handleSelectSession,
     onNewConversation: handleNewConversation,
   };
@@ -252,11 +267,16 @@ export default function App() {
                         <ChatPanel
                           profile={findProfile(profile.id) ?? profile}
                           sessionName={tab.sessionName}
+                          onTurnActiveChange={(active) => profileTabs.setRunning(profile.id, tab.id, active)}
                           onTurnComplete={() => {
                             const stillVisible =
                               profile.id === activeProfile.id &&
-                              tab.id === profileTabs.getTabs(profile.id).activeTabId;
-                            if (!stillVisible) profileTabs.setUnread(profile.id, tab.id, true);
+                              tab.id === profileTabs.getTabs(profile.id).activeTabId &&
+                              windowFocused;
+                            if (!stillVisible) {
+                              profileTabs.setUnread(profile.id, tab.id, true);
+                              notifyTurnComplete(findProfile(profile.id) ?? profile, tab.sessionName);
+                            }
                           }}
                         />
                       )}

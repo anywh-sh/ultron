@@ -5,6 +5,7 @@ export interface Tab {
   id: string;
   sessionName: string;
   hasUnreadCompletion: boolean;
+  isRunning: boolean;
 }
 
 interface TabsState {
@@ -65,7 +66,7 @@ export function useProfileTabs() {
       const exists = current.tabs.some((tab) => tab.sessionName === sessionName);
       const tabs = exists
         ? current.tabs
-        : [...current.tabs, { id: sessionName, sessionName, hasUnreadCompletion: false }];
+        : [...current.tabs, { id: sessionName, sessionName, hasUnreadCompletion: false, isRunning: false }];
       return { ...prev, [profileId]: { tabs, activeTabId: sessionName } };
     });
   }, []);
@@ -116,6 +117,21 @@ export function useProfileTabs() {
     });
   }, []);
 
+  const setRunning = useCallback((profileId: string, tabId: string, value: boolean) => {
+    setByProfile((prev) => {
+      const current = prev[profileId];
+      const tab = current?.tabs.find((t) => t.id === tabId);
+      if (!current || !tab || tab.isRunning === value) return prev;
+      return {
+        ...prev,
+        [profileId]: {
+          ...current,
+          tabs: current.tabs.map((t) => (t.id === tabId ? { ...t, isRunning: value } : t)),
+        },
+      };
+    });
+  }, []);
+
   const getLastSession = useCallback((profileId: string): string | null => {
     return localStorage.getItem(lastSessionKey(profileId));
   }, []);
@@ -140,7 +156,12 @@ export function useProfileTabs() {
 
   const restoreTabs = useCallback((profileId: string, sessionNames: string[], activeTabId: string | null) => {
     setByProfile((prev) => {
-      const tabs = sessionNames.map((sessionName) => ({ id: sessionName, sessionName, hasUnreadCompletion: false }));
+      const tabs = sessionNames.map((sessionName) => ({
+        id: sessionName,
+        sessionName,
+        hasUnreadCompletion: false,
+        isRunning: false,
+      }));
       return { ...prev, [profileId]: { tabs, activeTabId: activeTabId ?? tabs[tabs.length - 1]?.id ?? null } };
     });
   }, []);
@@ -152,6 +173,7 @@ export function useProfileTabs() {
     closeTab,
     setActiveTab,
     setUnread,
+    setRunning,
     reorderTabs,
     getLastSession,
     getPersistedTabs,

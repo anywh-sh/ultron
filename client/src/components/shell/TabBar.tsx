@@ -59,7 +59,9 @@ function SortableTab({ tab, profileId, onClose }: SortableTabProps) {
           className={cn(
             "size-1.5 shrink-0 rounded-full",
             profileId === "trabalho" ? "bg-profile-work" : "bg-profile-personal",
+            tab.isRunning && "animate-pulse",
           )}
+          aria-label={tab.isRunning ? "Agente trabalhando nesta sessão" : undefined}
         />
         {tab.hasUnreadCompletion && <span className="size-1.5 shrink-0 rounded-full bg-primary" />}
         <span className="max-w-[120px] truncate">{tab.sessionName}</span>

@@ -10,6 +10,7 @@ fn greet(name: &str) -> String {
 pub fn run() {
     tauri::Builder::default()
         .plugin(tauri_plugin_opener::init())
+        .plugin(tauri_plugin_notification::init())
         .manage(voice::VoiceState::default())
         .invoke_handler(tauri::generate_handler![
             greet,

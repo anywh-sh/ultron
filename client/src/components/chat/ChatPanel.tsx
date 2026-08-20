@@ -1,4 +1,4 @@
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { ImagePlus } from "lucide-react";
 import { useRelayClient } from "@/hooks/useRelayClient";
 import { useMessageLog } from "@/hooks/useMessageLog";
@@ -12,6 +12,7 @@ interface ChatPanelProps {
   profile: Profile;
   sessionName: string;
   onTurnComplete?: () => void;
+  onTurnActiveChange?: (active: boolean) => void;
 }
 
 function buildWireMessage(text: string, images: PendingImage[]): string {
@@ -19,10 +20,12 @@ function buildWireMessage(text: string, images: PendingImage[]): string {
   return [text, imageRefs].filter(Boolean).join("\n\n");
 }
 
-export function ChatPanel({ profile, sessionName, onTurnComplete }: ChatPanelProps) {
+export function ChatPanel({ profile, sessionName, onTurnComplete, onTurnActiveChange }: ChatPanelProps) {
   const log = useMessageLog();
   const logRef = useRef(log);
   logRef.current = log;
+  const onTurnActiveChangeRef = useRef(onTurnActiveChange);
+  onTurnActiveChangeRef.current = onTurnActiveChange;
 
   const images = useImageUpload(profile, (message) => window.alert(message));
   const composerRef = useRef<ComposerHandle>(null);
@@ -37,6 +40,13 @@ export function ChatPanel({ profile, sessionName, onTurnComplete }: ChatPanelPro
   // só o tempo de resposta do modelo, também a ida/volta de rede, pra nunca
   // dar sensação de travado (feedback do usuário).
   const [turnInFlight, setTurnInFlight] = useState(false);
+
+  // Reporta o estado pro Tab (`isRunning`) via ref — abas em background
+  // continuam montadas (docs/18), então isso também cobre turnos rodando
+  // fora da aba/perfil visível no momento.
+  useEffect(() => {
+    onTurnActiveChangeRef.current?.(turnInFlight);
+  }, [turnInFlight]);
 
   const { connected, sendMessage } = useRelayClient(profile, sessionName, {
     onEvent: (event) => logRef.current.handleEvent(event),
