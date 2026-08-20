@@ -1,6 +1,14 @@
 import { forwardRef, useEffect, useImperativeHandle, useRef, useState } from "react";
-import { Mic, Paperclip, Square, X } from "lucide-react";
+import { Check, ChevronDown, Mic, Paperclip, Square, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuLabel,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 import { cn } from "@/lib/utils";
 import { useVoiceRecording } from "@/hooks/useVoiceRecording";
 import type { PendingImage } from "@/hooks/useImageUpload";
@@ -145,21 +153,6 @@ export const Composer = forwardRef<ComposerHandle, ComposerProps>(function Compo
         </div>
 
         <div className="flex items-center gap-1.5">
-          {voice.devices.length > 1 && !isRecording && !isTranscribing && (
-            <select
-              value={voice.selectedDevice}
-              onChange={(event) => voice.setSelectedDevice(event.target.value)}
-              aria-label="Microfone"
-              className="max-w-24 cursor-pointer truncate rounded-md bg-transparent text-xs text-muted-foreground outline-none"
-            >
-              {voice.devices.map((name) => (
-                <option key={name} value={name} className="bg-bg-elevated text-foreground">
-                  {name}
-                </option>
-              ))}
-            </select>
-          )}
-
           {!isRecording && !isTranscribing && (
             <>
               <input
@@ -185,19 +178,45 @@ export const Composer = forwardRef<ComposerHandle, ComposerProps>(function Compo
             </>
           )}
 
-          <button
-            type="button"
-            onClick={() => (isRecording ? void voice.stop() : void voice.start())}
-            disabled={isTranscribing}
-            aria-label={isRecording ? "Parar gravação" : "Gravar áudio"}
-            className={cn(
-              "flex size-7 shrink-0 cursor-pointer items-center justify-center rounded-md transition-colors",
-              isRecording ? "bg-destructive text-foreground" : "text-muted-foreground hover:bg-border",
-              isTranscribing && "cursor-not-allowed opacity-50",
+          <div className="flex items-center">
+            <button
+              type="button"
+              onClick={() => (isRecording ? void voice.stop() : void voice.start())}
+              disabled={isTranscribing}
+              aria-label={isRecording ? "Parar gravação" : "Gravar áudio"}
+              className={cn(
+                "flex size-7 shrink-0 cursor-pointer items-center justify-center rounded-md transition-colors",
+                isRecording ? "bg-destructive text-foreground" : "text-muted-foreground hover:bg-border",
+                isTranscribing && "cursor-not-allowed opacity-50",
+              )}
+            >
+              {isRecording ? <Square className="size-3.5" /> : <Mic className="size-4" />}
+            </button>
+
+            {voice.devices.length > 1 && !isRecording && !isTranscribing && (
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                  <button
+                    type="button"
+                    aria-label="Selecionar microfone"
+                    className="flex h-7 w-3.5 shrink-0 cursor-pointer items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-border"
+                  >
+                    <ChevronDown className="size-3" />
+                  </button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="end">
+                  <DropdownMenuLabel>Microfone</DropdownMenuLabel>
+                  <DropdownMenuSeparator />
+                  {voice.devices.map((name) => (
+                    <DropdownMenuItem key={name} onSelect={() => voice.setSelectedDevice(name)}>
+                      <Check className={cn("size-3.5", name !== voice.selectedDevice && "opacity-0")} />
+                      <span className="max-w-48 truncate">{name}</span>
+                    </DropdownMenuItem>
+                  ))}
+                </DropdownMenuContent>
+              </DropdownMenu>
             )}
-          >
-            {isRecording ? <Square className="size-3.5" /> : <Mic className="size-4" />}
-          </button>
+          </div>
           <Button type="submit" size="sm" disabled={!canSend}>
             Enviar
           </Button>

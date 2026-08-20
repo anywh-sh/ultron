@@ -1,4 +1,10 @@
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Check, ChevronsUpDown } from "lucide-react";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 import { cn } from "@/lib/utils";
 import { PROFILES, type Profile } from "@/lib/profiles";
 
@@ -9,13 +15,27 @@ interface ProfileSwitcherProps {
 
 export function ProfileSwitcher({ activeProfile, onChange }: ProfileSwitcherProps) {
   return (
-    <Select value={activeProfile.id} onValueChange={onChange}>
-      <SelectTrigger className="w-full" aria-label="Perfil ativo">
-        <SelectValue />
-      </SelectTrigger>
-      <SelectContent>
+    <DropdownMenu>
+      <DropdownMenuTrigger asChild>
+        <button
+          type="button"
+          aria-label="Perfil ativo"
+          className="flex w-full cursor-pointer items-center gap-2 rounded-md border border-input bg-transparent px-3 py-2 text-sm shadow-xs transition-colors hover:bg-bg-elevated"
+        >
+          <span
+            className={cn(
+              "inline-block size-2 shrink-0 rounded-full",
+              activeProfile.id === "trabalho" ? "bg-profile-work" : "bg-profile-personal",
+            )}
+          />
+          <span className="min-w-0 flex-1 truncate text-left">{activeProfile.label}</span>
+          <ChevronsUpDown className="size-4 shrink-0 text-muted-foreground" />
+        </button>
+      </DropdownMenuTrigger>
+      <DropdownMenuContent align="start" className="w-[var(--radix-dropdown-menu-trigger-width)]">
         {PROFILES.map((profile) => (
-          <SelectItem key={profile.id} value={profile.id}>
+          <DropdownMenuItem key={profile.id} onSelect={() => onChange(profile.id)}>
+            <Check className={cn("size-3.5", profile.id !== activeProfile.id && "opacity-0")} />
             <span
               className={cn(
                 "inline-block size-2 shrink-0 rounded-full",
@@ -23,9 +43,9 @@ export function ProfileSwitcher({ activeProfile, onChange }: ProfileSwitcherProp
               )}
             />
             {profile.label}
-          </SelectItem>
+          </DropdownMenuItem>
         ))}
-      </SelectContent>
-    </Select>
+      </DropdownMenuContent>
+    </DropdownMenu>
   );
 }
