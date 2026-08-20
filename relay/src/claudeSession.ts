@@ -29,12 +29,22 @@ export interface ClaudeEvent {
 export interface ClaudeSessionOptions {
   /** Sobrescreve $HOME do processo filho — usado pro isolamento por perfil (docs/08). */
   homeOverride?: string;
+  /** Semeia o session_id a partir do que a Fase 7 persistiu em disco — ver
+   * SessionStore/docs/18. Sem isso, um restart do relay perdia a
+   * continuidade de `--resume` mesmo com a sessão do Claude Code intacta. */
+  initialSessionId?: string;
 }
 
 export class ClaudeSession {
   private sessionId: string | undefined;
 
-  constructor(private readonly options: ClaudeSessionOptions = {}) {}
+  constructor(private readonly options: ClaudeSessionOptions = {}) {
+    this.sessionId = options.initialSessionId;
+  }
+
+  getSessionId(): string | undefined {
+    return this.sessionId;
+  }
 
   async sendTurn(text: string, onEvent: (event: ClaudeEvent) => void): Promise<void> {
     const args = [

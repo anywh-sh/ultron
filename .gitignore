@@ -1,6 +1,7 @@
 # node
 node_modules/
 dist/
+relay/sessions.local.json
 
 # rust / tauri
 client/src-tauri/target/

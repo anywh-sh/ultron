@@ -1,6 +1,7 @@
 import { createServer } from "node:http";
 import { WebSocketServer, type WebSocket } from "ws";
 import { SessionManager } from "./sessionManager.js";
+import { SessionStore } from "./sessionStore.js";
 import { saveUpload } from "./uploads.js";
 
 // Config via env — permite rodar uma instância por perfil (systemd,
@@ -9,6 +10,12 @@ const PORT = Number(process.env.RELAY_PORT ?? 8765);
 const HOST = process.env.RELAY_HOST ?? "127.0.0.1";
 const HOME_OVERRIDE = process.env.RELAY_HOME_OVERRIDE;
 const DEFAULT_SESSION = "default";
+
+// Mesmo padrão do RELAY_UPLOAD_DIR: os dois serviços systemd (pessoal/
+// trabalho) compartilham WorkingDirectory, então um caminho relativo fixo
+// colidiria entre perfis — precisa de env var dedicada em produção. O
+// fallback "./sessions.local.json" é só pra `npm run dev` local.
+const SESSIONS_FILE = process.env.RELAY_SESSIONS_FILE ?? "./sessions.local.json";
 
 interface UserMessage {
   type: "user_message";
@@ -24,7 +31,8 @@ function isUserMessage(value: unknown): value is UserMessage {
   );
 }
 
-const sessionManager = new SessionManager(HOME_OVERRIDE);
+const sessionStore = new SessionStore(SESSIONS_FILE);
+const sessionManager = new SessionManager(HOME_OVERRIDE, sessionStore);
 
 const httpServer = createServer((req, res) => {
   if (req.method === "OPTIONS") {

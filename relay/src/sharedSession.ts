@@ -6,6 +6,14 @@ export type BroadcastMessage =
   | { type: "turn_complete" }
   | { type: "turn_error"; message: string };
 
+export interface SharedSessionOptions {
+  /** session_id já persistido pra essa sessão (Fase 7 / docs/18), se houver. */
+  initialSessionId?: string;
+  /** Chamado com o session_id aprendido depois de cada turno bem-sucedido —
+   * é assim que o SessionManager grava no SessionStore. */
+  onSessionIdChange?: (sessionId: string) => void;
+}
+
 /**
  * Uma sessão do Claude compartilhada por todos os clientes conectados nela.
  * Novos clientes recebem replay do histórico antes de passar a receber
@@ -18,8 +26,11 @@ export class SharedSession {
   private readonly clients = new Set<WebSocket>();
   private turnQueue: Promise<void> = Promise.resolve();
 
-  constructor(homeOverride: string | undefined) {
-    this.claude = new ClaudeSession({ homeOverride });
+  constructor(
+    homeOverride: string | undefined,
+    private readonly options: SharedSessionOptions = {},
+  ) {
+    this.claude = new ClaudeSession({ homeOverride, initialSessionId: options.initialSessionId });
   }
 
   addClient(socket: WebSocket): void {
@@ -43,6 +54,8 @@ export class SharedSession {
       await this.claude.sendTurn(text, (event) => {
         this.broadcast({ type: "claude_event", event });
       });
+      const sessionId = this.claude.getSessionId();
+      if (sessionId) this.options.onSessionIdChange?.(sessionId);
       this.broadcast({ type: "turn_complete" });
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error);
