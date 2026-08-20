@@ -1,6 +1,5 @@
 import { useRef, useState } from "react";
 import { ImagePlus } from "lucide-react";
-import { cn } from "@/lib/utils";
 import { useRelayClient } from "@/hooks/useRelayClient";
 import { useMessageLog } from "@/hooks/useMessageLog";
 import { useImageUpload, type PendingImage } from "@/hooks/useImageUpload";
@@ -82,16 +81,6 @@ export function ChatPanel({ profile, sessionName, onTurnComplete }: ChatPanelPro
           Solte a imagem aqui
         </div>
       )}
-
-      <div className="flex items-center gap-2 border-b border-border-soft px-3 py-1.5 text-xs text-muted-foreground">
-        <span
-          className={cn(
-            "size-1.5 shrink-0 rounded-full",
-            profile.id === "trabalho" ? "bg-profile-work" : "bg-profile-personal",
-          )}
-        />
-        <span className="min-w-0 truncate font-mono">{sessionName}</span>
-      </div>
 
       <MessageLog entries={log.entries} streamingEntries={log.streamingEntries} />
 

@@ -7,6 +7,7 @@ import type { Tab } from "@/hooks/useProfileTabs";
 interface TabBarProps {
   tabs: Tab[];
   activeTabId: string | null;
+  profileId: string;
   onSelect: (tabId: string) => void;
   onClose: (tabId: string) => void;
   renderPanel: (tab: Tab) => ReactNode;
@@ -16,7 +17,7 @@ interface TabBarProps {
  * `forceMount` + `data-[state=inactive]:hidden` em vez de render condicional:
  * é isso que mantém a conexão WS de abas em background viva (docs/18).
  */
-export function TabBar({ tabs, activeTabId, onSelect, onClose, renderPanel }: TabBarProps) {
+export function TabBar({ tabs, activeTabId, profileId, onSelect, onClose, renderPanel }: TabBarProps) {
   return (
     <Tabs value={activeTabId ?? undefined} onValueChange={onSelect} className="h-full gap-0">
       <TabsList
@@ -29,6 +30,12 @@ export function TabBar({ tabs, activeTabId, onSelect, onClose, renderPanel }: Ta
               value={tab.id}
               className="gap-1.5 rounded-none py-2 pr-7 pl-3 font-mono text-xs data-[state=active]:bg-bg-elevated"
             >
+              <span
+                className={cn(
+                  "size-1.5 shrink-0 rounded-full",
+                  profileId === "trabalho" ? "bg-profile-work" : "bg-profile-personal",
+                )}
+              />
               {tab.hasUnreadCompletion && <span className="size-1.5 shrink-0 rounded-full bg-primary" />}
               <span className="max-w-[120px] truncate">{tab.sessionName}</span>
             </TabsTrigger>

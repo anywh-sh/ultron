@@ -235,6 +235,7 @@ export default function App() {
                     <TabBar
                       tabs={tabs}
                       activeTabId={activeTabId}
+                      profileId={profile.id}
                       onSelect={(tabId) => profileTabs.setActiveTab(profile.id, tabId)}
                       onClose={(tabId) => profileTabs.closeTab(profile.id, tabId)}
                       renderPanel={(tab) => (
