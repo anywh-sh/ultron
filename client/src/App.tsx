@@ -1,12 +1,16 @@
 import { useEffect, useMemo, useState } from "react";
-import { Menu, PanelLeftOpen } from "lucide-react";
+import { Menu } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Sheet, SheetContent, SheetTitle } from "@/components/ui/sheet";
+import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { Sidebar } from "@/components/shell/Sidebar";
 import { EmptyState } from "@/components/shell/EmptyState";
+import { SessionSearch } from "@/components/shell/SessionSearch";
 import { TabBar } from "@/components/shell/TabBar";
+import { TitleBar } from "@/components/shell/TitleBar";
 import { ChatPanel } from "@/components/chat/ChatPanel";
 import { useActiveProfile } from "@/hooks/useActiveProfile";
+import { useNavigationHistory } from "@/hooks/useNavigationHistory";
 import { useSessionNames } from "@/hooks/useSessionNames";
 import { useResizableSidebar } from "@/hooks/useResizableSidebar";
 import { useIsCompactViewport } from "@/hooks/useIsCompactViewport";
@@ -28,9 +32,23 @@ export default function App() {
   const isCompact = useIsCompactViewport();
   const resizable = useResizableSidebar();
   const profileTabs = useProfileTabs();
+  const nav = useNavigationHistory();
 
   const [emptyVariant, setEmptyVariant] = useState<"new" | "switch">("switch");
   const [drawerOpen, setDrawerOpen] = useState(false);
+  const [searchOpen, setSearchOpen] = useState(false);
+
+  // Atalho global de busca (Ctrl/Cmd+K — docs/21), em qualquer tela.
+  useEffect(() => {
+    function handleKeyDown(event: KeyboardEvent): void {
+      if (event.key.toLowerCase() === "k" && (event.metaKey || event.ctrlKey)) {
+        event.preventDefault();
+        setSearchOpen((open) => !open);
+      }
+    }
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
+  }, []);
 
   // Primeiro lançamento (ou primeira vez visitando um perfil nesta sessão do
   // app): restaura a última sessão usada — docs/18. Só roda quando o perfil
@@ -48,6 +66,28 @@ export default function App() {
     if (activeTabIdOfActiveProfile) profileTabs.setUnread(activeProfile.id, activeTabIdOfActiveProfile, false);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [activeProfile.id, activeTabIdOfActiveProfile]);
+
+  // Empilha uma entrada de histórico (Back/Forward da titlebar — docs/21)
+  // toda vez que o perfil ou a aba ativa mudam, exceto quando a mudança veio
+  // do próprio goBack/goForward (o hook filtra isso internamente).
+  useEffect(() => {
+    nav.notifyLocationChanged({ profileId: activeProfile.id, tabId: activeTabIdOfActiveProfile });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [activeProfile.id, activeTabIdOfActiveProfile]);
+
+  function handleGoBack(): void {
+    const location = nav.goBack();
+    if (!location) return;
+    setActiveProfileId(location.profileId);
+    if (location.tabId) profileTabs.setActiveTab(location.profileId, location.tabId);
+  }
+
+  function handleGoForward(): void {
+    const location = nav.goForward();
+    if (!location) return;
+    setActiveProfileId(location.profileId);
+    if (location.tabId) profileTabs.setActiveTab(location.profileId, location.tabId);
+  }
 
   function handleProfileChange(profileId: string): void {
     setActiveProfileId(profileId);
@@ -71,6 +111,11 @@ export default function App() {
     setDrawerOpen(false);
   }
 
+  function handleSearchSelectSession(profileId: string, sessionName: string): void {
+    setActiveProfileId(profileId);
+    profileTabs.openTab(profileId, sessionName);
+  }
+
   const sidebarProps = {
     activeProfile,
     onProfileChange: handleProfileChange,
@@ -82,87 +127,102 @@ export default function App() {
   };
 
   return (
-    <div className="flex h-screen w-screen overflow-hidden bg-background text-foreground">
-      {!isCompact && (
-        <div
-          className="relative flex shrink-0 border-r border-border-soft"
-          style={{
-            width: resizable.width,
-            transition: resizable.isDragging ? "none" : "width 150ms ease",
-          }}
-        >
-          <div className="min-w-0 flex-1 overflow-hidden">
-            {!resizable.collapsed && <Sidebar {...sidebarProps} onCollapse={resizable.toggleCollapsed} />}
+    <div className="flex h-screen w-screen flex-col overflow-hidden bg-background text-foreground">
+      <TitleBar
+        canGoBack={nav.canGoBack}
+        canGoForward={nav.canGoForward}
+        onGoBack={handleGoBack}
+        onGoForward={handleGoForward}
+        showSidebarToggle={!isCompact}
+        sidebarCollapsed={resizable.collapsed}
+        onToggleSidebar={resizable.toggleCollapsed}
+        onOpenSearch={() => setSearchOpen(true)}
+      />
+
+      <SessionSearch open={searchOpen} onOpenChange={setSearchOpen} onSelectSession={handleSearchSelectSession} />
+
+      <div className="flex min-h-0 flex-1">
+        {!isCompact && (
+          <div
+            className="relative flex shrink-0 border-r border-border-soft"
+            style={{
+              width: resizable.width,
+              transition: resizable.isDragging ? "none" : "width 150ms ease",
+            }}
+          >
+            <div className="min-w-0 flex-1 overflow-hidden">
+              {!resizable.collapsed && <Sidebar {...sidebarProps} />}
+            </div>
+            {!resizable.collapsed && (
+              <div
+                onPointerDown={resizable.startDrag}
+                className="absolute top-0 right-0 h-full w-1 cursor-col-resize hover:bg-border"
+              />
+            )}
           </div>
-          {!resizable.collapsed && (
-            <div
-              onPointerDown={resizable.startDrag}
-              className="absolute top-0 right-0 h-full w-1 cursor-col-resize hover:bg-border"
-            />
-          )}
-        </div>
-      )}
+        )}
 
-      {isCompact && (
-        <Sheet open={drawerOpen} onOpenChange={setDrawerOpen}>
-          <SheetContent side="left" className="w-[280px] gap-0 border-r border-border-soft bg-bg-sidebar p-0 sm:max-w-[280px]">
-            <SheetTitle className="sr-only">Barra lateral</SheetTitle>
-            <Sidebar {...sidebarProps} />
-          </SheetContent>
-        </Sheet>
-      )}
+        {isCompact && (
+          <Sheet open={drawerOpen} onOpenChange={setDrawerOpen}>
+            <SheetContent side="left" className="w-[280px] gap-0 border-r border-border-soft bg-bg-sidebar p-0 sm:max-w-[280px]">
+              <SheetTitle className="sr-only">Barra lateral</SheetTitle>
+              <Sidebar {...sidebarProps} />
+            </SheetContent>
+          </Sheet>
+        )}
 
-      <div className="relative flex min-w-0 flex-1 flex-col">
-        <div className="flex items-center gap-2 p-2">
+        <div className="relative flex min-w-0 flex-1 flex-col">
           {isCompact && (
-            <Button variant="ghost" size="icon" onClick={() => setDrawerOpen(true)} aria-label="Abrir barra lateral">
-              <Menu className="size-4" />
-            </Button>
+            <div className="flex items-center gap-2 p-2">
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <Button variant="ghost" size="icon" onClick={() => setDrawerOpen(true)} aria-label="Abrir barra lateral">
+                    <Menu className="size-4" />
+                  </Button>
+                </TooltipTrigger>
+                <TooltipContent side="bottom">Abrir barra lateral</TooltipContent>
+              </Tooltip>
+            </div>
           )}
-          {!isCompact && resizable.collapsed && (
-            <Button variant="ghost" size="icon" onClick={resizable.toggleCollapsed} aria-label="Expandir barra lateral">
-              <PanelLeftOpen className="size-4" />
-            </Button>
-          )}
-        </div>
 
-        <div className="min-h-0 flex-1">
-          {PROFILES.map((profile) => {
-            const { tabs, activeTabId } = profileTabs.getTabs(profile.id);
-            const isActiveProfile = profile.id === activeProfile.id;
+          <div className="min-h-0 flex-1">
+            {PROFILES.map((profile) => {
+              const { tabs, activeTabId } = profileTabs.getTabs(profile.id);
+              const isActiveProfile = profile.id === activeProfile.id;
 
-            return (
-              <div key={profile.id} className={cn("h-full", !isActiveProfile && "hidden")}>
-                {tabs.length > 0 ? (
-                  <TabBar
-                    tabs={tabs}
-                    activeTabId={activeTabId}
-                    onSelect={(tabId) => profileTabs.setActiveTab(profile.id, tabId)}
-                    onClose={(tabId) => profileTabs.closeTab(profile.id, tabId)}
-                    renderPanel={(tab) => (
-                      <ChatPanel
-                        profile={findProfile(profile.id) ?? profile}
-                        sessionName={tab.sessionName}
-                        onTurnComplete={() => {
-                          const stillVisible =
-                            profile.id === activeProfile.id &&
-                            tab.id === profileTabs.getTabs(profile.id).activeTabId;
-                          if (!stillVisible) profileTabs.setUnread(profile.id, tab.id, true);
-                        }}
-                      />
-                    )}
-                  />
-                ) : (
-                  isActiveProfile && (
-                    <EmptyState
-                      variant={emptyVariant}
-                      onCreateSession={(name) => profileTabs.openTab(profile.id, name)}
+              return (
+                <div key={profile.id} className={cn("h-full", !isActiveProfile && "hidden")}>
+                  {tabs.length > 0 ? (
+                    <TabBar
+                      tabs={tabs}
+                      activeTabId={activeTabId}
+                      onSelect={(tabId) => profileTabs.setActiveTab(profile.id, tabId)}
+                      onClose={(tabId) => profileTabs.closeTab(profile.id, tabId)}
+                      renderPanel={(tab) => (
+                        <ChatPanel
+                          profile={findProfile(profile.id) ?? profile}
+                          sessionName={tab.sessionName}
+                          onTurnComplete={() => {
+                            const stillVisible =
+                              profile.id === activeProfile.id &&
+                              tab.id === profileTabs.getTabs(profile.id).activeTabId;
+                            if (!stillVisible) profileTabs.setUnread(profile.id, tab.id, true);
+                          }}
+                        />
+                      )}
                     />
-                  )
-                )}
-              </div>
-            );
-          })}
+                  ) : (
+                    isActiveProfile && (
+                      <EmptyState
+                        variant={emptyVariant}
+                        onCreateSession={(name) => profileTabs.openTab(profile.id, name)}
+                      />
+                    )
+                  )}
+                </div>
+              );
+            })}
+          </div>
         </div>
       </div>
     </div>

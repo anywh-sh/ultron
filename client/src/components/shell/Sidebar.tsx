@@ -1,5 +1,6 @@
-import { PanelLeftClose, Plus } from "lucide-react";
+import { Plus } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { SessionList } from "@/components/shell/SessionList";
 import { ProfileSwitcher } from "@/components/shell/ProfileSwitcher";
 import type { Profile } from "@/lib/profiles";
@@ -12,8 +13,6 @@ interface SidebarProps {
   selectedSession: string | null;
   onSelectSession: (name: string) => void;
   onNewConversation: () => void;
-  /** Omitido no modo drawer (compacto) — o Sheet já tem seu próprio fechamento. */
-  onCollapse?: () => void;
 }
 
 export function Sidebar({
@@ -24,24 +23,19 @@ export function Sidebar({
   selectedSession,
   onSelectSession,
   onNewConversation,
-  onCollapse,
 }: SidebarProps) {
   return (
     <div className="flex h-full min-w-0 flex-col bg-bg-sidebar">
       <div className="flex items-center justify-between gap-2 p-2">
         <span className="px-1 font-mono text-sm text-muted-foreground">ultron▍</span>
-        {onCollapse && (
-          <Button variant="ghost" size="icon" onClick={onCollapse} aria-label="Colapsar barra lateral">
-            <PanelLeftClose className="size-4" />
-          </Button>
-        )}
-      </div>
-
-      <div className="px-2 pb-2">
-        <Button variant="secondary" className="w-full justify-start gap-2" onClick={onNewConversation}>
-          <Plus className="size-4" />
-          Nova conversa
-        </Button>
+        <Tooltip>
+          <TooltipTrigger asChild>
+            <Button variant="ghost" size="icon" onClick={onNewConversation} aria-label="Nova conversa">
+              <Plus className="size-4" />
+            </Button>
+          </TooltipTrigger>
+          <TooltipContent side="bottom">Nova conversa</TooltipContent>
+        </Tooltip>
       </div>
 
       <SessionList

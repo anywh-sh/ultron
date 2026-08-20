@@ -3,5 +3,13 @@
   "identifier": "default",
   "description": "Capability for the main app window — modelo de janela única com abas (docs/18); não cria mais janelas por perfil/sessão.",
   "windows": ["*"],
-  "permissions": ["core:default", "opener:default"]
+  "permissions": [
+    "core:default",
+    "opener:default",
+    "core:window:allow-minimize",
+    "core:window:allow-toggle-maximize",
+    "core:window:allow-is-maximized",
+    "core:window:allow-close",
+    "core:window:allow-start-dragging"
+  ]
 }
