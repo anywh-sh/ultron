@@ -4,6 +4,7 @@ import { useRelayClient } from "@/hooks/useRelayClient";
 import { useMessageLog } from "@/hooks/useMessageLog";
 import { useImageUpload, type PendingImage } from "@/hooks/useImageUpload";
 import { MessageLog } from "@/components/chat/MessageLog";
+import { MessageLogSkeleton } from "@/components/chat/MessageLogSkeleton";
 import { TurnIndicator } from "@/components/chat/TurnIndicator";
 import { Composer, type ComposerHandle } from "@/components/chat/Composer";
 import type { Profile } from "@/lib/profiles";
@@ -34,6 +35,11 @@ export function ChatPanel({ profile, sessionName, onTurnComplete, onTurnActiveCh
   // `caughtUpRef` fica `true` só depois do marcador `caught_up`, que o relay
   // manda logo após o replay — daí em diante os eventos são mesmo ao vivo.
   const caughtUpRef = useRef(false);
+  // Mesmo sinal, mas em state — dispara o re-render que troca o skeleton
+  // pelo log de verdade. Nunca volta a `false`: o replay inicial só
+  // acontece uma vez por aba, uma reconexão depois disso não deve piscar o
+  // skeleton de novo.
+  const [ready, setReady] = useState(false);
 
   const images = useImageUpload(profile, (message) => window.alert(message));
   const composerRef = useRef<ComposerHandle>(null);
@@ -60,6 +66,7 @@ export function ChatPanel({ profile, sessionName, onTurnComplete, onTurnActiveCh
     onEvent: (event) => logRef.current.handleEvent(event),
     onCaughtUp: () => {
       caughtUpRef.current = true;
+      setReady(true);
     },
     onTurnComplete: () => {
       logRef.current.handleTurnComplete();
@@ -103,7 +110,7 @@ export function ChatPanel({ profile, sessionName, onTurnComplete, onTurnActiveCh
         </div>
       )}
 
-      <MessageLog entries={log.entries} streamingEntries={log.streamingEntries} />
+      {ready ? <MessageLog entries={log.entries} streamingEntries={log.streamingEntries} /> : <MessageLogSkeleton />}
 
       {turnInFlight && <TurnIndicator />}
 
