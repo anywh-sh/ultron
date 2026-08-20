@@ -74,6 +74,17 @@ function reducer(state: MessageLogState, action: Action): MessageLogState {
     case "CLAUDE_EVENT": {
       const { event } = action;
 
+      // Sintético, só existe na reconstrução de histórico a partir do
+      // `.jsonl` (relay/src/transcriptReader.ts) — o protocolo ao vivo nunca
+      // manda de volta o texto que o próprio usuário digitou, então não tem
+      // como confundir com nada real (ver docs/20-backlog.md).
+      if (event.type === "user_prompt") {
+        const block = event.message?.content?.[0];
+        const text = block?.type === "text" ? block.text : undefined;
+        if (typeof text !== "string") return state;
+        return { ...state, entries: [...state.entries, { kind: "user", id: newId(), text }] };
+      }
+
       if (event.type === "stream_event" && event.event) {
         const se = event.event;
         if (se.type === "message_start") {

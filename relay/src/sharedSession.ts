@@ -1,5 +1,6 @@
 import type { WebSocket } from "ws";
 import { ClaudeSession, type ClaudeEvent } from "./claudeSession.js";
+import { readHistoryFromTranscript } from "./transcriptReader.js";
 
 export type BroadcastMessage =
   | { type: "claude_event"; event: ClaudeEvent }
@@ -27,13 +28,14 @@ export class SharedSession {
   private turnQueue: Promise<void> = Promise.resolve();
 
   constructor(
-    homeOverride: string | undefined,
+    private readonly homeOverride: string | undefined,
     private readonly options: SharedSessionOptions = {},
   ) {
     this.claude = new ClaudeSession({ homeOverride, initialSessionId: options.initialSessionId });
   }
 
   addClient(socket: WebSocket): void {
+    this.ensureHistoryLoaded();
     for (const message of this.history) {
       socket.send(JSON.stringify(message));
     }
@@ -48,6 +50,18 @@ export class SharedSession {
 
   removeClient(socket: WebSocket): void {
     this.clients.delete(socket);
+  }
+
+  /**
+   * `history` sempre foi só em memória — some a cada restart do relay,
+   * mesmo o Claude Code tendo o transcript completo em disco (docs/20-backlog,
+   * "Reconstrução de histórico de mensagens via `.jsonl`"). Roda uma vez por
+   * processo: depois de carregado, `history` nunca mais fica vazio pra essa
+   * sessão. Sem `initialSessionId` não tem o que ler (sessão nova).
+   */
+  private ensureHistoryLoaded(): void {
+    if (this.history.length > 0 || !this.options.initialSessionId) return;
+    this.history.push(...readHistoryFromTranscript(this.homeOverride, this.options.initialSessionId));
   }
 
   submitTurn(text: string): void {
