@@ -88,6 +88,19 @@
   --radius-xl: calc(var(--radius) + 4px);
 }
 
+/* Tailwind v4 não dá cor default pra `border` (só width/style) — cai no
+ * initial value do CSS, `currentColor`, que aqui é o texto claro do app.
+ * Sem isso, qualquer componente shadcn com `border`/`border-b`/`border-l`
+ * sem cor explícita (dialog.tsx, command.tsx, select.tsx, dropdown-menu.tsx,
+ * sheet.tsx) renderiza borda branca em vez de seguir a paleta doc 17. */
+@layer base {
+  *,
+  ::before,
+  ::after {
+    border-color: var(--border);
+  }
+}
+
 body {
   background: var(--background);
   color: var(--foreground);
