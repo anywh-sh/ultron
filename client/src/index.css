@@ -1,0 +1,255 @@
+@import "tailwindcss";
+@import "@fontsource-variable/inter";
+@import "@fontsource-variable/jetbrains-mono";
+
+/*
+ * Paleta e tipografia travadas em docs/17-uiux-brainstorm-decisoes.md.
+ * Dark-only na v1 — não existe bloco claro, só :root.
+ */
+:root {
+  --background: #262624;
+  --bg-sidebar: #1f1e1c;
+  --bg-elevated: #2b2a27;
+  --card: #302f2b;
+  --bubble-user: #35332e;
+
+  --foreground: #f0eee6;
+  --muted-foreground: #a39c8e;
+  --text-faint: #6f6a5f;
+
+  --primary: #d97757;
+  --destructive: #c06456;
+
+  --border: #3a382f;
+  --border-soft: #302f2a;
+
+  --profile-personal: #d97757;
+  --profile-work: #7c93ab;
+
+  --radius: 0.5rem;
+}
+
+@theme inline {
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+
+  --color-bg-sidebar: var(--bg-sidebar);
+  --color-bg-elevated: var(--bg-elevated);
+  --color-card: var(--card);
+  --color-card-foreground: var(--foreground);
+  --color-bubble-user: var(--bubble-user);
+
+  --color-popover: var(--bg-elevated);
+  --color-popover-foreground: var(--foreground);
+
+  --color-primary: var(--primary);
+  --color-primary-foreground: var(--foreground);
+
+  --color-secondary: var(--bg-elevated);
+  --color-secondary-foreground: var(--foreground);
+
+  --color-muted: var(--bg-elevated);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-text-faint: var(--text-faint);
+
+  /* Distinto de --color-popover (ambos vindos de --bg-elevated): se fossem
+     iguais, o highlight de hover/foco dentro de um popover ficaria invisível
+     (mesma cor do fundo que ele mesmo está sobre) — foi exatamente o bug
+     relatado no dropdown de perfil. */
+  --color-accent: var(--border);
+  --color-accent-foreground: var(--foreground);
+
+  --color-destructive: var(--destructive);
+  --color-destructive-foreground: var(--foreground);
+
+  --color-border: var(--border);
+  --color-border-soft: var(--border-soft);
+  --color-input: var(--border);
+  --color-ring: var(--primary);
+
+  --color-profile-personal: var(--profile-personal);
+  --color-profile-work: var(--profile-work);
+
+  --color-sidebar: var(--bg-sidebar);
+  --color-sidebar-foreground: var(--foreground);
+  --color-sidebar-primary: var(--primary);
+  --color-sidebar-primary-foreground: var(--foreground);
+  --color-sidebar-accent: var(--bg-elevated);
+  --color-sidebar-accent-foreground: var(--foreground);
+  --color-sidebar-border: var(--border);
+  --color-sidebar-ring: var(--primary);
+
+  --font-sans: "Inter Variable", ui-sans-serif, system-ui, sans-serif;
+  --font-mono: "JetBrains Mono Variable", ui-monospace, monospace;
+
+  --radius-sm: calc(var(--radius) - 4px);
+  --radius-md: calc(var(--radius) - 2px);
+  --radius-lg: var(--radius);
+  --radius-xl: calc(var(--radius) + 4px);
+}
+
+body {
+  background: var(--background);
+  color: var(--foreground);
+  font-family: var(--font-sans);
+}
+
+@keyframes cursor-blink {
+  0%,
+  49% {
+    opacity: 1;
+  }
+  50%,
+  100% {
+    opacity: 0;
+  }
+}
+
+.animate-cursor-blink {
+  animation: cursor-blink 1s steps(1) infinite;
+}
+
+/* Waveform da gravação de voz — animação visual genérica (não é áudio real
+ * captado, decisão desta sessão: docs/18). */
+@keyframes waveform-bar {
+  0%,
+  100% {
+    transform: scaleY(0.35);
+  }
+  50% {
+    transform: scaleY(1);
+  }
+}
+.animate-waveform-bar {
+  animation: waveform-bar 0.9s ease-in-out infinite;
+  transform-origin: center;
+}
+
+/* Scrollbars finas/customizadas (sidebar + log de mensagens) — docs/17. */
+.scrollbar-thin {
+  scrollbar-width: thin;
+  scrollbar-color: var(--border) transparent;
+}
+.scrollbar-thin::-webkit-scrollbar {
+  width: 8px;
+}
+.scrollbar-thin::-webkit-scrollbar-track {
+  background: transparent;
+}
+.scrollbar-thin::-webkit-scrollbar-thumb {
+  background: var(--border);
+  border-radius: 9999px;
+}
+
+/* Markdown das respostas do assistente (react-markdown). Sem plugin de
+ * typography — o app é pequeno o bastante pra escrever isso à mão em vez de
+ * puxar mais uma dependência. */
+.prose-chat {
+  line-height: 1.65;
+}
+.prose-chat > * + * {
+  margin-top: 0.6em;
+}
+.prose-chat h1,
+.prose-chat h2,
+.prose-chat h3 {
+  font-weight: 600;
+  margin-top: 1em;
+  margin-bottom: 0.3em;
+}
+.prose-chat h1 {
+  font-size: 1.25em;
+}
+.prose-chat h2 {
+  font-size: 1.125em;
+}
+.prose-chat h3 {
+  font-size: 1em;
+}
+.prose-chat ul,
+.prose-chat ol {
+  padding-left: 1.4em;
+}
+.prose-chat li + li {
+  margin-top: 0.2em;
+}
+.prose-chat a {
+  color: var(--primary);
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+.prose-chat code {
+  font-family: var(--font-mono);
+  background: var(--card);
+  border-radius: 4px;
+  padding: 0.1em 0.35em;
+  font-size: 0.875em;
+}
+.prose-chat pre {
+  background: var(--card);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 0.75em 1em;
+  overflow-x: auto;
+}
+.prose-chat pre code {
+  background: none;
+  padding: 0;
+  border-radius: 0;
+  font-size: 0.8125em;
+  line-height: 1.5;
+  font-family: var(--font-mono);
+}
+.prose-chat blockquote {
+  border-left: 2px solid var(--border);
+  padding-left: 0.8em;
+  color: var(--muted-foreground);
+}
+.prose-chat table {
+  border-collapse: collapse;
+  width: 100%;
+  font-size: 0.875em;
+}
+.prose-chat th,
+.prose-chat td {
+  border: 1px solid var(--border);
+  padding: 0.35em 0.6em;
+  text-align: left;
+}
+
+/* Syntax highlight (rehype-highlight/hljs) — tema mínimo em cima da própria
+ * paleta em vez de importar um tema pronto do highlight.js. hljs-string e
+ * hljs-number/built_in usam tons próprios (não fazem parte da paleta de UI
+ * do docs/17, que não cobria sintaxe de código) pra dar contraste útil sem
+ * introduzir cor nova na UI geral — só dentro de blocos de código. */
+.hljs-comment,
+.hljs-quote {
+  color: var(--text-faint);
+  font-style: italic;
+}
+.hljs-keyword,
+.hljs-selector-tag,
+.hljs-literal {
+  color: var(--primary);
+}
+.hljs-string,
+.hljs-attr,
+.hljs-regexp {
+  color: #9cae7c;
+}
+.hljs-number,
+.hljs-built_in,
+.hljs-type {
+  color: var(--profile-work);
+}
+.hljs-title,
+.hljs-section {
+  color: var(--foreground);
+  font-weight: 600;
+}
+.hljs-deletion {
+  background: color-mix(in srgb, var(--destructive) 15%, transparent);
+}
+.hljs-addition {
+  background: color-mix(in srgb, var(--primary) 15%, transparent);
+}

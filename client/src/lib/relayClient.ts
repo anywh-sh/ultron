@@ -1,36 +1,8 @@
 // Cliente do protocolo do relay próprio (não é mais o protocolo do ttyd —
 // ver docs/11-decisao-pivo-stream-json.md e docs/12-prototipo-relay.md).
+import type { ClaudeEvent, RelayMessage } from "@/lib/relay-types";
 
-export interface ClaudeContentBlock {
-  type: string;
-  text?: string;
-  name?: string;
-  input?: { command?: string; description?: string; [key: string]: unknown };
-  content?: unknown;
-  is_error?: boolean;
-  tool_use_id?: string;
-  [key: string]: unknown;
-}
-
-export interface ClaudeMessage {
-  role?: string;
-  content?: ClaudeContentBlock[];
-}
-
-export interface ClaudeEvent {
-  type: string;
-  subtype?: string;
-  message?: ClaudeMessage;
-  session_id?: string;
-  result?: string;
-  status?: string;
-  [key: string]: unknown;
-}
-
-type RelayMessage =
-  | { type: "claude_event"; event: ClaudeEvent }
-  | { type: "turn_complete" }
-  | { type: "turn_error"; message: string };
+export type { ClaudeContentBlock, ClaudeMessage, ClaudeEvent } from "@/lib/relay-types";
 
 function isRelayMessage(value: unknown): value is RelayMessage {
   return typeof value === "object" && value !== null && "type" in value;
@@ -84,5 +56,9 @@ export class RelayClient {
   sendMessage(text: string): void {
     if (this.socket?.readyState !== WebSocket.OPEN) return;
     this.socket.send(JSON.stringify({ type: "user_message", text }));
+  }
+
+  disconnect(): void {
+    this.socket?.close();
   }
 }

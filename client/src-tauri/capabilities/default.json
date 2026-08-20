@@ -1,11 +1,7 @@
 {
   "$schema": "../gen/schemas/desktop-schema.json",
   "identifier": "default",
-  "description": "Capability for all app windows (main, profile pickers, session chats) — they all need to be able to open further windows (profile -> session -> chat), and it's all trusted first-party content.",
+  "description": "Capability for the main app window — modelo de janela única com abas (docs/18); não cria mais janelas por perfil/sessão.",
   "windows": ["*"],
-  "permissions": [
-    "core:default",
-    "core:webview:allow-create-webview-window",
-    "opener:default"
-  ]
+  "permissions": ["core:default", "opener:default"]
 }

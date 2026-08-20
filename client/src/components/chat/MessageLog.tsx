@@ -1,0 +1,84 @@
+import { useEffect, useRef } from "react";
+import { LogEntryRow } from "@/components/chat/LogEntryRow";
+import { UserBubble, AssistantText } from "@/components/chat/Message";
+import { ToolCallCard } from "@/components/chat/ToolCallCard";
+import { ErrorMessage } from "@/components/chat/ErrorMessage";
+import type { LogEntry } from "@/hooks/useMessageLog";
+
+interface MessageLogProps {
+  entries: LogEntry[];
+  streamingEntries: LogEntry[];
+}
+
+type RenderItem =
+  | { kind: "single"; entry: LogEntry }
+  | { kind: "tool"; use: Extract<LogEntry, { kind: "tool-use" }>; result?: Extract<LogEntry, { kind: "tool-result" }> };
+
+/** Junta tool-use com o tool-result correspondente (por toolUseId) num só
+ * card — o reducer guarda os dois como entradas separadas, a apresentação
+ * decide juntar. */
+function pairToolEntries(entries: LogEntry[]): RenderItem[] {
+  const resultByToolUseId = new Map<string, Extract<LogEntry, { kind: "tool-result" }>>();
+  for (const entry of entries) {
+    if (entry.kind === "tool-result" && entry.toolUseId) resultByToolUseId.set(entry.toolUseId, entry);
+  }
+
+  const items: RenderItem[] = [];
+  for (const entry of entries) {
+    if (entry.kind === "tool-result") continue;
+    if (entry.kind === "tool-use") {
+      items.push({ kind: "tool", use: entry, result: entry.toolUseId ? resultByToolUseId.get(entry.toolUseId) : undefined });
+      continue;
+    }
+    items.push({ kind: "single", entry });
+  }
+  return items;
+}
+
+function renderItem(item: RenderItem) {
+  if (item.kind === "tool") {
+    return (
+      <LogEntryRow key={item.use.id} rail="neutral">
+        <ToolCallCard use={item.use} result={item.result} />
+      </LogEntryRow>
+    );
+  }
+
+  const entry = item.entry;
+  switch (entry.kind) {
+    case "user":
+      return <UserBubble key={entry.id} text={entry.text} images={entry.images} />;
+    case "text":
+      return (
+        <LogEntryRow key={entry.id} rail="none">
+          <AssistantText text={entry.text} />
+        </LogEntryRow>
+      );
+    case "error":
+      return (
+        <LogEntryRow key={entry.id} rail="error">
+          <ErrorMessage message={entry.message} />
+        </LogEntryRow>
+      );
+    default:
+      return null;
+  }
+}
+
+export function MessageLog({ entries, streamingEntries }: MessageLogProps) {
+  const bottomRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    bottomRef.current?.scrollIntoView({ block: "end" });
+  }, [entries.length, streamingEntries.length]);
+
+  const items = pairToolEntries(entries);
+
+  return (
+    <div className="scrollbar-thin flex flex-1 flex-col gap-1 overflow-y-auto px-4 py-3">
+      {items.map(renderItem)}
+      {streamingEntries.map((entry) => renderItem({ kind: "single", entry }))}
+      <div ref={bottomRef} />
+    </div>
+  );
+}
