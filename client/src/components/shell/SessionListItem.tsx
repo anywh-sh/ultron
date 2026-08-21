@@ -43,14 +43,7 @@ export function SessionListItem({ session, selected, running, onSelect, onRename
       >
         <Pencil className="size-3" />
       </button>
-      <SessionDeleteMenu
-        menu={menu}
-        onDelete={() => {
-          if (window.confirm(`Excluir a sessão "${session.title}"? Essa ação não pode ser desfeita.`)) {
-            onDelete(session.id);
-          }
-        }}
-      />
+      <SessionDeleteMenu menu={menu} title={session.title} onDelete={() => onDelete(session.id)} />
     </div>
   );
 }

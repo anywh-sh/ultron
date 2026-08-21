@@ -86,15 +86,7 @@ function SortableTab({ tab, profileId, onClose, onDelete }: SortableTabProps) {
       >
         <X className="size-3" />
       </button>
-      <SessionDeleteMenu
-        menu={menu}
-        onDelete={() => {
-          const title = tab.title ?? "nova conversa";
-          if (window.confirm(`Excluir a sessão "${title}"? Essa ação não pode ser desfeita.`)) {
-            onDelete(tab.id);
-          }
-        }}
-      />
+      <SessionDeleteMenu menu={menu} title={tab.title ?? "nova conversa"} onDelete={() => onDelete(tab.id)} />
     </div>
   );
 }
