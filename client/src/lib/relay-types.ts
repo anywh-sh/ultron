@@ -81,4 +81,6 @@ export type RelayMessage =
   | { type: "claude_event"; event: ClaudeEvent }
   | { type: "turn_complete"; stopped?: boolean }
   | { type: "turn_error"; message: string }
-  | { type: "caught_up" };
+  | { type: "caught_up" }
+  | { type: "cwd_state"; cwd: string; locked: boolean }
+  | { type: "set_cwd_error"; message: string };

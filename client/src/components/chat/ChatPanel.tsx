@@ -7,6 +7,7 @@ import { MessageLog } from "@/components/chat/MessageLog";
 import { MessageLogSkeleton } from "@/components/chat/MessageLogSkeleton";
 import { TurnIndicator } from "@/components/chat/TurnIndicator";
 import { Composer, type ComposerHandle } from "@/components/chat/Composer";
+import { WorkingDirectoryButton } from "@/components/chat/WorkingDirectoryButton";
 import type { Profile } from "@/lib/profiles";
 
 interface ChatPanelProps {
@@ -62,7 +63,7 @@ export function ChatPanel({ profile, sessionName, onTurnComplete, onTurnActiveCh
     onTurnActiveChangeRef.current?.(turnInFlight);
   }, [turnInFlight]);
 
-  const { connected, sendMessage, stopTurn } = useRelayClient(profile, sessionName, {
+  const { connected, cwd, cwdLocked, sendMessage, stopTurn, setCwd } = useRelayClient(profile, sessionName, {
     onEvent: (event) => logRef.current.handleEvent(event),
     onCaughtUp: () => {
       caughtUpRef.current = true;
@@ -77,6 +78,7 @@ export function ChatPanel({ profile, sessionName, onTurnComplete, onTurnActiveCh
       logRef.current.handleTurnError(message);
       setTurnInFlight(false);
     },
+    onSetCwdError: (message) => window.alert(`Não foi possível trocar a pasta: ${message}`),
   });
 
   return (
@@ -113,6 +115,10 @@ export function ChatPanel({ profile, sessionName, onTurnComplete, onTurnActiveCh
       {ready ? <MessageLog entries={log.entries} streamingEntries={log.streamingEntries} /> : <MessageLogSkeleton />}
 
       {turnInFlight && <TurnIndicator />}
+
+      <div className="mx-3 mt-3 flex">
+        <WorkingDirectoryButton profile={profile} cwd={cwd} locked={cwdLocked} connected={connected} onSetCwd={setCwd} />
+      </div>
 
       <Composer
         ref={composerRef}

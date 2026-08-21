@@ -7,12 +7,19 @@ export interface UseRelayClientOptions {
   onTurnComplete?: (stopped: boolean) => void;
   onTurnError?: (message: string) => void;
   onCaughtUp?: () => void;
+  onSetCwdError?: (message: string) => void;
 }
 
 export interface UseRelayClientResult {
   connected: boolean;
+  /** `null` só na janela breve entre conectar e o primeiro `cwd_state`
+   * chegar — ver `SharedSession.addClient` no relay, que manda isso antes
+   * de qualquer outra coisa. */
+  cwd: string | null;
+  cwdLocked: boolean;
   sendMessage: (text: string) => void;
   stopTurn: () => void;
+  setCwd: (path: string) => void;
 }
 
 /**
@@ -28,17 +35,30 @@ export function useRelayClient(
   options: UseRelayClientOptions = {},
 ): UseRelayClientResult {
   const [connected, setConnected] = useState(false);
+  const [cwd, setCwdState] = useState<string | null>(null);
+  const [cwdLocked, setCwdLocked] = useState(false);
   const clientRef = useRef<RelayClient | null>(null);
 
   const optionsRef = useRef(options);
   optionsRef.current = options;
 
   useEffect(() => {
+    // Estado de working directory é por conexão — uma troca de aba/sessão
+    // reconecta do zero, então começa "desconhecido" até o relay mandar o
+    // primeiro `cwd_state` dessa sessão nova.
+    setCwdState(null);
+    setCwdLocked(false);
+
     const client = new RelayClient(profile.host, profile.relayPort, sessionName, {
       onEvent: (event) => optionsRef.current.onEvent?.(event),
       onTurnComplete: (stopped) => optionsRef.current.onTurnComplete?.(stopped),
       onTurnError: (message) => optionsRef.current.onTurnError?.(message),
       onCaughtUp: () => optionsRef.current.onCaughtUp?.(),
+      onCwdState: (newCwd, locked) => {
+        setCwdState(newCwd);
+        setCwdLocked(locked);
+      },
+      onSetCwdError: (message) => optionsRef.current.onSetCwdError?.(message),
       onConnectionChange: setConnected,
     });
     clientRef.current = client;
@@ -58,5 +78,9 @@ export function useRelayClient(
     clientRef.current?.stopTurn();
   }, []);
 
-  return { connected, sendMessage, stopTurn };
+  const setCwd = useCallback((path: string) => {
+    clientRef.current?.setCwd(path);
+  }, []);
+
+  return { connected, cwd, cwdLocked, sendMessage, stopTurn, setCwd };
 }

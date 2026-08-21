@@ -21,6 +21,10 @@ export interface RelayClientCallbacks {
   /** Fim do replay do histórico dessa sessão — turnos concluídos recebidos
    * depois disso são de verdade novos, não reconstrução (ver sharedSession.ts). */
   onCaughtUp: () => void;
+  /** Mandado logo na conexão (antes do replay de histórico) e de novo toda
+   * vez que o working directory muda ou trava — ver sharedSession.ts. */
+  onCwdState: (cwd: string, locked: boolean) => void;
+  onSetCwdError?: (message: string) => void;
   onConnectionChange?: (connected: boolean) => void;
 }
 
@@ -54,6 +58,10 @@ export class RelayClient {
         this.callbacks.onTurnError(parsed.message);
       } else if (parsed.type === "caught_up") {
         this.callbacks.onCaughtUp();
+      } else if (parsed.type === "cwd_state") {
+        this.callbacks.onCwdState(parsed.cwd, parsed.locked);
+      } else if (parsed.type === "set_cwd_error") {
+        this.callbacks.onSetCwdError?.(parsed.message);
       }
     });
   }
@@ -66,6 +74,11 @@ export class RelayClient {
   stopTurn(): void {
     if (this.socket?.readyState !== WebSocket.OPEN) return;
     this.socket.send(JSON.stringify({ type: "stop_turn" }));
+  }
+
+  setCwd(path: string): void {
+    if (this.socket?.readyState !== WebSocket.OPEN) return;
+    this.socket.send(JSON.stringify({ type: "set_cwd", path }));
   }
 
   disconnect(): void {
