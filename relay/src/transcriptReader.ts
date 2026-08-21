@@ -1,5 +1,4 @@
 import { existsSync, readFileSync } from "node:fs";
-import { homedir } from "node:os";
 import { join } from "node:path";
 import type { ClaudeEvent } from "./claudeSession.js";
 import type { BroadcastMessage } from "./sharedSession.js";
@@ -66,12 +65,12 @@ export function sanitizeCwd(cwd: string): string {
 }
 
 /** Exportado só pra teste — deixa o teste escrever a fixture no mesmo lugar
- * que o código real vai procurar, em vez de duplicar a regra de sanitização. */
-export function transcriptPath(homeOverride: string | undefined, sessionId: string): string {
-  // Mesmo cwd/HOME que `ClaudeSession.sendTurn` usa pro `spawn()` — é o que
-  // o Claude Code usa pra decidir em que pasta de projeto gravar.
-  const cwd = homeOverride ?? process.cwd();
-  const home = homeOverride ?? homedir();
+ * que o código real vai procurar, em vez de duplicar a regra de sanitização.
+ * `home` e `cwd` já vêm resolvidos pelo caller (`SharedSession`, via
+ * `paths.ts::defaultCwd` pro primeiro e o cwd de verdade da sessão pro
+ * segundo) — cwd é por sessão desde a feature de working directory, não dá
+ * mais pra assumir que é igual a `home`/`process.cwd()` aqui dentro. */
+export function transcriptPath(home: string, cwd: string, sessionId: string): string {
   return join(home, ".claude", "projects", sanitizeCwd(cwd), `${sessionId}.jsonl`);
 }
 
@@ -83,8 +82,8 @@ export function transcriptPath(homeOverride: string | undefined, sessionId: stri
  * plano desta mudança pros motivos e a investigação por trás das regras
  * abaixo.
  */
-export function readHistoryFromTranscript(homeOverride: string | undefined, sessionId: string): BroadcastMessage[] {
-  const path = transcriptPath(homeOverride, sessionId);
+export function readHistoryFromTranscript(home: string, cwd: string, sessionId: string): BroadcastMessage[] {
+  const path = transcriptPath(home, cwd, sessionId);
   if (!existsSync(path)) return [];
 
   const messages: BroadcastMessage[] = [];

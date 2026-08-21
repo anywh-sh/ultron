@@ -35,9 +35,14 @@ export class SessionManager {
   }
 
   private createSession(name: string): SharedSession {
+    const { cwd, locked } = this.sessionStore.getCwdState(name);
     return new SharedSession(this.homeOverride, {
       initialSessionId: this.sessionStore.getSessionId(name),
       onSessionIdChange: (sessionId) => this.sessionStore.recordSessionId(name, sessionId),
+      initialCwd: cwd,
+      initialLocked: locked,
+      onCwdChange: (newCwd) => this.sessionStore.setCwd(name, newCwd),
+      onLockChange: () => this.sessionStore.lockCwd(name),
     });
   }
 }

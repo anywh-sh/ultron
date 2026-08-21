@@ -1,5 +1,7 @@
 import { createServer } from "node:http";
 import { WebSocketServer, type WebSocket } from "ws";
+import { listDirectories } from "./fsBrowse.js";
+import { defaultCwd } from "./paths.js";
 import { SessionManager } from "./sessionManager.js";
 import { SessionStore } from "./sessionStore.js";
 import { saveUpload } from "./uploads.js";
@@ -35,7 +37,16 @@ function isStopTurnMessage(value: unknown): value is { type: "stop_turn" } {
   return typeof value === "object" && value !== null && (value as { type?: unknown }).type === "stop_turn";
 }
 
-const sessionStore = new SessionStore(SESSIONS_FILE);
+function isSetCwdMessage(value: unknown): value is { type: "set_cwd"; path: string } {
+  return (
+    typeof value === "object" &&
+    value !== null &&
+    (value as { type?: unknown }).type === "set_cwd" &&
+    typeof (value as { path?: unknown }).path === "string"
+  );
+}
+
+const sessionStore = new SessionStore(SESSIONS_FILE, defaultCwd(HOME_OVERRIDE));
 const sessionManager = new SessionManager(HOME_OVERRIDE, sessionStore);
 
 const httpServer = createServer((req, res) => {
@@ -52,6 +63,22 @@ const httpServer = createServer((req, res) => {
     res.setHeader("Content-Type", "application/json");
     res.setHeader("Access-Control-Allow-Origin", "*");
     res.end(JSON.stringify({ sessions: sessionManager.listNames() }));
+    return;
+  }
+
+  if (req.method === "GET" && req.url?.startsWith("/fs/list")) {
+    const url = new URL(req.url, `http://${req.headers.host ?? "localhost"}`);
+    const requestedPath = url.searchParams.get("path");
+    const result = listDirectories(requestedPath ?? defaultCwd(HOME_OVERRIDE));
+    res.setHeader("Content-Type", "application/json");
+    res.setHeader("Access-Control-Allow-Origin", "*");
+    if (!result.ok) {
+      const status = result.error === "permission_denied" ? 403 : result.error === "not_found" ? 404 : 400;
+      res.writeHead(status);
+      res.end(JSON.stringify({ error: result.error }));
+      return;
+    }
+    res.end(JSON.stringify({ path: result.path, entries: result.entries }));
     return;
   }
 
@@ -95,6 +122,11 @@ wss.on("connection", (socket: WebSocket, request) => {
     const parsed: unknown = JSON.parse(raw.toString());
     if (isStopTurnMessage(parsed)) {
       session.stopTurn();
+      return;
+    }
+    if (isSetCwdMessage(parsed)) {
+      const result = session.setCwd(parsed.path);
+      if (!result.ok) socket.send(JSON.stringify({ type: "set_cwd_error", message: result.error }));
       return;
     }
     if (!isUserMessage(parsed)) {

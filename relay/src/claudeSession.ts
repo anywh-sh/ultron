@@ -69,7 +69,7 @@ export class ClaudeSession {
     return true;
   }
 
-  async sendTurn(text: string, onEvent: (event: ClaudeEvent) => void): Promise<SendTurnResult> {
+  async sendTurn(text: string, cwd: string, onEvent: (event: ClaudeEvent) => void): Promise<SendTurnResult> {
     this.stopRequested = false;
     const args = [
       "-p",
@@ -102,7 +102,7 @@ export class ClaudeSession {
 
     const child = spawn(CLAUDE_BIN, args, {
       env,
-      cwd: this.options.homeOverride,
+      cwd,
     });
     this.currentChild = child;
 
