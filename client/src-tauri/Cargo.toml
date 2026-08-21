@@ -27,3 +27,6 @@ cpal = "0.15"
 whisper-rs = "0.16"
 rubato = "0.15"
 
+[target.'cfg(windows)'.dependencies]
+tauri-winrt-notification = "0.7"
+

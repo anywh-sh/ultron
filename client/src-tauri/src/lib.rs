@@ -1,3 +1,4 @@
+mod notifications;
 mod voice;
 
 // Learn more about Tauri commands at https://tauri.app/develop/calling-rust/
@@ -14,6 +15,7 @@ pub fn run() {
         .manage(voice::VoiceState::default())
         .invoke_handler(tauri::generate_handler![
             greet,
+            notifications::notify_turn_complete,
             voice::list_input_devices,
             voice::start_recording,
             voice::stop_recording_and_transcribe
