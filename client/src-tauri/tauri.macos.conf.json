@@ -8,5 +8,11 @@
         "hiddenTitle": true
       }
     ]
+  },
+  "bundle": {
+    "macOS": {
+      "signingIdentity": "-",
+      "minimumSystemVersion": "11.0"
+    }
   }
 }
