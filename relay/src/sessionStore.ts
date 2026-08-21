@@ -25,6 +25,13 @@ export interface SessionEntry {
    * (gatilho) e titleGenerator.ts (geração). */
   title: string | null;
   cwd: SessionCwdState;
+  /** Timestamp (epoch ms) do último turno enviado — é o que ordena
+   * `listTitled()`. Atualizado a cada turno, não só no primeiro (ver
+   * `touch`), pra reabrir uma sessão antiga e conversar com ela subir pro
+   * topo da sidebar. Nunca `null`: criação/migração já semeia com o
+   * timestamp de agora, então uma sessão recém-criada ainda entra ordenada
+   * (não precisa de "nunca interagida" como caso especial). */
+  lastActiveAt: number;
 }
 
 export type SessionRecord = Record<string, SessionEntry>;
@@ -42,6 +49,21 @@ function isPreTitleRecord(value: object): value is PreTitleSessionRecord {
       !("title" in entry) &&
       "sessionId" in entry &&
       "cwd" in entry,
+  );
+}
+
+/** Shape anterior a essa mudança: já tem `title`, mas não `lastActiveAt` —
+ * arquivos gravados entre a feature de título/rename e a de ordenação por
+ * última interação. */
+type PreActivitySessionRecord = Record<string, { sessionId: string | null; title: string | null; cwd: SessionCwdState }>;
+
+function isPreActivityRecord(value: object): value is PreActivitySessionRecord {
+  return Object.values(value).every(
+    (entry) =>
+      typeof entry === "object" &&
+      entry !== null &&
+      "title" in entry &&
+      !("lastActiveAt" in entry),
   );
 }
 
@@ -76,6 +98,12 @@ export class SessionStore {
     }
     if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) return {};
 
+    // Um só timestamp pra todo o lote de migração (não `Date.now()` por
+    // entrada): mantém as sessões existentes empatadas na ordenação por
+    // `lastActiveAt`, e o `Array.sort` estável do V8 preserva a ordem
+    // original (inserção) entre empates — não embaralha a lista existente.
+    const migrationNow = Date.now();
+
     if (isLegacyRecord(parsed)) {
       this.migrated = true;
       const migrated: SessionRecord = {};
@@ -85,7 +113,12 @@ export class SessionStore {
         // trata como já travada, pra não arriscar quebrar o --resume dela.
         // Nome antigo vira id E título inicial: sessão já existente não
         // precisa (nem deve) gerar um título novo, ela já tinha um nome útil.
-        migrated[name] = { sessionId, title: name, cwd: { cwd: this.defaultCwd, locked: sessionId !== null } };
+        migrated[name] = {
+          sessionId,
+          title: name,
+          cwd: { cwd: this.defaultCwd, locked: sessionId !== null },
+          lastActiveAt: migrationNow,
+        };
       }
       return migrated;
     }
@@ -94,7 +127,16 @@ export class SessionStore {
       this.migrated = true;
       const migrated: SessionRecord = {};
       for (const [id, entry] of Object.entries(parsed)) {
-        migrated[id] = { ...entry, title: id };
+        migrated[id] = { ...entry, title: id, lastActiveAt: migrationNow };
+      }
+      return migrated;
+    }
+
+    if (isPreActivityRecord(parsed)) {
+      this.migrated = true;
+      const migrated: SessionRecord = {};
+      for (const [id, entry] of Object.entries(parsed)) {
+        migrated[id] = { ...entry, lastActiveAt: migrationNow };
       }
       return migrated;
     }
@@ -117,10 +159,12 @@ export class SessionStore {
 
   /** Só as sessões já tituladas — é isso que `GET /sessions` expõe, o que
    * mantém a sidebar em branco até o primeiro prompt (ou um rename manual)
-   * dar um título à sessão. */
+   * dar um título à sessão. Ordenado por última interação (mais recente
+   * primeiro) — reabrir uma sessão antiga e conversar com ela sobe pro topo. */
   listTitled(): { id: string; title: string }[] {
     return Object.entries(this.records)
       .filter((entry): entry is [string, SessionEntry & { title: string }] => entry[1].title !== null)
+      .sort(([, a], [, b]) => b.lastActiveAt - a.lastActiveAt)
       .map(([id, entry]) => ({ id, title: entry.title }));
   }
 
@@ -137,7 +181,15 @@ export class SessionStore {
    * session_id de verdade pra ele). */
   recordId(id: string): void {
     if (id in this.records) return;
-    this.records[id] = { sessionId: null, title: null, cwd: { cwd: this.defaultCwd, locked: false } };
+    this.records[id] = { sessionId: null, title: null, cwd: { cwd: this.defaultCwd, locked: false }, lastActiveAt: Date.now() };
+    this.persist();
+  }
+
+  /** Chamado a cada turno enviado (não só no primeiro) — é o que faz uma
+   * sessão antiga voltar pro topo da sidebar ao ser usada de novo. */
+  touch(id: string): void {
+    this.ensureEntry(id);
+    this.records[id].lastActiveAt = Date.now();
     this.persist();
   }
 
@@ -173,7 +225,12 @@ export class SessionStore {
 
   private ensureEntry(id: string): void {
     if (!(id in this.records)) {
-      this.records[id] = { sessionId: null, title: null, cwd: { cwd: this.defaultCwd, locked: false } };
+      this.records[id] = {
+        sessionId: null,
+        title: null,
+        cwd: { cwd: this.defaultCwd, locked: false },
+        lastActiveAt: Date.now(),
+      };
     }
   }
 }

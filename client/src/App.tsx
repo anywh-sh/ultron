@@ -31,7 +31,7 @@ function readQueryOverride(): { profile: string | null; session: string | null }
 export default function App() {
   const queryOverride = useMemo(readQueryOverride, []);
   const [activeProfile, setActiveProfileId] = useActiveProfile(queryOverride.profile);
-  const { sessions, loading: sessionsLoading, upsertTitle } = useSessionNames(activeProfile);
+  const { sessions, loading: sessionsLoading, upsertTitle, touch } = useSessionNames(activeProfile);
   const isCompact = useIsCompactViewport();
   const resizable = useResizableSidebar();
   const profileTabs = useProfileTabs();
@@ -291,6 +291,9 @@ export default function App() {
                           onTitle={(title) => {
                             profileTabs.setTabTitle(profile.id, tab.id, title);
                             if (profile.id === activeProfile.id) upsertTitle(tab.id, title);
+                          }}
+                          onActivity={() => {
+                            if (profile.id === activeProfile.id) touch(tab.id);
                           }}
                         />
                       )}

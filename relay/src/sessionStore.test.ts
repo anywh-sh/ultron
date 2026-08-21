@@ -57,7 +57,9 @@ test("migração: shape legado (nome -> session_id|null) vira o shape novo com t
 
     // Repersistiu no shape novo — reabrir não re-detecta como legado.
     const persisted = JSON.parse(readFileSync(filePath, "utf8"));
-    assert.deepEqual(persisted["com-historico"], {
+    const { lastActiveAt, ...rest } = persisted["com-historico"];
+    assert.equal(typeof lastActiveAt, "number");
+    assert.deepEqual(rest, {
       sessionId: "abc-123",
       title: "com-historico",
       cwd: { cwd: DEFAULT_CWD, locked: true },
@@ -75,6 +77,58 @@ test("migração: shape pré-título (sem campo title) ganha título = id", () =
       assert.deepEqual(store.getCwdState("s1"), { cwd: "/tmp/projeto", locked: true });
     },
   );
+});
+
+test("migração: shape pré-atividade (com title, sem lastActiveAt) ganha lastActiveAt", () => {
+  withStoreFile(
+    { s1: { sessionId: "sess-1", title: "Sessão 1", cwd: { cwd: "/tmp/projeto", locked: true } } },
+    (filePath) => {
+      const store = new SessionStore(filePath, DEFAULT_CWD);
+      assert.deepEqual(store.listTitled(), [{ id: "s1", title: "Sessão 1" }]);
+      const persisted = JSON.parse(readFileSync(filePath, "utf8"));
+      assert.equal(typeof persisted.s1.lastActiveAt, "number");
+    },
+  );
+});
+
+function sleep(ms: number): Promise<void> {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+test("listTitled ordena por lastActiveAt decrescente (mais recente primeiro)", async () => {
+  const dir = mkdtempSync(join(tmpdir(), "ultron-sessionstore-test-"));
+  try {
+    const filePath = join(dir, "sessions.json");
+    const store = new SessionStore(filePath, DEFAULT_CWD);
+
+    // `setTimeout` entre cada operação: `Date.now()` tem resolução de 1ms,
+    // chamadas síncronas seguidas quase sempre empatam no mesmo
+    // milissegundo — sem o delay, o teste ficaria dependente de sorte.
+    store.recordId("s1");
+    store.setTitle("s1", "Primeira");
+    await sleep(5);
+    store.recordId("s2");
+    store.setTitle("s2", "Segunda");
+    await sleep(5);
+    store.recordId("s3");
+    store.setTitle("s3", "Terceira");
+
+    // Sem tocar em nada, a ordem segue a de criação (mais recente primeiro).
+    assert.deepEqual(
+      store.listTitled().map((s) => s.id),
+      ["s3", "s2", "s1"],
+    );
+
+    // Reabrir a mais antiga (s1) sobe ela pro topo.
+    await sleep(5);
+    store.touch("s1");
+    assert.deepEqual(
+      store.listTitled().map((s) => s.id),
+      ["s1", "s3", "s2"],
+    );
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
 });
 
 test("setCwd/lockCwd/getCwdState fazem round-trip e persistem em disco", () => {

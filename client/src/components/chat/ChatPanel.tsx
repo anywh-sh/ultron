@@ -18,6 +18,11 @@ interface ChatPanelProps {
   /** Título inferido do primeiro prompt (ou de um rename ao vivo em outro
    * dispositivo) chegando pela WS dessa sessão — ver sharedSession.ts. */
   onTitle?: (title: string) => void;
+  /** Mensagem enviada — usado só pra subir a sessão pro topo da sidebar
+   * (ordenação por última interação); o relay já persiste isso sozinho
+   * (SharedSession.onActivity), esse callback é só a atualização otimista
+   * local, sem round-trip. */
+  onActivity?: () => void;
 }
 
 function buildWireMessage(text: string, images: PendingImage[]): string {
@@ -25,7 +30,7 @@ function buildWireMessage(text: string, images: PendingImage[]): string {
   return [text, imageRefs].filter(Boolean).join("\n\n");
 }
 
-export function ChatPanel({ profile, sessionId, onTurnComplete, onTurnActiveChange, onTitle }: ChatPanelProps) {
+export function ChatPanel({ profile, sessionId, onTurnComplete, onTurnActiveChange, onTitle, onActivity }: ChatPanelProps) {
   const log = useMessageLog();
   const logRef = useRef(log);
   logRef.current = log;
@@ -140,6 +145,7 @@ export function ChatPanel({ profile, sessionId, onTurnComplete, onTurnActiveChan
           sendMessage(buildWireMessage(text, sentImages));
           images.clearWithoutRevoke();
           setTurnInFlight(true);
+          onActivity?.();
         }}
       />
     </div>

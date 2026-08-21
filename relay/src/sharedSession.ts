@@ -35,6 +35,10 @@ export interface SharedSessionOptions {
    * turno (não bloqueia a resposta). Mesmo momento que `onLockChange`, só
    * que já carrega o texto. */
   onFirstPrompt?: (text: string) => void;
+  /** Chamado no início de TODO turno (não só o primeiro) — é o que deixa o
+   * SessionManager marcar `lastActiveAt` no SessionStore, usado pra ordenar
+   * a sidebar por última interação. */
+  onActivity?: () => void;
 }
 
 export type SetCwdResult = { ok: true } | { ok: false; error: string };
@@ -143,6 +147,8 @@ export class SharedSession {
   }
 
   private async runTurn(text: string): Promise<void> {
+    this.options.onActivity?.();
+
     // Trava a pasta no momento exato do primeiro turno de verdade — não na
     // conexão WS (que já acontece antes de qualquer mensagem) nem em
     // `submitTurn` (evita corrida entre dois `submitTurn` em sequência antes

@@ -56,6 +56,7 @@ export class SessionManager {
       initialLocked: locked,
       onCwdChange: (newCwd) => this.sessionStore.setCwd(id, newCwd),
       onLockChange: () => this.sessionStore.lockCwd(id),
+      onActivity: () => this.sessionStore.touch(id),
       initialTitle: this.sessionStore.getTitle(id),
       onFirstPrompt: (text) => {
         // Só dispara pra sessão de verdade nova — uma sessão migrada de um
