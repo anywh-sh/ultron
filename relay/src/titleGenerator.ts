@@ -31,7 +31,7 @@ function fallbackTitle(prompt: string): string {
  * "ajudar" em vez de só titular — testado manualmente, só o override total
  * funciona de forma confiável.
  */
-export async function generateTitle(homeOverride: string | undefined, prompt: string): Promise<string> {
+export async function generateTitle(homeOverride: string | undefined, cwd: string, prompt: string): Promise<string> {
   const truncated = prompt.length > MAX_PROMPT_CHARS ? prompt.slice(0, MAX_PROMPT_CHARS) : prompt;
 
   const env = { ...process.env };
@@ -56,7 +56,14 @@ export async function generateTitle(homeOverride: string | undefined, prompt: st
       "--dangerously-skip-permissions",
       "--strict-mcp-config",
     ],
-    { env },
+    // Sem isso, o processo herda o cwd do próprio relay (WorkingDirectory do
+    // systemd) em vez da pasta da sessão — o Claude Code auto-descobre o
+    // CLAUDE.md de lá (o deste projeto, ultron) e o título sai sobre o
+    // projeto errado, mesmo com `--system-prompt` sobrescrevendo a persona.
+    // Achado real: pedir um título pra uma sessão em `~/mode/storefront`
+    // devolveu "Ultron wrapper Claude multiplataforma" — o cwd errado é o
+    // motivo. Mesmo cwd que o turno de verdade usa (claudeSession.ts).
+    { env, cwd },
   );
 
   let stdout = "";

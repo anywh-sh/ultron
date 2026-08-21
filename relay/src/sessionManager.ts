@@ -62,7 +62,7 @@ export class SessionManager {
         // formato antigo já chega com `initialTitle` preenchido (o nome de
         // então), então nunca teve `title` null pra começo de conversa.
         if (this.sessionStore.getTitle(id) !== null) return;
-        generateTitle(this.homeOverride, text)
+        generateTitle(this.homeOverride, session.getCwdState().cwd, text)
           .then((title) => {
             this.sessionStore.setTitle(id, title);
             session.setTitle(title);
