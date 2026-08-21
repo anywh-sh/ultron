@@ -14,6 +14,20 @@ export async function fetchSessions(host: string, port: number): Promise<Session
   return body.sessions ?? [];
 }
 
+/** Rename manual (dialog na sidebar) — funciona mesmo pra uma sessão sem
+ * aba aberta agora (o relay só precisa do id, não de uma conexão WS viva). */
+export async function renameSession(host: string, port: number, id: string, title: string): Promise<void> {
+  const response = await fetch(`http://${host}:${port}/sessions/rename`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ id, title }),
+  });
+  if (!response.ok) {
+    const body = (await response.json().catch(() => ({}))) as { error?: string };
+    throw new Error(body.error ?? `falha ao renomear sessão (${String(response.status)})`);
+  }
+}
+
 export interface RelayClientCallbacks {
   onEvent: (event: ClaudeEvent) => void;
   onTurnComplete: (stopped: boolean) => void;

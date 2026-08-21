@@ -46,6 +46,34 @@ function isSetCwdMessage(value: unknown): value is { type: "set_cwd"; path: stri
   );
 }
 
+function isRenameBody(value: unknown): value is { id: string; title: string } {
+  return (
+    typeof value === "object" &&
+    value !== null &&
+    typeof (value as { id?: unknown }).id === "string" &&
+    typeof (value as { title?: unknown }).title === "string"
+  );
+}
+
+/** Sem lib de parsing de body no projeto (só o upload binário tinha um
+ * acumulador de chunks, `uploads.ts`) — o corpo de rename é pequeno o
+ * bastante (um id + um título) pra não justificar trazer uma dependência só
+ * por isso. */
+function readJsonBody(req: import("node:http").IncomingMessage): Promise<unknown> {
+  return new Promise((resolve, reject) => {
+    const chunks: Buffer[] = [];
+    req.on("data", (chunk: Buffer) => chunks.push(chunk));
+    req.on("end", () => {
+      try {
+        resolve(JSON.parse(Buffer.concat(chunks).toString("utf8")));
+      } catch (error) {
+        reject(error instanceof Error ? error : new Error(String(error)));
+      }
+    });
+    req.on("error", reject);
+  });
+}
+
 const sessionStore = new SessionStore(SESSIONS_FILE, defaultCwd(HOME_OVERRIDE));
 const sessionManager = new SessionManager(HOME_OVERRIDE, sessionStore);
 
@@ -63,6 +91,32 @@ const httpServer = createServer((req, res) => {
     res.setHeader("Content-Type", "application/json");
     res.setHeader("Access-Control-Allow-Origin", "*");
     res.end(JSON.stringify({ sessions: sessionManager.listTitled() }));
+    return;
+  }
+
+  if (req.method === "POST" && req.url?.startsWith("/sessions/rename")) {
+    res.setHeader("Content-Type", "application/json");
+    res.setHeader("Access-Control-Allow-Origin", "*");
+    readJsonBody(req)
+      .then((body) => {
+        const title = isRenameBody(body) ? body.title.trim() : "";
+        if (!isRenameBody(body) || !title) {
+          res.writeHead(400);
+          res.end(JSON.stringify({ error: "id e title (não vazio) são obrigatórios" }));
+          return;
+        }
+        const ok = sessionManager.renameTitle(body.id, title);
+        if (!ok) {
+          res.writeHead(404);
+          res.end(JSON.stringify({ error: "sessão não encontrada" }));
+          return;
+        }
+        res.end(JSON.stringify({ ok: true }));
+      })
+      .catch(() => {
+        res.writeHead(400);
+        res.end(JSON.stringify({ error: "corpo inválido" }));
+      });
     return;
   }
 

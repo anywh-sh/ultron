@@ -36,6 +36,17 @@ export class SessionManager {
     return session;
   }
 
+  /** Rename manual (dialog na sidebar) — funciona mesmo pra uma sessão sem
+   * aba aberta no momento (`sessions.get` pode dar `undefined`; só o
+   * SessionStore precisa existir). Se a sessão estiver aberta em algum
+   * dispositivo, `SharedSession.setTitle` propaga a mudança ao vivo. */
+  renameTitle(id: string, title: string): boolean {
+    if (this.sessionStore.getTitle(id) === null && !this.sessions.has(id)) return false;
+    this.sessionStore.setTitle(id, title);
+    this.sessions.get(id)?.setTitle(title);
+    return true;
+  }
+
   private createSession(id: string): SharedSession {
     const { cwd, locked } = this.sessionStore.getCwdState(id);
     const session = new SharedSession(this.homeOverride, {

@@ -18,6 +18,7 @@ import { useProfileTabs } from "@/hooks/useProfileTabs";
 import { useWindowFocus } from "@/hooks/useWindowFocus";
 import { PROFILES, findProfile } from "@/lib/profiles";
 import { ensureNotificationPermission, notifyTurnComplete } from "@/lib/notifications";
+import { renameSession } from "@/lib/relayClient";
 import { cn } from "@/lib/utils";
 
 /** Override opcional via query string (`?profile=&session=`) — só pra permitir
@@ -128,6 +129,18 @@ export default function App() {
     profileTabs.openTab(profileId, sessionId, title);
   }
 
+  function handleRenameSession(id: string, title: string): void {
+    renameSession(activeProfile.host, activeProfile.relayPort, id, title)
+      .then(() => {
+        upsertTitle(id, title);
+        profileTabs.setTabTitle(activeProfile.id, id, title);
+      })
+      .catch((error: unknown) => {
+        console.error("[ultron] falha ao renomear sessão", error);
+        window.alert("Não foi possível renomear a sessão.");
+      });
+  }
+
   function handleCloseActiveTab(): void {
     if (!activeTabIdOfActiveProfile) return;
     profileTabs.closeTab(activeProfile.id, activeTabIdOfActiveProfile);
@@ -183,6 +196,7 @@ export default function App() {
     runningSessions,
     onSelectSession: handleSelectSession,
     onNewConversation: handleNewConversation,
+    onRenameSession: handleRenameSession,
   };
 
   return (
