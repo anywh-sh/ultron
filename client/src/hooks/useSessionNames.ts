@@ -11,6 +11,7 @@ export function useSessionNames(profile: Profile): {
   sessions: SessionSummary[];
   loading: boolean;
   upsertTitle: (id: string, title: string) => void;
+  removeSession: (id: string) => void;
   touch: (id: string) => void;
 } {
   const [sessions, setSessions] = useState<SessionSummary[]>([]);
@@ -51,6 +52,10 @@ export function useSessionNames(profile: Profile): {
     });
   }, []);
 
+  const removeSession = useCallback((id: string) => {
+    setSessions((prev) => prev.filter((session) => session.id !== id));
+  }, []);
+
   // Sobe uma sessão pro topo ao interagir com ela de novo (mandar mensagem
   // numa sessão antiga) — espelha `SessionStore.touch` do lado do relay,
   // mas otimista/local, pra não esperar um refetch. No-op se a sessão não
@@ -66,5 +71,5 @@ export function useSessionNames(profile: Profile): {
     });
   }, []);
 
-  return { sessions, loading, upsertTitle, touch };
+  return { sessions, loading, upsertTitle, removeSession, touch };
 }

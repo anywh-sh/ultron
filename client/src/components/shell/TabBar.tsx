@@ -12,6 +12,8 @@ import { CSS } from "@dnd-kit/utilities";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { cn } from "@/lib/utils";
 import type { Tab } from "@/hooks/useProfileTabs";
+import { useContextMenu } from "@/hooks/useContextMenu";
+import { SessionDeleteMenu } from "@/components/shell/SessionDeleteMenu";
 
 interface TabBarProps {
   tabs: Tab[];
@@ -20,6 +22,7 @@ interface TabBarProps {
   onSelect: (tabId: string) => void;
   onClose: (tabId: string) => void;
   onReorder: (activeTabId: string, overTabId: string) => void;
+  onDelete: (tabId: string) => void;
   renderPanel: (tab: Tab) => ReactNode;
 }
 
@@ -27,6 +30,7 @@ interface SortableTabProps {
   tab: Tab;
   profileId: string;
   onClose: (tabId: string) => void;
+  onDelete: (tabId: string) => void;
 }
 
 /**
@@ -36,13 +40,15 @@ interface SortableTabProps {
  * Sem `KeyboardSensor` no `DndContext` pelo mesmo motivo: ArrowLeft/Right já
  * move o foco entre abas via Radix, colidiria com "mover item arrastado".
  */
-function SortableTab({ tab, profileId, onClose }: SortableTabProps) {
+function SortableTab({ tab, profileId, onClose, onDelete }: SortableTabProps) {
   const { setNodeRef, listeners, transform, transition, isDragging } = useSortable({ id: tab.id });
+  const menu = useContextMenu();
 
   return (
     <div
       ref={setNodeRef}
       {...listeners}
+      onContextMenu={menu.onContextMenu}
       style={{
         transform: CSS.Transform.toString(transform),
         transition,
@@ -80,6 +86,15 @@ function SortableTab({ tab, profileId, onClose }: SortableTabProps) {
       >
         <X className="size-3" />
       </button>
+      <SessionDeleteMenu
+        menu={menu}
+        onDelete={() => {
+          const title = tab.title ?? "nova conversa";
+          if (window.confirm(`Excluir a sessão "${title}"? Essa ação não pode ser desfeita.`)) {
+            onDelete(tab.id);
+          }
+        }}
+      />
     </div>
   );
 }
@@ -88,7 +103,7 @@ function SortableTab({ tab, profileId, onClose }: SortableTabProps) {
  * `forceMount` + `data-[state=inactive]:hidden` em vez de render condicional:
  * é isso que mantém a conexão WS de abas em background viva (docs/18).
  */
-export function TabBar({ tabs, activeTabId, profileId, onSelect, onClose, onReorder, renderPanel }: TabBarProps) {
+export function TabBar({ tabs, activeTabId, profileId, onSelect, onClose, onReorder, onDelete, renderPanel }: TabBarProps) {
   const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 8 } }));
 
   function handleDragEnd(event: DragEndEvent): void {
@@ -105,7 +120,7 @@ export function TabBar({ tabs, activeTabId, profileId, onSelect, onClose, onReor
             className="h-auto w-full justify-start gap-0 rounded-none border-b border-border-soft bg-transparent p-0"
           >
             {tabs.map((tab) => (
-              <SortableTab key={tab.id} tab={tab} profileId={profileId} onClose={onClose} />
+              <SortableTab key={tab.id} tab={tab} profileId={profileId} onClose={onClose} onDelete={onDelete} />
             ))}
           </TabsList>
         </SortableContext>

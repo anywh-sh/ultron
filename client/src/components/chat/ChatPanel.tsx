@@ -23,6 +23,9 @@ interface ChatPanelProps {
    * (SharedSession.onActivity), esse callback é só a atualização otimista
    * local, sem round-trip. */
   onActivity?: () => void;
+  /** Sessão excluída, por este dispositivo ou outro — ver
+   * sharedSession.ts::closeAllClients. */
+  onDeleted?: () => void;
 }
 
 function buildWireMessage(text: string, images: PendingImage[]): string {
@@ -30,7 +33,7 @@ function buildWireMessage(text: string, images: PendingImage[]): string {
   return [text, imageRefs].filter(Boolean).join("\n\n");
 }
 
-export function ChatPanel({ profile, sessionId, onTurnComplete, onTurnActiveChange, onTitle, onActivity }: ChatPanelProps) {
+export function ChatPanel({ profile, sessionId, onTurnComplete, onTurnActiveChange, onTitle, onActivity, onDeleted }: ChatPanelProps) {
   const log = useMessageLog();
   const logRef = useRef(log);
   logRef.current = log;
@@ -38,6 +41,8 @@ export function ChatPanel({ profile, sessionId, onTurnComplete, onTurnActiveChan
   onTurnActiveChangeRef.current = onTurnActiveChange;
   const onTitleRef = useRef(onTitle);
   onTitleRef.current = onTitle;
+  const onDeletedRef = useRef(onDeleted);
+  onDeletedRef.current = onDeleted;
 
   // O relay reenvia o histórico inteiro da sessão a cada conexão nova
   // (`SharedSession.addClient`), inclusive `turn_complete` de turnos
@@ -90,6 +95,7 @@ export function ChatPanel({ profile, sessionId, onTurnComplete, onTurnActiveChan
     },
     onSetCwdError: (message) => window.alert(`Não foi possível trocar a pasta: ${message}`),
     onSessionTitle: (title) => onTitleRef.current?.(title),
+    onSessionDeleted: () => onDeletedRef.current?.(),
   });
 
   return (

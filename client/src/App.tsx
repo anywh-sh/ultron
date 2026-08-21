@@ -18,7 +18,7 @@ import { useProfileTabs } from "@/hooks/useProfileTabs";
 import { useWindowFocus } from "@/hooks/useWindowFocus";
 import { PROFILES, findProfile } from "@/lib/profiles";
 import { ensureNotificationPermission, notifyTurnComplete } from "@/lib/notifications";
-import { renameSession } from "@/lib/relayClient";
+import { deleteSession, renameSession } from "@/lib/relayClient";
 import { cn } from "@/lib/utils";
 
 /** Override opcional via query string (`?profile=&session=`) — só pra permitir
@@ -31,7 +31,7 @@ function readQueryOverride(): { profile: string | null; session: string | null }
 export default function App() {
   const queryOverride = useMemo(readQueryOverride, []);
   const [activeProfile, setActiveProfileId] = useActiveProfile(queryOverride.profile);
-  const { sessions, loading: sessionsLoading, upsertTitle, touch } = useSessionNames(activeProfile);
+  const { sessions, loading: sessionsLoading, upsertTitle, removeSession, touch } = useSessionNames(activeProfile);
   const isCompact = useIsCompactViewport();
   const resizable = useResizableSidebar();
   const profileTabs = useProfileTabs();
@@ -141,6 +141,24 @@ export default function App() {
       });
   }
 
+  /** Só tira a sessão do controle do ultron — não apaga o transcript que o
+   * Claude Code já mantém sozinho. `profileId` explícito (não sempre
+   * `activeProfile`) porque também é chamado a partir da TabBar de um perfil
+   * em segundo plano (abas continuam montadas trocando de perfil, docs/18). */
+  function handleDeleteSession(profileId: string, id: string): void {
+    const profile = findProfile(profileId);
+    if (!profile) return;
+    deleteSession(profile.host, profile.relayPort, id)
+      .then(() => {
+        profileTabs.closeTab(profileId, id);
+        if (profileId === activeProfile.id) removeSession(id);
+      })
+      .catch((error: unknown) => {
+        console.error("[ultron] falha ao excluir sessão", error);
+        window.alert("Não foi possível excluir a sessão.");
+      });
+  }
+
   function handleCloseActiveTab(): void {
     if (!activeTabIdOfActiveProfile) return;
     profileTabs.closeTab(activeProfile.id, activeTabIdOfActiveProfile);
@@ -197,6 +215,7 @@ export default function App() {
     onSelectSession: handleSelectSession,
     onNewConversation: handleNewConversation,
     onRenameSession: handleRenameSession,
+    onDeleteSession: (id: string) => handleDeleteSession(activeProfile.id, id),
   };
 
   return (
@@ -273,6 +292,7 @@ export default function App() {
                       onSelect={(tabId) => profileTabs.setActiveTab(profile.id, tabId)}
                       onClose={(tabId) => profileTabs.closeTab(profile.id, tabId)}
                       onReorder={(activeTabId, overTabId) => profileTabs.reorderTabs(profile.id, activeTabId, overTabId)}
+                      onDelete={(tabId) => handleDeleteSession(profile.id, tabId)}
                       renderPanel={(tab) => (
                         <ChatPanel
                           profile={findProfile(profile.id) ?? profile}
@@ -294,6 +314,10 @@ export default function App() {
                           }}
                           onActivity={() => {
                             if (profile.id === activeProfile.id) touch(tab.id);
+                          }}
+                          onDeleted={() => {
+                            profileTabs.closeTab(profile.id, tab.id);
+                            if (profile.id === activeProfile.id) removeSession(tab.id);
                           }}
                         />
                       )}

@@ -193,6 +193,16 @@ export class SessionStore {
     this.persist();
   }
 
+  /** `true` se a sessão existia (e foi removida); `false` se já não existia.
+   * Só tira do controle do ultron — não mexe no transcript que o Claude
+   * Code já mantém sozinho em `~/.claude/projects/`. */
+  deleteEntry(id: string): boolean {
+    if (!(id in this.records)) return false;
+    delete this.records[id];
+    this.persist();
+    return true;
+  }
+
   /** Usado tanto pra gravar o título inferido do primeiro prompt quanto pra
    * um rename manual — nos dois casos é só "o título de agora é este". */
   setTitle(id: string, title: string): void {

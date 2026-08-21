@@ -84,7 +84,8 @@ export type RelayMessage =
   | { type: "caught_up" }
   | { type: "cwd_state"; cwd: string; locked: boolean }
   | { type: "set_cwd_error"; message: string }
-  | { type: "session_title"; title: string };
+  | { type: "session_title"; title: string }
+  | { type: "session_deleted" };
 
 /** Uma sessão como o relay expõe em `GET /sessions` — `id` é estável desde a
  * criação, `title` é o que a sidebar mostra (inferido do primeiro prompt ou

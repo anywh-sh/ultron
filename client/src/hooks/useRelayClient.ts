@@ -9,6 +9,7 @@ export interface UseRelayClientOptions {
   onCaughtUp?: () => void;
   onSetCwdError?: (message: string) => void;
   onSessionTitle?: (title: string) => void;
+  onSessionDeleted?: () => void;
 }
 
 export interface UseRelayClientResult {
@@ -61,6 +62,7 @@ export function useRelayClient(
       },
       onSetCwdError: (message) => optionsRef.current.onSetCwdError?.(message),
       onSessionTitle: (title) => optionsRef.current.onSessionTitle?.(title),
+      onSessionDeleted: () => optionsRef.current.onSessionDeleted?.(),
       onConnectionChange: setConnected,
     });
     clientRef.current = client;

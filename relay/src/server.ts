@@ -55,6 +55,10 @@ function isRenameBody(value: unknown): value is { id: string; title: string } {
   );
 }
 
+function isIdBody(value: unknown): value is { id: string } {
+  return typeof value === "object" && value !== null && typeof (value as { id?: unknown }).id === "string";
+}
+
 /** Sem lib de parsing de body no projeto (só o upload binário tinha um
  * acumulador de chunks, `uploads.ts`) — o corpo de rename é pequeno o
  * bastante (um id + um título) pra não justificar trazer uma dependência só
@@ -106,6 +110,31 @@ const httpServer = createServer((req, res) => {
           return;
         }
         const ok = sessionManager.renameTitle(body.id, title);
+        if (!ok) {
+          res.writeHead(404);
+          res.end(JSON.stringify({ error: "sessão não encontrada" }));
+          return;
+        }
+        res.end(JSON.stringify({ ok: true }));
+      })
+      .catch(() => {
+        res.writeHead(400);
+        res.end(JSON.stringify({ error: "corpo inválido" }));
+      });
+    return;
+  }
+
+  if (req.method === "POST" && req.url?.startsWith("/sessions/delete")) {
+    res.setHeader("Content-Type", "application/json");
+    res.setHeader("Access-Control-Allow-Origin", "*");
+    readJsonBody(req)
+      .then((body) => {
+        if (!isIdBody(body)) {
+          res.writeHead(400);
+          res.end(JSON.stringify({ error: "id é obrigatório" }));
+          return;
+        }
+        const ok = sessionManager.deleteSession(body.id);
         if (!ok) {
           res.writeHead(404);
           res.end(JSON.stringify({ error: "sessão não encontrada" }));

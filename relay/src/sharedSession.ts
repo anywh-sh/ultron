@@ -122,6 +122,18 @@ export class SharedSession {
     this.clients.delete(socket);
   }
 
+  /** Chamado quando a sessão é excluída (SessionManager.deleteSession) —
+   * avisa quem estiver conectado agora (esta aba, ou outro dispositivo com
+   * a mesma sessão aberta) antes de fechar a conexão, pra distinguir de um
+   * erro de rede de verdade. */
+  closeAllClients(): void {
+    for (const client of this.clients) {
+      client.send(JSON.stringify({ type: "session_deleted" }));
+      client.close();
+    }
+    this.clients.clear();
+  }
+
   /**
    * `history` sempre foi só em memória — some a cada restart do relay,
    * mesmo o Claude Code tendo o transcript completo em disco (docs/20-backlog,

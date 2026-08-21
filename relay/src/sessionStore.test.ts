@@ -131,6 +131,22 @@ test("listTitled ordena por lastActiveAt decrescente (mais recente primeiro)", a
   }
 });
 
+test("deleteEntry remove a sessão e devolve false se já não existia", () => {
+  withStoreFile(undefined, (filePath) => {
+    const store = new SessionStore(filePath, DEFAULT_CWD);
+    store.recordId("s1");
+    store.setTitle("s1", "Sessão 1");
+    assert.equal(store.deleteEntry("s1"), true);
+    assert.deepEqual(store.listTitled(), []);
+    assert.equal(store.getTitle("s1"), null);
+    assert.equal(store.deleteEntry("s1"), false);
+
+    // Reabrir o arquivo reflete a remoção.
+    const reopened = new SessionStore(filePath, DEFAULT_CWD);
+    assert.deepEqual(reopened.listIds(), []);
+  });
+});
+
 test("setCwd/lockCwd/getCwdState fazem round-trip e persistem em disco", () => {
   withStoreFile(undefined, (filePath) => {
     const store = new SessionStore(filePath, DEFAULT_CWD);

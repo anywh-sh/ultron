@@ -47,6 +47,21 @@ export class SessionManager {
     return true;
   }
 
+  /** Só tira a sessão do controle do ultron (SessionStore + mapa em
+   * memória) — não apaga o transcript que o Claude Code já mantém sozinho
+   * em `~/.claude/projects/`. Para o turno em andamento (se houver) e avisa
+   * quem estiver conectado antes de derrubar a conexão. */
+  deleteSession(id: string): boolean {
+    const session = this.sessions.get(id);
+    if (session) {
+      session.stopTurn();
+      session.closeAllClients();
+      this.sessions.delete(id);
+    }
+    const existedInStore = this.sessionStore.deleteEntry(id);
+    return existedInStore || session !== undefined;
+  }
+
   private createSession(id: string): SharedSession {
     const { cwd, locked } = this.sessionStore.getCwdState(id);
     const session = new SharedSession(this.homeOverride, {

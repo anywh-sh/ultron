@@ -19,6 +19,7 @@ interface SidebarProps {
   onSelectSession: (id: string) => void;
   onNewConversation: () => void;
   onRenameSession: (id: string, title: string) => void;
+  onDeleteSession: (id: string) => void;
 }
 
 export function Sidebar({
@@ -31,6 +32,7 @@ export function Sidebar({
   onSelectSession,
   onNewConversation,
   onRenameSession,
+  onDeleteSession,
 }: SidebarProps) {
   const [renaming, setRenaming] = useState<{ id: string; title: string } | null>(null);
 
@@ -58,6 +60,7 @@ export function Sidebar({
         running={runningSessions}
         onSelect={onSelectSession}
         onRename={(id, title) => setRenaming({ id, title })}
+        onDelete={onDeleteSession}
       />
 
       <div className="border-t border-border-soft p-2">

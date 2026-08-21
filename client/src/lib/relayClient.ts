@@ -28,6 +28,21 @@ export async function renameSession(host: string, port: number, id: string, titl
   }
 }
 
+/** Só tira a sessão do controle do ultron (sidebar, abas) — não apaga o
+ * transcript que o Claude Code já mantém sozinho. Funciona mesmo pra uma
+ * sessão sem aba aberta agora. */
+export async function deleteSession(host: string, port: number, id: string): Promise<void> {
+  const response = await fetch(`http://${host}:${port}/sessions/delete`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ id }),
+  });
+  if (!response.ok) {
+    const body = (await response.json().catch(() => ({}))) as { error?: string };
+    throw new Error(body.error ?? `falha ao excluir sessão (${String(response.status)})`);
+  }
+}
+
 export interface RelayClientCallbacks {
   onEvent: (event: ClaudeEvent) => void;
   onTurnComplete: (stopped: boolean) => void;
@@ -43,6 +58,9 @@ export interface RelayClientCallbacks {
   /** Título inferido do primeiro prompt (ou de um rename manual feito em
    * outro dispositivo) chegando ao vivo — ver sharedSession.ts::setTitle. */
   onSessionTitle?: (title: string) => void;
+  /** Sessão excluída (por este dispositivo ou outro) — ver
+   * sharedSession.ts::closeAllClients. O socket já fecha logo em seguida. */
+  onSessionDeleted?: () => void;
 }
 
 export class RelayClient {
@@ -81,6 +99,8 @@ export class RelayClient {
         this.callbacks.onSetCwdError?.(parsed.message);
       } else if (parsed.type === "session_title") {
         this.callbacks.onSessionTitle?.(parsed.title);
+      } else if (parsed.type === "session_deleted") {
+        this.callbacks.onSessionDeleted?.();
       }
     });
   }
