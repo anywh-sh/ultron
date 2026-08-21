@@ -1,5 +1,5 @@
-import { useState } from "react";
-import { Check, ChevronDown, Copy, Folder } from "lucide-react";
+import { useRef, useState } from "react";
+import { Check, Copy, Folder } from "lucide-react";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -22,8 +22,8 @@ interface WorkingDirectoryButtonProps {
   onSetCwd: (path: string) => void;
 }
 
-/** Nome só da última pasta do path, pro botão não ficar gigante — o path
- * completo aparece no tooltip e nos itens do dropdown. */
+/** Nome só da última pasta do path, pro botão/lista não ficarem gigantes — o
+ * path completo aparece no tooltip e no dropdown "Working directory". */
 function folderName(path: string): string {
   const trimmed = path.replace(/\/+$/, "");
   const lastSegment = trimmed.split("/").pop();
@@ -41,6 +41,7 @@ function folderName(path: string): string {
 export function WorkingDirectoryButton({ profile, cwd, locked, connected, onSetCwd }: WorkingDirectoryButtonProps) {
   const { recents, addRecent } = useRecentFolders(profile.id);
   const [pickerOpen, setPickerOpen] = useState(false);
+  const triggerRef = useRef<HTMLButtonElement>(null);
 
   function selectFolder(path: string): void {
     onSetCwd(path);
@@ -58,20 +59,25 @@ export function WorkingDirectoryButton({ profile, cwd, locked, connected, onSetC
 
   return (
     <>
-      <DropdownMenu>
+      <DropdownMenu
+        onOpenChange={(open) => {
+          // Sem isso o foco fica no trigger depois do menu fechar, e como o
+          // Tooltip também abre por foco (não só hover), ele fica "preso"
+          // aberto até o mouse sair e voltar — mesmo já longe do botão.
+          if (!open) triggerRef.current?.blur();
+        }}
+      >
         <Tooltip>
           <TooltipTrigger asChild>
             <DropdownMenuTrigger asChild>
               <button
+                ref={triggerRef}
                 type="button"
                 disabled={!cwd || !connected}
-                className={cn(
-                  "flex h-7 shrink-0 cursor-pointer items-center gap-1.5 rounded-md px-2 text-xs text-muted-foreground transition-colors hover:bg-border disabled:cursor-not-allowed disabled:opacity-50",
-                )}
+                className="flex h-7 shrink-0 cursor-pointer items-center gap-1.5 rounded-md border border-border bg-bg-elevated px-2 text-xs text-foreground transition-colors hover:bg-border disabled:cursor-not-allowed disabled:opacity-50"
               >
-                <Folder className="size-3.5 shrink-0" />
+                <Folder className="size-3.5 shrink-0 text-muted-foreground" />
                 <span className="max-w-56 truncate font-mono">{cwd ? folderName(cwd) : "…"}</span>
-                <ChevronDown className="size-3 shrink-0" />
               </button>
             </DropdownMenuTrigger>
           </TooltipTrigger>
@@ -83,7 +89,7 @@ export function WorkingDirectoryButton({ profile, cwd, locked, connected, onSetC
             <>
               <DropdownMenuLabel className="flex flex-col gap-0.5">
                 <span>Working directory</span>
-                <span className="font-mono text-[11px] font-normal break-all text-muted-foreground">{cwd}</span>
+                <span className="truncate font-mono text-xs text-foreground">{cwd}</span>
               </DropdownMenuLabel>
               <DropdownMenuSeparator />
               <DropdownMenuItem onSelect={() => void copyPath()}>
@@ -98,9 +104,9 @@ export function WorkingDirectoryButton({ profile, cwd, locked, connected, onSetC
                 <div className="px-2 py-1.5 text-xs text-muted-foreground">Nenhuma pasta recente</div>
               ) : (
                 recents.map((path) => (
-                  <DropdownMenuItem key={path} onSelect={() => selectFolder(path)}>
+                  <DropdownMenuItem key={path} title={path} onSelect={() => selectFolder(path)}>
                     <Check className={cn("size-3.5", path !== cwd && "opacity-0")} />
-                    <span className="truncate font-mono">{path}</span>
+                    <span className="truncate">{folderName(path)}</span>
                   </DropdownMenuItem>
                 ))
               )}
