@@ -30,14 +30,13 @@ function readQueryOverride(): { profile: string | null; session: string | null }
 export default function App() {
   const queryOverride = useMemo(readQueryOverride, []);
   const [activeProfile, setActiveProfileId] = useActiveProfile(queryOverride.profile);
-  const { sessions, loading: sessionsLoading, addSession } = useSessionNames(activeProfile);
+  const { sessions, loading: sessionsLoading, upsertTitle } = useSessionNames(activeProfile);
   const isCompact = useIsCompactViewport();
   const resizable = useResizableSidebar();
   const profileTabs = useProfileTabs();
   const nav = useNavigationHistory();
   const windowFocused = useWindowFocus();
 
-  const [emptyVariant, setEmptyVariant] = useState<"new" | "switch">("switch");
   const [drawerOpen, setDrawerOpen] = useState(false);
   const [searchOpen, setSearchOpen] = useState(false);
 
@@ -69,7 +68,7 @@ export default function App() {
       return;
     }
     const persisted = profileTabs.getPersistedTabs(activeProfile.id);
-    if (persisted) profileTabs.restoreTabs(activeProfile.id, persisted.sessionNames, persisted.activeTabId);
+    if (persisted) profileTabs.restoreTabs(activeProfile.id, persisted.tabs, persisted.activeTabId);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [activeProfile.id]);
 
@@ -104,32 +103,29 @@ export default function App() {
 
   function handleProfileChange(profileId: string): void {
     setActiveProfileId(profileId);
-    setEmptyVariant("switch");
     setDrawerOpen(false);
   }
 
+  // Cria a sessão implicitamente: abre uma aba em branco na hora, sem pedir
+  // nome — o título é inferido a partir do primeiro prompt que o usuário
+  // mandar (relay dispara isso em paralelo ao turno, ver sessionManager.ts).
+  // A sessão só entra na sidebar quando esse título chegar (onTitle do
+  // ChatPanel abaixo), não antes.
   function handleNewConversation(): void {
-    const { tabs } = profileTabs.getTabs(activeProfile.id);
-    if (tabs.length === 0) {
-      setEmptyVariant("new");
-    } else {
-      const name = window.prompt("Nome da nova sessão:")?.trim();
-      if (name) {
-        profileTabs.openTab(activeProfile.id, name);
-        addSession(name);
-      }
-    }
+    const id = crypto.randomUUID();
+    profileTabs.openTab(activeProfile.id, id);
     setDrawerOpen(false);
   }
 
-  function handleSelectSession(name: string): void {
-    profileTabs.openTab(activeProfile.id, name);
+  function handleSelectSession(id: string): void {
+    const title = sessions.find((session) => session.id === id)?.title ?? null;
+    profileTabs.openTab(activeProfile.id, id, title);
     setDrawerOpen(false);
   }
 
-  function handleSearchSelectSession(profileId: string, sessionName: string): void {
+  function handleSearchSelectSession(profileId: string, sessionId: string, title: string): void {
     setActiveProfileId(profileId);
-    profileTabs.openTab(profileId, sessionName);
+    profileTabs.openTab(profileId, sessionId, title);
   }
 
   function handleCloseActiveTab(): void {
@@ -175,7 +171,7 @@ export default function App() {
     profileTabs
       .getTabs(activeProfile.id)
       .tabs.filter((tab) => tab.isRunning)
-      .map((tab) => tab.sessionName),
+      .map((tab) => tab.id),
   );
 
   const sidebarProps = {
@@ -266,7 +262,7 @@ export default function App() {
                       renderPanel={(tab) => (
                         <ChatPanel
                           profile={findProfile(profile.id) ?? profile}
-                          sessionName={tab.sessionName}
+                          sessionId={tab.id}
                           onTurnActiveChange={(active) => profileTabs.setRunning(profile.id, tab.id, active)}
                           onTurnComplete={() => {
                             const stillVisible =
@@ -275,22 +271,18 @@ export default function App() {
                               windowFocused;
                             if (!stillVisible) {
                               profileTabs.setUnread(profile.id, tab.id, true);
-                              notifyTurnComplete(findProfile(profile.id) ?? profile, tab.sessionName);
+                              notifyTurnComplete(findProfile(profile.id) ?? profile, tab.title ?? "Nova conversa");
                             }
+                          }}
+                          onTitle={(title) => {
+                            profileTabs.setTabTitle(profile.id, tab.id, title);
+                            if (profile.id === activeProfile.id) upsertTitle(tab.id, title);
                           }}
                         />
                       )}
                     />
                   ) : (
-                    isActiveProfile && (
-                      <EmptyState
-                        variant={emptyVariant}
-                        onCreateSession={(name) => {
-                          profileTabs.openTab(profile.id, name);
-                          addSession(name);
-                        }}
-                      />
-                    )
+                    isActiveProfile && <EmptyState />
                   )}
                 </div>
               );

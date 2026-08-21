@@ -8,6 +8,7 @@ export interface UseRelayClientOptions {
   onTurnError?: (message: string) => void;
   onCaughtUp?: () => void;
   onSetCwdError?: (message: string) => void;
+  onSessionTitle?: (title: string) => void;
 }
 
 export interface UseRelayClientResult {
@@ -31,7 +32,7 @@ export interface UseRelayClientResult {
  */
 export function useRelayClient(
   profile: Profile,
-  sessionName: string,
+  sessionId: string,
   options: UseRelayClientOptions = {},
 ): UseRelayClientResult {
   const [connected, setConnected] = useState(false);
@@ -49,7 +50,7 @@ export function useRelayClient(
     setCwdState(null);
     setCwdLocked(false);
 
-    const client = new RelayClient(profile.host, profile.relayPort, sessionName, {
+    const client = new RelayClient(profile.host, profile.relayPort, sessionId, {
       onEvent: (event) => optionsRef.current.onEvent?.(event),
       onTurnComplete: (stopped) => optionsRef.current.onTurnComplete?.(stopped),
       onTurnError: (message) => optionsRef.current.onTurnError?.(message),
@@ -59,6 +60,7 @@ export function useRelayClient(
         setCwdLocked(locked);
       },
       onSetCwdError: (message) => optionsRef.current.onSetCwdError?.(message),
+      onSessionTitle: (title) => optionsRef.current.onSessionTitle?.(title),
       onConnectionChange: setConnected,
     });
     clientRef.current = client;
@@ -68,7 +70,7 @@ export function useRelayClient(
       client.disconnect();
       clientRef.current = null;
     };
-  }, [profile.host, profile.relayPort, sessionName]);
+  }, [profile.host, profile.relayPort, sessionId]);
 
   const sendMessage = useCallback((text: string) => {
     clientRef.current?.sendMessage(text);

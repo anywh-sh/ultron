@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
-import { fetchSessionNames } from "@/lib/relayClient";
+import { fetchSessions } from "@/lib/relayClient";
+import type { SessionSummary } from "@/lib/relay-types";
 import { PROFILES } from "@/lib/profiles";
 
 /**
@@ -9,10 +10,10 @@ import { PROFILES } from "@/lib/profiles";
  * polling contínuo em background.
  */
 export function useAllSessionNames(enabled: boolean): {
-  byProfile: Record<string, string[]>;
+  byProfile: Record<string, SessionSummary[]>;
   loading: boolean;
 } {
-  const [byProfile, setByProfile] = useState<Record<string, string[]>>({});
+  const [byProfile, setByProfile] = useState<Record<string, SessionSummary[]>>({});
   const [loading, setLoading] = useState(false);
 
   useEffect(() => {
@@ -22,11 +23,11 @@ export function useAllSessionNames(enabled: boolean): {
 
     Promise.all(
       PROFILES.map((profile) =>
-        fetchSessionNames(profile.host, profile.relayPort)
-          .then((names): [string, string[]] => [profile.id, names])
+        fetchSessions(profile.host, profile.relayPort)
+          .then((sessions): [string, SessionSummary[]] => [profile.id, sessions])
           .catch((error: unknown) => {
             console.error("[ultron] falha ao listar sessões", profile.id, error);
-            return [profile.id, []] as [string, string[]];
+            return [profile.id, []] as [string, SessionSummary[]];
           }),
       ),
     ).then((results) => {

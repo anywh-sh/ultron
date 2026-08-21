@@ -18,10 +18,32 @@ export interface SessionCwdState {
 
 export interface SessionEntry {
   sessionId: string | null;
+  /** `null` até o título ser inferido do primeiro prompt (ou definido por um
+   * rename manual) — enquanto `null`, a sessão existe (cwd/lock já podem
+   * estar em uso) mas não aparece em `listTitled()`/`GET /sessions`, que é o
+   * que mantém a sidebar em branco até lá. Ver SessionManager.createSession
+   * (gatilho) e titleGenerator.ts (geração). */
+  title: string | null;
   cwd: SessionCwdState;
 }
 
 export type SessionRecord = Record<string, SessionEntry>;
+
+/** Shape anterior a essa mudança: id -> { session_id, cwd/lock }, sem
+ * `title` — o id em si já era o "nome" mostrado na UI. Usado só pra migrar
+ * arquivos gravados antes da feature de título/rename. */
+type PreTitleSessionRecord = Record<string, { sessionId: string | null; cwd: SessionCwdState }>;
+
+function isPreTitleRecord(value: object): value is PreTitleSessionRecord {
+  return Object.values(value).every(
+    (entry) =>
+      typeof entry === "object" &&
+      entry !== null &&
+      !("title" in entry) &&
+      "sessionId" in entry &&
+      "cwd" in entry,
+  );
+}
 
 /** Shape anterior a essa mudança: nome -> session_id (ou null). Usado só pra
  * detectar e migrar arquivos de sessão já existentes em produção. */
@@ -61,7 +83,18 @@ export class SessionStore {
         // Sessão que já tinha session_id de verdade já tem histórico
         // gravado sob o cwd implícito de então (homeOverride ?? homedir()) —
         // trata como já travada, pra não arriscar quebrar o --resume dela.
-        migrated[name] = { sessionId, cwd: { cwd: this.defaultCwd, locked: sessionId !== null } };
+        // Nome antigo vira id E título inicial: sessão já existente não
+        // precisa (nem deve) gerar um título novo, ela já tinha um nome útil.
+        migrated[name] = { sessionId, title: name, cwd: { cwd: this.defaultCwd, locked: sessionId !== null } };
+      }
+      return migrated;
+    }
+
+    if (isPreTitleRecord(parsed)) {
+      this.migrated = true;
+      const migrated: SessionRecord = {};
+      for (const [id, entry] of Object.entries(parsed)) {
+        migrated[id] = { ...entry, title: id };
       }
       return migrated;
     }
@@ -74,48 +107,73 @@ export class SessionStore {
     writeFileSync(this.filePath, JSON.stringify(this.records, null, 2));
   }
 
-  listNames(): string[] {
+  /** Todos os ids conhecidos, titulados ou não — usado só pra materializar
+   * as `SharedSession` em memória no boot (SessionManager), que precisam
+   * existir mesmo pra uma sessão ainda sem título (cwd/lock/session_id já
+   * podem estar em uso). */
+  listIds(): string[] {
     return Object.keys(this.records);
   }
 
-  getSessionId(name: string): string | undefined {
-    return this.records[name]?.sessionId ?? undefined;
+  /** Só as sessões já tituladas — é isso que `GET /sessions` expõe, o que
+   * mantém a sidebar em branco até o primeiro prompt (ou um rename manual)
+   * dar um título à sessão. */
+  listTitled(): { id: string; title: string }[] {
+    return Object.entries(this.records)
+      .filter((entry): entry is [string, SessionEntry & { title: string }] => entry[1].title !== null)
+      .map(([id, entry]) => ({ id, title: entry.title }));
   }
 
-  /** Idempotente — garante que o nome já apareça em GET /sessions mesmo
+  getSessionId(id: string): string | undefined {
+    return this.records[id]?.sessionId ?? undefined;
+  }
+
+  getTitle(id: string): string | null {
+    return this.records[id]?.title ?? null;
+  }
+
+  /** Idempotente — garante que o id já exista (sem título ainda) mesmo
    * antes do primeiro turno terminar (e portanto antes de termos um
    * session_id de verdade pra ele). */
-  recordName(name: string): void {
-    if (name in this.records) return;
-    this.records[name] = { sessionId: null, cwd: { cwd: this.defaultCwd, locked: false } };
+  recordId(id: string): void {
+    if (id in this.records) return;
+    this.records[id] = { sessionId: null, title: null, cwd: { cwd: this.defaultCwd, locked: false } };
     this.persist();
   }
 
-  recordSessionId(name: string, sessionId: string): void {
-    this.ensureEntry(name);
-    this.records[name].sessionId = sessionId;
+  /** Usado tanto pra gravar o título inferido do primeiro prompt quanto pra
+   * um rename manual — nos dois casos é só "o título de agora é este". */
+  setTitle(id: string, title: string): void {
+    this.ensureEntry(id);
+    this.records[id].title = title;
     this.persist();
   }
 
-  getCwdState(name: string): SessionCwdState {
-    return this.records[name]?.cwd ?? { cwd: this.defaultCwd, locked: false };
-  }
-
-  setCwd(name: string, cwd: string): void {
-    this.ensureEntry(name);
-    this.records[name].cwd.cwd = cwd;
+  recordSessionId(id: string, sessionId: string): void {
+    this.ensureEntry(id);
+    this.records[id].sessionId = sessionId;
     this.persist();
   }
 
-  lockCwd(name: string): void {
-    this.ensureEntry(name);
-    this.records[name].cwd.locked = true;
+  getCwdState(id: string): SessionCwdState {
+    return this.records[id]?.cwd ?? { cwd: this.defaultCwd, locked: false };
+  }
+
+  setCwd(id: string, cwd: string): void {
+    this.ensureEntry(id);
+    this.records[id].cwd.cwd = cwd;
     this.persist();
   }
 
-  private ensureEntry(name: string): void {
-    if (!(name in this.records)) {
-      this.records[name] = { sessionId: null, cwd: { cwd: this.defaultCwd, locked: false } };
+  lockCwd(id: string): void {
+    this.ensureEntry(id);
+    this.records[id].cwd.locked = true;
+    this.persist();
+  }
+
+  private ensureEntry(id: string): void {
+    if (!(id in this.records)) {
+      this.records[id] = { sessionId: null, title: null, cwd: { cwd: this.defaultCwd, locked: false } };
     }
   }
 }

@@ -62,7 +62,7 @@ const httpServer = createServer((req, res) => {
   if (req.method === "GET" && req.url?.startsWith("/sessions")) {
     res.setHeader("Content-Type", "application/json");
     res.setHeader("Access-Control-Allow-Origin", "*");
-    res.end(JSON.stringify({ sessions: sessionManager.listNames() }));
+    res.end(JSON.stringify({ sessions: sessionManager.listTitled() }));
     return;
   }
 
@@ -112,10 +112,10 @@ httpServer.listen(PORT, HOST, () => {
 
 wss.on("connection", (socket: WebSocket, request) => {
   const url = new URL(request.url ?? "/", `http://${request.headers.host ?? "localhost"}`);
-  const sessionName = url.searchParams.get("session")?.trim() || DEFAULT_SESSION;
+  const sessionId = url.searchParams.get("session")?.trim() || DEFAULT_SESSION;
 
-  console.log(`[relay] client connected (session: ${sessionName})`);
-  const session = sessionManager.getOrCreate(sessionName);
+  console.log(`[relay] client connected (session: ${sessionId})`);
+  const session = sessionManager.getOrCreate(sessionId);
   session.addClient(socket);
 
   socket.on("message", (raw: Buffer) => {
@@ -138,6 +138,6 @@ wss.on("connection", (socket: WebSocket, request) => {
 
   socket.on("close", () => {
     session.removeClient(socket);
-    console.log(`[relay] client disconnected (session: ${sessionName})`);
+    console.log(`[relay] client disconnected (session: ${sessionId})`);
   });
 });

@@ -6,7 +6,7 @@ import { cn } from "@/lib/utils";
 interface SessionSearchProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
-  onSelectSession: (profileId: string, sessionName: string) => void;
+  onSelectSession: (profileId: string, sessionId: string, title: string) => void;
 }
 
 export function SessionSearch({ open, onOpenChange, onSelectSession }: SessionSearchProps) {
@@ -28,12 +28,12 @@ export function SessionSearch({ open, onOpenChange, onSelectSession }: SessionSe
 
           return (
             <CommandGroup key={profile.id} heading={profile.label}>
-              {sessions.map((name) => (
+              {sessions.map((session) => (
                 <CommandItem
-                  key={name}
-                  value={`${profile.label} ${name}`}
+                  key={session.id}
+                  value={`${profile.label} ${session.title}`}
                   onSelect={() => {
-                    onSelectSession(profile.id, name);
+                    onSelectSession(profile.id, session.id, session.title);
                     onOpenChange(false);
                   }}
                 >
@@ -43,7 +43,7 @@ export function SessionSearch({ open, onOpenChange, onSelectSession }: SessionSe
                       profile.id === "trabalho" ? "bg-profile-work" : "bg-profile-personal",
                     )}
                   />
-                  <span className="truncate font-mono">{name}</span>
+                  <span className="truncate font-mono">{session.title}</span>
                 </CommandItem>
               ))}
             </CommandGroup>

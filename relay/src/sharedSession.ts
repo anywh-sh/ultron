@@ -26,6 +26,15 @@ export interface SharedSessionOptions {
   /** Chamado uma única vez, no momento em que a sessão trava (primeiro
    * turno de verdade). */
   onLockChange?: () => void;
+  /** Título já persistido pra essa sessão, se houver (sessão antiga migrada,
+   * ou reload de uma sessão nova cujo título já tinha sido inferido antes do
+   * restart do relay). */
+  initialTitle?: string | null;
+  /** Chamado uma única vez, com o texto do primeiro prompt de verdade —
+   * SessionManager usa isso pra disparar a geração de título em paralelo ao
+   * turno (não bloqueia a resposta). Mesmo momento que `onLockChange`, só
+   * que já carrega o texto. */
+  onFirstPrompt?: (text: string) => void;
 }
 
 export type SetCwdResult = { ok: true } | { ok: false; error: string };
@@ -43,6 +52,7 @@ export class SharedSession {
   private turnQueue: Promise<void> = Promise.resolve();
   private cwd: string;
   private locked: boolean;
+  private title: string | null;
 
   constructor(
     private readonly homeOverride: string | undefined,
@@ -51,10 +61,25 @@ export class SharedSession {
     this.claude = new ClaudeSession({ homeOverride, initialSessionId: options.initialSessionId });
     this.cwd = options.initialCwd;
     this.locked = options.initialLocked;
+    this.title = options.initialTitle ?? null;
   }
 
   getCwdState(): { cwd: string; locked: boolean } {
     return { cwd: this.cwd, locked: this.locked };
+  }
+
+  getTitle(): string | null {
+    return this.title;
+  }
+
+  /** Chamado tanto pelo título inferido do primeiro prompt quanto por um
+   * rename manual (SessionManager.renameTitle) — os dois casos só precisam
+   * atualizar o estado local e avisar quem estiver conectado agora mesmo
+   * (outro dispositivo com essa sessão aberta, ex). Persistência em disco é
+   * responsabilidade do SessionStore, não desta classe. */
+  setTitle(title: string): void {
+    this.title = title;
+    this.broadcastTitle();
   }
 
   /** Só permitido antes do primeiro turno (ver `runTurn`) — quem chama
@@ -74,6 +99,7 @@ export class SharedSession {
     // Primeiro que tudo — uma aba recém-aberta sabe o cwd/lock imediatamente,
     // sem esperar um turno ou o replay de histórico terminar.
     this.sendCwdState(socket);
+    if (this.title !== null) this.sendTitle(socket, this.title);
 
     this.ensureHistoryLoaded();
     for (const message of this.history) {
@@ -126,6 +152,7 @@ export class SharedSession {
       this.locked = true;
       this.options.onLockChange?.();
       this.broadcastCwdState();
+      this.options.onFirstPrompt?.(text);
     }
 
     try {
@@ -148,6 +175,18 @@ export class SharedSession {
 
   private broadcastCwdState(): void {
     for (const client of this.clients) this.sendCwdState(client);
+  }
+
+  private sendTitle(target: WebSocket, title: string): void {
+    target.send(JSON.stringify({ type: "session_title", title }));
+  }
+
+  /** Não entra em `history` pelo mesmo motivo do cwd: é estado "atual", não
+   * um evento da conversa — um cliente reconectando pega o valor de agora
+   * via `addClient`, não um replay de mudanças passadas. */
+  private broadcastTitle(): void {
+    if (this.title === null) return;
+    for (const client of this.clients) this.sendTitle(client, this.title);
   }
 
   private broadcast(message: BroadcastMessage): void {

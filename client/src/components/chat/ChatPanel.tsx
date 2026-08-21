@@ -12,9 +12,12 @@ import type { Profile } from "@/lib/profiles";
 
 interface ChatPanelProps {
   profile: Profile;
-  sessionName: string;
+  sessionId: string;
   onTurnComplete?: () => void;
   onTurnActiveChange?: (active: boolean) => void;
+  /** Título inferido do primeiro prompt (ou de um rename ao vivo em outro
+   * dispositivo) chegando pela WS dessa sessão — ver sharedSession.ts. */
+  onTitle?: (title: string) => void;
 }
 
 function buildWireMessage(text: string, images: PendingImage[]): string {
@@ -22,12 +25,14 @@ function buildWireMessage(text: string, images: PendingImage[]): string {
   return [text, imageRefs].filter(Boolean).join("\n\n");
 }
 
-export function ChatPanel({ profile, sessionName, onTurnComplete, onTurnActiveChange }: ChatPanelProps) {
+export function ChatPanel({ profile, sessionId, onTurnComplete, onTurnActiveChange, onTitle }: ChatPanelProps) {
   const log = useMessageLog();
   const logRef = useRef(log);
   logRef.current = log;
   const onTurnActiveChangeRef = useRef(onTurnActiveChange);
   onTurnActiveChangeRef.current = onTurnActiveChange;
+  const onTitleRef = useRef(onTitle);
+  onTitleRef.current = onTitle;
 
   // O relay reenvia o histórico inteiro da sessão a cada conexão nova
   // (`SharedSession.addClient`), inclusive `turn_complete` de turnos
@@ -63,7 +68,7 @@ export function ChatPanel({ profile, sessionName, onTurnComplete, onTurnActiveCh
     onTurnActiveChangeRef.current?.(turnInFlight);
   }, [turnInFlight]);
 
-  const { connected, cwd, cwdLocked, sendMessage, stopTurn, setCwd } = useRelayClient(profile, sessionName, {
+  const { connected, cwd, cwdLocked, sendMessage, stopTurn, setCwd } = useRelayClient(profile, sessionId, {
     onEvent: (event) => logRef.current.handleEvent(event),
     onCaughtUp: () => {
       caughtUpRef.current = true;
@@ -79,6 +84,7 @@ export function ChatPanel({ profile, sessionName, onTurnComplete, onTurnActiveCh
       setTurnInFlight(false);
     },
     onSetCwdError: (message) => window.alert(`Não foi possível trocar a pasta: ${message}`),
+    onSessionTitle: (title) => onTitleRef.current?.(title),
   });
 
   return (

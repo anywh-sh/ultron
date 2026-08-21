@@ -25,7 +25,7 @@ export async function ensureNotificationPermission(): Promise<void> {
  * PowerShell fora de um build instalado e não repassa o clique no toast pro
  * JS, então o ícone e o foco da janela ao clicar são implementados nativamente
  * do lado Rust (ver src-tauri/src/notifications.rs). */
-export function notifyTurnComplete(profile: Profile, sessionName: string): void {
+export function notifyTurnComplete(profile: Profile, sessionTitle: string): void {
   if (!inTauri() || !permissionGranted) return;
-  void invoke("notify_turn_complete", { title: `${sessionName} (${profile.label})`, body: "Resposta pronta." });
+  void invoke("notify_turn_complete", { title: `${sessionTitle} (${profile.label})`, body: "Resposta pronta." });
 }

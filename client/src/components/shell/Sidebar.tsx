@@ -4,16 +4,17 @@ import { Tooltip, TooltipContent, TooltipShortcut, TooltipTrigger } from "@/comp
 import { SessionList } from "@/components/shell/SessionList";
 import { ProfileSwitcher } from "@/components/shell/ProfileSwitcher";
 import type { Profile } from "@/lib/profiles";
+import type { SessionSummary } from "@/lib/relay-types";
 import { shortcutLabel } from "@/lib/platform";
 
 interface SidebarProps {
   activeProfile: Profile;
   onProfileChange: (profileId: string) => void;
-  sessions: string[];
+  sessions: SessionSummary[];
   sessionsLoading: boolean;
   selectedSession: string | null;
   runningSessions: Set<string>;
-  onSelectSession: (name: string) => void;
+  onSelectSession: (id: string) => void;
   onNewConversation: () => void;
 }
 

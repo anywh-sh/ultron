@@ -3,7 +3,9 @@ import { arrayMove } from "@dnd-kit/sortable";
 
 export interface Tab {
   id: string;
-  sessionName: string;
+  /** `null` até o título ser inferido do primeiro prompt — a aba mostra um
+   * placeholder genérico nesse meio-tempo (ver TabBar). */
+  title: string | null;
   hasUnreadCompletion: boolean;
   isRunning: boolean;
 }
@@ -13,8 +15,13 @@ interface TabsState {
   activeTabId: string | null;
 }
 
+interface PersistedTab {
+  id: string;
+  title: string | null;
+}
+
 interface PersistedTabs {
-  sessionNames: string[];
+  tabs: PersistedTab[];
   activeTabId: string | null;
 }
 
@@ -28,6 +35,12 @@ function lastSessionKey(profileId: string): string {
 
 function tabsOrderKey(profileId: string): string {
   return `ultron:tabs:${profileId}`;
+}
+
+/** Formato salvo antes da separação id/título: array de strings, onde a
+ * string era ao mesmo tempo o id e o título exibido. */
+function isLegacyPersistedTabs(value: unknown): value is string[] {
+  return Array.isArray(value) && value.every((entry) => typeof entry === "string");
 }
 
 /**
@@ -44,30 +57,32 @@ function tabsOrderKey(profileId: string): string {
 export function useProfileTabs() {
   const [byProfile, setByProfile] = useState<ByProfile>({});
 
-  // Persiste lista de abas + ordem + aba ativa por perfil. Itera
-  // `Object.keys(byProfile)` — NUNCA a lista estática de perfis conhecidos.
-  // Um profileId só vira chave real depois de alguma ação (openTab etc).
-  // Iterar todos os perfis conhecidos aqui gravaria estado vazio pros dois
-  // já no primeiro render, ANTES da restauração (em App) rodar, apagando o
-  // que tinha sido persistido antes de dar tempo de ler.
+  // Persiste lista de abas (id + título, pra restaurar sem esperar um
+  // refetch) + ordem + aba ativa por perfil. Itera `Object.keys(byProfile)`
+  // — NUNCA a lista estática de perfis conhecidos. Um profileId só vira
+  // chave real depois de alguma ação (openTab etc). Iterar todos os perfis
+  // conhecidos aqui gravaria estado vazio pros dois já no primeiro render,
+  // ANTES da restauração (em App) rodar, apagando o que tinha sido
+  // persistido antes de dar tempo de ler.
   useEffect(() => {
     for (const profileId of Object.keys(byProfile)) {
       const { tabs, activeTabId } = byProfile[profileId];
-      localStorage.setItem(tabsOrderKey(profileId), JSON.stringify(tabs.map((tab) => tab.sessionName)));
+      const persisted: PersistedTab[] = tabs.map((tab) => ({ id: tab.id, title: tab.title }));
+      localStorage.setItem(tabsOrderKey(profileId), JSON.stringify(persisted));
       if (activeTabId) localStorage.setItem(lastSessionKey(profileId), activeTabId);
     }
   }, [byProfile]);
 
   const getTabs = useCallback((profileId: string): TabsState => byProfile[profileId] ?? EMPTY_STATE, [byProfile]);
 
-  const openTab = useCallback((profileId: string, sessionName: string) => {
+  const openTab = useCallback((profileId: string, id: string, title: string | null = null) => {
     setByProfile((prev) => {
       const current = prev[profileId] ?? EMPTY_STATE;
-      const exists = current.tabs.some((tab) => tab.sessionName === sessionName);
+      const exists = current.tabs.some((tab) => tab.id === id);
       const tabs = exists
         ? current.tabs
-        : [...current.tabs, { id: sessionName, sessionName, hasUnreadCompletion: false, isRunning: false }];
-      return { ...prev, [profileId]: { tabs, activeTabId: sessionName } };
+        : [...current.tabs, { id, title, hasUnreadCompletion: false, isRunning: false }];
+      return { ...prev, [profileId]: { tabs, activeTabId: id } };
     });
   }, []);
 
@@ -132,6 +147,26 @@ export function useProfileTabs() {
     });
   }, []);
 
+  /** Chamado quando o título de uma sessão passa a existir ou muda — tanto
+   * pela inferência automática do primeiro prompt (ChatPanel, ao vivo via
+   * WS) quanto por um rename manual feito na sidebar. No-op se a sessão não
+   * estiver aberta como aba nesse perfil agora (ex: rename de uma sessão
+   * fechada) — o próprio bailout de `setUnread`/`setRunning` acima. */
+  const setTabTitle = useCallback((profileId: string, tabId: string, title: string) => {
+    setByProfile((prev) => {
+      const current = prev[profileId];
+      const tab = current?.tabs.find((t) => t.id === tabId);
+      if (!current || !tab || tab.title === title) return prev;
+      return {
+        ...prev,
+        [profileId]: {
+          ...current,
+          tabs: current.tabs.map((t) => (t.id === tabId ? { ...t, title } : t)),
+        },
+      };
+    });
+  }, []);
+
   const getLastSession = useCallback((profileId: string): string | null => {
     return localStorage.getItem(lastSessionKey(profileId));
   }, []);
@@ -140,25 +175,31 @@ export function useProfileTabs() {
     const raw = localStorage.getItem(tabsOrderKey(profileId));
     if (raw === null) {
       // Chave nova nunca existiu (usuário vem de antes desta mudança): cai
-      // pro que já era persistido, uma única sessão.
+      // pro que já era persistido, uma única sessão (nome antigo = id e
+      // título, mesma regra de migração do SessionStore no relay).
       const lastSession = localStorage.getItem(lastSessionKey(profileId));
-      return lastSession ? { sessionNames: [lastSession], activeTabId: lastSession } : null;
+      return lastSession
+        ? { tabs: [{ id: lastSession, title: lastSession }], activeTabId: lastSession }
+        : null;
     }
     try {
-      const sessionNames: string[] = JSON.parse(raw);
-      if (sessionNames.length === 0) return null;
+      const parsed: unknown = JSON.parse(raw);
+      const tabs: PersistedTab[] = isLegacyPersistedTabs(parsed)
+        ? parsed.map((name) => ({ id: name, title: name }))
+        : (parsed as PersistedTab[]);
+      if (tabs.length === 0) return null;
       const activeTabId = localStorage.getItem(lastSessionKey(profileId));
-      return { sessionNames, activeTabId: activeTabId && sessionNames.includes(activeTabId) ? activeTabId : null };
+      return { tabs, activeTabId: activeTabId && tabs.some((t) => t.id === activeTabId) ? activeTabId : null };
     } catch {
       return null;
     }
   }, []);
 
-  const restoreTabs = useCallback((profileId: string, sessionNames: string[], activeTabId: string | null) => {
+  const restoreTabs = useCallback((profileId: string, persistedTabs: PersistedTab[], activeTabId: string | null) => {
     setByProfile((prev) => {
-      const tabs = sessionNames.map((sessionName) => ({
-        id: sessionName,
-        sessionName,
+      const tabs = persistedTabs.map((persisted) => ({
+        id: persisted.id,
+        title: persisted.title,
         hasUnreadCompletion: false,
         isRunning: false,
       }));
@@ -174,6 +215,7 @@ export function useProfileTabs() {
     setActiveTab,
     setUnread,
     setRunning,
+    setTabTitle,
     reorderTabs,
     getLastSession,
     getPersistedTabs,

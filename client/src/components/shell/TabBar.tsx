@@ -64,7 +64,7 @@ function SortableTab({ tab, profileId, onClose }: SortableTabProps) {
           aria-label={tab.isRunning ? "Agente trabalhando nesta sessão" : undefined}
         />
         {tab.hasUnreadCompletion && <span className="size-1.5 shrink-0 rounded-full bg-primary" />}
-        <span className="max-w-[120px] truncate">{tab.sessionName}</span>
+        <span className="max-w-[120px] truncate">{tab.title ?? "Nova conversa"}</span>
       </TabsTrigger>
       <button
         type="button"
@@ -72,7 +72,7 @@ function SortableTab({ tab, profileId, onClose }: SortableTabProps) {
           event.stopPropagation();
           onClose(tab.id);
         }}
-        aria-label={`Fechar aba ${tab.sessionName}`}
+        aria-label={`Fechar aba ${tab.title ?? "nova conversa"}`}
         className={cn(
           "absolute right-1.5 cursor-pointer rounded p-0.5 opacity-0 transition-opacity",
           "hover:bg-border group-hover:opacity-100",

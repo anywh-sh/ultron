@@ -1,16 +1,16 @@
 // Cliente do protocolo do relay próprio (não é mais o protocolo do ttyd —
 // ver docs/11-decisao-pivo-stream-json.md e docs/12-prototipo-relay.md).
-import type { ClaudeEvent, RelayMessage } from "@/lib/relay-types";
+import type { ClaudeEvent, RelayMessage, SessionSummary } from "@/lib/relay-types";
 
-export type { ClaudeContentBlock, ClaudeMessage, ClaudeEvent } from "@/lib/relay-types";
+export type { ClaudeContentBlock, ClaudeMessage, ClaudeEvent, SessionSummary } from "@/lib/relay-types";
 
 function isRelayMessage(value: unknown): value is RelayMessage {
   return typeof value === "object" && value !== null && "type" in value;
 }
 
-export async function fetchSessionNames(host: string, port: number): Promise<string[]> {
+export async function fetchSessions(host: string, port: number): Promise<SessionSummary[]> {
   const response = await fetch(`http://${host}:${port}/sessions`);
-  const body = (await response.json()) as { sessions?: string[] };
+  const body = (await response.json()) as { sessions?: SessionSummary[] };
   return body.sessions ?? [];
 }
 
@@ -26,6 +26,9 @@ export interface RelayClientCallbacks {
   onCwdState: (cwd: string, locked: boolean) => void;
   onSetCwdError?: (message: string) => void;
   onConnectionChange?: (connected: boolean) => void;
+  /** Título inferido do primeiro prompt (ou de um rename manual feito em
+   * outro dispositivo) chegando ao vivo — ver sharedSession.ts::setTitle. */
+  onSessionTitle?: (title: string) => void;
 }
 
 export class RelayClient {
@@ -34,13 +37,13 @@ export class RelayClient {
   constructor(
     private readonly host: string,
     private readonly port: number,
-    private readonly sessionName: string,
+    private readonly sessionId: string,
     private readonly callbacks: RelayClientCallbacks,
   ) {}
 
   connect(): void {
     const socket = new WebSocket(
-      `ws://${this.host}:${this.port}/?session=${encodeURIComponent(this.sessionName)}`,
+      `ws://${this.host}:${this.port}/?session=${encodeURIComponent(this.sessionId)}`,
     );
     this.socket = socket;
 
@@ -62,6 +65,8 @@ export class RelayClient {
         this.callbacks.onCwdState(parsed.cwd, parsed.locked);
       } else if (parsed.type === "set_cwd_error") {
         this.callbacks.onSetCwdError?.(parsed.message);
+      } else if (parsed.type === "session_title") {
+        this.callbacks.onSessionTitle?.(parsed.title);
       }
     });
   }
