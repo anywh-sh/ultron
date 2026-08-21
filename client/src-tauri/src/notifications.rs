@@ -1,11 +1,12 @@
-// No Windows, o tauri-plugin-notification só resolve o ícone de verdade via
-// AUMID de um app instalado (com atalho registrado) — fora disso ele cai no
-// ícone do PowerShell, que é o app_id de fallback do winrt-notification. O
-// plugin também derruba o handle do toast depois de mostrá-lo, então o clique
-// nunca chega no lado JS. Por isso essa notificação é implementada direto
-// sobre tauri-winrt-notification no Windows: ícone fixo (não depende de
-// instalação) e clique focando a janela. Nas outras plataformas seguimos
-// usando o plugin normalmente.
+// No Windows, o tauri-plugin-notification derruba o handle do toast depois
+// de mostrá-lo, então o clique nunca chega no lado JS — por isso essa
+// notificação é implementada direto sobre tauri-winrt-notification lá,
+// passando um ícone fixo (via `.icon()`, que não depende de AUMID
+// registrado) e um `.on_activated()` que foca a janela. O app_id ainda segue
+// o mesmo teste dev-vs-instalado que o plugin original fazia — ver
+// `windows_toast::resolve_app_id` — porque criar o notifier com um AUMID não
+// registrado (rodando via `tauri dev`) faz a notificação inteira sumir, não
+// só o ícone. Nas outras plataformas seguimos usando o plugin normalmente.
 
 #[tauri::command]
 pub fn notify_turn_complete(app: tauri::AppHandle, title: String, body: String) {
@@ -21,8 +22,33 @@ pub fn notify_turn_complete(app: tauri::AppHandle, title: String, body: String) 
 
 #[cfg(target_os = "windows")]
 mod windows_toast {
+    use std::path::MAIN_SEPARATOR as SEP;
     use tauri::{path::BaseDirectory, AppHandle, Manager};
     use tauri_winrt_notification::{IconCrop, Toast};
+
+    /// Mesmo teste que o tauri-plugin-notification original fazia (ver
+    /// comentário no topo do arquivo): o AUMID de verdade do app só existe
+    /// registrado (atalho no Start Menu) numa instalação de verdade. Rodando
+    /// via `tauri dev`/exe solto em `target/debug`|`target/release`, criar o
+    /// notifier com esse app_id não registrado faz `show()` falhar calado —
+    /// não é só o ícone errado, a notificação inteira some. `POWERSHELL_APP_ID`
+    /// é garantidamente registrado em qualquer Windows, então funciona nos
+    /// dois casos; o ícone customizado (`.icon()` abaixo) e o clique
+    /// (`.on_activated()`) não dependem do app_id estar registrado — só o
+    /// ícone *padrão* (sem override) depende.
+    fn resolve_app_id(identifier: &str) -> String {
+        let running_unpacked = tauri::utils::platform::current_exe()
+            .ok()
+            .and_then(|exe| exe.parent().map(|dir| dir.display().to_string()))
+            .is_some_and(|dir| {
+                dir.ends_with(&format!("{SEP}target{SEP}debug")) || dir.ends_with(&format!("{SEP}target{SEP}release"))
+            });
+        if running_unpacked {
+            Toast::POWERSHELL_APP_ID.to_string()
+        } else {
+            identifier.to_string()
+        }
+    }
 
     pub fn show(app: AppHandle, title: String, body: String) {
         let icon = app
@@ -30,7 +56,7 @@ mod windows_toast {
             .resolve("icons/128x128.png", BaseDirectory::Resource)
             .ok()
             .filter(|path| path.exists());
-        let app_id = app.config().identifier.clone();
+        let app_id = resolve_app_id(&app.config().identifier);
 
         // notify e wait_for_action/on_activated bloqueiam a thread, então
         // isso não pode rodar na main thread do Tauri.
