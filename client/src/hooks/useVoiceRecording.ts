@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from "react";
-import { listInputDevices, startRecording, stopRecordingAndTranscribe } from "@/lib/voice";
+import { ensureMicrophonePermission, listInputDevices, startRecording, stopRecordingAndTranscribe } from "@/lib/voice";
 
 const MIC_STORAGE_KEY = "ultron:selected-mic";
 
@@ -60,6 +60,7 @@ export function useVoiceRecording({ onTranscribed, onError }: UseVoiceRecordingO
   const start = useCallback(async () => {
     cancelledRef.current = false;
     try {
+      await ensureMicrophonePermission();
       await startRecording(selectedDevice || undefined);
     } catch (error) {
       onError(`Não foi possível iniciar a gravação: ${error instanceof Error ? error.message : String(error)}`);

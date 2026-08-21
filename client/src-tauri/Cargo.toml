@@ -30,3 +30,6 @@ rubato = "0.15"
 [target.'cfg(windows)'.dependencies]
 tauri-winrt-notification = "0.7"
 
+[target.'cfg(target_os = "macos")'.dependencies]
+tauri-plugin-macos-permissions = "2"
+
