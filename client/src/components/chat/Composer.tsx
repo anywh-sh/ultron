@@ -13,7 +13,7 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import { cn } from "@/lib/utils";
+import { cn, formatDuration } from "@/lib/utils";
 import { useVoiceRecording } from "@/hooks/useVoiceRecording";
 import type { PendingImage } from "@/hooks/useImageUpload";
 import { ComposerLinkView } from "@/components/chat/ComposerLinkView";
@@ -32,14 +32,6 @@ interface ComposerProps {
 
 export interface ComposerHandle {
   focus: () => void;
-}
-
-function formatTimer(seconds: number): string {
-  const m = Math.floor(seconds / 60)
-    .toString()
-    .padStart(2, "0");
-  const s = (seconds % 60).toString().padStart(2, "0");
-  return `${m}:${s}`;
 }
 
 const WAVEFORM_BARS = [0, 1, 2, 3, 4];
@@ -190,7 +182,7 @@ export const Composer = forwardRef<ComposerHandle, ComposerProps>(function Compo
                   />
                 ))}
               </div>
-              <span className="font-mono text-xs text-destructive">{formatTimer(voice.elapsedSeconds)}</span>
+              <span className="font-mono text-xs text-destructive">{formatDuration(voice.elapsedSeconds)}</span>
               <button
                 type="button"
                 onClick={voice.cancel}
