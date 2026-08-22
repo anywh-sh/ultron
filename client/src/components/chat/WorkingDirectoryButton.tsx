@@ -76,6 +76,14 @@ export function WorkingDirectoryButton({
   return (
     <>
       <DropdownMenu
+        // Radix trava foco + `pointer-events: none` no body enquanto o menu
+        // modal está aberto, e restaura os dois ao fechar — no WKWebView
+        // (Tauri no macOS) essa restauração falha justo quando a lista
+        // "Recente" reordena entre uma abertura e outra (item escolhido sobe
+        // pro topo, muda as keys de posição): a próxima abertura perde a
+        // seção inteira, sobrando só "Escolher pasta...". `modal={false}`
+        // tira esse mecanismo do caminho (não precisamos de focus trap aqui).
+        modal={false}
         onOpenChange={(open) => {
           // Sem isso o foco fica no trigger depois do menu fechar, e como o
           // Tooltip também abre por foco (não só hover), ele fica "preso"
