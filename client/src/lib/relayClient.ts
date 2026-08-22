@@ -65,6 +65,10 @@ export interface RelayClientCallbacks {
 
 export class RelayClient {
   private socket?: WebSocket;
+  /** Pasta escolhida (ex: pelo `WorkingDirectoryButton` de uma conversa nova)
+   * antes do socket abrir — não existe fila de saída, só a última escolha
+   * importa. Mandada assim que a conexão abre; ver `connect`. */
+  private pendingCwd: string | null = null;
 
   constructor(
     private readonly host: string,
@@ -79,7 +83,14 @@ export class RelayClient {
     );
     this.socket = socket;
 
-    socket.addEventListener("open", () => this.callbacks.onConnectionChange?.(true));
+    socket.addEventListener("open", () => {
+      this.callbacks.onConnectionChange?.(true);
+      if (this.pendingCwd !== null) {
+        const path = this.pendingCwd;
+        this.pendingCwd = null;
+        socket.send(JSON.stringify({ type: "set_cwd", path }));
+      }
+    });
     socket.addEventListener("close", () => this.callbacks.onConnectionChange?.(false));
     socket.addEventListener("message", (event) => {
       const parsed: unknown = JSON.parse(event.data as string);
@@ -116,7 +127,13 @@ export class RelayClient {
   }
 
   setCwd(path: string): void {
-    if (this.socket?.readyState !== WebSocket.OPEN) return;
+    if (this.socket?.readyState !== WebSocket.OPEN) {
+      // Aba de conversa nova deixa escolher a pasta antes da conexão abrir
+      // (ver WorkingDirectoryButton) — guarda e manda assim que abrir, em
+      // vez de simplesmente descartar a escolha do usuário.
+      this.pendingCwd = path;
+      return;
+    }
     this.socket.send(JSON.stringify({ type: "set_cwd", path }));
   }
 

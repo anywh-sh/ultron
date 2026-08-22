@@ -19,6 +19,15 @@ interface WorkingDirectoryButtonProps {
   cwd: string | null;
   locked: boolean;
   connected: boolean;
+  /** Aba aberta via "nova conversa" — a pasta é sempre escolhível de
+   * imediato aqui (a sessão nunca nasce travada), então o botão não espera
+   * a conexão WS abrir nem o primeiro `cwd_state` chegar: listar pastas é
+   * uma chamada REST própria (`GET /fs/list`, sem `path` resolve pro padrão
+   * do perfil) e a escolha em si fica pendurada no RelayClient até a
+   * conexão abrir (ver relayClient.ts). Sessão existente continua exigindo
+   * conexão — errar pro lado seguro evita destravar uma pasta que na
+   * verdade já está travada, só ainda não confirmamos isso. */
+  isNewConversation?: boolean;
   onSetCwd: (path: string) => void;
 }
 
@@ -38,7 +47,14 @@ function folderName(path: string): string {
  * — session_id do Claude Code fica amarrado ao cwd usado no spawn), então o
  * dropdown vira só visualização + "Copy path".
  */
-export function WorkingDirectoryButton({ profile, cwd, locked, connected, onSetCwd }: WorkingDirectoryButtonProps) {
+export function WorkingDirectoryButton({
+  profile,
+  cwd,
+  locked,
+  connected,
+  isNewConversation,
+  onSetCwd,
+}: WorkingDirectoryButtonProps) {
   const { recents, addRecent } = useRecentFolders(profile.id);
   const [pickerOpen, setPickerOpen] = useState(false);
   const triggerRef = useRef<HTMLButtonElement>(null);
@@ -73,7 +89,7 @@ export function WorkingDirectoryButton({ profile, cwd, locked, connected, onSetC
               <button
                 ref={triggerRef}
                 type="button"
-                disabled={!cwd || !connected}
+                disabled={!isNewConversation && (!cwd || !connected)}
                 className="flex h-7 shrink-0 cursor-pointer items-center gap-1.5 rounded-md border border-border bg-bg-elevated px-2 text-xs text-foreground transition-colors hover:bg-border disabled:cursor-not-allowed disabled:opacity-50"
               >
                 <Folder className="size-3.5 shrink-0 text-muted-foreground" />
@@ -81,7 +97,7 @@ export function WorkingDirectoryButton({ profile, cwd, locked, connected, onSetC
               </button>
             </DropdownMenuTrigger>
           </TooltipTrigger>
-          <TooltipContent side="top">{cwd ?? "Conectando…"}</TooltipContent>
+          <TooltipContent side="top">{cwd ?? (isNewConversation ? "Escolher pasta" : "Conectando…")}</TooltipContent>
         </Tooltip>
 
         <DropdownMenuContent align="start">

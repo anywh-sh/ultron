@@ -153,7 +153,14 @@ export function ChatPanel({
       {turnInFlight && <TurnIndicator />}
 
       <div className="mx-3 mt-3 flex">
-        <WorkingDirectoryButton profile={profile} cwd={cwd} locked={cwdLocked} connected={connected} onSetCwd={setCwd} />
+        <WorkingDirectoryButton
+          profile={profile}
+          cwd={cwd}
+          locked={cwdLocked}
+          connected={connected}
+          isNewConversation={isNewConversation}
+          onSetCwd={setCwd}
+        />
       </div>
 
       <Composer
