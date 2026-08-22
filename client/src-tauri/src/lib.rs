@@ -14,7 +14,8 @@ fn greet(name: &str) -> String {
 pub fn run() {
     let builder = tauri::Builder::default()
         .plugin(tauri_plugin_opener::init())
-        .plugin(tauri_plugin_notification::init());
+        .plugin(tauri_plugin_notification::init())
+        .plugin(tauri_plugin_os::init());
 
     // cpal acessa o CoreAudio direto (sem passar pela AVFoundation), o que na
     // prática não dispara o diálogo de permissão do macOS — o app captura só
