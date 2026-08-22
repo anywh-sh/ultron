@@ -3,11 +3,16 @@ import { LogEntryRow } from "@/components/chat/LogEntryRow";
 import { UserBubble, AssistantText } from "@/components/chat/Message";
 import { ToolCallCard } from "@/components/chat/ToolCallCard";
 import { ErrorMessage } from "@/components/chat/ErrorMessage";
+import { cn } from "@/lib/utils";
 import type { LogEntry } from "@/hooks/useMessageLog";
 
 interface MessageLogProps {
   entries: LogEntry[];
   streamingEntries: LogEntry[];
+  /** Espaço extra no rodapé — no iOS, o composer flutua por cima do log
+   * (docs/24), então o conteúdo precisa de mais respiro pra não terminar
+   * escondido atrás dele. */
+  className?: string;
 }
 
 type RenderItem =
@@ -71,7 +76,7 @@ function renderItem(item: RenderItem) {
   }
 }
 
-export function MessageLog({ entries, streamingEntries }: MessageLogProps) {
+export function MessageLog({ entries, streamingEntries, className }: MessageLogProps) {
   const bottomRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -81,7 +86,7 @@ export function MessageLog({ entries, streamingEntries }: MessageLogProps) {
   const items = pairToolEntries(entries);
 
   return (
-    <div className="scrollbar-thin flex flex-1 flex-col gap-1 overflow-y-auto px-4 py-3">
+    <div className={cn("scrollbar-thin flex flex-1 flex-col gap-1 overflow-y-auto px-4 py-3", className)}>
       {items.map(renderItem)}
       {streamingEntries.map((entry) => renderItem({ kind: "single", entry }))}
       <div ref={bottomRef} />

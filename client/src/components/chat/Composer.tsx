@@ -157,7 +157,10 @@ export const Composer = forwardRef<ComposerHandle, ComposerProps>(function Compo
         "flex flex-col gap-1.5 border p-2 transition-colors",
         isIOS()
           ? [
-              "mx-3.5 mt-2 mb-[calc(env(safe-area-inset-bottom)+12px)] bg-bg-elevated/70 shadow-lg backdrop-blur-xl backdrop-saturate-150",
+              // Glass de verdade, não um bloco quase opaco: o log continua
+              // legível (desfocado) por trás quando rola até embaixo —
+              // docs/24, comparado direto com o composer real do app Claude.
+              "bg-bg-elevated/35 shadow-lg backdrop-blur-2xl backdrop-saturate-150",
               "transition-[border-radius,border-color] duration-150",
               isMultiline ? "rounded-[26px]" : "rounded-full",
             ]

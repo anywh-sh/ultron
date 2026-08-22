@@ -9,6 +9,8 @@ import { ChatIdleState } from "@/components/chat/ChatIdleState";
 import { TurnIndicator } from "@/components/chat/TurnIndicator";
 import { Composer, type ComposerHandle } from "@/components/chat/Composer";
 import { WorkingDirectoryButton } from "@/components/chat/WorkingDirectoryButton";
+import { isIOS } from "@/lib/platform";
+import { cn } from "@/lib/utils";
 import type { Profile } from "@/lib/profiles";
 
 interface ChatPanelProps {
@@ -161,41 +163,56 @@ export function ChatPanel({
       {isNewConversation && log.entries.length === 0 && log.streamingEntries.length === 0 ? (
         <ChatIdleState />
       ) : ready ? (
-        <MessageLog entries={log.entries} streamingEntries={log.streamingEntries} />
+        <MessageLog
+          entries={log.entries}
+          streamingEntries={log.streamingEntries}
+          className={isIOS() ? "pt-[calc(env(safe-area-inset-top)+64px)] pb-32" : undefined}
+        />
       ) : (
         <MessageLogSkeleton />
       )}
 
       {turnInFlight && <TurnIndicator />}
 
-      <div className="mx-3 mt-3 flex">
-        <WorkingDirectoryButton
-          profile={profile}
-          cwd={cwd}
-          locked={cwdLocked}
-          connected={connected}
-          isNewConversation={isNewConversation}
-          onSetCwd={setCwd}
+      {/* iOS (docs/24): cwd + composer flutuam por cima do log, saindo do
+       * fluxo normal — o log continua rolando visível (desfocado) por baixo
+       * do glass do composer, em vez de parar acima de um bloco fixo. */}
+      <div
+        className={cn(
+          isIOS()
+            ? "absolute inset-x-0 bottom-0 z-20 flex flex-col gap-2 px-3.5 pt-2 pb-[calc(env(safe-area-inset-bottom)+12px)]"
+            : "contents",
+        )}
+      >
+        <div className={isIOS() ? "flex" : "mx-3 mt-3 flex"}>
+          <WorkingDirectoryButton
+            profile={profile}
+            cwd={cwd}
+            locked={cwdLocked}
+            connected={connected}
+            isNewConversation={isNewConversation}
+            onSetCwd={setCwd}
+          />
+        </div>
+
+        <Composer
+          ref={composerRef}
+          disabled={!connected}
+          turnInFlight={turnInFlight}
+          onStop={stopTurn}
+          pendingImages={images.pending}
+          uploadingImage={images.uploading}
+          onAddFiles={(files) => void images.addFiles(files)}
+          onRemoveImage={images.remove}
+          onSend={(text, sentImages) => {
+            log.addUserMessage(text, sentImages);
+            sendMessage(buildWireMessage(text, sentImages));
+            images.clearWithoutRevoke();
+            setTurnInFlight(true);
+            onActivity?.();
+          }}
         />
       </div>
-
-      <Composer
-        ref={composerRef}
-        disabled={!connected}
-        turnInFlight={turnInFlight}
-        onStop={stopTurn}
-        pendingImages={images.pending}
-        uploadingImage={images.uploading}
-        onAddFiles={(files) => void images.addFiles(files)}
-        onRemoveImage={images.remove}
-        onSend={(text, sentImages) => {
-          log.addUserMessage(text, sentImages);
-          sendMessage(buildWireMessage(text, sentImages));
-          images.clearWithoutRevoke();
-          setTurnInFlight(true);
-          onActivity?.();
-        }}
-      />
     </div>
   );
 }

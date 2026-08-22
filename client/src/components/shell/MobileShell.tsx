@@ -95,7 +95,13 @@ export function MobileShell({
             onNewConversation={onNewConversation}
           />
 
-          <div className="flex h-full flex-col pt-[calc(env(safe-area-inset-top)+72px)]">{children}</div>
+          {/* Sem padding-top aqui de propósito: o log de mensagens precisa
+           * poder rolar por baixo da zona de blur da MobileTopBar (fica
+           * visível-só-que-desfocado, docs/24) — o respiro pro conteúdo não
+           * ficar colado embaixo dos botões vem de dentro do MessageLog
+           * (ChatPanel passa `pt-[...]` só pro log), não empurrando a coluna
+           * inteira pra baixo. */}
+          <div className="flex h-full flex-col">{children}</div>
         </div>
 
         <div
