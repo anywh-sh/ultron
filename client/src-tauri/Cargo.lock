@@ -539,6 +539,7 @@ dependencies = [
  "serde_json",
  "tauri",
  "tauri-build",
+ "tauri-plugin-glass-spike",
  "tauri-plugin-macos-permissions",
  "tauri-plugin-notification",
  "tauri-plugin-opener",
@@ -3934,6 +3935,16 @@ dependencies = [
  "serde_json",
  "tauri-utils",
  "walkdir",
+]
+
+[[package]]
+name = "tauri-plugin-glass-spike"
+version = "0.1.0"
+dependencies = [
+ "serde",
+ "tauri",
+ "tauri-plugin",
+ "thiserror 2.0.20",
 ]
 
 [[package]]
