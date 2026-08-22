@@ -38,3 +38,8 @@ cpal = "0.15"
 whisper-rs = "0.16"
 rubato = "0.15"
 
+# Spike 2 (docs/22) - so para validar viabilidade de UI nativa SwiftUI/Liquid
+# Glass ao lado do WKWebView. Throwaway, nao faz parte do escopo do MVP ainda.
+[target.'cfg(target_os = "ios")'.dependencies]
+tauri-plugin-glass-spike = { path = "plugins/tauri-plugin-glass-spike" }
+

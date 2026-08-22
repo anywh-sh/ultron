@@ -24,6 +24,11 @@ pub fn run() {
     #[cfg(target_os = "macos")]
     let builder = builder.plugin(tauri_plugin_macos_permissions::init());
 
+    // Spike 2 (docs/22) - valida injecao de UI nativa SwiftUI/Liquid Glass
+    // ao lado do WKWebView. Throwaway.
+    #[cfg(target_os = "ios")]
+    let builder = builder.plugin(tauri_plugin_glass_spike::init());
+
     #[cfg(not(target_os = "ios"))]
     let builder = builder
         .manage(voice::VoiceState::default())
