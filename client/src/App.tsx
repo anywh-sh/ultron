@@ -254,6 +254,20 @@ export default function App() {
 
         const renderPanel = (tab: (typeof tabs)[number]) => (
           <ChatPanel
+            // No iOS (sem TabBar/forceMount), `activeTab && renderPanel(activeTab)`
+            // é um único slot de JSX cujo `sessionId` só muda de valor — sem
+            // `key` amarrada à sessão, o React reaproveita a mesma instância
+            // ao trocar de conversa (só atualiza props), e o estado interno
+            // (useMessageLog etc.) não reseta sozinho. `onReconnecting` não
+            // ajuda aqui: ele só dispara numa reconexão de verdade da MESMA
+            // instância de RelayClient, não quando useRelayClient troca de
+            // sessionId e cria uma instância nova. Resultado era o bug real:
+            // clicar em "+" abria uma sessão nova de verdade (conectava,
+            // "Reconectando"→"Conectado") mas a tela continuava mostrando o
+            // log da conversa anterior. No desktop isso já não acontecia (TabBar
+            // já tem `key={tab.id}` no TabsContent, cada aba com instância
+            // própria) — aqui é só deixar explícito no mesmo lugar.
+            key={tab.id}
             profile={findProfile(profile.id) ?? profile}
             sessionId={tab.id}
             isNewConversation={tab.isNew}
