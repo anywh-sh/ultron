@@ -9,33 +9,47 @@ interface MobileTopBarProps {
 }
 
 /**
- * Barra superior consolidada do iOS (docs/24) — menu, título/status da
- * sessão ativa e "+ nova conversa" numa peça só, substituindo a cápsula de
- * conexão solta (Fase E) que não tinha nenhum contexto de sessão.
+ * Topo da tela no iOS (docs/24, v2 — corrigindo a v1 depois de comparar com
+ * o app Claude real): nada de barra/pílula com fundo próprio. Em vez disso:
  *
- * Hoje é glass via CSS (`backdrop-filter`) — candidata a virar glass nativo
- * Swift de verdade (mesmo material da cápsula), mantendo esta mesma árvore
- * React/interação por cima de uma webview transparente ali. Ver
- * `tauri-plugin-native-chrome` pro lado nativo.
+ * - Uma zona de blur progressivo (`backdrop-blur` com `mask-image` em
+ *   gradiente) atrás de tudo, puramente decorativa (`pointer-events-none`)
+ *   — o log de mensagens continua rolando por baixo, ficando desfocado
+ *   conforme se aproxima do topo, em vez de sumir atrás de um retângulo
+ *   opaco.
+ * - Título + status da sessão são texto puro sobre essa zona, sem pílula
+ *   própria.
+ * - Menu e "+" são círculos glass INDEPENDENTES (não uma barra só) — assim
+ *   como no app Claude de referência.
  */
 export function MobileTopBar({ title, connected, onOpenDrawer, onNewConversation }: MobileTopBarProps) {
   return (
-    <div
-      className="absolute inset-x-4 z-30"
-      style={{ top: "calc(env(safe-area-inset-top) + 8px)" }}
-    >
-      <div className="flex h-13 items-center gap-1 rounded-full border border-white/8 bg-bg-elevated/70 px-1.5 shadow-lg backdrop-blur-xl backdrop-saturate-150">
+    <>
+      <div
+        aria-hidden
+        className="pointer-events-none absolute inset-x-0 top-0 z-20 backdrop-blur-lg"
+        style={{
+          height: "calc(env(safe-area-inset-top) + 92px)",
+          maskImage: "linear-gradient(to bottom, black 0%, black 45%, transparent 100%)",
+          WebkitMaskImage: "linear-gradient(to bottom, black 0%, black 45%, transparent 100%)",
+        }}
+      />
+
+      <div
+        className="absolute inset-x-4 z-30 flex items-center justify-between"
+        style={{ top: "calc(env(safe-area-inset-top) + 8px)" }}
+      >
         <button
           type="button"
           onClick={onOpenDrawer}
           aria-label="Abrir sessões"
-          className="flex size-10 shrink-0 cursor-pointer items-center justify-center rounded-full text-foreground transition-colors active:bg-white/10"
+          className="flex size-10 shrink-0 cursor-pointer items-center justify-center rounded-full border border-white/8 bg-bg-elevated/50 text-foreground shadow-lg backdrop-blur-xl backdrop-saturate-150 transition-colors active:bg-white/10"
         >
           <Menu className="size-4.5" />
         </button>
 
-        <div className="flex min-w-0 flex-1 flex-col items-center gap-0.5">
-          <span className="w-full truncate text-center text-[14.5px] font-semibold">{title}</span>
+        <div className="flex min-w-0 flex-1 flex-col items-center gap-0.5 px-2">
+          <span className="w-full truncate text-center text-[15px] font-semibold">{title}</span>
           <span
             className={cn(
               "flex items-center gap-1.5 font-mono text-[11.5px]",
@@ -56,11 +70,11 @@ export function MobileTopBar({ title, connected, onOpenDrawer, onNewConversation
           type="button"
           onClick={onNewConversation}
           aria-label="Nova conversa"
-          className="flex size-10 shrink-0 cursor-pointer items-center justify-center rounded-full text-foreground transition-colors active:bg-white/10"
+          className="flex size-10 shrink-0 cursor-pointer items-center justify-center rounded-full border border-white/8 bg-bg-elevated/50 text-foreground shadow-lg backdrop-blur-xl backdrop-saturate-150 transition-colors active:bg-white/10"
         >
           <Plus className="size-4.5" />
         </button>
       </div>
-    </div>
+    </>
   );
 }
