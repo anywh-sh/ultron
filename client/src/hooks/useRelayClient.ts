@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { RelayClient, type ClaudeEvent } from "@/lib/relayClient";
+import { setConnectionIndicator } from "@/lib/nativeChrome";
 import type { Profile } from "@/lib/profiles";
 
 export interface UseRelayClientOptions {
@@ -90,6 +91,12 @@ export function useRelayClient(
     document.addEventListener("visibilitychange", handleVisibilityChange);
     return () => document.removeEventListener("visibilitychange", handleVisibilityChange);
   }, []);
+
+  // Chrome nativo (docs/23, Fase E) — no-op fora de iOS (setConnectionIndicator
+  // já checa isso sozinho).
+  useEffect(() => {
+    void setConnectionIndicator(connected);
+  }, [connected]);
 
   const sendMessage = useCallback((text: string) => {
     clientRef.current?.sendMessage(text);

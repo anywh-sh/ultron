@@ -39,8 +39,9 @@ cpal = "0.15"
 whisper-rs = "0.16"
 rubato = "0.15"
 
-# Spike 2 (docs/22) - so para validar viabilidade de UI nativa SwiftUI/Liquid
-# Glass ao lado do WKWebView. Throwaway, nao faz parte do escopo do MVP ainda.
+# Camada de chrome nativo (SwiftUI/Liquid Glass) do port iOS — docs/23, Fase E.
+# Promovido do spike de UI nativa (docs/22, spike 2/3): manager.viewController
+# + UIHostingController, com o comando real setConnectionIndicator.
 [target.'cfg(target_os = "ios")'.dependencies]
-tauri-plugin-glass-spike = { path = "plugins/tauri-plugin-glass-spike" }
+tauri-plugin-native-chrome = { path = "plugins/tauri-plugin-native-chrome" }
 

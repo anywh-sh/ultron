@@ -1,12 +1,12 @@
 [package]
-name = "tauri-plugin-glass-spike"
+name = "tauri-plugin-native-chrome"
 version = "0.1.0"
 authors = [ "ultron" ]
-description = ""
+description = "Camada de chrome nativo (SwiftUI/Liquid Glass) do port iOS do ultron — ver docs/23."
 edition = "2021"
 rust-version = "1.77.2"
 exclude = ["/examples", "/dist-js", "/guest-js", "/node_modules"]
-links = "tauri-plugin-glass-spike"
+links = "tauri-plugin-native-chrome"
 
 [dependencies]
 tauri = { version = "2.11.3" }

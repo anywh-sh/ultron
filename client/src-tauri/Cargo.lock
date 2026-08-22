@@ -545,8 +545,8 @@ dependencies = [
  "serde_json",
  "tauri",
  "tauri-build",
- "tauri-plugin-glass-spike",
  "tauri-plugin-macos-permissions",
+ "tauri-plugin-native-chrome",
  "tauri-plugin-notification",
  "tauri-plugin-opener",
  "tauri-plugin-os",
@@ -3992,16 +3992,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "tauri-plugin-glass-spike"
-version = "0.1.0"
-dependencies = [
- "serde",
- "tauri",
- "tauri-plugin",
- "thiserror 2.0.20",
-]
-
-[[package]]
 name = "tauri-plugin-macos-permissions"
 version = "2.3.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -4010,6 +4000,16 @@ dependencies = [
  "macos-accessibility-client",
  "objc2",
  "objc2-foundation",
+ "serde",
+ "tauri",
+ "tauri-plugin",
+ "thiserror 2.0.20",
+]
+
+[[package]]
+name = "tauri-plugin-native-chrome"
+version = "0.1.0"
+dependencies = [
  "serde",
  "tauri",
  "tauri-plugin",
