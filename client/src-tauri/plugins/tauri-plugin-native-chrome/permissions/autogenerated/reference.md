@@ -4,7 +4,7 @@ Default permissions for the plugin
 
 #### This default permission set includes the following:
 
-- `allow-ping`
+- `allow-set-connection-indicator`
 
 ## Permission Table
 
@@ -18,12 +18,12 @@ Default permissions for the plugin
 <tr>
 <td>
 
-`glass-spike:allow-ping`
+`native-chrome:allow-set-connection-indicator`
 
 </td>
 <td>
 
-Enables the ping command without any pre-configured scope.
+Enables the set_connection_indicator command without any pre-configured scope.
 
 </td>
 </tr>
@@ -31,12 +31,12 @@ Enables the ping command without any pre-configured scope.
 <tr>
 <td>
 
-`glass-spike:deny-ping`
+`native-chrome:deny-set-connection-indicator`
 
 </td>
 <td>
 
-Denies the ping command without any pre-configured scope.
+Denies the set_connection_indicator command without any pre-configured scope.
 
 </td>
 </tr>
