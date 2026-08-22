@@ -6,15 +6,22 @@ import { useCallback, useRef, useState, type PointerEvent as ReactPointerEvent, 
  * mesmo valor como largura própria, não a tela inteira — ver `MobileShell`. */
 export const REVEAL_PUSH_PX = 268;
 
+/** Deslocamento mínimo, em px, pra um arraste ainda-fechado "comprometer"
+ * com o gesto de abrir o drawer — abaixo disso pode ser só um toque ou o
+ * início de um scroll vertical do log de mensagens. */
+const OPEN_COMMIT_THRESHOLD = 10;
+
 export interface RevealDrawerHandle {
   open: boolean;
   canvasRef: RefObject<HTMLDivElement | null>;
   openDrawer: () => void;
   closeDrawer: () => void;
   toggleDrawer: () => void;
-  /** No canvas fechado, começa o arraste só perto da borda esquerda (estilo
-   * "puxar a partir da borda"). */
-  onEdgePointerDown: (event: ReactPointerEvent) => void;
+  /** No canvas fechado, começa a observar qualquer arraste (não só perto da
+   * borda) — só passa a mexer no canvas de verdade depois que o movimento
+   * comprovar ser majoritariamente horizontal pra direita (ver
+   * `OPEN_COMMIT_THRESHOLD`), pra não brigar com o scroll vertical do log. */
+  onCanvasPointerDown: (event: ReactPointerEvent) => void;
   /** No bloqueador (visível só quando o drawer está aberto), qualquer ponto
    * inicia o arraste — cobre tanto "arrastar pra fechar" quanto "tocar pra
    * fechar" (um toque sem movimento conta como fechar). */
@@ -59,8 +66,12 @@ export function useRevealDrawer(): RevealDrawerHandle {
   const closeDrawer = useCallback(() => setOpen(false), []);
   const toggleDrawer = useCallback(() => setOpen((value) => !value), []);
 
+  /** Arraste "comprometido" — usado tanto pra fechar (a partir do
+   * bloqueador, sempre ativo de cara) quanto, depois do threshold, pra
+   * abrir. `onCommit` roda uma vez só, na primeira chamada que passa do
+   * threshold (ou imediatamente, se `immediate`). */
   const beginDrag = useCallback(
-    (startEvent: ReactPointerEvent, base: number) => {
+    (startEvent: { clientX: number; clientY: number }, base: number) => {
       const startX = startEvent.clientX;
       let moved = false;
       const el = canvasRef.current;
@@ -69,6 +80,7 @@ export function useRevealDrawer(): RevealDrawerHandle {
       function handleMove(event: PointerEvent): void {
         const dx = event.clientX - startX;
         if (Math.abs(dx) > 3) moved = true;
+        event.preventDefault();
         applyProgress(Math.max(0, Math.min(REVEAL_PUSH_PX, base + dx)));
       }
 
@@ -90,17 +102,51 @@ export function useRevealDrawer(): RevealDrawerHandle {
         }
       }
 
-      document.addEventListener("pointermove", handleMove);
+      document.addEventListener("pointermove", handleMove, { passive: false });
       document.addEventListener("pointerup", handleUp);
     },
     [applyProgress, clearInlineStyle, openDrawer, closeDrawer],
   );
 
-  const onEdgePointerDown = useCallback(
-    (event: ReactPointerEvent) => {
+  /** Fechado: observa qualquer arraste na tela principal, sem interferir
+   * (sem preventDefault, sem tocar no canvas) até o movimento provar ser
+   * majoritariamente horizontal pra direita — só aí "comprometemos" com o
+   * gesto de abrir via `beginDrag`. Até lá, scroll vertical do log e toques
+   * em botões continuam funcionando normalmente. */
+  const onCanvasPointerDown = useCallback(
+    (startEvent: ReactPointerEvent) => {
       if (open) return;
-      if (event.clientX > 26) return;
-      beginDrag(event, 0);
+      const startX = startEvent.clientX;
+      const startY = startEvent.clientY;
+      let committed = false;
+      let abandoned = false;
+
+      function handlePendingMove(event: PointerEvent): void {
+        if (committed || abandoned) return;
+        const dx = event.clientX - startX;
+        const dy = event.clientY - startY;
+        if (dx > OPEN_COMMIT_THRESHOLD && dx > Math.abs(dy) * 1.2) {
+          committed = true;
+          document.removeEventListener("pointermove", handlePendingMove);
+          document.removeEventListener("pointerup", handlePendingUp);
+          // Recomeça o arraste "de verdade" a partir daqui, já comprometido
+          // — o pequeno delta percorrido até o threshold é imperceptível.
+          beginDrag(event, 0);
+        } else if (Math.abs(dy) > OPEN_COMMIT_THRESHOLD && Math.abs(dy) > dx * 1.2) {
+          // Movimento majoritariamente vertical — é scroll do log, não o
+          // gesto de abrir. Desiste sem nunca ter interferido.
+          abandoned = true;
+          document.removeEventListener("pointermove", handlePendingMove);
+          document.removeEventListener("pointerup", handlePendingUp);
+        }
+      }
+      function handlePendingUp(): void {
+        document.removeEventListener("pointermove", handlePendingMove);
+        document.removeEventListener("pointerup", handlePendingUp);
+      }
+
+      document.addEventListener("pointermove", handlePendingMove, { passive: true });
+      document.addEventListener("pointerup", handlePendingUp);
     },
     [open, beginDrag],
   );
@@ -113,5 +159,5 @@ export function useRevealDrawer(): RevealDrawerHandle {
     [beginDrag],
   );
 
-  return { open, canvasRef, openDrawer, closeDrawer, toggleDrawer, onEdgePointerDown, onBlockerPointerDown };
+  return { open, canvasRef, openDrawer, closeDrawer, toggleDrawer, onCanvasPointerDown, onBlockerPointerDown };
 }

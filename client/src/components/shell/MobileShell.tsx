@@ -78,17 +78,25 @@ export function MobileShell({
 
       <div
         ref={drawer.canvasRef}
-        onPointerDown={drawer.onEdgePointerDown}
+        onPointerDown={drawer.onCanvasPointerDown}
         className={cn("mobile-canvas absolute inset-0 z-10 overflow-hidden bg-background", drawer.open && "pushed")}
       >
-        <MobileTopBar
-          title={title}
-          connected={connected}
-          onOpenDrawer={drawer.toggleDrawer}
-          onNewConversation={onNewConversation}
-        />
+        {/* `display:contents` — só existe pra carregar `inert`, sem afetar o
+         * posicionamento absoluto da MobileTopBar por baixo. Com o drawer
+         * aberto, a tela principal inteira (barra + chat) fica de verdade
+         * fora de alcance — sem scroll, sem foco, sem clique — até o toque
+         * no bloqueador abaixo devolver o foco (equivalente a arrastar de
+         * volta pra esquerda). */}
+        <div inert={drawer.open} className="contents">
+          <MobileTopBar
+            title={title}
+            connected={connected}
+            onOpenDrawer={drawer.toggleDrawer}
+            onNewConversation={onNewConversation}
+          />
 
-        <div className="flex h-full flex-col pt-[calc(env(safe-area-inset-top)+72px)]">{children}</div>
+          <div className="flex h-full flex-col pt-[calc(env(safe-area-inset-top)+72px)]">{children}</div>
+        </div>
 
         <div
           onPointerDown={drawer.onBlockerPointerDown}

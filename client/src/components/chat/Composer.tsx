@@ -183,7 +183,7 @@ export const Composer = forwardRef<ComposerHandle, ComposerProps>(function Compo
         </div>
       )}
 
-      <EditorContent editor={editor} className="composer-editor" />
+      <EditorContent editor={editor} className={cn("composer-editor", isIOS() && "ios")} />
 
       <div className="flex items-center justify-between gap-2">
         <div className="flex min-w-0 flex-1 items-center gap-2 px-1">
