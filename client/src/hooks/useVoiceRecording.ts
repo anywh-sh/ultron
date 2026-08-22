@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { ensureMicrophonePermission, listInputDevices, startRecording, stopRecordingAndTranscribe } from "@/lib/voice";
+import { isIOS } from "@/lib/platform";
 
 const MIC_STORAGE_KEY = "ultron:selected-mic";
 
@@ -34,6 +35,9 @@ export function useVoiceRecording({ onTranscribed, onError }: UseVoiceRecordingO
   const timerRef = useRef<number | undefined>(undefined);
 
   useEffect(() => {
+    // Voz fora do escopo do MVP iOS (docs/22/23) — o comando não existe no
+    // build iOS (commit b6b8e63), invocar aqui só rejeitaria a promise à toa.
+    if (isIOS()) return;
     listInputDevices()
       .then((names) => {
         setDevices(names);
@@ -58,6 +62,7 @@ export function useVoiceRecording({ onTranscribed, onError }: UseVoiceRecordingO
   }
 
   const start = useCallback(async () => {
+    if (isIOS()) return;
     cancelledRef.current = false;
     try {
       await ensureMicrophonePermission();

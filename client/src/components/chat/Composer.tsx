@@ -14,6 +14,7 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { cn, formatDuration } from "@/lib/utils";
+import { isIOS } from "@/lib/platform";
 import { useVoiceRecording } from "@/hooks/useVoiceRecording";
 import type { PendingImage } from "@/hooks/useImageUpload";
 import { ComposerLinkView } from "@/components/chat/ComposerLinkView";
@@ -225,45 +226,50 @@ export const Composer = forwardRef<ComposerHandle, ComposerProps>(function Compo
             </>
           )}
 
-          <div className="flex items-center">
-            <button
-              type="button"
-              onClick={() => (isRecording ? void voice.stop() : void voice.start())}
-              disabled={isTranscribing}
-              aria-label={isRecording ? "Parar gravação" : "Gravar áudio"}
-              className={cn(
-                "flex size-7 shrink-0 cursor-pointer items-center justify-center rounded-md transition-colors",
-                isRecording ? "bg-destructive text-foreground" : "text-muted-foreground hover:bg-border",
-                isTranscribing && "cursor-not-allowed opacity-50",
-              )}
-            >
-              {isRecording ? <Square className="size-3.5" /> : <Mic className="size-4" />}
-            </button>
+          {/* Voz fora do escopo do MVP iOS (docs/22/23) — cpal/whisper-rs não
+           * fazem parte do build iOS (commit b6b8e63), então o botão nem
+           * aparece lá em vez de mostrar uma ação que não funciona. */}
+          {!isIOS() && (
+            <div className="flex items-center">
+              <button
+                type="button"
+                onClick={() => (isRecording ? void voice.stop() : void voice.start())}
+                disabled={isTranscribing}
+                aria-label={isRecording ? "Parar gravação" : "Gravar áudio"}
+                className={cn(
+                  "flex size-7 shrink-0 cursor-pointer items-center justify-center rounded-md transition-colors",
+                  isRecording ? "bg-destructive text-foreground" : "text-muted-foreground hover:bg-border",
+                  isTranscribing && "cursor-not-allowed opacity-50",
+                )}
+              >
+                {isRecording ? <Square className="size-3.5" /> : <Mic className="size-4" />}
+              </button>
 
-            {voice.devices.length > 1 && !isRecording && !isTranscribing && (
-              <DropdownMenu>
-                <DropdownMenuTrigger asChild>
-                  <button
-                    type="button"
-                    aria-label="Selecionar microfone"
-                    className="flex h-7 w-3.5 shrink-0 cursor-pointer items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-border"
-                  >
-                    <ChevronDown className="size-3" />
-                  </button>
-                </DropdownMenuTrigger>
-                <DropdownMenuContent align="end">
-                  <DropdownMenuLabel>Microfone</DropdownMenuLabel>
-                  <DropdownMenuSeparator />
-                  {voice.devices.map((name) => (
-                    <DropdownMenuItem key={name} onSelect={() => voice.setSelectedDevice(name)}>
-                      <Check className={cn("size-3.5", name !== voice.selectedDevice && "opacity-0")} />
-                      <span className="max-w-48 truncate">{name}</span>
-                    </DropdownMenuItem>
-                  ))}
-                </DropdownMenuContent>
-              </DropdownMenu>
-            )}
-          </div>
+              {voice.devices.length > 1 && !isRecording && !isTranscribing && (
+                <DropdownMenu>
+                  <DropdownMenuTrigger asChild>
+                    <button
+                      type="button"
+                      aria-label="Selecionar microfone"
+                      className="flex h-7 w-3.5 shrink-0 cursor-pointer items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-border"
+                    >
+                      <ChevronDown className="size-3" />
+                    </button>
+                  </DropdownMenuTrigger>
+                  <DropdownMenuContent align="end">
+                    <DropdownMenuLabel>Microfone</DropdownMenuLabel>
+                    <DropdownMenuSeparator />
+                    {voice.devices.map((name) => (
+                      <DropdownMenuItem key={name} onSelect={() => voice.setSelectedDevice(name)}>
+                        <Check className={cn("size-3.5", name !== voice.selectedDevice && "opacity-0")} />
+                        <span className="max-w-48 truncate">{name}</span>
+                      </DropdownMenuItem>
+                    ))}
+                  </DropdownMenuContent>
+                </DropdownMenu>
+              )}
+            </div>
+          )}
           {turnInFlight ? (
             <Button type="button" size="sm" variant="secondary" onClick={onStop}>
               <Square className="size-3" />
