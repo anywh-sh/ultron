@@ -192,7 +192,7 @@ export const Composer = forwardRef<ComposerHandle, ComposerProps>(function Compo
         // Uma linha só (attach | texto | enviar), como no protótipo — não o
         // texto-em-cima/botões-embaixo do desktop, que deixava o composer
         // alto/desalinhado em vez da pílula compacta aprovada (docs/24).
-        <div className="flex items-end gap-1">
+        <div className={cn("flex gap-1", isMultiline ? "items-end" : "items-center")}>
           <input
             ref={fileInputRef}
             type="file"
