@@ -1,4 +1,7 @@
 mod notifications;
+// Voz (ditado local) fora do escopo do MVP iOS (docs/22) — cpal/whisper-rs
+// não linkam no target iOS sem trabalho adicional. Ver Cargo.toml.
+#[cfg(not(target_os = "ios"))]
 mod voice;
 
 // Learn more about Tauri commands at https://tauri.app/develop/calling-rust/
@@ -21,7 +24,8 @@ pub fn run() {
     #[cfg(target_os = "macos")]
     let builder = builder.plugin(tauri_plugin_macos_permissions::init());
 
-    builder
+    #[cfg(not(target_os = "ios"))]
+    let builder = builder
         .manage(voice::VoiceState::default())
         .invoke_handler(tauri::generate_handler![
             greet,
@@ -29,7 +33,15 @@ pub fn run() {
             voice::list_input_devices,
             voice::start_recording,
             voice::stop_recording_and_transcribe
-        ])
+        ]);
+
+    #[cfg(target_os = "ios")]
+    let builder = builder.invoke_handler(tauri::generate_handler![
+        greet,
+        notifications::notify_turn_complete
+    ]);
+
+    builder
         .setup(|app| {
             // No macOS, com hiddenTitle habilitado (docs/21), o título configurado em
             // tauri.conf.json às vezes não chega no NSWindow real — o menu do Dock cai
