@@ -1,5 +1,5 @@
 import { forwardRef, useImperativeHandle, useRef, useState } from "react";
-import { Check, ChevronDown, Mic, Paperclip, Square, X } from "lucide-react";
+import { ArrowUp, Check, ChevronDown, Mic, Paperclip, Square, X } from "lucide-react";
 import { EditorContent, ReactMarkViewRenderer, useEditor } from "@tiptap/react";
 import StarterKit from "@tiptap/starter-kit";
 import { Link } from "@tiptap/extension-link";
@@ -89,6 +89,11 @@ export const Composer = forwardRef<ComposerHandle, ComposerProps>(function Compo
 ) {
   const [focused, setFocused] = useState(false);
   const [isEmpty, setIsEmpty] = useState(true);
+  // Só usado no iOS (docs/24) — o container morfa de pílula (uma linha) pra
+  // retângulo arredondado (várias linhas), igual ao protótipo. Medido pela
+  // altura real do editor em vez de contar quebras de linha do texto: uma
+  // linha pode ocupar duas visuais por wrap sem nenhum "\n".
+  const [isMultiline, setIsMultiline] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const submitRef = useRef<() => void>(() => {});
 
@@ -96,7 +101,10 @@ export const Composer = forwardRef<ComposerHandle, ComposerProps>(function Compo
     extensions: EXTENSIONS,
     onFocus: () => setFocused(true),
     onBlur: () => setFocused(false),
-    onUpdate: ({ editor: current }) => setIsEmpty(current.isEmpty),
+    onUpdate: ({ editor: current }) => {
+      setIsEmpty(current.isEmpty);
+      if (isIOS()) setIsMultiline(current.view.dom.scrollHeight > 34);
+    },
     editorProps: {
       attributes: { class: "composer-prosemirror", "aria-label": "Escreva uma mensagem…" },
       handleKeyDown: (_view, event) => {
@@ -146,8 +154,15 @@ export const Composer = forwardRef<ComposerHandle, ComposerProps>(function Compo
         submit();
       }}
       className={cn(
-        "m-3 flex flex-col gap-1.5 rounded-xl border bg-bg-elevated p-2 transition-colors",
-        focused ? "border-primary" : "border-border",
+        "flex flex-col gap-1.5 border p-2 transition-colors",
+        isIOS()
+          ? [
+              "mx-3.5 mt-2 mb-[calc(env(safe-area-inset-bottom)+12px)] bg-bg-elevated/70 shadow-lg backdrop-blur-xl backdrop-saturate-150",
+              "transition-[border-radius,border-color] duration-150",
+              isMultiline ? "rounded-[26px]" : "rounded-full",
+            ]
+          : "m-3 rounded-xl bg-bg-elevated",
+        focused ? "border-primary" : isIOS() ? "border-white/8" : "border-border",
       )}
     >
       {pendingImages.length > 0 && (
@@ -219,9 +234,12 @@ export const Composer = forwardRef<ComposerHandle, ComposerProps>(function Compo
                 type="button"
                 onClick={() => fileInputRef.current?.click()}
                 aria-label="Anexar imagem"
-                className="flex size-7 shrink-0 cursor-pointer items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-border"
+                className={cn(
+                  "flex shrink-0 cursor-pointer items-center justify-center text-muted-foreground transition-colors hover:bg-border",
+                  isIOS() ? "size-11 rounded-full" : "size-7 rounded-md",
+                )}
               >
-                <Paperclip className="size-4" />
+                <Paperclip className={isIOS() ? "size-5" : "size-4"} />
               </button>
             </>
           )}
@@ -270,7 +288,24 @@ export const Composer = forwardRef<ComposerHandle, ComposerProps>(function Compo
               )}
             </div>
           )}
-          {turnInFlight ? (
+          {isIOS() ? (
+            <button
+              type={turnInFlight ? "button" : "submit"}
+              onClick={turnInFlight ? onStop : undefined}
+              disabled={!turnInFlight && !canSend}
+              aria-label={turnInFlight ? "Parar" : "Enviar"}
+              className={cn(
+                "flex size-11 shrink-0 cursor-pointer items-center justify-center rounded-full transition-colors",
+                turnInFlight
+                  ? "bg-destructive text-destructive-foreground"
+                  : canSend
+                    ? "bg-primary text-primary-foreground"
+                    : "bg-border text-text-faint",
+              )}
+            >
+              {turnInFlight ? <Square className="size-4" /> : <ArrowUp className="size-5" />}
+            </button>
+          ) : turnInFlight ? (
             <Button type="button" size="sm" variant="secondary" onClick={onStop}>
               <Square className="size-3" />
               Parar
