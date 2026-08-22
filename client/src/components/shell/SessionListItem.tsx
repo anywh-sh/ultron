@@ -11,9 +11,18 @@ interface SessionListItemProps {
   onSelect: (id: string) => void;
   onRename: (id: string, currentTitle: string) => void;
   onDelete: (id: string) => void;
+  size?: "default" | "lg";
 }
 
-export function SessionListItem({ session, selected, running, onSelect, onRename, onDelete }: SessionListItemProps) {
+export function SessionListItem({
+  session,
+  selected,
+  running,
+  onSelect,
+  onRename,
+  onDelete,
+  size = "default",
+}: SessionListItemProps) {
   const menu = useContextMenu();
 
   return (
@@ -22,7 +31,8 @@ export function SessionListItem({ session, selected, running, onSelect, onRename
         type="button"
         onClick={() => onSelect(session.id)}
         className={cn(
-          "flex w-full cursor-pointer items-center gap-1.5 truncate rounded-md py-1.5 pr-7 pl-2 text-left text-sm text-foreground transition-[background-color,opacity] hover:bg-bg-elevated hover:opacity-100",
+          "flex w-full cursor-pointer items-center gap-1.5 truncate rounded-md text-left text-foreground transition-[background-color,opacity] hover:bg-bg-elevated hover:opacity-100",
+          size === "lg" ? "py-2.5 pr-7 pl-1 text-base" : "py-1.5 pr-7 pl-2 text-sm",
           selected ? "bg-bg-elevated opacity-100" : "opacity-60",
         )}
       >

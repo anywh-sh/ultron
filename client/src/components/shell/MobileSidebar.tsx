@@ -94,6 +94,7 @@ export function MobileSidebar({
         onSelect={onSelectSession}
         onRename={(id, title) => setRenaming({ id, title })}
         onDelete={onDeleteSession}
+        size="lg"
       />
 
       <RenameSessionDialog

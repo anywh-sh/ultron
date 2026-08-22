@@ -1,5 +1,6 @@
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { SessionListItem } from "@/components/shell/SessionListItem";
+import { cn } from "@/lib/utils";
 import type { SessionSummary } from "@/lib/relay-types";
 
 interface SessionListProps {
@@ -10,12 +11,25 @@ interface SessionListProps {
   onSelect: (id: string) => void;
   onRename: (id: string, currentTitle: string) => void;
   onDelete: (id: string) => void;
+  /** "lg" usado só pelo drawer do iOS (docs/24) — texto maior e padding
+   * horizontal reduzido pra alinhar com o resto da sidebar (que usa `px-1`,
+   * não o `p-2` que este componente aplica por padrão). */
+  size?: "default" | "lg";
 }
 
-export function SessionList({ sessions, loading, selected, running, onSelect, onRename, onDelete }: SessionListProps) {
+export function SessionList({
+  sessions,
+  loading,
+  selected,
+  running,
+  onSelect,
+  onRename,
+  onDelete,
+  size = "default",
+}: SessionListProps) {
   return (
     <ScrollArea className="min-h-0 flex-1">
-      <div className="flex flex-col gap-0.5 p-2">
+      <div className={cn("flex flex-col gap-0.5", size === "lg" ? "py-2" : "p-2")}>
         {loading && <p className="px-2 py-1.5 text-xs text-muted-foreground">carregando…</p>}
         {!loading && sessions.length === 0 && (
           <p className="px-2 py-1.5 text-xs text-muted-foreground">nenhuma sessão ainda</p>
@@ -29,6 +43,7 @@ export function SessionList({ sessions, loading, selected, running, onSelect, on
             onSelect={onSelect}
             onRename={onRename}
             onDelete={onDelete}
+            size={size}
           />
         ))}
       </div>
