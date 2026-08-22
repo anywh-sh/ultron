@@ -100,8 +100,9 @@ export function MobileShell({
            * visível-só-que-desfocado, docs/24) — o respiro pro conteúdo não
            * ficar colado embaixo dos botões vem de dentro do MessageLog
            * (ChatPanel passa `pt-[...]` só pro log), não empurrando a coluna
-           * inteira pra baixo. */}
-          <div className="flex h-full flex-col">{children}</div>
+           * inteira pra baixo. `relative` é o fix do bug de backdrop-filter
+           * do WebKit (ver comentário em MessageLog.tsx) — não remover. */}
+          <div className="relative flex h-full flex-col">{children}</div>
         </div>
 
         <div

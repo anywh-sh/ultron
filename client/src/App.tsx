@@ -239,8 +239,15 @@ export default function App() {
   // Compartilhado entre o shell desktop e o iOS — o que muda entre os dois é
   // só o chrome ao redor (TitleBar+Sidebar vs. MobileShell), não como cada
   // sessão/perfil é montado.
+  //
+  // `relative` aqui embaixo (e no `h-full` por tab logo abaixo) não é sobre
+  // layout — sem isso, o `backdrop-filter` da MobileTopBar/composer do iOS
+  // não sampleia o log de mensagens no WebKit real (bug real, reproduzido
+  // via Playwright WebKit — docs/24). Qualquer div `position: static` nessa
+  // cadeia até `.mobile-canvas` quebra o blur. Não remover mesmo parecendo
+  // redundante — inofensivo pro desktop (não muda posição/tamanho de nada).
   const tabsContent = (
-    <div className="min-h-0 flex-1">
+    <div className="relative min-h-0 flex-1">
       {PROFILES.map((profile) => {
         const { tabs, activeTabId } = profileTabs.getTabs(profile.id);
         const isActiveProfile = profile.id === activeProfile.id;
@@ -287,7 +294,7 @@ export default function App() {
         const activeTab = tabs.find((tab) => tab.id === activeTabId);
 
         return (
-          <div key={profile.id} className={cn("h-full", !isActiveProfile && "hidden")}>
+          <div key={profile.id} className={cn("relative h-full", !isActiveProfile && "hidden")}>
             {tabs.length === 0 ? (
               isActiveProfile && <EmptyState />
             ) : isIOS() ? (

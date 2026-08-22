@@ -86,7 +86,13 @@ export function MessageLog({ entries, streamingEntries, className }: MessageLogP
   const items = pairToolEntries(entries);
 
   return (
-    <div className={cn("scrollbar-thin flex flex-1 flex-col gap-1 overflow-y-auto px-4 py-3", className)}>
+    // `relative` não é sobre layout — é o fix pro bug real do WebKit
+    // (docs/24, reproduzido via Playwright WebKit real, não Chromium):
+    // `backdrop-filter` num ancestral não sampleia o conteúdo desta div se
+    // ela (ou qualquer ancestral entre ela e o elemento com o blur) ficar
+    // `position: static`. Toda a cadeia até `.mobile-canvas` precisa disso
+    // — ver App.tsx (wrappers de tab) e MobileShell.tsx. Não remover.
+    <div className={cn("scrollbar-thin relative flex flex-1 flex-col gap-1 overflow-y-auto px-4 py-3", className)}>
       {items.map(renderItem)}
       {streamingEntries.map((entry) => renderItem({ kind: "single", entry }))}
       <div ref={bottomRef} />
