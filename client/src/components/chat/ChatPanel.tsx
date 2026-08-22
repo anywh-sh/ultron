@@ -5,6 +5,7 @@ import { useMessageLog } from "@/hooks/useMessageLog";
 import { useImageUpload, type PendingImage } from "@/hooks/useImageUpload";
 import { MessageLog } from "@/components/chat/MessageLog";
 import { MessageLogSkeleton } from "@/components/chat/MessageLogSkeleton";
+import { ChatIdleState } from "@/components/chat/ChatIdleState";
 import { TurnIndicator } from "@/components/chat/TurnIndicator";
 import { Composer, type ComposerHandle } from "@/components/chat/Composer";
 import { WorkingDirectoryButton } from "@/components/chat/WorkingDirectoryButton";
@@ -13,6 +14,9 @@ import type { Profile } from "@/lib/profiles";
 interface ChatPanelProps {
   profile: Profile;
   sessionId: string;
+  /** Aba aberta via "nova conversa" — mostra o estado ocioso em vez do
+   * skeleton de carregamento enquanto o log ainda está vazio. */
+  isNewConversation?: boolean;
   onTurnComplete?: () => void;
   onTurnActiveChange?: (active: boolean) => void;
   /** Título inferido do primeiro prompt (ou de um rename ao vivo em outro
@@ -33,7 +37,16 @@ function buildWireMessage(text: string, images: PendingImage[]): string {
   return [text, imageRefs].filter(Boolean).join("\n\n");
 }
 
-export function ChatPanel({ profile, sessionId, onTurnComplete, onTurnActiveChange, onTitle, onActivity, onDeleted }: ChatPanelProps) {
+export function ChatPanel({
+  profile,
+  sessionId,
+  isNewConversation,
+  onTurnComplete,
+  onTurnActiveChange,
+  onTitle,
+  onActivity,
+  onDeleted,
+}: ChatPanelProps) {
   const log = useMessageLog();
   const logRef = useRef(log);
   logRef.current = log;
@@ -129,7 +142,13 @@ export function ChatPanel({ profile, sessionId, onTurnComplete, onTurnActiveChan
         </div>
       )}
 
-      {ready ? <MessageLog entries={log.entries} streamingEntries={log.streamingEntries} /> : <MessageLogSkeleton />}
+      {isNewConversation && log.entries.length === 0 && log.streamingEntries.length === 0 ? (
+        <ChatIdleState />
+      ) : ready ? (
+        <MessageLog entries={log.entries} streamingEntries={log.streamingEntries} />
+      ) : (
+        <MessageLogSkeleton />
+      )}
 
       {turnInFlight && <TurnIndicator />}
 

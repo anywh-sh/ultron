@@ -8,6 +8,12 @@ export interface Tab {
   title: string | null;
   hasUnreadCompletion: boolean;
   isRunning: boolean;
+  /** `true` só pra abas abertas via "nova conversa" — usado pelo ChatPanel
+   * pra mostrar o estado ocioso em vez do skeleton de carregamento enquanto
+   * não há nenhuma mensagem: não existe histórico pra esperar. Fica `true`
+   * pelo resto da vida da aba, mas só é consultado enquanto o log está
+   * vazio, então perde efeito sozinho após a primeira mensagem. */
+  isNew: boolean;
 }
 
 interface TabsState {
@@ -75,13 +81,13 @@ export function useProfileTabs() {
 
   const getTabs = useCallback((profileId: string): TabsState => byProfile[profileId] ?? EMPTY_STATE, [byProfile]);
 
-  const openTab = useCallback((profileId: string, id: string, title: string | null = null) => {
+  const openTab = useCallback((profileId: string, id: string, title: string | null = null, isNew = false) => {
     setByProfile((prev) => {
       const current = prev[profileId] ?? EMPTY_STATE;
       const exists = current.tabs.some((tab) => tab.id === id);
       const tabs = exists
         ? current.tabs
-        : [...current.tabs, { id, title, hasUnreadCompletion: false, isRunning: false }];
+        : [...current.tabs, { id, title, hasUnreadCompletion: false, isRunning: false, isNew }];
       return { ...prev, [profileId]: { tabs, activeTabId: id } };
     });
   }, []);
@@ -202,6 +208,7 @@ export function useProfileTabs() {
         title: persisted.title,
         hasUnreadCompletion: false,
         isRunning: false,
+        isNew: false,
       }));
       return { ...prev, [profileId]: { tabs, activeTabId: activeTabId ?? tabs[tabs.length - 1]?.id ?? null } };
     });

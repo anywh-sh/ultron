@@ -114,7 +114,7 @@ export default function App() {
   // ChatPanel abaixo), não antes.
   function handleNewConversation(): void {
     const id = crypto.randomUUID();
-    profileTabs.openTab(activeProfile.id, id);
+    profileTabs.openTab(activeProfile.id, id, null, true);
     setDrawerOpen(false);
   }
 
@@ -297,6 +297,7 @@ export default function App() {
                         <ChatPanel
                           profile={findProfile(profile.id) ?? profile}
                           sessionId={tab.id}
+                          isNewConversation={tab.isNew}
                           onTurnActiveChange={(active) => profileTabs.setRunning(profile.id, tab.id, active)}
                           onTurnComplete={() => {
                             const stillVisible =
