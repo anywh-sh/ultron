@@ -65,9 +65,10 @@ export function ChatPanel({
   // manda logo após o replay — daí em diante os eventos são mesmo ao vivo.
   const caughtUpRef = useRef(false);
   // Mesmo sinal, mas em state — dispara o re-render que troca o skeleton
-  // pelo log de verdade. Nunca volta a `false`: o replay inicial só
-  // acontece uma vez por aba, uma reconexão depois disso não deve piscar o
-  // skeleton de novo.
+  // pelo log de verdade. Volta a `false` numa reconexão de verdade
+  // (`onReconnecting`, docs/23 Fase D1) — o replay vai chegar de novo do
+  // zero, então o skeleton reaparece brevemente em vez de mostrar o log
+  // esvaziado sem indicação nenhuma.
   const [ready, setReady] = useState(false);
 
   const images = useImageUpload(profile, (message) => window.alert(message));
@@ -93,6 +94,11 @@ export function ChatPanel({
 
   const { connected, cwd, cwdLocked, sendMessage, stopTurn, setCwd } = useRelayClient(profile, sessionId, {
     onEvent: (event) => logRef.current.handleEvent(event),
+    onReconnecting: () => {
+      logRef.current.reset();
+      caughtUpRef.current = false;
+      setReady(false);
+    },
     onCaughtUp: () => {
       caughtUpRef.current = true;
       setReady(true);

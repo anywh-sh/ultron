@@ -10,6 +10,9 @@ export interface UseRelayClientOptions {
   onSetCwdError?: (message: string) => void;
   onSessionTitle?: (title: string) => void;
   onSessionDeleted?: () => void;
+  /** Ver `RelayClientCallbacks.onReconnecting` — dispara antes de todo
+   * replay de histórico que não seja da conexão inicial. */
+  onReconnecting?: () => void;
 }
 
 export interface UseRelayClientResult {
@@ -64,6 +67,7 @@ export function useRelayClient(
       onSessionTitle: (title) => optionsRef.current.onSessionTitle?.(title),
       onSessionDeleted: () => optionsRef.current.onSessionDeleted?.(),
       onConnectionChange: setConnected,
+      onReconnecting: () => optionsRef.current.onReconnecting?.(),
     });
     clientRef.current = client;
     client.connect();
@@ -73,6 +77,19 @@ export function useRelayClient(
       clientRef.current = null;
     };
   }, [profile.host, profile.relayPort, sessionId]);
+
+  // Reconexão em foreground/background (docs/23, Fase D1): `visibilitychange`
+  // é o sinal confiável em iOS (Fase D0 confirmou que o onFocusChanged do
+  // Tauri nunca dispara lá) — funciona igual em desktop, sem gate de
+  // plataforma. `forceReconnect` já decide sozinho se a conexão atual
+  // precisa mesmo ser recriada.
+  useEffect(() => {
+    function handleVisibilityChange(): void {
+      if (document.visibilityState === "visible") clientRef.current?.forceReconnect();
+    }
+    document.addEventListener("visibilitychange", handleVisibilityChange);
+    return () => document.removeEventListener("visibilitychange", handleVisibilityChange);
+  }, []);
 
   const sendMessage = useCallback((text: string) => {
     clientRef.current?.sendMessage(text);

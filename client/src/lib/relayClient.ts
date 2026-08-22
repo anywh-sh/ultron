@@ -61,7 +61,16 @@ export interface RelayClientCallbacks {
   /** Sessão excluída (por este dispositivo ou outro) — ver
    * sharedSession.ts::closeAllClients. O socket já fecha logo em seguida. */
   onSessionDeleted?: () => void;
+  /** Disparado logo antes de reabrir a conexão (backoff automático ou
+   * `forceReconnect`) — nunca na primeira conexão. O relay reenvia o
+   * histórico inteiro a cada conexão nova (`SharedSession.addClient`), então
+   * quem consome isso deve resetar o log de mensagens aqui, senão o replay
+   * duplica tudo em cima do que já estava na tela (docs/23, Fase D1). */
+  onReconnecting?: () => void;
 }
+
+const RECONNECT_BASE_DELAY_MS = 500;
+const RECONNECT_MAX_DELAY_MS = 30_000;
 
 export class RelayClient {
   private socket?: WebSocket;
@@ -69,6 +78,15 @@ export class RelayClient {
    * antes do socket abrir — não existe fila de saída, só a última escolha
    * importa. Mandada assim que a conexão abre; ver `connect`. */
   private pendingCwd: string | null = null;
+  /** `false` só depois de `disconnect()` deliberado (troca de aba/sessão) —
+   * enquanto `true`, todo `close` inesperado agenda uma nova tentativa. */
+  private shouldReconnect = true;
+  private reconnectTimer: number | undefined;
+  private reconnectAttempt = 0;
+  /** Conta toda chamada de `connect()`, incluindo a primeira — usado só pra
+   * saber se uma reconexão está em curso (`> 1`), pra não disparar
+   * `onReconnecting` na conexão inicial. */
+  private connectCount = 0;
 
   constructor(
     private readonly host: string,
@@ -78,12 +96,16 @@ export class RelayClient {
   ) {}
 
   connect(): void {
+    this.connectCount += 1;
+    if (this.connectCount > 1) this.callbacks.onReconnecting?.();
+
     const socket = new WebSocket(
       `ws://${this.host}:${this.port}/?session=${encodeURIComponent(this.sessionId)}`,
     );
     this.socket = socket;
 
     socket.addEventListener("open", () => {
+      this.reconnectAttempt = 0;
       this.callbacks.onConnectionChange?.(true);
       if (this.pendingCwd !== null) {
         const path = this.pendingCwd;
@@ -91,7 +113,14 @@ export class RelayClient {
         socket.send(JSON.stringify({ type: "set_cwd", path }));
       }
     });
-    socket.addEventListener("close", () => this.callbacks.onConnectionChange?.(false));
+    socket.addEventListener("close", () => {
+      // Evento tardio de um socket que `forceReconnect`/reconexão automática
+      // já substituiu — ignora, senão sinaliza desconectado por cima de uma
+      // conexão nova que já pode estar aberta.
+      if (this.socket !== socket) return;
+      this.callbacks.onConnectionChange?.(false);
+      this.scheduleReconnect();
+    });
     socket.addEventListener("message", (event) => {
       const parsed: unknown = JSON.parse(event.data as string);
       if (!isRelayMessage(parsed)) return;
@@ -138,6 +167,38 @@ export class RelayClient {
   }
 
   disconnect(): void {
+    this.shouldReconnect = false;
+    this.clearReconnectTimer();
     this.socket?.close();
+  }
+
+  /** Chamado ao voltar de background/foreground (docs/23, Fase D1) — não
+   * confia no timing do `close` nativo, que pode nunca disparar num socket
+   * "zumbi" (`readyState` ainda `OPEN` mas a conexão de rede já morreu de
+   * verdade). Só reconecta se o socket não estiver genuinamente utilizável;
+   * uma conexão saudável fica intocada (spike 3 mostrou que sockets
+   * costumam sobreviver a background curto sem intervenção nenhuma). */
+  forceReconnect(): void {
+    const state = this.socket?.readyState;
+    if (state === WebSocket.OPEN || state === WebSocket.CONNECTING) return;
+    this.clearReconnectTimer();
+    this.connect();
+  }
+
+  private scheduleReconnect(): void {
+    if (!this.shouldReconnect) return;
+    const delay = Math.min(RECONNECT_BASE_DELAY_MS * 2 ** this.reconnectAttempt, RECONNECT_MAX_DELAY_MS);
+    this.reconnectAttempt += 1;
+    this.reconnectTimer = window.setTimeout(() => {
+      this.reconnectTimer = undefined;
+      this.connect();
+    }, delay);
+  }
+
+  private clearReconnectTimer(): void {
+    if (this.reconnectTimer !== undefined) {
+      window.clearTimeout(this.reconnectTimer);
+      this.reconnectTimer = undefined;
+    }
   }
 }

@@ -31,7 +31,8 @@ type Action =
   | { type: "USER_MESSAGE"; text: string; images?: PendingImage[] }
   | { type: "CLAUDE_EVENT"; event: ClaudeEvent }
   | { type: "TURN_ERROR"; message: string }
-  | { type: "TURN_COMPLETE"; stopped?: boolean };
+  | { type: "TURN_COMPLETE"; stopped?: boolean }
+  | { type: "RESET" };
 
 const initialState: MessageLogState = { entries: [], streamingText: [] };
 
@@ -145,6 +146,12 @@ function reducer(state: MessageLogState, action: Action): MessageLogState {
       return { ...state, entries, streamingText: [] };
     }
 
+    // Reconexão (docs/23, Fase D1) — o relay reenvia o histórico inteiro a
+    // cada conexão nova, então o log precisa voltar vazio pra receber o
+    // replay sem duplicar o que já estava na tela.
+    case "RESET":
+      return initialState;
+
     default:
       return state;
   }
@@ -157,6 +164,7 @@ export interface UseMessageLogResult {
   handleEvent: (event: ClaudeEvent) => void;
   handleTurnError: (message: string) => void;
   handleTurnComplete: (stopped?: boolean) => void;
+  reset: () => void;
 }
 
 export function useMessageLog(): UseMessageLogResult {
@@ -173,5 +181,6 @@ export function useMessageLog(): UseMessageLogResult {
     handleEvent: (event) => dispatch({ type: "CLAUDE_EVENT", event }),
     handleTurnError: (message) => dispatch({ type: "TURN_ERROR", message }),
     handleTurnComplete: (stopped) => dispatch({ type: "TURN_COMPLETE", stopped }),
+    reset: () => dispatch({ type: "RESET" }),
   };
 }
