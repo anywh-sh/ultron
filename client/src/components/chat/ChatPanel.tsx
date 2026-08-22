@@ -30,6 +30,9 @@ interface ChatPanelProps {
   /** Sessão excluída, por este dispositivo ou outro — ver
    * sharedSession.ts::closeAllClients. */
   onDeleted?: () => void;
+  /** Estado de conexão desta sessão — `App` usa isso pra alimentar a barra
+   * superior consolidada do iOS (docs/24), que vive fora do ChatPanel. */
+  onConnectedChange?: (connected: boolean) => void;
 }
 
 function buildWireMessage(text: string, images: PendingImage[]): string {
@@ -46,6 +49,7 @@ export function ChatPanel({
   onTitle,
   onActivity,
   onDeleted,
+  onConnectedChange,
 }: ChatPanelProps) {
   const log = useMessageLog();
   const logRef = useRef(log);
@@ -116,6 +120,12 @@ export function ChatPanel({
     onSessionTitle: (title) => onTitleRef.current?.(title),
     onSessionDeleted: () => onDeletedRef.current?.(),
   });
+
+  const onConnectedChangeRef = useRef(onConnectedChange);
+  onConnectedChangeRef.current = onConnectedChange;
+  useEffect(() => {
+    onConnectedChangeRef.current?.(connected);
+  }, [connected]);
 
   return (
     <div

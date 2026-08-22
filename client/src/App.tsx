@@ -8,6 +8,7 @@ import { EmptyState } from "@/components/shell/EmptyState";
 import { SessionSearch } from "@/components/shell/SessionSearch";
 import { TabBar } from "@/components/shell/TabBar";
 import { TitleBar } from "@/components/shell/TitleBar";
+import { MobileShell } from "@/components/shell/MobileShell";
 import { ChatPanel } from "@/components/chat/ChatPanel";
 import { useActiveProfile } from "@/hooks/useActiveProfile";
 import { useNavigationHistory } from "@/hooks/useNavigationHistory";
@@ -41,6 +42,11 @@ export default function App() {
 
   const [drawerOpen, setDrawerOpen] = useState(false);
   const [searchOpen, setSearchOpen] = useState(false);
+  // Estado de conexão da sessão ativa — só usado pela MobileTopBar do iOS
+  // (docs/24), que fica fora do ChatPanel. Alimentado pelo `onConnectedChange`
+  // de `renderPanel` abaixo, guardado pelo mesmo padrão de "ainda é a aba
+  // visível" que `onTurnComplete` já usa.
+  const [activeConnected, setActiveConnected] = useState(false);
 
   useEffect(() => {
     void ensureNotificationPermission();
@@ -79,6 +85,13 @@ export default function App() {
   useEffect(() => {
     if (activeTabIdOfActiveProfile) profileTabs.setUnread(activeProfile.id, activeTabIdOfActiveProfile, false);
     // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [activeProfile.id, activeTabIdOfActiveProfile]);
+
+  // Evita mostrar "Conectado" herdado da aba anterior por um instante ao
+  // trocar de sessão/perfil — o ChatPanel recém-montado reporta o estado
+  // real assim que o WebSocket dele conectar (ou não).
+  useEffect(() => {
+    setActiveConnected(false);
   }, [activeProfile.id, activeTabIdOfActiveProfile]);
 
   // Empilha uma entrada de histórico (Back/Forward da titlebar — docs/21)
@@ -219,24 +232,121 @@ export default function App() {
     onDeleteSession: (id: string) => handleDeleteSession(activeProfile.id, id),
   };
 
+  const activeTabOfActiveProfile = profileTabs
+    .getTabs(activeProfile.id)
+    .tabs.find((tab) => tab.id === activeTabIdOfActiveProfile);
+
+  // Compartilhado entre o shell desktop e o iOS — o que muda entre os dois é
+  // só o chrome ao redor (TitleBar+Sidebar vs. MobileShell), não como cada
+  // sessão/perfil é montado.
+  const tabsContent = (
+    <div className="min-h-0 flex-1">
+      {PROFILES.map((profile) => {
+        const { tabs, activeTabId } = profileTabs.getTabs(profile.id);
+        const isActiveProfile = profile.id === activeProfile.id;
+
+        const renderPanel = (tab: (typeof tabs)[number]) => (
+          <ChatPanel
+            profile={findProfile(profile.id) ?? profile}
+            sessionId={tab.id}
+            isNewConversation={tab.isNew}
+            onTurnActiveChange={(active) => profileTabs.setRunning(profile.id, tab.id, active)}
+            onTurnComplete={() => {
+              const stillVisible =
+                profile.id === activeProfile.id &&
+                tab.id === profileTabs.getTabs(profile.id).activeTabId &&
+                windowFocused;
+              if (!stillVisible) {
+                profileTabs.setUnread(profile.id, tab.id, true);
+                notifyTurnComplete(findProfile(profile.id) ?? profile, tab.title ?? "Nova conversa");
+              }
+            }}
+            onTitle={(title) => {
+              profileTabs.setTabTitle(profile.id, tab.id, title);
+              if (profile.id === activeProfile.id) upsertTitle(tab.id, title);
+            }}
+            onActivity={() => {
+              if (profile.id === activeProfile.id) touch(tab.id);
+            }}
+            onDeleted={() => {
+              profileTabs.closeTab(profile.id, tab.id);
+              if (profile.id === activeProfile.id) removeSession(tab.id);
+            }}
+            onConnectedChange={(connected) => {
+              if (profile.id === activeProfile.id && tab.id === profileTabs.getTabs(profile.id).activeTabId) {
+                setActiveConnected(connected);
+              }
+            }}
+          />
+        );
+
+        // iOS (docs/23, Fase B): MVP é uma sessão em foco por vez, sem manter
+        // várias conexões WebSocket vivas em paralelo em segundo plano — só
+        // monta a sessão ativa, sem o mecanismo de abas do TabBar
+        // (forceMount/dnd-kit, pensado pra desktop).
+        const activeTab = tabs.find((tab) => tab.id === activeTabId);
+
+        return (
+          <div key={profile.id} className={cn("h-full", !isActiveProfile && "hidden")}>
+            {tabs.length === 0 ? (
+              isActiveProfile && <EmptyState />
+            ) : isIOS() ? (
+              activeTab && renderPanel(activeTab)
+            ) : (
+              <TabBar
+                tabs={tabs}
+                activeTabId={activeTabId}
+                profileId={profile.id}
+                onSelect={(tabId) => profileTabs.setActiveTab(profile.id, tabId)}
+                onClose={(tabId) => profileTabs.closeTab(profile.id, tabId)}
+                onReorder={(activeTabId, overTabId) => profileTabs.reorderTabs(profile.id, activeTabId, overTabId)}
+                onDelete={(tabId) => handleDeleteSession(profile.id, tabId)}
+                renderPanel={renderPanel}
+              />
+            )}
+          </div>
+        );
+      })}
+    </div>
+  );
+
+  if (isIOS()) {
+    return (
+      <div className="flex h-screen w-screen flex-col overflow-hidden bg-background text-foreground">
+        <SessionSearch open={searchOpen} onOpenChange={setSearchOpen} onSelectSession={handleSearchSelectSession} />
+        <MobileShell
+          activeProfile={activeProfile}
+          onProfileChange={handleProfileChange}
+          sessions={sessions}
+          sessionsLoading={sessionsLoading}
+          selectedSession={activeTabIdOfActiveProfile}
+          runningSessions={runningSessions}
+          onSelectSession={handleSelectSession}
+          onRenameSession={handleRenameSession}
+          onDeleteSession={(id) => handleDeleteSession(activeProfile.id, id)}
+          onOpenSearch={() => setSearchOpen(true)}
+          title={activeTabOfActiveProfile?.title ?? "Nova conversa"}
+          connected={activeConnected}
+          onNewConversation={handleNewConversation}
+        >
+          {tabsContent}
+        </MobileShell>
+      </div>
+    );
+  }
+
   return (
     <div className="flex h-screen w-screen flex-col overflow-hidden bg-background text-foreground">
-      {/* Chrome de janela desktop (docs/21) não existe em iOS — back/forward e
-       * busca ficam pra quando a UI nativa mobile for desenhada (docs/23,
-       * Fase B). O estado de navegação (useNavigationHistory) continua sendo
-       * atualizado abaixo independente da UI. */}
-      {!isIOS() && (
-        <TitleBar
-          canGoBack={nav.canGoBack}
-          canGoForward={nav.canGoForward}
-          onGoBack={handleGoBack}
-          onGoForward={handleGoForward}
-          showSidebarToggle={!isCompact}
-          sidebarCollapsed={resizable.collapsed}
-          onToggleSidebar={resizable.toggleCollapsed}
-          onOpenSearch={() => setSearchOpen(true)}
-        />
-      )}
+      <TitleBar
+        canGoBack={nav.canGoBack}
+        canGoForward={nav.canGoForward}
+        onGoBack={handleGoBack}
+        onGoForward={handleGoForward}
+        showSidebarToggle={!isCompact}
+        sidebarCollapsed={resizable.collapsed}
+        onToggleSidebar={resizable.toggleCollapsed}
+        onOpenSearch={() => setSearchOpen(true)}
+      />
 
       <SessionSearch open={searchOpen} onOpenChange={setSearchOpen} onSelectSession={handleSearchSelectSession} />
 
@@ -284,69 +394,7 @@ export default function App() {
             </div>
           )}
 
-          <div className="min-h-0 flex-1">
-            {PROFILES.map((profile) => {
-              const { tabs, activeTabId } = profileTabs.getTabs(profile.id);
-              const isActiveProfile = profile.id === activeProfile.id;
-
-              const renderPanel = (tab: (typeof tabs)[number]) => (
-                <ChatPanel
-                  profile={findProfile(profile.id) ?? profile}
-                  sessionId={tab.id}
-                  isNewConversation={tab.isNew}
-                  onTurnActiveChange={(active) => profileTabs.setRunning(profile.id, tab.id, active)}
-                  onTurnComplete={() => {
-                    const stillVisible =
-                      profile.id === activeProfile.id &&
-                      tab.id === profileTabs.getTabs(profile.id).activeTabId &&
-                      windowFocused;
-                    if (!stillVisible) {
-                      profileTabs.setUnread(profile.id, tab.id, true);
-                      notifyTurnComplete(findProfile(profile.id) ?? profile, tab.title ?? "Nova conversa");
-                    }
-                  }}
-                  onTitle={(title) => {
-                    profileTabs.setTabTitle(profile.id, tab.id, title);
-                    if (profile.id === activeProfile.id) upsertTitle(tab.id, title);
-                  }}
-                  onActivity={() => {
-                    if (profile.id === activeProfile.id) touch(tab.id);
-                  }}
-                  onDeleted={() => {
-                    profileTabs.closeTab(profile.id, tab.id);
-                    if (profile.id === activeProfile.id) removeSession(tab.id);
-                  }}
-                />
-              );
-
-              // iOS (docs/23, Fase B): MVP é uma sessão em foco por vez, sem
-              // manter várias conexões WebSocket vivas em paralelo em segundo
-              // plano — só monta a sessão ativa, sem o mecanismo de abas do
-              // TabBar (forceMount/dnd-kit, pensado pra desktop).
-              const activeTab = tabs.find((tab) => tab.id === activeTabId);
-
-              return (
-                <div key={profile.id} className={cn("h-full", !isActiveProfile && "hidden")}>
-                  {tabs.length === 0 ? (
-                    isActiveProfile && <EmptyState />
-                  ) : isIOS() ? (
-                    activeTab && renderPanel(activeTab)
-                  ) : (
-                    <TabBar
-                      tabs={tabs}
-                      activeTabId={activeTabId}
-                      profileId={profile.id}
-                      onSelect={(tabId) => profileTabs.setActiveTab(profile.id, tabId)}
-                      onClose={(tabId) => profileTabs.closeTab(profile.id, tabId)}
-                      onReorder={(activeTabId, overTabId) => profileTabs.reorderTabs(profile.id, activeTabId, overTabId)}
-                      onDelete={(tabId) => handleDeleteSession(profile.id, tabId)}
-                      renderPanel={renderPanel}
-                    />
-                  )}
-                </div>
-              );
-            })}
-          </div>
+          {tabsContent}
         </div>
       </div>
     </div>

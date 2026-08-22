@@ -151,6 +151,30 @@ body {
   display: block !important;
 }
 
+/* Drawer de sessões em "reveal" no iOS (docs/24) — a tela inteira do agente
+ * desliza pra direita revelando a sidebar atrás, em vez de um overlay com
+ * scrim por cima. O estado assentado (classe `.pushed`) transiciona por
+ * CSS; o arraste ao vivo (useRevealDrawer.ts) escreve os mesmos estilos
+ * direto via ref, sem re-render a cada pixel. */
+.mobile-canvas {
+  border: 1px solid transparent;
+  transition:
+    transform 0.32s cubic-bezier(0.32, 0.72, 0, 1),
+    border-radius 0.32s ease,
+    box-shadow 0.32s ease,
+    opacity 0.32s ease,
+    border-color 0.32s ease;
+}
+.mobile-canvas.pushed {
+  transform: translateX(var(--push));
+  border-radius: 30px;
+  border-color: rgba(240, 238, 230, 0.16);
+  opacity: 0.55;
+  box-shadow:
+    -18px 26px 60px -24px rgba(0, 0, 0, 0.65),
+    0 0 0 1px rgba(255, 255, 255, 0.05);
+}
+
 /* Scrollbars finas/customizadas (sidebar + log de mensagens) — docs/17. */
 .scrollbar-thin {
   scrollbar-width: thin;
