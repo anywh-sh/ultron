@@ -23,7 +23,7 @@ interface MobileTopBarProps {
 export function MobileTopBar({ title, connected, onOpenDrawer, onNewConversation }: MobileTopBarProps) {
   return (
     <div className="absolute inset-x-4 z-30" style={{ top: "calc(env(safe-area-inset-top) + 8px)" }}>
-      <div className="flex h-13 items-center gap-1 rounded-full border border-white/8 bg-bg-elevated/70 px-1.5 shadow-lg backdrop-blur-md backdrop-saturate-150">
+      <div className="flex h-13 items-center gap-1 rounded-full border border-white/8 bg-bg-elevated/45 px-1.5 shadow-lg backdrop-blur-lg backdrop-saturate-150">
         <button
           type="button"
           onClick={onOpenDrawer}

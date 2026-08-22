@@ -157,11 +157,12 @@ export const Composer = forwardRef<ComposerHandle, ComposerProps>(function Compo
         "flex flex-col gap-1.5 border p-2 transition-colors",
         isIOS()
           ? [
-              // Mesma intensidade de blur da MobileTopBar (docs/24) — a
-              // primeira tentativa aqui estava forte demais; o log continua
-              // legível (desfocado) por trás quando rola até embaixo, mas
-              // sem exagero.
-              "bg-bg-elevated/70 shadow-lg backdrop-blur-md backdrop-saturate-150",
+              // Mesma intensidade de blur da MobileTopBar (docs/24) — no
+              // device físico o blur em si estava imperceptível (possível
+              // limitação do WKWebView com backdrop-filter), então a
+              // opacidade caiu bem mais (45%) pra garantir contraste
+              // visível por trás mesmo se o blur não renderizar.
+              "bg-bg-elevated/45 shadow-lg backdrop-blur-lg backdrop-saturate-150",
               "transition-[border-radius,border-color] duration-150",
               isMultiline ? "rounded-[26px]" : "rounded-full",
             ]
