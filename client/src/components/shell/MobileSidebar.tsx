@@ -84,18 +84,23 @@ export function MobileSidebar({
         Buscar sessão
       </button>
 
-      <p className="px-1 font-mono text-[10.5px] tracking-wide text-text-faint uppercase">Recentes</p>
+      {/* "Recentes" + lista viram um grupo próprio, com gap curto entre os
+       * dois — o gap "grande" (docs/24) é o da coluna externa (gap-3.5),
+       * entre a busca e este grupo, não entre o rótulo e o primeiro item. */}
+      <div className="flex min-h-0 flex-1 flex-col gap-1.5">
+        <p className="px-1 font-mono text-[10.5px] tracking-wide text-text-faint uppercase">Recentes</p>
 
-      <SessionList
-        sessions={sessions}
-        loading={sessionsLoading}
-        selected={selectedSession}
-        running={runningSessions}
-        onSelect={onSelectSession}
-        onRename={(id, title) => setRenaming({ id, title })}
-        onDelete={onDeleteSession}
-        size="lg"
-      />
+        <SessionList
+          sessions={sessions}
+          loading={sessionsLoading}
+          selected={selectedSession}
+          running={runningSessions}
+          onSelect={onSelectSession}
+          onRename={(id, title) => setRenaming({ id, title })}
+          onDelete={onDeleteSession}
+          size="lg"
+        />
+      </div>
 
       <RenameSessionDialog
         open={renaming !== null}

@@ -29,7 +29,7 @@ export function SessionList({
 }: SessionListProps) {
   return (
     <ScrollArea className="min-h-0 flex-1">
-      <div className={cn("flex flex-col gap-0.5", size === "lg" ? "py-2" : "p-2")}>
+      <div className={cn("flex flex-col gap-0.5", size === "lg" ? "pb-2" : "p-2")}>
         {loading && <p className="px-2 py-1.5 text-xs text-muted-foreground">carregando…</p>}
         {!loading && sessions.length === 0 && (
           <p className="px-2 py-1.5 text-xs text-muted-foreground">nenhuma sessão ainda</p>
