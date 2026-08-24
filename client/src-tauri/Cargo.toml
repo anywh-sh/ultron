@@ -14,6 +14,12 @@ edition = "2021"
 name = "client_lib"
 crate-type = ["staticlib", "cdylib", "rlib"]
 
+[[bin]]
+# Sem isso o binário sai como `client.exe` (nome do pacote Cargo) em vez de
+# `ultron.exe` — tanto no instalador NSIS quanto no .exe portátil.
+name = "ultron"
+path = "src/main.rs"
+
 [build-dependencies]
 tauri-build = { version = "2", features = [] }
 
