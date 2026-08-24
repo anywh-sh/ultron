@@ -22,32 +22,50 @@ pub fn notify_turn_complete(app: tauri::AppHandle, title: String, body: String) 
 
 #[cfg(target_os = "windows")]
 mod windows_toast {
-    use std::path::MAIN_SEPARATOR as SEP;
     use tauri::{path::BaseDirectory, AppHandle, Manager};
     use tauri_winrt_notification::{IconCrop, Toast};
 
     /// Mesmo teste que o tauri-plugin-notification original fazia (ver
-    /// comentário no topo do arquivo): o AUMID de verdade do app só existe
-    /// registrado (atalho no Start Menu) numa instalação de verdade. Rodando
-    /// via `tauri dev`/exe solto em `target/debug`|`target/release`, criar o
-    /// notifier com esse app_id não registrado faz `show()` falhar calado —
-    /// não é só o ícone errado, a notificação inteira some. `POWERSHELL_APP_ID`
-    /// é garantidamente registrado em qualquer Windows, então funciona nos
-    /// dois casos; o ícone customizado (`.icon()` abaixo) e o clique
-    /// (`.on_activated()`) não dependem do app_id estar registrado — só o
-    /// ícone *padrão* (sem override) depende.
+    /// comentário no topo do arquivo), estendido pro `.exe` portátil (sem
+    /// instalador): o AUMID de verdade do app só existe registrado (atalho no
+    /// Start Menu, criado pelo instalador NSIS) numa instalação de verdade —
+    /// `target/debug`|`target/release` (dev) e o `.exe` portátil rodando de
+    /// qualquer outro lugar (não tem instalador, não tem atalho) caem no
+    /// mesmo caso. Criar o notifier com um app_id não registrado faz `show()`
+    /// falhar calado — não é só o ícone errado, a notificação inteira some.
+    /// `POWERSHELL_APP_ID` é garantidamente registrado em qualquer Windows,
+    /// então funciona em todos esses casos; o ícone customizado (`.icon()`
+    /// abaixo) e o clique (`.on_activated()`) não dependem do app_id estar
+    /// registrado — só o ícone *padrão* (sem override) depende.
     fn resolve_app_id(identifier: &str) -> String {
         let running_unpacked = tauri::utils::platform::current_exe()
             .ok()
-            .and_then(|exe| exe.parent().map(|dir| dir.display().to_string()))
-            .is_some_and(|dir| {
-                dir.ends_with(&format!("{SEP}target{SEP}debug")) || dir.ends_with(&format!("{SEP}target{SEP}release"))
-            });
+            .and_then(|exe| exe.parent().map(|dir| dir.to_path_buf()))
+            .is_none_or(|dir| !is_nsis_install_dir(&dir));
         if running_unpacked {
             Toast::POWERSHELL_APP_ID.to_string()
         } else {
             identifier.to_string()
         }
+    }
+
+    /// `installMode: "currentUser"` (ver `tauri.conf.json`) sempre instala em
+    /// `%LOCALAPPDATA%\ultron`; `perMachine` cairia em `%ProgramFiles%\ultron`
+    /// — checar os dois cobre se algum dia o modo mudar. Só esses diretórios
+    /// têm o atalho do Menu Iniciar com o AppUserModelID registrado de
+    /// verdade (é o instalador NSIS quem cria).
+    fn is_nsis_install_dir(dir: &std::path::Path) -> bool {
+        if dir.file_name().and_then(|n| n.to_str()) != Some("ultron") {
+            return false;
+        }
+        let Some(parent) = dir.parent() else {
+            return false;
+        };
+        let parent = parent.to_string_lossy().to_lowercase();
+        ["LOCALAPPDATA", "ProgramFiles", "ProgramFiles(x86)"]
+            .into_iter()
+            .filter_map(|var| std::env::var(var).ok())
+            .any(|known| known.to_lowercase() == parent)
     }
 
     pub fn show(app: AppHandle, title: String, body: String) {
