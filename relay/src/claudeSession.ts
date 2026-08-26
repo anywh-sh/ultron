@@ -50,12 +50,6 @@ interface ResultUsage {
   input_tokens?: number;
   cache_creation_input_tokens?: number;
   cache_read_input_tokens?: number;
-  /** Uma entrada por chamada de API feita dentro do turno (um turno pode
-   * envolver várias idas e vindas de ferramenta) — os campos no nível
-   * superior de `usage` são a SOMA de todas essas entradas (gasto total do
-   * turno, útil pra custo), não o tamanho atual do contexto. Pra isso,
-   * precisamos da ÚLTIMA entrada, não da soma — ver `extractContextUsage`. */
-  iterations?: ResultUsage[];
 }
 
 interface ModelUsageEntry {
@@ -67,35 +61,52 @@ function usageTokenTotal(usage: ResultUsage): number {
 }
 
 /**
- * Extrai o uso de contexto do evento `result` de fim de turno. `contextWindow`
- * vem direto de `modelUsage[model]` — dado real do CLI pra aquela conta (ex:
- * contexto estendido de 1M), nunca uma tabela estática nossa, que ficaria
- * errada pra qualquer plano/config que não previmos. `model` vem do evento
- * `system/init` do mesmo processo (capturado antes do `result` chegar); na
- * ausência dele (não deveria acontecer, mas o parsing é `[key: string]:
- * unknown`), cai pra primeira entrada de `modelUsage` em vez de descartar o
- * dado inteiro.
- *
- * `usedTokens` vem da ÚLTIMA entrada de `usage.iterations` quando presente
- * (achado testando contra uma sessão real com muitas chamadas de ferramenta
- * num único turno: o nível superior de `usage` é a SOMA de todas as
- * iterations, não a última — usar a soma mostrava >100% de uso numa sessão
- * que na verdade não tinha chegado nem a 40% do limite real). Sem
- * `iterations` (turno de uma chamada só, ou shape mais antigo do CLI), cai
- * pro nível superior — nesse caso soma e "última chamada" são a mesma coisa.
+ * `true` só pro evento `assistant` do fio principal da conversa — subagentes
+ * (`Task`) também emitem eventos `assistant` no mesmo stdout, mas com
+ * `parent_tool_use_id` apontando pro `tool_use` que os disparou (confirmado
+ * rodando um turno real com um subagente: o evento dele tinha
+ * `cache_read_input_tokens: 0` — contexto isolado, começando do zero — bem
+ * diferente do fio principal). Sem esse filtro, o usage de um subagente
+ * (que pode ler arquivos grandes por conta própria) contamina o número do
+ * fio principal.
  */
-export function extractContextUsage(event: ClaudeEvent, model: string | undefined): ContextUsage | undefined {
-  const usage = event.usage as ResultUsage | undefined;
-  const modelUsage = event.modelUsage as Record<string, ModelUsageEntry> | undefined;
-  if (!usage || !modelUsage) return undefined;
+export function isMainThreadEvent(event: ClaudeEvent): boolean {
+  return event.parent_tool_use_id === null || event.parent_tool_use_id === undefined;
+}
+
+/**
+ * Monta o uso de contexto a partir de duas fontes complementares: `usage`
+ * vem do ÚLTIMO evento `assistant` do fio principal visto no turno (uma
+ * única resposta da Messages API — mesma semântica do `current_usage`
+ * oficial do statusline do Claude Code), e `contextWindowSize` vem de
+ * `modelUsage[model]` no evento `result` de fim de turno — dado real do CLI
+ * pra aquela conta (ex: contexto estendido de 1M), nunca uma tabela
+ * estática nossa.
+ *
+ * Importante: os campos de nível superior do próprio `result.usage` (e o
+ * `result.usage.iterations`) são agregados que somam TUDO que rodou no
+ * turno, incluindo subagentes — testado contra uma sessão real e contra um
+ * turno com subagente, os dois infladavam o total muito além do que o fio
+ * principal realmente tinha em contexto (>100% numa sessão que não tinha
+ * nem 40% do limite de verdade usado). Por isso este código nunca lê
+ * `result.usage` pra tokens — só pro `modelUsage` (que é uma propriedade
+ * estática do modelo, não um contador, e não sofre desse problema).
+ */
+export function extractContextUsage(
+  resultEvent: ClaudeEvent,
+  model: string | undefined,
+  lastMainThreadUsage: ResultUsage | undefined,
+): ContextUsage | undefined {
+  if (!lastMainThreadUsage) return undefined;
+  const modelUsage = resultEvent.modelUsage as Record<string, ModelUsageEntry> | undefined;
+  if (!modelUsage) return undefined;
   const modelKey = (model && model in modelUsage ? model : undefined) ?? Object.keys(modelUsage)[0];
   const entry = modelKey ? modelUsage[modelKey] : undefined;
   if (!modelKey || !entry?.contextWindow) return undefined;
-  const lastIteration = usage.iterations?.length ? usage.iterations[usage.iterations.length - 1] : usage;
   return {
     model: modelKey,
     contextWindowSize: entry.contextWindow,
-    usedTokens: usageTokenTotal(lastIteration),
+    usedTokens: usageTokenTotal(lastMainThreadUsage),
   };
 }
 
@@ -190,6 +201,7 @@ export class ClaudeSession {
       let eventCount = 0;
       let lastErrorResult: string | undefined;
       let lastModel: string | undefined;
+      let lastMainThreadUsage: ResultUsage | undefined;
       let contextUsage: ContextUsage | undefined;
 
       const readLines = (async () => {
@@ -201,6 +213,10 @@ export class ClaudeSession {
           if (event.type === "system" && event.subtype === "init" && typeof event.model === "string") {
             lastModel = event.model;
           }
+          if (event.type === "assistant" && isMainThreadEvent(event)) {
+            const usage = (event.message as { usage?: ResultUsage } | undefined)?.usage;
+            if (usage) lastMainThreadUsage = usage;
+          }
           if (event.type === "result") {
             // Capturado sempre que presente, erro ou não — um turno
             // interrompido por `stop()` ainda manda um `result` com
@@ -211,7 +227,7 @@ export class ClaudeSession {
               lastErrorResult =
                 event.errors?.join("; ") || event.result || "erro desconhecido retornado pelo claude";
             }
-            contextUsage = extractContextUsage(event, lastModel) ?? contextUsage;
+            contextUsage = extractContextUsage(event, lastModel, lastMainThreadUsage) ?? contextUsage;
           }
           onEvent(event);
         }
