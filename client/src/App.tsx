@@ -186,11 +186,29 @@ export default function App() {
     }
   }
 
+  // Ctrl+Tab / Ctrl+Shift+Tab, igual navegador — de propósito só `ctrlKey`,
+  // não `metaKey || ctrlKey` como os outros atalhos abaixo: no macOS Cmd+Tab
+  // é o app switcher do próprio SO (nunca chega no app), então o padrão de
+  // verdade pra ciclar abas lá também é Ctrl+Tab literal, igual
+  // browser/VS Code — usar `metaKey` aqui só criaria um atalho morto.
+  function handleCycleTab(direction: 1 | -1): void {
+    const { tabs, activeTabId } = profileTabs.getTabs(activeProfile.id);
+    if (tabs.length < 2) return;
+    const currentIndex = tabs.findIndex((tab) => tab.id === activeTabId);
+    const nextIndex = (currentIndex + direction + tabs.length) % tabs.length;
+    profileTabs.setActiveTab(activeProfile.id, tabs[nextIndex].id);
+  }
+
   // Atalhos padrão de qualquer app (equivalentes em Ctrl no Windows/Linux e
   // Cmd no macOS, via metaKey || ctrlKey): novo (N), fechar aba atual (W),
   // mostrar/esconder painel lateral (B).
   useEffect(() => {
     function handleKeyDown(event: KeyboardEvent): void {
+      if (event.ctrlKey && event.key === "Tab") {
+        event.preventDefault();
+        handleCycleTab(event.shiftKey ? -1 : 1);
+        return;
+      }
       if (!(event.metaKey || event.ctrlKey)) return;
       switch (event.key.toLowerCase()) {
         case "n":
@@ -210,7 +228,15 @@ export default function App() {
     window.addEventListener("keydown", handleKeyDown);
     return () => window.removeEventListener("keydown", handleKeyDown);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [activeProfile.id, activeTabIdOfActiveProfile, isCompact, profileTabs.closeTab, profileTabs.openTab, resizable.toggleCollapsed]);
+  }, [
+    activeProfile.id,
+    activeTabIdOfActiveProfile,
+    isCompact,
+    profileTabs.closeTab,
+    profileTabs.openTab,
+    profileTabs.setActiveTab,
+    resizable.toggleCollapsed,
+  ]);
 
   const runningSessions = new Set(
     profileTabs
