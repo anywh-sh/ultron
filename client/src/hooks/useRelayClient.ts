@@ -1,6 +1,16 @@
 import { useCallback, useEffect, useRef, useState } from "react";
-import { RelayClient, type ClaudeEvent, type PermissionMode } from "@/lib/relayClient";
+import { RelayClient, type ClaudeEvent, type ContextUsage, type PermissionMode } from "@/lib/relayClient";
 import type { Profile } from "@/lib/profiles";
+
+/** Um `compact_boundary` recebido, com timestamp — o timestamp garante uma
+ * referência nova a cada ocorrência (mesmo `trigger`/`preTokens` repetidos),
+ * pra quem for mostrar um toast poder reagir via `useEffect` sem precisar
+ * avisar o hook de volta que já mostrou. */
+export interface CompactBoundaryEvent {
+  trigger: "auto" | "manual";
+  preTokens: number;
+  receivedAt: number;
+}
 
 export interface UseRelayClientOptions {
   onEvent?: (event: ClaudeEvent) => void;
@@ -25,6 +35,12 @@ export interface UseRelayClientResult {
   /** `null` só na janela breve entre conectar e o primeiro
    * `permission_mode_state` chegar — mesmo motivo do `cwd` acima. */
   permissionMode: PermissionMode | null;
+  /** `null` até o primeiro `context_usage_state` chegar — nunca chega numa
+   * sessão nova sem nenhum turno concluído ainda (ver sharedSession.ts). */
+  contextUsage: ContextUsage | null;
+  /** Último `compact_boundary` visto, se houver — pensado pra um toast
+   * transitório na UI, não estado persistente (ver `CompactBoundaryEvent`). */
+  compactBoundary: CompactBoundaryEvent | null;
   sendMessage: (text: string) => void;
   stopTurn: () => void;
   setCwd: (path: string) => void;
@@ -47,6 +63,8 @@ export function useRelayClient(
   const [cwd, setCwdState] = useState<string | null>(null);
   const [cwdLocked, setCwdLocked] = useState(false);
   const [permissionMode, setPermissionModeState] = useState<PermissionMode | null>(null);
+  const [contextUsage, setContextUsage] = useState<ContextUsage | null>(null);
+  const [compactBoundary, setCompactBoundary] = useState<CompactBoundaryEvent | null>(null);
   const clientRef = useRef<RelayClient | null>(null);
 
   const optionsRef = useRef(options);
@@ -59,9 +77,20 @@ export function useRelayClient(
     setCwdState(null);
     setCwdLocked(false);
     setPermissionModeState(null);
+    setContextUsage(null);
+    setCompactBoundary(null);
 
     const client = new RelayClient(profile.host, profile.relayPort, sessionId, {
-      onEvent: (event) => optionsRef.current.onEvent?.(event),
+      onEvent: (event) => {
+        // `compact_boundary` já atravessa o `claude_event` genérico sem
+        // nenhum tratamento especial no relay — só intercepta aqui pra
+        // alimentar o toast, sem tirar o evento do fluxo normal (useMessageLog
+        // etc. continuam recebendo tudo como antes).
+        if (event.type === "system" && event.subtype === "compact_boundary" && event.compactMetadata) {
+          setCompactBoundary({ ...event.compactMetadata, receivedAt: Date.now() });
+        }
+        optionsRef.current.onEvent?.(event);
+      },
       onTurnComplete: (stopped) => optionsRef.current.onTurnComplete?.(stopped),
       onTurnError: (message) => optionsRef.current.onTurnError?.(message),
       onCaughtUp: () => optionsRef.current.onCaughtUp?.(),
@@ -71,6 +100,7 @@ export function useRelayClient(
       },
       onSetCwdError: (message) => optionsRef.current.onSetCwdError?.(message),
       onPermissionModeState: setPermissionModeState,
+      onContextUsageState: setContextUsage,
       onSessionTitle: (title) => optionsRef.current.onSessionTitle?.(title),
       onSessionDeleted: () => optionsRef.current.onSessionDeleted?.(),
       onConnectionChange: setConnected,
@@ -114,5 +144,16 @@ export function useRelayClient(
     clientRef.current?.setPermissionMode(mode);
   }, []);
 
-  return { connected, cwd, cwdLocked, permissionMode, sendMessage, stopTurn, setCwd, setPermissionMode };
+  return {
+    connected,
+    cwd,
+    cwdLocked,
+    permissionMode,
+    contextUsage,
+    compactBoundary,
+    sendMessage,
+    stopTurn,
+    setCwd,
+    setPermissionMode,
+  };
 }
