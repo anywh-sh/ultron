@@ -35,6 +35,10 @@ interface ToolCallCardProps {
   result?: Extract<LogEntry, { kind: "tool-result" }>;
 }
 
+function formatParamValue(value: unknown): string {
+  return typeof value === "string" ? value : JSON.stringify(value);
+}
+
 function summaryFor(use: ToolCallCardProps["use"]): string | undefined {
   const input = use.input;
   if (!input) return undefined;
@@ -73,8 +77,15 @@ export const ToolCallCard = memo(function ToolCallCard({ use, result }: ToolCall
             <DiffView hunks={result.structuredPatch} />
           ) : (
             <>
-              {use.input && (
-                <pre className="mb-2 overflow-x-auto text-muted-foreground">{JSON.stringify(use.input, null, 2)}</pre>
+              {use.input && Object.keys(use.input).length > 0 && (
+                <div className="mb-2 flex flex-col gap-0.5 font-mono">
+                  {Object.entries(use.input).map(([key, value]) => (
+                    <div key={key} className="flex gap-2">
+                      <span className="shrink-0 text-muted-foreground">{key}:</span>
+                      <span className="whitespace-pre-wrap break-all text-foreground">{formatParamValue(value)}</span>
+                    </div>
+                  ))}
+                </div>
               )}
               {result && (
                 <pre className={cn("overflow-x-auto whitespace-pre-wrap", isError ? "text-destructive" : "text-foreground")}>
