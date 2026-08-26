@@ -44,14 +44,14 @@ export function CodeLines({ language, lines }: CodeLinesProps) {
             key={index}
             className={cn(
               "flex px-2 py-0.5 whitespace-pre",
-              line.kind === "add" && "bg-primary/10",
+              line.kind === "add" && "bg-diff-add/10",
               line.kind === "del" && "bg-destructive/10",
             )}
           >
             <span
               className={cn(
                 "mr-1 shrink-0 select-none",
-                line.kind === "add" && "text-primary",
+                line.kind === "add" && "text-diff-add",
                 line.kind === "del" && "text-destructive",
                 line.kind === "context" && "text-muted-foreground",
               )}

@@ -19,6 +19,12 @@
 
   --primary: #d97757;
   --destructive: #c06456;
+  /* Só pra linha adicionada em diff/preview de código (CodeLines) — não é
+     cor de UI (docs/17), é o mesmo motivo do hljs-string/number abaixo:
+     `--primary` é laranja/terracota, perto demais de `--destructive` em
+     matiz pra funcionar como "verde" de adição (um card de Write, que é
+     tudo adição, ficava com cara de "tudo removido"). */
+  --diff-add: #9cae7c;
 
   --border: #3a382f;
   --border-soft: #302f2a;
@@ -61,6 +67,7 @@
 
   --color-destructive: var(--destructive);
   --color-destructive-foreground: var(--foreground);
+  --color-diff-add: var(--diff-add);
 
   --color-border: var(--border);
   --color-border-soft: var(--border-soft);
