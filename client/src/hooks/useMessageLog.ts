@@ -1,4 +1,4 @@
-import { useReducer } from "react";
+import { useMemo, useReducer } from "react";
 import type { ClaudeEvent, ClaudeContentBlock, StructuredPatchHunk } from "@/lib/relay-types";
 import type { PendingImage } from "@/hooks/useImageUpload";
 
@@ -170,9 +170,16 @@ export interface UseMessageLogResult {
 export function useMessageLog(): UseMessageLogResult {
   const [state, dispatch] = useReducer(reducer, initialState);
 
-  const streamingEntries: LogEntry[] = state.streamingText
-    .filter((b) => b.text.length > 0)
-    .map((b) => ({ kind: "text", id: `streaming-${b.index}`, text: b.text, streaming: true }));
+  // Memoizado por `state.streamingText`: sem isso, cada render do consumidor
+  // (ex: o `turnInFlight` do ChatPanel mudando) recriava esse array com
+  // objetos novos, quebrando o bail-out do `React.memo` nos itens do log.
+  const streamingEntries: LogEntry[] = useMemo(
+    () =>
+      state.streamingText
+        .filter((b) => b.text.length > 0)
+        .map((b) => ({ kind: "text" as const, id: `streaming-${b.index}`, text: b.text, streaming: true })),
+    [state.streamingText],
+  );
 
   return {
     entries: state.entries,

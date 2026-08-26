@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { memo, useState } from "react";
 import {
   ChevronRight,
   FileText,
@@ -44,7 +44,11 @@ function summaryFor(use: ToolCallCardProps["use"]): string | undefined {
   return undefined;
 }
 
-export function ToolCallCard({ use, result }: ToolCallCardProps) {
+/** Memoizado — ver comentário em `Message.tsx::UserBubble`. `use`/`result`
+ * são os mesmos objetos do reducer de `useMessageLog` enquanto a entrada não
+ * muda, então o `memo` bail-outa de verdade (não é só shallow-compare vazio)
+ * durante o streaming de outras mensagens da conversa. */
+export const ToolCallCard = memo(function ToolCallCard({ use, result }: ToolCallCardProps) {
   const [open, setOpen] = useState(false);
   const Icon = ICON_BY_TOOL[use.name] ?? Wrench;
   const summary = summaryFor(use);
@@ -84,4 +88,4 @@ export function ToolCallCard({ use, result }: ToolCallCardProps) {
       )}
     </div>
   );
-}
+});

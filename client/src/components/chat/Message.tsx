@@ -1,3 +1,4 @@
+import { memo } from "react";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import rehypeHighlight from "rehype-highlight";
@@ -11,8 +12,14 @@ interface UserBubbleProps {
 }
 
 /** Preview aparece dentro da mensagem enviada, não só como chip pré-envio —
- * docs/17. */
-export function UserBubble({ text, images }: UserBubbleProps) {
+ * docs/17.
+ *
+ * Memoizado (igual `AssistantText` abaixo): sem isso, cada token do
+ * streaming re-renderiza o `MessageLog` inteiro, e sem `memo` o React
+ * re-executa TODAS as mensagens já commitadas de novo (incluindo o parse de
+ * markdown + syntax highlighting das antigas), não só a que está sendo
+ * escrita agora — é a causa raiz da lentidão durante geração ativa. */
+export const UserBubble = memo(function UserBubble({ text, images }: UserBubbleProps) {
   return (
     <div className="flex justify-end">
       <div className="flex max-w-[80%] flex-col gap-2 rounded-2xl bg-bubble-user px-3.5 py-2 text-sm text-foreground">
@@ -32,9 +39,13 @@ export function UserBubble({ text, images }: UserBubbleProps) {
       </div>
     </div>
   );
-}
+});
 
-export function AssistantText({ text }: { text: string }) {
+/** Memoizado — ver comentário em `UserBubble`. `ReactMarkdown` +
+ * `rehype-highlight` reparseiam markdown e re-executam o syntax highlighting
+ * inteiros a cada render; sem `memo`, isso rodava de novo pra cada mensagem
+ * antiga a cada token novo streamado em QUALQUER mensagem da conversa. */
+export const AssistantText = memo(function AssistantText({ text }: { text: string }) {
   return (
     <div className="prose-chat text-sm text-foreground">
       <ReactMarkdown
@@ -50,4 +61,4 @@ export function AssistantText({ text }: { text: string }) {
       </ReactMarkdown>
     </div>
   );
-}
+});

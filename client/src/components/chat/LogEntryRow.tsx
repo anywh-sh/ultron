@@ -1,4 +1,4 @@
-import type { ReactNode } from "react";
+import { memo, type ReactNode } from "react";
 import { cn } from "@/lib/utils";
 
 interface LogEntryRowProps {
@@ -15,7 +15,10 @@ const RAIL_COLOR: Record<Exclude<LogEntryRowProps["rail"], "none">, string> = {
   error: "bg-destructive",
 };
 
-export function LogEntryRow({ rail, children, className }: LogEntryRowProps) {
+/** Memoizado — ver comentário em `Message.tsx::UserBubble`. Sem isso, o
+ * wrapper reconciliava (e o filho memoizado dentro dele bail-outava tarde
+ * demais) a cada render do `MessageLog`, mesmo com `children` inalterado. */
+export const LogEntryRow = memo(function LogEntryRow({ rail, children, className }: LogEntryRowProps) {
   if (rail === "none") {
     return <div className={cn("py-1.5", className)}>{children}</div>;
   }
@@ -26,4 +29,4 @@ export function LogEntryRow({ rail, children, className }: LogEntryRowProps) {
       <div className="min-w-0 flex-1">{children}</div>
     </div>
   );
-}
+});

@@ -1,4 +1,4 @@
-import { useEffect, useRef } from "react";
+import { useEffect, useMemo, useRef } from "react";
 import { LogEntryRow } from "@/components/chat/LogEntryRow";
 import { UserBubble, AssistantText } from "@/components/chat/Message";
 import { ToolCallCard } from "@/components/chat/ToolCallCard";
@@ -83,7 +83,12 @@ export function MessageLog({ entries, streamingEntries, className }: MessageLogP
     bottomRef.current?.scrollIntoView({ block: "end" });
   }, [entries.length, streamingEntries.length]);
 
-  const items = pairToolEntries(entries);
+  // `entries` só ganha uma referência nova quando algo é de fato commitado
+  // (ver reducer em useMessageLog) — memoizar aqui evita recalcular o
+  // pareamento tool-use/tool-result (e, mais importante, recriar os
+  // elementos `<ToolCallCard>`/`<AssistantText>` com identidade nova) a cada
+  // token do streaming, quando só `streamingEntries` muda.
+  const items = useMemo(() => pairToolEntries(entries), [entries]);
 
   return (
     // `relative` não é sobre layout — é o fix pro bug real do WebKit
