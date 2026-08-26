@@ -42,6 +42,12 @@ function newId(): string {
 
 function commitContentBlock(entries: LogEntry[], block: ClaudeContentBlock): void {
   if (block.type === "text" && typeof block.text === "string") {
+    // Marcador sintético que a própria CLI insere na transcrição ao ser
+    // interrompida (`[Request interrupted by user]`, `[...for tool use]`,
+    // `[...by a plugin for tool use]`) — não é conteúdo real do assistente.
+    // O `stopped` de TURN_COMPLETE já cobre esse aviso ("Interrompido pelo
+    // usuário."), então comitar isso também duplicava a mensagem na tela.
+    if (block.text.startsWith("[Request interrupted")) return;
     entries.push({ kind: "text", id: newId(), text: block.text, streaming: false });
   } else if (block.type === "tool_use") {
     entries.push({
