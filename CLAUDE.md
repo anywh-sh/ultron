@@ -12,6 +12,9 @@ Toda a documentação (histórico de decisão completo) vive em [`/docs`](./docs
 
 ## Workflow de contribuição
 
+Detalhes/justificativa em [`docs/24-preferencias-contribuicao.md`](./docs/24-preferencias-contribuicao.md).
+
 - Commits separados por responsabilidade (atômicos) — nunca misturar mudanças de propósitos diferentes num único commit, mesmo que tenham sido feitas na mesma sessão. Se o working tree acumulou mais de uma feature/fix, separa em commits distintos (stage seletivo por arquivo/hunk) em vez de um commit único.
 - Sempre seguir [Conventional Commits](https://www.conventionalcommits.org/) (`feat:`, `fix:`, `refactor:`, `style:`, `docs:` etc., com escopo quando fizer sentido, ex. `feat(client): ...`).
+- **Texto do commit (título + corpo) sempre em inglês**, mesmo com o resto da conversa em português.
 - Ao terminar um trabalho (bug corrigido, feature implementada, o que foi pedido na sessão), o passo de conclusão inclui commitar (nos moldes acima) e dar `git push` pro repo remoto — isso faz parte de "terminar a tarefa", não é uma ação extra que precisa ser pedida à parte toda vez.
