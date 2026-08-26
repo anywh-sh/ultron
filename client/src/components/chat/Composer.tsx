@@ -255,7 +255,7 @@ export const Composer = forwardRef<ComposerHandle, ComposerProps>(function Compo
                   : "bg-border text-text-faint",
             )}
           >
-            {turnInFlight ? <Square className="size-4" /> : <ArrowUp className="size-5" />}
+            {turnInFlight ? <Square className="size-4" fill="currentColor" /> : <ArrowUp className="size-5" />}
           </button>
         </div>
       ) : (
@@ -361,8 +361,8 @@ export const Composer = forwardRef<ComposerHandle, ComposerProps>(function Compo
                 )}
               </div>
               {turnInFlight ? (
-                <Button type="button" size="sm" variant="secondary" onClick={onStop}>
-                  <Square className="size-3" />
+                <Button type="button" size="sm" variant="destructive" onClick={onStop}>
+                  <Square className="size-3" fill="currentColor" />
                   Parar
                 </Button>
               ) : (
