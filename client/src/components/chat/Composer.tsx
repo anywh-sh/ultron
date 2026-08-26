@@ -18,7 +18,9 @@ import { isIOS } from "@/lib/platform";
 import { useVoiceRecording } from "@/hooks/useVoiceRecording";
 import type { PendingImage } from "@/hooks/useImageUpload";
 import { ComposerLinkView } from "@/components/chat/ComposerLinkView";
+import { PermissionModeButton } from "@/components/chat/PermissionModeButton";
 import { serializeEditorContent } from "@/lib/composerLinks";
+import type { PermissionMode } from "@/lib/relayClient";
 
 interface ComposerProps {
   onSend: (text: string, images: PendingImage[]) => void;
@@ -29,6 +31,8 @@ interface ComposerProps {
   uploadingImage: boolean;
   onAddFiles: (files: FileList | File[]) => void;
   onRemoveImage: (path: string) => void;
+  permissionMode: PermissionMode | null;
+  onChangePermissionMode: (mode: PermissionMode) => void;
 }
 
 export interface ComposerHandle {
@@ -84,7 +88,18 @@ const EXTENSIONS = [
  * — colar uma URL sobre um texto selecionado vira link, sem seleção a URL
  * colada já entra como link (comportamento nativo do `Link` do Tiptap). */
 export const Composer = forwardRef<ComposerHandle, ComposerProps>(function Composer(
-  { onSend, disabled, turnInFlight, onStop, pendingImages, uploadingImage, onAddFiles, onRemoveImage },
+  {
+    onSend,
+    disabled,
+    turnInFlight,
+    onStop,
+    pendingImages,
+    uploadingImage,
+    onAddFiles,
+    onRemoveImage,
+    permissionMode,
+    onChangePermissionMode,
+  },
   ref,
 ) {
   const [focused, setFocused] = useState(false);
@@ -240,6 +255,7 @@ export const Composer = forwardRef<ComposerHandle, ComposerProps>(function Compo
 
           <div className="flex items-center justify-between gap-2">
             <div className="flex min-w-0 flex-1 items-center gap-2 px-1">
+              <PermissionModeButton mode={permissionMode} onChange={onChangePermissionMode} />
               {isRecording && (
                 <>
                   <div className="flex h-4 items-center gap-0.5">

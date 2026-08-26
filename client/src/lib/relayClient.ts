@@ -1,8 +1,8 @@
 // Cliente do protocolo do relay próprio (não é mais o protocolo do ttyd —
 // ver docs/11-decisao-pivo-stream-json.md e docs/12-prototipo-relay.md).
-import type { ClaudeEvent, RelayMessage, SessionSummary } from "@/lib/relay-types";
+import type { ClaudeEvent, PermissionMode, RelayMessage, SessionSummary } from "@/lib/relay-types";
 
-export type { ClaudeContentBlock, ClaudeMessage, ClaudeEvent, SessionSummary } from "@/lib/relay-types";
+export type { ClaudeContentBlock, ClaudeMessage, ClaudeEvent, PermissionMode, SessionSummary } from "@/lib/relay-types";
 
 function isRelayMessage(value: unknown): value is RelayMessage {
   return typeof value === "object" && value !== null && "type" in value;
@@ -54,6 +54,9 @@ export interface RelayClientCallbacks {
    * vez que o working directory muda ou trava — ver sharedSession.ts. */
   onCwdState: (cwd: string, locked: boolean) => void;
   onSetCwdError?: (message: string) => void;
+  /** Mandado logo na conexão (antes do replay) e de novo toda vez que o modo
+   * muda — ver sharedSession.ts::setPermissionMode. */
+  onPermissionModeState: (mode: PermissionMode) => void;
   onConnectionChange?: (connected: boolean) => void;
   /** Título inferido do primeiro prompt (ou de um rename manual feito em
    * outro dispositivo) chegando ao vivo — ver sharedSession.ts::setTitle. */
@@ -78,6 +81,9 @@ export class RelayClient {
    * antes do socket abrir — não existe fila de saída, só a última escolha
    * importa. Mandada assim que a conexão abre; ver `connect`. */
   private pendingCwd: string | null = null;
+  /** Mesma lógica do `pendingCwd` — só a última escolha antes do socket
+   * abrir importa. */
+  private pendingPermissionMode: PermissionMode | null = null;
   /** `false` só depois de `disconnect()` deliberado (troca de aba/sessão) —
    * enquanto `true`, todo `close` inesperado agenda uma nova tentativa. */
   private shouldReconnect = true;
@@ -112,6 +118,11 @@ export class RelayClient {
         this.pendingCwd = null;
         socket.send(JSON.stringify({ type: "set_cwd", path }));
       }
+      if (this.pendingPermissionMode !== null) {
+        const mode = this.pendingPermissionMode;
+        this.pendingPermissionMode = null;
+        socket.send(JSON.stringify({ type: "set_permission_mode", mode }));
+      }
     });
     socket.addEventListener("close", () => {
       // Evento tardio de um socket que `forceReconnect`/reconexão automática
@@ -141,6 +152,8 @@ export class RelayClient {
         this.callbacks.onSessionTitle?.(parsed.title);
       } else if (parsed.type === "session_deleted") {
         this.callbacks.onSessionDeleted?.();
+      } else if (parsed.type === "permission_mode_state") {
+        this.callbacks.onPermissionModeState(parsed.mode);
       }
     });
   }
@@ -164,6 +177,14 @@ export class RelayClient {
       return;
     }
     this.socket.send(JSON.stringify({ type: "set_cwd", path }));
+  }
+
+  setPermissionMode(mode: PermissionMode): void {
+    if (this.socket?.readyState !== WebSocket.OPEN) {
+      this.pendingPermissionMode = mode;
+      return;
+    }
+    this.socket.send(JSON.stringify({ type: "set_permission_mode", mode }));
   }
 
   disconnect(): void {

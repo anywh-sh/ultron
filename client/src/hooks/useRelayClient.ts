@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from "react";
-import { RelayClient, type ClaudeEvent } from "@/lib/relayClient";
+import { RelayClient, type ClaudeEvent, type PermissionMode } from "@/lib/relayClient";
 import type { Profile } from "@/lib/profiles";
 
 export interface UseRelayClientOptions {
@@ -22,9 +22,13 @@ export interface UseRelayClientResult {
    * de qualquer outra coisa. */
   cwd: string | null;
   cwdLocked: boolean;
+  /** `null` só na janela breve entre conectar e o primeiro
+   * `permission_mode_state` chegar — mesmo motivo do `cwd` acima. */
+  permissionMode: PermissionMode | null;
   sendMessage: (text: string) => void;
   stopTurn: () => void;
   setCwd: (path: string) => void;
+  setPermissionMode: (mode: PermissionMode) => void;
 }
 
 /**
@@ -42,6 +46,7 @@ export function useRelayClient(
   const [connected, setConnected] = useState(false);
   const [cwd, setCwdState] = useState<string | null>(null);
   const [cwdLocked, setCwdLocked] = useState(false);
+  const [permissionMode, setPermissionModeState] = useState<PermissionMode | null>(null);
   const clientRef = useRef<RelayClient | null>(null);
 
   const optionsRef = useRef(options);
@@ -53,6 +58,7 @@ export function useRelayClient(
     // primeiro `cwd_state` dessa sessão nova.
     setCwdState(null);
     setCwdLocked(false);
+    setPermissionModeState(null);
 
     const client = new RelayClient(profile.host, profile.relayPort, sessionId, {
       onEvent: (event) => optionsRef.current.onEvent?.(event),
@@ -64,6 +70,7 @@ export function useRelayClient(
         setCwdLocked(locked);
       },
       onSetCwdError: (message) => optionsRef.current.onSetCwdError?.(message),
+      onPermissionModeState: setPermissionModeState,
       onSessionTitle: (title) => optionsRef.current.onSessionTitle?.(title),
       onSessionDeleted: () => optionsRef.current.onSessionDeleted?.(),
       onConnectionChange: setConnected,
@@ -103,5 +110,9 @@ export function useRelayClient(
     clientRef.current?.setCwd(path);
   }, []);
 
-  return { connected, cwd, cwdLocked, sendMessage, stopTurn, setCwd };
+  const setPermissionMode = useCallback((mode: PermissionMode) => {
+    clientRef.current?.setPermissionMode(mode);
+  }, []);
+
+  return { connected, cwd, cwdLocked, permissionMode, sendMessage, stopTurn, setCwd, setPermissionMode };
 }

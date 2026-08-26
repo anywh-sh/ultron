@@ -77,6 +77,11 @@ export interface ClaudeEvent {
   [key: string]: unknown;
 }
 
+/** Espelha `PermissionMode` do relay (relay/src/sessionStore.ts) — sem
+ * import cross-package aqui, os dois lados só concordam por convenção (ver
+ * docs/25). */
+export type PermissionMode = "default" | "acceptEdits" | "plan" | "bypassPermissions";
+
 export type RelayMessage =
   | { type: "claude_event"; event: ClaudeEvent }
   | { type: "turn_complete"; stopped?: boolean }
@@ -85,7 +90,8 @@ export type RelayMessage =
   | { type: "cwd_state"; cwd: string; locked: boolean }
   | { type: "set_cwd_error"; message: string }
   | { type: "session_title"; title: string }
-  | { type: "session_deleted" };
+  | { type: "session_deleted" }
+  | { type: "permission_mode_state"; mode: PermissionMode };
 
 /** Uma sessão como o relay expõe em `GET /sessions` — `id` é estável desde a
  * criação, `title` é o que a sidebar mostra (inferido do primeiro prompt ou
