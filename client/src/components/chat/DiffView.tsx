@@ -1,35 +1,29 @@
-import { cn } from "@/lib/utils";
+import { CodeLines, type CodeLine } from "@/components/chat/CodeLines";
 import type { StructuredPatchHunk } from "@/lib/relay-types";
 
 interface DiffViewProps {
   hunks: StructuredPatchHunk[];
+  language: string;
+}
+
+function kindForMarker(marker: string): CodeLine["kind"] {
+  if (marker === "+") return "add";
+  if (marker === "-") return "del";
+  return "context";
 }
 
 /** O relay já entrega o diff pronto (`tool_use_result.structuredPatch` do
- * Edit) — não precisamos computar diff no cliente, só colorir +/-. */
-export function DiffView({ hunks }: DiffViewProps) {
-  return (
-    <div className="overflow-x-auto rounded-md border border-border bg-card font-mono text-xs">
-      {hunks.map((hunk, hunkIndex) => (
-        <div key={hunkIndex} className={hunkIndex > 0 ? "border-t border-border-soft" : undefined}>
-          {hunk.lines.map((line, lineIndex) => {
-            const marker = line.charAt(0);
-            return (
-              <div
-                key={lineIndex}
-                className={cn(
-                  "px-2 py-0.5 whitespace-pre",
-                  marker === "+" && "bg-primary/10 text-primary",
-                  marker === "-" && "bg-destructive/10 text-destructive",
-                  marker !== "+" && marker !== "-" && "text-muted-foreground",
-                )}
-              >
-                {line}
-              </div>
-            );
-          })}
-        </div>
-      ))}
-    </div>
-  );
+ * Edit) — só achata os hunks numa lista de linhas (com um separador "⋯"
+ * entre hunks não-contíguos) e delega a cor por linha + highlight de
+ * linguagem + truncamento pro `CodeLines`. */
+export function DiffView({ hunks, language }: DiffViewProps) {
+  const lines: CodeLine[] = [];
+  hunks.forEach((hunk, hunkIndex) => {
+    if (hunkIndex > 0) lines.push({ kind: "gap", text: "" });
+    for (const line of hunk.lines) {
+      lines.push({ kind: kindForMarker(line.charAt(0)), text: line.slice(1) });
+    }
+  });
+
+  return <CodeLines language={language} lines={lines} />;
 }

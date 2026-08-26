@@ -15,6 +15,8 @@ import {
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { DiffView } from "@/components/chat/DiffView";
+import { CodeLines } from "@/components/chat/CodeLines";
+import { languageForPath } from "@/lib/codeLanguage";
 import type { LogEntry } from "@/hooks/useMessageLog";
 
 const ICON_BY_TOOL: Record<string, LucideIcon> = {
@@ -53,10 +55,15 @@ function summaryFor(use: ToolCallCardProps["use"]): string | undefined {
  * muda, então o `memo` bail-outa de verdade (não é só shallow-compare vazio)
  * durante o streaming de outras mensagens da conversa. */
 export const ToolCallCard = memo(function ToolCallCard({ use, result }: ToolCallCardProps) {
-  const [open, setOpen] = useState(false);
+  // Edit/Write já abrem direto — o conteúdo (diff ou arquivo novo) é o que
+  // importa ver de cara, igual ao preview automático do Claude Code no
+  // terminal, em vez de exigir mais um clique pra ver o que mudou.
+  const [open, setOpen] = useState(() => use.name === "Edit" || use.name === "Write");
   const Icon = ICON_BY_TOOL[use.name] ?? Wrench;
   const summary = summaryFor(use);
   const isError = result?.isError === true;
+  const language = languageForPath(typeof use.input?.file_path === "string" ? use.input.file_path : undefined);
+  const writeContent = use.name === "Write" && typeof use.input?.content === "string" ? use.input.content : undefined;
 
   return (
     <div className={cn("rounded-md border bg-card", isError ? "border-destructive/40" : "border-border")}>
@@ -74,7 +81,15 @@ export const ToolCallCard = memo(function ToolCallCard({ use, result }: ToolCall
       {open && (
         <div className="border-t border-border-soft px-2.5 py-2 text-xs">
           {use.name === "Edit" && result?.structuredPatch ? (
-            <DiffView hunks={result.structuredPatch} />
+            <>
+              <DiffView hunks={result.structuredPatch} language={language} />
+              {isError && <p className="mt-2 text-destructive">{result.content}</p>}
+            </>
+          ) : writeContent !== undefined ? (
+            <>
+              <CodeLines language={language} lines={writeContent.split("\n").map((text) => ({ text, kind: "add" as const }))} />
+              {isError && result && <p className="mt-2 text-destructive">{result.content}</p>}
+            </>
           ) : (
             <>
               {use.input && Object.keys(use.input).length > 0 && (
