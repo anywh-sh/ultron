@@ -1,8 +1,15 @@
 // Cliente do protocolo do relay próprio (não é mais o protocolo do ttyd —
 // ver docs/11-decisao-pivo-stream-json.md e docs/12-prototipo-relay.md).
-import type { ClaudeEvent, PermissionMode, RelayMessage, SessionSummary } from "@/lib/relay-types";
+import type { ClaudeEvent, ContextUsage, PermissionMode, RelayMessage, SessionSummary } from "@/lib/relay-types";
 
-export type { ClaudeContentBlock, ClaudeMessage, ClaudeEvent, PermissionMode, SessionSummary } from "@/lib/relay-types";
+export type {
+  ClaudeContentBlock,
+  ClaudeMessage,
+  ClaudeEvent,
+  ContextUsage,
+  PermissionMode,
+  SessionSummary,
+} from "@/lib/relay-types";
 
 function isRelayMessage(value: unknown): value is RelayMessage {
   return typeof value === "object" && value !== null && "type" in value;
@@ -57,6 +64,11 @@ export interface RelayClientCallbacks {
   /** Mandado logo na conexão (antes do replay) e de novo toda vez que o modo
    * muda — ver sharedSession.ts::setPermissionMode. */
   onPermissionModeState: (mode: PermissionMode) => void;
+  /** Mandado logo na conexão (antes do replay, se já houver algum turno
+   * concluído nessa sessão) e de novo ao fim de todo turno que produziu
+   * uso de contexto — ver sharedSession.ts::broadcastContextUsage. Pode
+   * nunca disparar numa sessão nova sem nenhum turno ainda. */
+  onContextUsageState?: (usage: ContextUsage) => void;
   onConnectionChange?: (connected: boolean) => void;
   /** Título inferido do primeiro prompt (ou de um rename manual feito em
    * outro dispositivo) chegando ao vivo — ver sharedSession.ts::setTitle. */
@@ -154,6 +166,8 @@ export class RelayClient {
         this.callbacks.onSessionDeleted?.();
       } else if (parsed.type === "permission_mode_state") {
         this.callbacks.onPermissionModeState(parsed.mode);
+      } else if (parsed.type === "context_usage_state") {
+        this.callbacks.onContextUsageState?.(parsed.usage);
       }
     });
   }

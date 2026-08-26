@@ -63,6 +63,17 @@ export type StreamEventEnvelope =
   | { type: "message_delta" }
   | { type: "message_stop" };
 
+/** Presente em `type: "system", subtype: "compact_boundary"` — disparado
+ * quando o Claude Code compacta a conversa (automaticamente ao se aproximar
+ * do limite da janela, ou via `/compact` manual). O relay não trata esse
+ * evento de forma especial: ele já atravessa o `onEvent` genérico igual
+ * qualquer outro (`claudeSession.ts` não filtra por tipo), só precisava
+ * ganhar um tipo aqui pro cliente reconhecer sem precisar de `as`. */
+export interface CompactBoundaryMetadata {
+  trigger: "auto" | "manual";
+  preTokens: number;
+}
+
 export interface ClaudeEvent {
   type: string;
   subtype?: string;
@@ -74,6 +85,8 @@ export interface ClaudeEvent {
   event?: StreamEventEnvelope;
   /** Presente em eventos "user" que são tool_result — ver ToolUseResult. */
   tool_use_result?: ToolUseResult;
+  /** Presente em `type: "system", subtype: "compact_boundary"`. */
+  compactMetadata?: CompactBoundaryMetadata;
   [key: string]: unknown;
 }
 
@@ -81,6 +94,15 @@ export interface ClaudeEvent {
  * import cross-package aqui, os dois lados só concordam por convenção (ver
  * docs/25). */
 export type PermissionMode = "default" | "acceptEdits" | "plan" | "bypassPermissions";
+
+/** Espelha `ContextUsage` do relay (relay/src/sessionStore.ts) — mesmo
+ * `contextWindowSize` vindo direto do CLI (`modelUsage[model].contextWindow`
+ * do evento `result`), nunca uma tabela estática no cliente. */
+export interface ContextUsage {
+  model: string;
+  contextWindowSize: number;
+  usedTokens: number;
+}
 
 export type RelayMessage =
   | { type: "claude_event"; event: ClaudeEvent }
@@ -91,7 +113,8 @@ export type RelayMessage =
   | { type: "set_cwd_error"; message: string }
   | { type: "session_title"; title: string }
   | { type: "session_deleted" }
-  | { type: "permission_mode_state"; mode: PermissionMode };
+  | { type: "permission_mode_state"; mode: PermissionMode }
+  | { type: "context_usage_state"; usage: ContextUsage };
 
 /** Uma sessão como o relay expõe em `GET /sessions` — `id` é estável desde a
  * criação, `title` é o que a sidebar mostra (inferido do primeiro prompt ou
