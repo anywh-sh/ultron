@@ -308,7 +308,12 @@ export default function App() {
         const activeTab = tabs.find((tab) => tab.id === activeTabId);
 
         return (
-          <div key={profile.id} className={cn("relative h-full", !isActiveProfile && "hidden")}>
+          // `invisible`/`absolute inset-0`, não `hidden` — mesmo motivo do
+          // `TabBar.tsx`: o perfil inativo continua montado (mantém a conexão
+          // WS viva) e `display:none` corrompe o cache de alturas do
+          // `@tanstack/react-virtual` do `MessageLog`, fazendo o scroll pular
+          // de lugar quando o perfil volta a ficar ativo.
+          <div key={profile.id} className={cn("absolute inset-0 h-full", isActiveProfile ? "visible" : "invisible")}>
             {tabs.length === 0 ? (
               isActiveProfile && <EmptyState />
             ) : isIOS() ? (

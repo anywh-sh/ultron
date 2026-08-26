@@ -92,8 +92,19 @@ function SortableTab({ tab, profileId, onClose, onDelete }: SortableTabProps) {
 }
 
 /**
- * `forceMount` + `data-[state=inactive]:hidden` em vez de render condicional:
- * é isso que mantém a conexão WS de abas em background viva (docs/18).
+ * `forceMount` em vez de render condicional: é isso que mantém a conexão WS
+ * de abas em background viva (docs/18). A aba inativa é escondida com
+ * `invisible` (`visibility:hidden`), não `hidden`/`display:none` — o
+ * `MessageLog` de cada aba usa `@tanstack/react-virtual`, cujo
+ * `ResizeObserver` (tanto do container quanto de cada item medido) dispara
+ * com tamanho 0 assim que um ancestral vira `display:none`. Isso corrompe o
+ * cache de alturas e ainda aciona o ajuste automático de `scrollTop` que o
+ * virtualizador faz pra manter o fim colado quando um item muda de tamanho
+ * de verdade — resultado: reabrir a aba jogava o scroll pra outro lugar,
+ * mesmo que estivesse no fim. `visibility:hidden` não colapsa a caixa (o
+ * `ResizeObserver` nunca vê 0), só empilhamos as abas com `absolute inset-0`
+ * dentro do wrapper `relative` pra ocuparem o mesmo espaço sem depender do
+ * fluxo flex.
  */
 export function TabBar({ tabs, activeTabId, profileId, onSelect, onClose, onReorder, onDelete, renderPanel }: TabBarProps) {
   const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 8 } }));
@@ -118,11 +129,18 @@ export function TabBar({ tabs, activeTabId, profileId, onSelect, onClose, onReor
         </SortableContext>
       </DndContext>
 
-      {tabs.map((tab) => (
-        <TabsContent key={tab.id} value={tab.id} forceMount className="mt-0 h-[calc(100%-2.25rem)] data-[state=inactive]:hidden">
-          {renderPanel(tab)}
-        </TabsContent>
-      ))}
+      <div className="relative h-[calc(100%-2.25rem)]">
+        {tabs.map((tab) => (
+          <TabsContent
+            key={tab.id}
+            value={tab.id}
+            forceMount
+            className="invisible absolute inset-0 mt-0 h-full data-[state=active]:visible"
+          >
+            {renderPanel(tab)}
+          </TabsContent>
+        ))}
+      </div>
     </Tabs>
   );
 }
