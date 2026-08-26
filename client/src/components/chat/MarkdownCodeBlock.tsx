@@ -15,7 +15,11 @@ export function MarkdownCodeBlock({ children, className, ...props }: ComponentPr
   const [copied, setCopied] = useState(false);
 
   async function handleCopy(): Promise<void> {
-    const text = preRef.current?.textContent ?? "";
+    // `textContent` do bloco vem com uma quebra de linha final (o código do
+    // markdown preserva o "\n" antes do ``` de fechamento) — sem o trim, colar
+    // sempre deixava o cursor numa linha em branco depois do conteúdo em vez
+    // de logo após o último caractere.
+    const text = (preRef.current?.textContent ?? "").trimEnd();
     try {
       await navigator.clipboard.writeText(text);
       setCopied(true);
