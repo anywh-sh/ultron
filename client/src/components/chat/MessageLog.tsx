@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef } from "react";
+import { memo, useEffect, useMemo, useRef } from "react";
 import { LogEntryRow } from "@/components/chat/LogEntryRow";
 import { UserBubble, AssistantText } from "@/components/chat/Message";
 import { ToolCallCard } from "@/components/chat/ToolCallCard";
@@ -76,7 +76,15 @@ function renderItem(item: RenderItem) {
   }
 }
 
-export function MessageLog({ entries, streamingEntries, className }: MessageLogProps) {
+// Memoized: `ChatPanel` itself isn't memoized (its callback props are fresh
+// closures from `App`'s `renderPanel` on every render), so it re-renders on
+// any App-level state change — including for background tabs kept mounted
+// via TabBar's `forceMount` (docs/18). `entries`/`streamingEntries` stay
+// referentially stable across those unrelated re-renders (see useMessageLog),
+// so wrapping this in `memo` lets the expensive subtree (markdown parsing +
+// syntax highlighting in every row) bail out instead of re-rendering along
+// with `ChatPanel`.
+export const MessageLog = memo(function MessageLog({ entries, streamingEntries, className }: MessageLogProps) {
   const bottomRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -103,4 +111,4 @@ export function MessageLog({ entries, streamingEntries, className }: MessageLogP
       <div ref={bottomRef} />
     </div>
   );
-}
+});
