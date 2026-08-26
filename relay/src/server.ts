@@ -3,7 +3,7 @@ import { WebSocketServer, type WebSocket } from "ws";
 import { listDirectories } from "./fsBrowse.js";
 import { defaultCwd } from "./paths.js";
 import { SessionManager } from "./sessionManager.js";
-import { SessionStore } from "./sessionStore.js";
+import { SessionStore, type PermissionMode } from "./sessionStore.js";
 import { saveUpload } from "./uploads.js";
 
 // Config via env — permite rodar uma instância por perfil (systemd,
@@ -43,6 +43,17 @@ function isSetCwdMessage(value: unknown): value is { type: "set_cwd"; path: stri
     value !== null &&
     (value as { type?: unknown }).type === "set_cwd" &&
     typeof (value as { path?: unknown }).path === "string"
+  );
+}
+
+const PERMISSION_MODES: readonly PermissionMode[] = ["default", "acceptEdits", "plan", "bypassPermissions"];
+
+function isSetPermissionModeMessage(value: unknown): value is { type: "set_permission_mode"; mode: PermissionMode } {
+  return (
+    typeof value === "object" &&
+    value !== null &&
+    (value as { type?: unknown }).type === "set_permission_mode" &&
+    PERMISSION_MODES.includes((value as { mode?: unknown }).mode as PermissionMode)
   );
 }
 
@@ -210,6 +221,10 @@ wss.on("connection", (socket: WebSocket, request) => {
     if (isSetCwdMessage(parsed)) {
       const result = session.setCwd(parsed.path);
       if (!result.ok) socket.send(JSON.stringify({ type: "set_cwd_error", message: result.error }));
+      return;
+    }
+    if (isSetPermissionModeMessage(parsed)) {
+      session.setPermissionMode(parsed.mode);
       return;
     }
     if (!isUserMessage(parsed)) {

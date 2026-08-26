@@ -3,6 +3,7 @@ import { ClaudeSession, type ClaudeEvent } from "./claudeSession.js";
 import { checkDirectory } from "./fsBrowse.js";
 import { defaultCwd } from "./paths.js";
 import { readHistoryFromTranscript } from "./transcriptReader.js";
+import type { PermissionMode } from "./sessionStore.js";
 
 export type BroadcastMessage =
   | { type: "claude_event"; event: ClaudeEvent }
@@ -39,6 +40,14 @@ export interface SharedSessionOptions {
    * SessionManager marcar `lastActiveAt` no SessionStore, usado pra ordenar
    * a sidebar por última interação. */
   onActivity?: () => void;
+  /** Modo de permissão já persistido pra essa sessão (docs/25), ou
+   * `"bypassPermissions"` pra uma sessão nova — mesmo comportamento
+   * hardcoded de antes dessa feature existir. */
+  initialPermissionMode: PermissionMode;
+  /** Chamado sempre que o modo muda — é assim que o SessionManager grava no
+   * SessionStore. Diferente de `onCwdChange`, pode disparar a qualquer
+   * momento da conversa (não só antes do primeiro turno). */
+  onPermissionModeChange?: (mode: PermissionMode) => void;
 }
 
 export type SetCwdResult = { ok: true } | { ok: false; error: string };
@@ -57,6 +66,7 @@ export class SharedSession {
   private cwd: string;
   private locked: boolean;
   private title: string | null;
+  private permissionMode: PermissionMode;
 
   constructor(
     private readonly homeOverride: string | undefined,
@@ -66,10 +76,23 @@ export class SharedSession {
     this.cwd = options.initialCwd;
     this.locked = options.initialLocked;
     this.title = options.initialTitle ?? null;
+    this.permissionMode = options.initialPermissionMode;
   }
 
   getCwdState(): { cwd: string; locked: boolean } {
     return { cwd: this.cwd, locked: this.locked };
+  }
+
+  getPermissionMode(): PermissionMode {
+    return this.permissionMode;
+  }
+
+  /** Diferente de `setCwd`, não tem trava nem validação — qualquer um dos
+   * 4 valores é sempre aceitável a qualquer momento da conversa (docs/25). */
+  setPermissionMode(mode: PermissionMode): void {
+    this.permissionMode = mode;
+    this.options.onPermissionModeChange?.(mode);
+    this.broadcastPermissionMode();
   }
 
   getTitle(): string | null {
@@ -103,6 +126,7 @@ export class SharedSession {
     // Primeiro que tudo — uma aba recém-aberta sabe o cwd/lock imediatamente,
     // sem esperar um turno ou o replay de histórico terminar.
     this.sendCwdState(socket);
+    this.sendPermissionMode(socket);
     if (this.title !== null) this.sendTitle(socket, this.title);
 
     this.ensureHistoryLoaded();
@@ -174,7 +198,7 @@ export class SharedSession {
     }
 
     try {
-      const { stopped } = await this.claude.sendTurn(text, this.cwd, (event) => {
+      const { stopped } = await this.claude.sendTurn(text, this.cwd, this.permissionMode, (event) => {
         this.broadcast({ type: "claude_event", event });
       });
       const sessionId = this.claude.getSessionId();
@@ -193,6 +217,14 @@ export class SharedSession {
 
   private broadcastCwdState(): void {
     for (const client of this.clients) this.sendCwdState(client);
+  }
+
+  private sendPermissionMode(target: WebSocket): void {
+    target.send(JSON.stringify({ type: "permission_mode_state", mode: this.permissionMode }));
+  }
+
+  private broadcastPermissionMode(): void {
+    for (const client of this.clients) this.sendPermissionMode(client);
   }
 
   private sendTitle(target: WebSocket, title: string): void {

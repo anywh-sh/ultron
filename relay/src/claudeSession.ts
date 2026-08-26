@@ -1,5 +1,6 @@
 import { spawn, type ChildProcessWithoutNullStreams } from "node:child_process";
 import { createInterface } from "node:readline";
+import type { PermissionMode } from "./sessionStore.js";
 
 // Um turno = um processo `claude -p`. Continuidade entre turnos vem de
 // `--resume <session_id>`, não de manter um processo vivo — ver
@@ -69,7 +70,12 @@ export class ClaudeSession {
     return true;
   }
 
-  async sendTurn(text: string, cwd: string, onEvent: (event: ClaudeEvent) => void): Promise<SendTurnResult> {
+  async sendTurn(
+    text: string,
+    cwd: string,
+    permissionMode: PermissionMode,
+    onEvent: (event: ClaudeEvent) => void,
+  ): Promise<SendTurnResult> {
     this.stopRequested = false;
     const args = [
       "-p",
@@ -78,12 +84,18 @@ export class ClaudeSession {
       "stream-json",
       "--verbose",
       "--include-partial-messages",
-      // Mesmo modo que o usuário já usa nos dois perfis interativos
-      // (alias `claude`/`claude-comp`, ver docs/08) — sem isso, qualquer
-      // ferramenta tocando um caminho novo (ex: imagem recém-enviada)
-      // fica presa pedindo aprovação que ninguém pode dar num processo
-      // não-interativo (achado real testando upload de imagem, docs/15).
-      "--dangerously-skip-permissions",
+      // `bypassPermissions` é o modo padrão histórico (o único que existia
+      // antes de o modo ser selecionável, ver docs/25) — continua na flag
+      // dedicada porque é a forma testada contra o binário real de evitar
+      // que uma ferramenta tocando um caminho novo (ex: imagem recém-
+      // enviada) fique presa pedindo aprovação que ninguém pode dar num
+      // processo não-interativo (achado real testando upload de imagem,
+      // docs/15). Os outros modos vão direto na flag genérica — headless sem
+      // `--permission-prompt-tool` nunca trava esperando aprovação: a ação
+      // é só negada e o Claude segue trabalhando (doc oficial, ver docs/25).
+      ...(permissionMode === "bypassPermissions"
+        ? ["--dangerously-skip-permissions"]
+        : ["--permission-mode", permissionMode]),
     ];
     // Se um `--resume` anterior tiver falhado (sessão inválida, histórico
     // não encontrado etc.), sessionId já foi limpo abaixo — a próxima

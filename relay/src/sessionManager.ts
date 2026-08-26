@@ -71,6 +71,8 @@ export class SessionManager {
       initialLocked: locked,
       onCwdChange: (newCwd) => this.sessionStore.setCwd(id, newCwd),
       onLockChange: () => this.sessionStore.lockCwd(id),
+      initialPermissionMode: this.sessionStore.getPermissionMode(id),
+      onPermissionModeChange: (mode) => this.sessionStore.setPermissionMode(id, mode),
       onActivity: () => this.sessionStore.touch(id),
       initialTitle: this.sessionStore.getTitle(id),
       onFirstPrompt: (text) => {

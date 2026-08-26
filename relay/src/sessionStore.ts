@@ -16,6 +16,15 @@ export interface SessionCwdState {
   locked: boolean;
 }
 
+/** Espelha os valores aceitos por `claude --permission-mode` que expomos na
+ * UI (docs/25) — `bypassPermissions` é o único que ainda usa a flag
+ * histórica `--dangerously-skip-permissions` (claudeSession.ts), as outras
+ * três vão de `--permission-mode <valor>` direto. `auto`/`dontAsk` ficaram
+ * de fora de propósito: `auto` depende de elegibilidade de plano/modelo e
+ * roda um classifier por trás (custo/escopo próprios), `dontAsk` é pensado
+ * pra CI com allowlist pré-definida, não pra chat interativo. */
+export type PermissionMode = "default" | "acceptEdits" | "plan" | "bypassPermissions";
+
 export interface SessionEntry {
   sessionId: string | null;
   /** `null` até o título ser inferido do primeiro prompt (ou definido por um
@@ -32,6 +41,12 @@ export interface SessionEntry {
    * timestamp de agora, então uma sessão recém-criada ainda entra ordenada
    * (não precisa de "nunca interagida" como caso especial). */
   lastActiveAt: number;
+  /** Opcional pra tolerar registros gravados antes dessa feature — lidos
+   * como `"bypassPermissions"` (ver `getPermissionMode`), que é o
+   * comportamento hardcoded que todo mundo já tinha antes de existir modo
+   * selecionável. Diferente de `cwd`, não trava depois do primeiro turno —
+   * o modo pode mudar a qualquer momento da conversa. */
+  permissionMode?: PermissionMode;
 }
 
 export type SessionRecord = Record<string, SessionEntry>;
@@ -230,6 +245,16 @@ export class SessionStore {
   lockCwd(id: string): void {
     this.ensureEntry(id);
     this.records[id].cwd.locked = true;
+    this.persist();
+  }
+
+  getPermissionMode(id: string): PermissionMode {
+    return this.records[id]?.permissionMode ?? "bypassPermissions";
+  }
+
+  setPermissionMode(id: string, mode: PermissionMode): void {
+    this.ensureEntry(id);
+    this.records[id].permissionMode = mode;
     this.persist();
   }
 
