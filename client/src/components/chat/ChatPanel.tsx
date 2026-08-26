@@ -140,6 +140,14 @@ export function ChatPanel({
     onConnectedChangeRef.current?.(connected);
   }, [connected]);
 
+  // Foca o composer assim que a aba de uma conversa nova monta — permite
+  // digitar de cara sem precisar clicar no campo (ex.: Ctrl/Cmd+N e já
+  // começar a escrever).
+  useEffect(() => {
+    if (isNewConversation) composerRef.current?.focus();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
   return (
     <div
       className="relative flex h-full flex-col"
