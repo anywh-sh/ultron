@@ -19,6 +19,13 @@
 
   --primary: #d97757;
   --destructive: #c06456;
+  /* Ponto médio do anel/barra de uso da janela de contexto (lib/contextUsage.ts)
+     — interpola de `--primary` (0%) até aqui (~70%) e daqui até `--destructive`
+     (~90%+) via color-mix(), nunca hex fixo nos dois extremos: trocar
+     `--primary` no futuro já muda o início do gradiente sozinho. Não existe
+     um "amarelo" na paleta docs/17 (só primary/destructive), então esse é
+     o único tom novo introduzido pra essa feature. */
+  --context-ring-warn: #d9a441;
   /* Só pra linha adicionada em diff/preview de código (CodeLines) — não é
      cor de UI (docs/17), é o mesmo motivo do hljs-string/number abaixo:
      `--primary` é laranja/terracota, perto demais de `--destructive` em
@@ -68,6 +75,7 @@
   --color-destructive: var(--destructive);
   --color-destructive-foreground: var(--foreground);
   --color-diff-add: var(--diff-add);
+  --color-context-ring-warn: var(--context-ring-warn);
 
   --color-border: var(--border);
   --color-border-soft: var(--border-soft);

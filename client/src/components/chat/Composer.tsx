@@ -19,8 +19,11 @@ import { useVoiceRecording } from "@/hooks/useVoiceRecording";
 import type { PendingImage } from "@/hooks/useImageUpload";
 import { ComposerLinkView } from "@/components/chat/ComposerLinkView";
 import { PermissionModeButton } from "@/components/chat/PermissionModeButton";
+import { ContextUsageButton } from "@/components/chat/ContextUsageButton";
+import { CompactBoundaryToast } from "@/components/chat/CompactBoundaryToast";
 import { serializeEditorContent } from "@/lib/composerLinks";
-import type { PermissionMode } from "@/lib/relayClient";
+import type { CompactBoundaryEvent } from "@/hooks/useRelayClient";
+import type { ContextUsage, PermissionMode } from "@/lib/relayClient";
 
 interface ComposerProps {
   onSend: (text: string, images: PendingImage[]) => void;
@@ -33,6 +36,10 @@ interface ComposerProps {
   onRemoveImage: (path: string) => void;
   permissionMode: PermissionMode | null;
   onChangePermissionMode: (mode: PermissionMode) => void;
+  /** Desktop-only por ora — o layout iOS (linha única attach/texto/enviar,
+   * ver isIOS() abaixo) não tem a toolbar onde isso entraria. */
+  contextUsage: ContextUsage | null;
+  compactBoundary: CompactBoundaryEvent | null;
 }
 
 export interface ComposerHandle {
@@ -99,6 +106,8 @@ export const Composer = forwardRef<ComposerHandle, ComposerProps>(function Compo
     onRemoveImage,
     permissionMode,
     onChangePermissionMode,
+    contextUsage,
+    compactBoundary,
   },
   ref,
 ) {
@@ -256,6 +265,8 @@ export const Composer = forwardRef<ComposerHandle, ComposerProps>(function Compo
           <div className="flex items-center justify-between gap-2">
             <div className="flex min-w-0 flex-1 items-center gap-2 px-1">
               <PermissionModeButton mode={permissionMode} onChange={onChangePermissionMode} />
+              <ContextUsageButton usage={contextUsage} />
+              <CompactBoundaryToast event={compactBoundary} />
               {isRecording && (
                 <>
                   <div className="flex h-4 items-center gap-0.5">

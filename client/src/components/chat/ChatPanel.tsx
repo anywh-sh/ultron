@@ -98,7 +98,18 @@ export function ChatPanel({
     onTurnActiveChangeRef.current?.(turnInFlight);
   }, [turnInFlight]);
 
-  const { connected, cwd, cwdLocked, permissionMode, sendMessage, stopTurn, setCwd, setPermissionMode } = useRelayClient(profile, sessionId, {
+  const {
+    connected,
+    cwd,
+    cwdLocked,
+    permissionMode,
+    contextUsage,
+    compactBoundary,
+    sendMessage,
+    stopTurn,
+    setCwd,
+    setPermissionMode,
+  } = useRelayClient(profile, sessionId, {
     onEvent: (event) => logRef.current.handleEvent(event),
     onReconnecting: () => {
       logRef.current.reset();
@@ -206,6 +217,8 @@ export function ChatPanel({
           onRemoveImage={images.remove}
           permissionMode={permissionMode}
           onChangePermissionMode={setPermissionMode}
+          contextUsage={contextUsage}
+          compactBoundary={compactBoundary}
           onSend={(text, sentImages) => {
             log.addUserMessage(text, sentImages);
             sendMessage(buildWireMessage(text, sentImages));
