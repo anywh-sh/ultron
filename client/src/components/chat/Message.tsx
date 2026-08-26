@@ -5,6 +5,7 @@ import rehypeHighlight from "rehype-highlight";
 import type { PendingImage } from "@/hooks/useImageUpload";
 import { renderTextWithLinks } from "@/lib/composerLinks";
 import { handleExternalLinkClick } from "@/lib/externalLink";
+import { MarkdownCodeBlock } from "@/components/chat/MarkdownCodeBlock";
 
 interface UserBubbleProps {
   text: string;
@@ -55,6 +56,7 @@ export const AssistantText = memo(function AssistantText({ text }: { text: strin
           a: ({ href, ...props }) => (
             <a {...props} href={href} rel="noopener noreferrer" onClick={(event) => href && handleExternalLinkClick(event, href)} />
           ),
+          pre: MarkdownCodeBlock,
         }}
       >
         {text}
