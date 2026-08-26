@@ -3,6 +3,7 @@ import { useVirtualizer } from "@tanstack/react-virtual";
 import { LogEntryRow } from "@/components/chat/LogEntryRow";
 import { UserBubble, AssistantText } from "@/components/chat/Message";
 import { ToolCallCard } from "@/components/chat/ToolCallCard";
+import { ToolCallGroup, type ToolPair } from "@/components/chat/ToolCallGroup";
 import { ErrorMessage } from "@/components/chat/ErrorMessage";
 import { cn } from "@/lib/utils";
 import type { LogEntry } from "@/hooks/useMessageLog";
@@ -18,31 +19,70 @@ interface MessageLogProps {
 
 type RenderItem =
   | { kind: "single"; entry: LogEntry }
-  | { kind: "tool"; use: Extract<LogEntry, { kind: "tool-use" }>; result?: Extract<LogEntry, { kind: "tool-result" }> };
+  | ({ kind: "tool" } & ToolPair)
+  | { kind: "tool-group"; items: ToolPair[] };
 
-/** Junta tool-use com o tool-result correspondente (por toolUseId) num só
- * card — o reducer guarda os dois como entradas separadas, a apresentação
- * decide juntar. */
-function pairToolEntries(entries: LogEntry[]): RenderItem[] {
+// Tools que nunca entram num grupo colapsado — cada uma merece destaque
+// próprio: Edit/Write mutam disco (diff quer ser visto), TodoWrite é sinal
+// de planejamento, e Task delega pra um subagent cujas sub-tool-calls são
+// invisíveis no protocolo (não chegam como eventos separados), então o card
+// é a única janela pra esse trabalho — não pode ficar enterrado num "Usou N
+// ferramentas".
+const UNGROUPABLE_TOOLS = new Set(["Edit", "Write", "TodoWrite", "Task"]);
+
+function isGroupable(pair: ToolPair): boolean {
+  if (pair.result?.isError) return false;
+  return !UNGROUPABLE_TOOLS.has(pair.use.name);
+}
+
+/** Junta tool-use com o tool-result correspondente (por toolUseId), e
+ * agrupa sequências contíguas de tool calls "silenciosas" (sem texto entre
+ * elas) num único item colapsável — reflete como o Claude realmente age
+ * (várias ações em fila) em vez de virar uma lista de cards soltos e
+ * idênticos. O protocolo do CLI não expõe "turno" como unidade (só mensagens
+ * `assistant`/`user`), e o replay de sessão salva também não reconstrói
+ * fronteiras internas de turno — por isso o agrupamento é por adjacência no
+ * log (contíguo = sem nenhum bloco de texto/erro no meio), não por turno:
+ * funciona idêntico ao vivo e no replay, sem precisar de um conceito que o
+ * protocolo não entrega. */
+function buildRenderItems(entries: LogEntry[]): RenderItem[] {
   const resultByToolUseId = new Map<string, Extract<LogEntry, { kind: "tool-result" }>>();
   for (const entry of entries) {
     if (entry.kind === "tool-result" && entry.toolUseId) resultByToolUseId.set(entry.toolUseId, entry);
   }
 
   const items: RenderItem[] = [];
+  let buffer: ToolPair[] = [];
+
+  const flushBuffer = () => {
+    if (buffer.length === 1) items.push({ kind: "tool", ...buffer[0] });
+    else if (buffer.length > 1) items.push({ kind: "tool-group", items: buffer });
+    buffer = [];
+  };
+
   for (const entry of entries) {
     if (entry.kind === "tool-result") continue;
     if (entry.kind === "tool-use") {
-      items.push({ kind: "tool", use: entry, result: entry.toolUseId ? resultByToolUseId.get(entry.toolUseId) : undefined });
+      const pair: ToolPair = { use: entry, result: entry.toolUseId ? resultByToolUseId.get(entry.toolUseId) : undefined };
+      if (isGroupable(pair)) {
+        buffer.push(pair);
+      } else {
+        flushBuffer();
+        items.push({ kind: "tool", ...pair });
+      }
       continue;
     }
+    flushBuffer();
     items.push({ kind: "single", entry });
   }
+  flushBuffer();
   return items;
 }
 
 function itemKey(item: RenderItem): string {
-  return item.kind === "tool" ? item.use.id : item.entry.id;
+  if (item.kind === "tool") return item.use.id;
+  if (item.kind === "tool-group") return `group-${item.items[0].use.id}`;
+  return item.entry.id;
 }
 
 function renderItem(item: RenderItem) {
@@ -50,6 +90,14 @@ function renderItem(item: RenderItem) {
     return (
       <LogEntryRow key={item.use.id} rail="neutral">
         <ToolCallCard use={item.use} result={item.result} />
+      </LogEntryRow>
+    );
+  }
+
+  if (item.kind === "tool-group") {
+    return (
+      <LogEntryRow key={`group-${item.items[0].use.id}`} rail="neutral">
+        <ToolCallGroup items={item.items} />
       </LogEntryRow>
     );
   }
@@ -96,7 +144,7 @@ export const MessageLog = memo(function MessageLog({ entries, streamingEntries, 
   // (ver reducer em useMessageLog) — memoizar aqui evita recalcular o
   // pareamento tool-use/tool-result a cada token do streaming, quando só
   // `streamingEntries` muda.
-  const items = useMemo(() => pairToolEntries(entries), [entries]);
+  const items = useMemo(() => buildRenderItems(entries), [entries]);
 
   const allItems = useMemo<RenderItem[]>(
     () => [...items, ...streamingEntries.map((entry): RenderItem => ({ kind: "single", entry }))],
