@@ -3,7 +3,7 @@ import { ClaudeSession, type ClaudeEvent } from "./claudeSession.js";
 import { checkDirectory } from "./fsBrowse.js";
 import { defaultCwd } from "./paths.js";
 import { readHistoryFromTranscript } from "./transcriptReader.js";
-import type { PermissionMode } from "./sessionStore.js";
+import type { ContextUsage, PermissionMode } from "./sessionStore.js";
 
 export type BroadcastMessage =
   | { type: "claude_event"; event: ClaudeEvent }
@@ -48,6 +48,13 @@ export interface SharedSessionOptions {
    * SessionStore. Diferente de `onCwdChange`, pode disparar a qualquer
    * momento da conversa (não só antes do primeiro turno). */
   onPermissionModeChange?: (mode: PermissionMode) => void;
+  /** Uso de contexto já persistido pra essa sessão (último turno antes de um
+   * possível restart do relay), se houver. */
+  initialContextUsage?: ContextUsage;
+  /** Chamado ao fim de todo turno que produziu um `result` utilizável — é
+   * assim que o SessionManager grava no SessionStore. Pode não disparar num
+   * turno que falhou antes de qualquer chamada de API. */
+  onContextUsageChange?: (usage: ContextUsage) => void;
 }
 
 export type SetCwdResult = { ok: true } | { ok: false; error: string };
@@ -67,6 +74,7 @@ export class SharedSession {
   private locked: boolean;
   private title: string | null;
   private permissionMode: PermissionMode;
+  private contextUsage: ContextUsage | undefined;
 
   constructor(
     private readonly homeOverride: string | undefined,
@@ -77,6 +85,7 @@ export class SharedSession {
     this.locked = options.initialLocked;
     this.title = options.initialTitle ?? null;
     this.permissionMode = options.initialPermissionMode;
+    this.contextUsage = options.initialContextUsage;
   }
 
   getCwdState(): { cwd: string; locked: boolean } {
@@ -85,6 +94,10 @@ export class SharedSession {
 
   getPermissionMode(): PermissionMode {
     return this.permissionMode;
+  }
+
+  getContextUsage(): ContextUsage | undefined {
+    return this.contextUsage;
   }
 
   /** Diferente de `setCwd`, não tem trava nem validação — qualquer um dos
@@ -128,6 +141,7 @@ export class SharedSession {
     this.sendCwdState(socket);
     this.sendPermissionMode(socket);
     if (this.title !== null) this.sendTitle(socket, this.title);
+    this.sendContextUsage(socket);
 
     this.ensureHistoryLoaded();
     for (const message of this.history) {
@@ -198,11 +212,16 @@ export class SharedSession {
     }
 
     try {
-      const { stopped } = await this.claude.sendTurn(text, this.cwd, this.permissionMode, (event) => {
+      const { stopped, contextUsage } = await this.claude.sendTurn(text, this.cwd, this.permissionMode, (event) => {
         this.broadcast({ type: "claude_event", event });
       });
       const sessionId = this.claude.getSessionId();
       if (sessionId) this.options.onSessionIdChange?.(sessionId);
+      if (contextUsage) {
+        this.contextUsage = contextUsage;
+        this.options.onContextUsageChange?.(contextUsage);
+        this.broadcastContextUsage();
+      }
       this.broadcast({ type: "turn_complete", stopped });
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error);
@@ -225,6 +244,18 @@ export class SharedSession {
 
   private broadcastPermissionMode(): void {
     for (const client of this.clients) this.sendPermissionMode(client);
+  }
+
+  private sendContextUsage(target: WebSocket): void {
+    if (!this.contextUsage) return;
+    target.send(JSON.stringify({ type: "context_usage_state", usage: this.contextUsage }));
+  }
+
+  /** Mesmo raciocínio de `broadcastCwdState`/`broadcastTitle`: estado
+   * "atual", não evento de `history` — uma reconexão pega o valor de agora
+   * via `addClient` (`sendContextUsage`), não um replay de mudanças. */
+  private broadcastContextUsage(): void {
+    for (const client of this.clients) this.sendContextUsage(client);
   }
 
   private sendTitle(target: WebSocket, title: string): void {

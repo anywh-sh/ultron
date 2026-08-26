@@ -25,6 +25,23 @@ export interface SessionCwdState {
  * pra CI com allowlist pré-definida, não pra chat interativo. */
 export type PermissionMode = "default" | "acceptEdits" | "plan" | "bypassPermissions";
 
+/** Uso de contexto do turno mais recente de uma sessão — ver ClaudeSession
+ * (quem extrai isso do evento `result` do `claude -p`) e o plano do
+ * indicador de janela de contexto. `contextWindowSize` vem direto do CLI
+ * (`modelUsage[model].contextWindow`), não de uma tabela estática nossa —
+ * assim continua certo pra contas com contexto estendido (1M) sem precisar
+ * saber disso de antemão. */
+export interface ContextUsage {
+  /** Modelo resolvido nesse turno (ex. "claude-sonnet-5"). */
+  model: string;
+  contextWindowSize: number;
+  /** `input_tokens + cache_creation_input_tokens + cache_read_input_tokens`
+   * do `result.usage` — mesma fórmula que a doc oficial do Claude Code usa
+   * pro `used_percentage` do statusline (exclui `output_tokens` de
+   * propósito). */
+  usedTokens: number;
+}
+
 export interface SessionEntry {
   sessionId: string | null;
   /** `null` até o título ser inferido do primeiro prompt (ou definido por um
@@ -47,6 +64,13 @@ export interface SessionEntry {
    * selecionável. Diferente de `cwd`, não trava depois do primeiro turno —
    * o modo pode mudar a qualquer momento da conversa. */
   permissionMode?: PermissionMode;
+  /** Opcional pelo mesmo motivo de `permissionMode`: tolera registros
+   * gravados antes dessa feature existir. Nunca reconstruído a partir do
+   * `.jsonl` do Claude Code num restart — o evento `result` (única fonte do
+   * limite real por modelo) só existe no stdout ao vivo do `claude -p`,
+   * nunca é persistido no transcript. Por isso precisa ser gravado aqui a
+   * cada turno, senão some pro cliente até o próximo turno rodar. */
+  contextUsage?: ContextUsage;
 }
 
 export type SessionRecord = Record<string, SessionEntry>;
@@ -255,6 +279,16 @@ export class SessionStore {
   setPermissionMode(id: string, mode: PermissionMode): void {
     this.ensureEntry(id);
     this.records[id].permissionMode = mode;
+    this.persist();
+  }
+
+  getContextUsage(id: string): ContextUsage | undefined {
+    return this.records[id]?.contextUsage;
+  }
+
+  setContextUsage(id: string, usage: ContextUsage): void {
+    this.ensureEntry(id);
+    this.records[id].contextUsage = usage;
     this.persist();
   }
 

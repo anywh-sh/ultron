@@ -173,3 +173,67 @@ test("recordSessionId grava o id sem mexer no cwd já escolhido", () => {
     assert.deepEqual(store.getCwdState("s1"), { cwd: "/tmp/projeto", locked: false });
   });
 });
+
+test("getContextUsage sem registro ainda: undefined, não quebra (sessão nova, nenhum turno rodou)", () => {
+  withStoreFile(undefined, (filePath) => {
+    const store = new SessionStore(filePath, DEFAULT_CWD);
+    assert.equal(store.getContextUsage("nunca-visto"), undefined);
+  });
+});
+
+test("setContextUsage faz round-trip e persiste em disco, sobrevivendo a reabrir o arquivo", () => {
+  withStoreFile(undefined, (filePath) => {
+    const store = new SessionStore(filePath, DEFAULT_CWD);
+    store.recordId("s1");
+    store.setContextUsage("s1", { model: "claude-sonnet-5", contextWindowSize: 1_000_000, usedTokens: 30693 });
+    assert.deepEqual(store.getContextUsage("s1"), {
+      model: "claude-sonnet-5",
+      contextWindowSize: 1_000_000,
+      usedTokens: 30693,
+    });
+
+    // Simula o restart do relay: o valor sobrevive sem esperar um novo turno.
+    const reopened = new SessionStore(filePath, DEFAULT_CWD);
+    assert.deepEqual(reopened.getContextUsage("s1"), {
+      model: "claude-sonnet-5",
+      contextWindowSize: 1_000_000,
+      usedTokens: 30693,
+    });
+  });
+});
+
+test("setContextUsage chamado antes de recordId ainda funciona (ensureEntry cria o registro)", () => {
+  withStoreFile(undefined, (filePath) => {
+    const store = new SessionStore(filePath, DEFAULT_CWD);
+    store.setContextUsage("nova", { model: "claude-opus-5", contextWindowSize: 200_000, usedTokens: 1000 });
+    assert.deepEqual(store.getContextUsage("nova"), {
+      model: "claude-opus-5",
+      contextWindowSize: 200_000,
+      usedTokens: 1000,
+    });
+  });
+});
+
+test("registro antigo sem contextUsage (gravado antes dessa feature existir) carrega normalmente, campo undefined", () => {
+  withStoreFile(
+    {
+      s1: {
+        sessionId: "sess-1",
+        title: "Sessão 1",
+        cwd: { cwd: "/tmp/projeto", locked: true },
+        lastActiveAt: Date.now(),
+      },
+    },
+    (filePath) => {
+      const store = new SessionStore(filePath, DEFAULT_CWD);
+      assert.equal(store.getContextUsage("s1"), undefined);
+      // E continua gravável normalmente a partir daqui.
+      store.setContextUsage("s1", { model: "claude-sonnet-5", contextWindowSize: 1_000_000, usedTokens: 42 });
+      assert.deepEqual(store.getContextUsage("s1"), {
+        model: "claude-sonnet-5",
+        contextWindowSize: 1_000_000,
+        usedTokens: 42,
+      });
+    },
+  );
+});

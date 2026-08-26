@@ -1,6 +1,6 @@
 import { spawn, type ChildProcessWithoutNullStreams } from "node:child_process";
 import { createInterface } from "node:readline";
-import type { PermissionMode } from "./sessionStore.js";
+import type { ContextUsage, PermissionMode } from "./sessionStore.js";
 
 // Um turno = um processo `claude -p`. Continuidade entre turnos vem de
 // `--resume <session_id>`, não de manter um processo vivo — ver
@@ -40,6 +40,45 @@ export interface SendTurnResult {
   /** `true` quando o turno terminou porque `stop()` foi chamado, não porque
    * o `claude` de fato concluiu ou deu erro. */
   stopped: boolean;
+  /** `undefined` se o turno não chegou a produzir um `result` com os campos
+   * esperados (ex: erro antes de qualquer chamada de API) — nesse caso quem
+   * chama deve manter o último valor conhecido, não zerar. */
+  contextUsage?: ContextUsage;
+}
+
+interface ResultUsage {
+  input_tokens?: number;
+  cache_creation_input_tokens?: number;
+  cache_read_input_tokens?: number;
+}
+
+interface ModelUsageEntry {
+  contextWindow?: number;
+}
+
+/**
+ * Extrai o uso de contexto do evento `result` de fim de turno. `contextWindow`
+ * vem direto de `modelUsage[model]` — dado real do CLI pra aquela conta (ex:
+ * contexto estendido de 1M), nunca uma tabela estática nossa, que ficaria
+ * errada pra qualquer plano/config que não previmos. `model` vem do evento
+ * `system/init` do mesmo processo (capturado antes do `result` chegar); na
+ * ausência dele (não deveria acontecer, mas o parsing é `[key: string]:
+ * unknown`), cai pra primeira entrada de `modelUsage` em vez de descartar o
+ * dado inteiro.
+ */
+export function extractContextUsage(event: ClaudeEvent, model: string | undefined): ContextUsage | undefined {
+  const usage = event.usage as ResultUsage | undefined;
+  const modelUsage = event.modelUsage as Record<string, ModelUsageEntry> | undefined;
+  if (!usage || !modelUsage) return undefined;
+  const modelKey = (model && model in modelUsage ? model : undefined) ?? Object.keys(modelUsage)[0];
+  const entry = modelKey ? modelUsage[modelKey] : undefined;
+  if (!modelKey || !entry?.contextWindow) return undefined;
+  return {
+    model: modelKey,
+    contextWindowSize: entry.contextWindow,
+    usedTokens:
+      (usage.input_tokens ?? 0) + (usage.cache_creation_input_tokens ?? 0) + (usage.cache_read_input_tokens ?? 0),
+  };
 }
 
 export class ClaudeSession {
@@ -132,6 +171,8 @@ export class ClaudeSession {
 
       let eventCount = 0;
       let lastErrorResult: string | undefined;
+      let lastModel: string | undefined;
+      let contextUsage: ContextUsage | undefined;
 
       const readLines = (async () => {
         const rl = createInterface({ input: child.stdout });
@@ -139,6 +180,9 @@ export class ClaudeSession {
           if (!line.trim()) continue;
           const event = JSON.parse(line) as ClaudeEvent;
           eventCount++;
+          if (event.type === "system" && event.subtype === "init" && typeof event.model === "string") {
+            lastModel = event.model;
+          }
           if (event.type === "result") {
             // Capturado sempre que presente, erro ou não — um turno
             // interrompido por `stop()` ainda manda um `result` com
@@ -149,6 +193,7 @@ export class ClaudeSession {
               lastErrorResult =
                 event.errors?.join("; ") || event.result || "erro desconhecido retornado pelo claude";
             }
+            contextUsage = extractContextUsage(event, lastModel) ?? contextUsage;
           }
           onEvent(event);
         }
@@ -161,18 +206,18 @@ export class ClaudeSession {
       await Promise.race([spawnError, readLines]);
 
       if (lastErrorResult) {
-        if (this.stopRequested) return { stopped: true };
+        if (this.stopRequested) return { stopped: true, contextUsage };
         this.sessionId = undefined;
         throw new Error(lastErrorResult);
       }
       if (eventCount === 0 || exitCode !== 0) {
-        if (this.stopRequested) return { stopped: true };
+        if (this.stopRequested) return { stopped: true, contextUsage };
         this.sessionId = undefined;
         throw new Error(
           stderrOutput.trim() || `claude saiu com código ${String(exitCode)} sem produzir nenhum evento`,
         );
       }
-      return { stopped: false };
+      return { stopped: false, contextUsage };
     } finally {
       this.currentChild = undefined;
     }
