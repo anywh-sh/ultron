@@ -89,6 +89,46 @@ test("campos de usage ausentes (ex: turno interrompido cedo) contam como 0, não
   });
 });
 
+test("com iterations: usa a ÚLTIMA, não a soma do topo (achado real — turno com várias chamadas de ferramenta inflava o total)", () => {
+  const usage = extractContextUsage(
+    resultEvent({
+      // Nível superior é a soma das 3 iterations abaixo (350k + 352k + 355k
+      // arredondado) — exatamente o shape real que causou o bug de "104%"
+      // reportado numa sessão de verdade.
+      usage: {
+        input_tokens: 30,
+        cache_creation_input_tokens: 2000,
+        cache_read_input_tokens: 1_055_000,
+        output_tokens: 900,
+        iterations: [
+          { input_tokens: 10, cache_creation_input_tokens: 500, cache_read_input_tokens: 350_000 },
+          { input_tokens: 10, cache_creation_input_tokens: 700, cache_read_input_tokens: 352_000 },
+          { input_tokens: 10, cache_creation_input_tokens: 800, cache_read_input_tokens: 355_000 },
+        ],
+      },
+    }),
+    "claude-sonnet-5",
+  );
+  assert.deepEqual(usage, {
+    model: "claude-sonnet-5",
+    contextWindowSize: 1_000_000,
+    // Só a última iteration (10 + 800 + 355_000), não a soma das 3 (~1.05M).
+    usedTokens: 355_810,
+  });
+});
+
+test("iterations vazio ([]): cai pro nível superior em vez de quebrar no índice -1", () => {
+  const usage = extractContextUsage(
+    resultEvent({ usage: { input_tokens: 2, cache_creation_input_tokens: 0, cache_read_input_tokens: 30691, iterations: [] } }),
+    "claude-sonnet-5",
+  );
+  assert.deepEqual(usage, {
+    model: "claude-sonnet-5",
+    contextWindowSize: 1_000_000,
+    usedTokens: 30693,
+  });
+});
+
 test("evento sem relação com result (ex: assistant) ainda extrai se tiver os campos — a checagem de type é de quem chama", () => {
   // `extractContextUsage` não olha `event.type`; `sendTurn` só chama isso
   // dentro do `if (event.type === "result")`. Documenta essa divisão de

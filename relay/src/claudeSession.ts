@@ -50,10 +50,20 @@ interface ResultUsage {
   input_tokens?: number;
   cache_creation_input_tokens?: number;
   cache_read_input_tokens?: number;
+  /** Uma entrada por chamada de API feita dentro do turno (um turno pode
+   * envolver várias idas e vindas de ferramenta) — os campos no nível
+   * superior de `usage` são a SOMA de todas essas entradas (gasto total do
+   * turno, útil pra custo), não o tamanho atual do contexto. Pra isso,
+   * precisamos da ÚLTIMA entrada, não da soma — ver `extractContextUsage`. */
+  iterations?: ResultUsage[];
 }
 
 interface ModelUsageEntry {
   contextWindow?: number;
+}
+
+function usageTokenTotal(usage: ResultUsage): number {
+  return (usage.input_tokens ?? 0) + (usage.cache_creation_input_tokens ?? 0) + (usage.cache_read_input_tokens ?? 0);
 }
 
 /**
@@ -65,6 +75,14 @@ interface ModelUsageEntry {
  * ausência dele (não deveria acontecer, mas o parsing é `[key: string]:
  * unknown`), cai pra primeira entrada de `modelUsage` em vez de descartar o
  * dado inteiro.
+ *
+ * `usedTokens` vem da ÚLTIMA entrada de `usage.iterations` quando presente
+ * (achado testando contra uma sessão real com muitas chamadas de ferramenta
+ * num único turno: o nível superior de `usage` é a SOMA de todas as
+ * iterations, não a última — usar a soma mostrava >100% de uso numa sessão
+ * que na verdade não tinha chegado nem a 40% do limite real). Sem
+ * `iterations` (turno de uma chamada só, ou shape mais antigo do CLI), cai
+ * pro nível superior — nesse caso soma e "última chamada" são a mesma coisa.
  */
 export function extractContextUsage(event: ClaudeEvent, model: string | undefined): ContextUsage | undefined {
   const usage = event.usage as ResultUsage | undefined;
@@ -73,11 +91,11 @@ export function extractContextUsage(event: ClaudeEvent, model: string | undefine
   const modelKey = (model && model in modelUsage ? model : undefined) ?? Object.keys(modelUsage)[0];
   const entry = modelKey ? modelUsage[modelKey] : undefined;
   if (!modelKey || !entry?.contextWindow) return undefined;
+  const lastIteration = usage.iterations?.length ? usage.iterations[usage.iterations.length - 1] : usage;
   return {
     model: modelKey,
     contextWindowSize: entry.contextWindow,
-    usedTokens:
-      (usage.input_tokens ?? 0) + (usage.cache_creation_input_tokens ?? 0) + (usage.cache_read_input_tokens ?? 0),
+    usedTokens: usageTokenTotal(lastIteration),
   };
 }
 
