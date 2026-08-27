@@ -55,24 +55,51 @@ export interface SpawnTerminalOptions {
  * já rodando não teleporta se a working directory da conversa mudar depois;
  * quem quiser outra pasta dá `cd` à mão ou abre uma aba nova).
  *
- * `; set-option -g status off` encadeado (token `;` literal — sem shell no
- * meio, `pty.spawn` recebe argv puro, então isso não é sintaxe de shell,
- * é o próprio tmux reconhecendo `;` como separador de comando) desliga a
- * status bar do tmux, que senão aparecia como uma linha de "lixo" (id da
- * sessão truncado + hostname + hora) dentro do terminal — chrome do tmux
- * duplicando o que a tira de abas do app já mostra. `-g` (global, não por
- * sessão) garante que isso vale tanto criando quanto reanexando: um `-t
- * <nome>` explícito só teria efeito na criação, igual `-c` acima. Isolado
- * ao socket próprio deste perfil (`tmuxSocketName`) — nunca toca o tmux de
- * verdade do usuário (socket default), só esse servidor efêmero que o
- * terminal embutido cria sozinho. */
+ * `-f /dev/null` é essencial, não cosmético: socket isolado (`-L`) só separa
+ * *sessões* — o tmux ainda carrega `~/.tmux.conf` de verdade pra QUALQUER
+ * servidor novo que sobe, não importa o socket. Sem `-f /dev/null`, um
+ * `mouse on` (ou qualquer outra coisa) na config pessoal do usuário vazava
+ * pro terminal embutido — foi o que causava o indicador `[0/0]` de copy-mode
+ * do tmux aparecendo ao selecionar texto com o mouse (achado testando).
+ *
+ * `; set-option ...` encadeado (token `;` literal — sem shell no meio,
+ * `pty.spawn` recebe argv puro, então não é sintaxe de shell, é o próprio
+ * tmux reconhecendo `;` como separador de comando) fixa o comportamento que
+ * a gente quer, sem depender de config nenhuma: `status off` (senão aparece
+ * uma linha de "lixo" com id da sessão truncado + hostname + hora, chrome do
+ * tmux duplicando a tira de abas do app) e `mouse off` explícito (já é o
+ * default do tmux sem config, mas fica documentado — é o que garante seleção
+ * de texto sempre nativa do xterm.js, nunca copy-mode do tmux). `-g` (global,
+ * não por sessão) garante que isso vale tanto criando quanto reanexando: um
+ * `-t <nome>` explícito só teria efeito na criação, igual `-c` acima. */
 export function spawnTerminal(options: SpawnTerminalOptions): IPty {
   const socket = tmuxSocketName(options.relayPort);
   const name = tmuxSessionName(options.chatSessionId, options.terminalId);
 
   return pty.spawn(
     TMUX_BIN,
-    ["-L", socket, "new-session", "-A", "-s", name, "-c", options.cwd, ";", "set-option", "-g", "status", "off"],
+    [
+      "-L",
+      socket,
+      "-f",
+      "/dev/null",
+      "new-session",
+      "-A",
+      "-s",
+      name,
+      "-c",
+      options.cwd,
+      ";",
+      "set-option",
+      "-g",
+      "status",
+      "off",
+      ";",
+      "set-option",
+      "-g",
+      "mouse",
+      "off",
+    ],
     {
       name: "xterm-256color",
       cols: options.cols,
