@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { lazy, Suspense, useEffect, useMemo, useState } from "react";
 import { Menu } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Sheet, SheetContent, SheetTitle } from "@/components/ui/sheet";
@@ -16,11 +16,22 @@ import { useSessionNames } from "@/hooks/useSessionNames";
 import { useResizableSidebar } from "@/hooks/useResizableSidebar";
 import { useIsCompactViewport } from "@/hooks/useIsCompactViewport";
 import { useTabs, type Tab } from "@/hooks/useTabs";
+import { useSessionPanels } from "@/hooks/useSessionPanels";
+import { useTerminalTabs } from "@/hooks/useTerminalTabs";
 import { useWindowFocus } from "@/hooks/useWindowFocus";
 import { PROFILES, findProfile } from "@/lib/profiles";
 import { ensureNotificationPermission, notifyTurnComplete } from "@/lib/notifications";
 import { deleteSession, renameSession } from "@/lib/relayClient";
 import { isIOS } from "@/lib/platform";
+import { cn } from "@/lib/utils";
+
+// xterm.js (+ addons) só entra no bundle inicial se/quando o usuário de
+// fato abrir um terminal (docs/30) — code splitting via `lazy`, não `import`
+// direto, é o que mantém o boot do app leve pro caso comum (a maioria das
+// sessões nunca abre o painel).
+const TerminalPanel = lazy(() =>
+  import("@/components/terminal/TerminalPanel").then((mod) => ({ default: mod.TerminalPanel })),
+);
 
 /** Override opcional via query string (`?profile=&session=`) — só pra permitir
  * deep-link direto num estado específico em testes via Playwright (docs/13). */
@@ -36,6 +47,8 @@ export default function App() {
   const isCompact = useIsCompactViewport();
   const resizable = useResizableSidebar();
   const tabsState = useTabs();
+  const sessionPanels = useSessionPanels();
+  const terminalTabs = useTerminalTabs();
   const nav = useNavigationHistory();
   const windowFocused = useWindowFocus();
 
@@ -161,6 +174,8 @@ export default function App() {
     deleteSession(profile.host, profile.relayPort, id)
       .then(() => {
         tabsState.closeTab(id);
+        sessionPanels.removePanel(id);
+        terminalTabs.removeSession(id);
         if (profileId === activeProfile.id) removeSession(id);
       })
       .catch((error: unknown) => {
@@ -182,6 +197,14 @@ export default function App() {
     }
   }
 
+  // Terminal embutido (docs/30) — desktop only (screenshot/fluxo original é
+  // claramente desktop, iOS fica de fora por enquanto, mesmo gate que
+  // voz/titlebar já usam — docs/23).
+  function handleToggleTerminalPanel(): void {
+    if (isCompact || isIOS() || !activeTabId) return;
+    sessionPanels.togglePanel(activeTabId, "terminal");
+  }
+
   // Ctrl+Tab / Ctrl+Shift+Tab, igual navegador — de propósito só `ctrlKey`,
   // não `metaKey || ctrlKey` como os outros atalhos abaixo: no macOS Cmd+Tab
   // é o app switcher do próprio SO (nunca chega no app), então o padrão de
@@ -197,12 +220,23 @@ export default function App() {
 
   // Atalhos padrão de qualquer app (equivalentes em Ctrl no Windows/Linux e
   // Cmd no macOS, via metaKey || ctrlKey): novo (N), fechar aba atual (W),
-  // mostrar/esconder painel lateral (B).
+  // mostrar/esconder painel lateral (B). Terminal (Ctrl+`) é tratado à
+  // parte, ver comentário dentro do handler.
   useEffect(() => {
     function handleKeyDown(event: KeyboardEvent): void {
       if (event.ctrlKey && event.key === "Tab") {
         event.preventDefault();
         handleCycleTab(event.shiftKey ? -1 : 1);
+        return;
+      }
+      // `Ctrl+\`` — literal Ctrl mesmo no macOS, nunca `metaKey`: é a
+      // convenção do próprio VS Code (Cmd+` no macOS já é do sistema,
+      // trocar entre janelas do mesmo app), mesmo motivo do `Ctrl+Tab`
+      // acima. Fica fora do switch de baixo de propósito, que é só
+      // `metaKey || ctrlKey`.
+      if (event.ctrlKey && event.key === "`") {
+        event.preventDefault();
+        handleToggleTerminalPanel();
         return;
       }
       if (!(event.metaKey || event.ctrlKey)) return;
@@ -226,6 +260,7 @@ export default function App() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [
     activeProfile.id,
+    sessionPanels.togglePanel,
     activeTabId,
     isCompact,
     tabsState.closeTab,
@@ -261,7 +296,8 @@ export default function App() {
   // sidebar agora.
   const renderPanel = (tab: Tab) => {
     const profile = findProfile(tab.profileId) ?? PROFILES[0];
-    return (
+    const panel = sessionPanels.getPanel(tab.id);
+    const chatContent = (
       <ChatPanel
         // No iOS (sem TabBar/forceMount), `activeTab && renderPanel(activeTab)`
         // é um único slot de JSX cujo `sessionId` só muda de valor — sem
@@ -297,12 +333,57 @@ export default function App() {
         }}
         onDeleted={() => {
           tabsState.closeTab(tab.id);
+          sessionPanels.removePanel(tab.id);
+          terminalTabs.removeSession(tab.id);
           if (tab.profileId === activeProfile.id) removeSession(tab.id);
         }}
         onConnectedChange={(connected) => {
           if (tab.id === tabsState.activeTabId) setActiveConnected(connected);
         }}
+        terminal={
+          isCompact || isIOS()
+            ? undefined
+            : { open: panel.open, onToggle: () => sessionPanels.togglePanel(tab.id, "terminal") }
+        }
       />
+    );
+
+    // Terminal embutido (docs/30), desktop only. `isTabActive` é o que
+    // implementa "trocar de sessão fecha o painel sozinho, voltar reabre do
+    // jeito que estava": `TabBar` mantém TODAS as abas montadas em segundo
+    // plano (forceMount, pra manter a WS do chat viva — ver comentário mais
+    // abaixo), então sem esse gate o painel de terminal ficaria conectado
+    // pra sessões fora de foco também. Só a aba ativa realmente monta
+    // `TerminalPanel`; as outras nem chegam a existir no DOM, então nem
+    // abrem WS nenhuma pro terminal — o custo de várias abas de chat
+    // abertas ao mesmo tempo (vários perfis, vários contextos) fica restrito
+    // a um único painel de terminal vivo por vez, não um por sessão.
+    const isTabActive = tab.id === activeTabId;
+    if (isCompact || isIOS() || !isTabActive || !panel.open) {
+      return chatContent;
+    }
+
+    return (
+      <div className="relative flex h-full min-w-0">
+        {/* `invisible absolute inset-0` em vez de encolher pra 0 — mesmo
+         * truque (e mesmo motivo) do `forceMount` de `TabBar.tsx`: o
+         * `MessageLog` usa `@tanstack/react-virtual`, cujo `ResizeObserver`
+         * corrompe o cache de alturas se o container medir tamanho 0 mesmo
+         * que só brevemente (é exatamente o que aconteceria maximizando o
+         * terminal se o chat fosse escondido via `display:none`/largura 0). */}
+        <div className={cn("min-w-0 flex-1", panel.maximized && "invisible absolute inset-0")}>{chatContent}</div>
+        <Suspense fallback={<div className="h-full shrink-0 border-l border-border-soft bg-bg-sidebar" style={{ width: panel.width }} />}>
+          <TerminalPanel
+            profile={profile}
+            chatSessionId={tab.id}
+            panel={panel}
+            terminalTabs={terminalTabs}
+            onWidthChange={(width) => sessionPanels.setWidth(tab.id, width)}
+            onToggleMaximized={() => sessionPanels.toggleMaximized(tab.id)}
+            onClose={() => sessionPanels.closePanel(tab.id)}
+          />
+        </Suspense>
+      </div>
     );
   };
 

@@ -9,6 +9,7 @@ import { ChatIdleState } from "@/components/chat/ChatIdleState";
 import { TurnIndicator } from "@/components/chat/TurnIndicator";
 import { Composer, type ComposerHandle } from "@/components/chat/Composer";
 import { WorkingDirectoryButton } from "@/components/chat/WorkingDirectoryButton";
+import { TerminalToggleButton } from "@/components/chat/TerminalToggleButton";
 import { isIOS } from "@/lib/platform";
 import { cn } from "@/lib/utils";
 import { parseSlashCommand } from "@/lib/slashCommands";
@@ -36,6 +37,12 @@ interface ChatPanelProps {
   /** Estado de conexão desta sessão — `App` usa isso pra alimentar a barra
    * superior consolidada do iOS (docs/24), que vive fora do ChatPanel. */
   onConnectedChange?: (connected: boolean) => void;
+  /** Terminal embutido (docs/30) — desktop only, `App` passa `undefined` no
+   * iOS/viewport compacto e o botão nem aparece (ver renderPanel). */
+  terminal?: {
+    open: boolean;
+    onToggle: () => void;
+  };
 }
 
 function buildWireMessage(text: string, images: PendingImage[]): string {
@@ -53,6 +60,7 @@ export function ChatPanel({
   onActivity,
   onDeleted,
   onConnectedChange,
+  terminal,
 }: ChatPanelProps) {
   const log = useMessageLog();
   const logRef = useRef(log);
@@ -220,7 +228,7 @@ export function ChatPanel({
             : "contents",
         )}
       >
-        <div className={isIOS() ? "flex" : "mx-3 mt-3 flex"}>
+        <div className={isIOS() ? "flex items-center justify-between" : "mx-3 mt-3 flex items-center justify-between"}>
           <WorkingDirectoryButton
             profile={profile}
             cwd={cwd}
@@ -229,6 +237,7 @@ export function ChatPanel({
             isNewConversation={isNewConversation}
             onSetCwd={setCwd}
           />
+          {terminal && <TerminalToggleButton cwd={cwd} open={terminal.open} onToggle={terminal.onToggle} />}
         </div>
 
         <Composer

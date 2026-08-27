@@ -51,6 +51,23 @@ export async function deleteSession(host: string, port: number, id: string): Pro
   }
 }
 
+/** Fecha uma aba de terminal de verdade (mata a sessão tmux, não só
+ * detacha) — chamado ao clicar no X de uma aba de terminal. Ver
+ * terminalSession.ts pro porquê disso ser uma chamada HTTP separada em vez
+ * de uma mensagem na própria WS do terminal (a WS já pode estar fechada
+ * nesse ponto, ex: fechando uma aba que não é a ativa no momento). */
+export async function closeTerminal(host: string, port: number, session: string, term: string): Promise<void> {
+  const response = await fetch(`http://${host}:${port}/terminals/close`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ session, term }),
+  });
+  if (!response.ok) {
+    const body = (await response.json().catch(() => ({}))) as { error?: string };
+    throw new Error(body.error ?? `falha ao fechar terminal (${String(response.status)})`);
+  }
+}
+
 export interface RelayClientCallbacks {
   onEvent: (event: ClaudeEvent) => void;
   onTurnComplete: (stopped: boolean) => void;
