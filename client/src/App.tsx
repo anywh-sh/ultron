@@ -348,6 +348,8 @@ export default function App() {
       />
     );
 
+    if (isCompact || isIOS()) return chatContent;
+
     // Terminal embutido (docs/30), desktop only. `isTabActive` é o que
     // implementa "trocar de sessão fecha o painel sozinho, voltar reabre do
     // jeito que estava": `TabBar` mantém TODAS as abas montadas em segundo
@@ -359,10 +361,18 @@ export default function App() {
     // abertas ao mesmo tempo (vários perfis, vários contextos) fica restrito
     // a um único painel de terminal vivo por vez, não um por sessão.
     const isTabActive = tab.id === activeTabId;
-    if (isCompact || isIOS() || !isTabActive || !panel.open) {
-      return chatContent;
-    }
+    const showTerminal = isTabActive && panel.open;
 
+    // O wrapper (esta `div` + a `div` logo abaixo em volta de `chatContent`)
+    // é renderizado incondicionalmente, com a MESMA forma sempre — só a
+    // presença do `Suspense`/`TerminalPanel` como irmão alterna. Antes disso
+    // era condicional (`if (!showTerminal) return chatContent` sem
+    // wrapper nenhum), e abrir/fechar/trocar de aba de terminal trocava o
+    // tipo do filho nessa posição da árvore (de `ChatPanel` direto pra
+    // `div`) — o React via isso como um elemento diferente e desmontava
+    // `ChatPanel` inteiro (perdendo `ready`, fechando a WS, reconectando),
+    // que é exatamente o flash de skeleton reportado ao abrir/expandir/
+    // fechar o painel. Manter a forma estável evita esse remount.
     return (
       <div className="relative flex h-full min-w-0">
         {/* `invisible absolute inset-0` em vez de encolher pra 0 — mesmo
@@ -371,18 +381,22 @@ export default function App() {
          * corrompe o cache de alturas se o container medir tamanho 0 mesmo
          * que só brevemente (é exatamente o que aconteceria maximizando o
          * terminal se o chat fosse escondido via `display:none`/largura 0). */}
-        <div className={cn("min-w-0 flex-1", panel.maximized && "invisible absolute inset-0")}>{chatContent}</div>
-        <Suspense fallback={<div className="h-full shrink-0 border-l border-border-soft bg-bg-sidebar" style={{ width: panel.width }} />}>
-          <TerminalPanel
-            profile={profile}
-            chatSessionId={tab.id}
-            panel={panel}
-            terminalTabs={terminalTabs}
-            onWidthChange={(width) => sessionPanels.setWidth(tab.id, width)}
-            onToggleMaximized={() => sessionPanels.toggleMaximized(tab.id)}
-            onClose={() => sessionPanels.closePanel(tab.id)}
-          />
-        </Suspense>
+        <div className={cn("min-w-0 flex-1", showTerminal && panel.maximized && "invisible absolute inset-0")}>
+          {chatContent}
+        </div>
+        {showTerminal && (
+          <Suspense fallback={<div className="h-full shrink-0 border-l border-border-soft bg-bg-sidebar" style={{ width: panel.width }} />}>
+            <TerminalPanel
+              profile={profile}
+              chatSessionId={tab.id}
+              panel={panel}
+              terminalTabs={terminalTabs}
+              onWidthChange={(width) => sessionPanels.setWidth(tab.id, width)}
+              onToggleMaximized={() => sessionPanels.toggleMaximized(tab.id)}
+              onClose={() => sessionPanels.closePanel(tab.id)}
+            />
+          </Suspense>
+        )}
       </div>
     );
   };
