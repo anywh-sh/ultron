@@ -56,6 +56,11 @@ export function TerminalView({ profile, chatSessionId, terminalId }: TerminalVie
       // por causa de um `npm run dev` esquecido rodando havia horas.
       scrollback: 5000,
       allowProposedApi: true,
+      // Sem isso, `theme.background: "transparent"` não tem efeito nenhum —
+      // por padrão o xterm.js cria os canvases internos (texto, seleção, e
+      // principalmente o do addon WebGL) sem canal alpha, então qualquer cor
+      // "transparente" acaba pintada como preto sólido de qualquer jeito.
+      allowTransparency: true,
       theme: {
         // Transparente de propósito, não `--bg-sidebar` fixo — o canvas do
         // xterm deixa o fundo de verdade do painel (definido uma vez só em
