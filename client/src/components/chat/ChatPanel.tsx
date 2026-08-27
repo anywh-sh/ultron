@@ -11,6 +11,7 @@ import { Composer, type ComposerHandle } from "@/components/chat/Composer";
 import { WorkingDirectoryButton } from "@/components/chat/WorkingDirectoryButton";
 import { isIOS } from "@/lib/platform";
 import { cn } from "@/lib/utils";
+import { parseSlashCommand } from "@/lib/slashCommands";
 import type { Profile } from "@/lib/profiles";
 
 interface ChatPanelProps {
@@ -109,6 +110,8 @@ export function ChatPanel({
     stopTurn,
     setCwd,
     setPermissionMode,
+    setModel,
+    clearConversation,
   } = useRelayClient(profile, sessionId, {
     onEvent: (event) => logRef.current.handleEvent(event),
     onReconnecting: () => {
@@ -116,6 +119,10 @@ export function ChatPanel({
       caughtUpRef.current = false;
       setReady(false);
     },
+    // `/clear` (docs/26) — mesma limpeza de log que uma reconexão de verdade
+    // já faz, só que sem passar por `ready`/skeleton (a conversa continua
+    // "pronta", só ficou vazia).
+    onConversationReset: () => logRef.current.reset(),
     onCaughtUp: () => {
       caughtUpRef.current = true;
       setReady(true);
@@ -228,6 +235,20 @@ export function ChatPanel({
           contextUsage={contextUsage}
           compactBoundary={compactBoundary}
           onSend={(text, sentImages) => {
+            // `/model`/`/clear` (docs/26): reconhecidos aqui, antes de virar
+            // turno — nenhum dos dois passa como texto pro `claude -p` (ver
+            // slashCommands.ts pro motivo de cada um). Comando com argumento
+            // não curado (`/model gpt4`) cai no `else`, vira mensagem normal
+            // e a própria CLI responde com o erro dela.
+            const command = parseSlashCommand(text);
+            if (command?.name === "clear") {
+              clearConversation();
+              return;
+            }
+            if (command?.name === "model") {
+              setModel(command.model);
+              return;
+            }
             log.addUserMessage(text, sentImages);
             sendMessage(buildWireMessage(text, sentImages));
             images.clearWithoutRevoke();
