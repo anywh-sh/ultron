@@ -23,11 +23,13 @@ interface ChatPanelProps {
   isNewConversation?: boolean;
   /** `lastUserText` é a última mensagem que o usuário mandou nesse turno
    * (extraída sincronamente do log, sem round-trip) — `App` usa isso como
-   * corpo da notificação do SO. */
+   * corpo de fallback da notificação do SO, se o resumo abaixo não chegar
+   * a tempo. */
   onTurnComplete?: (result: { stopped: boolean; lastUserText: string | null }) => void;
-  /** Resumo curtíssimo da resposta, gerado de forma assíncrona depois de
-   * `onTurnComplete` (ver relay-types.ts::notification_summary) — `App` usa
-   * isso como manchete da notificação, com fallback se não chegar a tempo. */
+  /** Resumo do que a resposta fez (ou deixou pendente), gerado de forma
+   * assíncrona depois de `onTurnComplete` (ver relay-types.ts::notification_summary)
+   * — `App` usa isso como corpo da notificação, com o `lastUserText` acima
+   * como fallback se não chegar a tempo. */
   onNotificationSummary?: (text: string | null) => void;
   onTurnActiveChange?: (active: boolean) => void;
   /** Título inferido do primeiro prompt (ou de um rename ao vivo em outro

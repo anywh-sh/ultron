@@ -135,12 +135,13 @@ export type RelayMessage =
    * "ainda não tem sugestão" quanto no "sugestão anterior não vale mais"
    * (novo turno começando, `/clear`). */
   | { type: "suggestion"; text: string | null }
-  /** Resumo curtíssimo (2-4 palavras) da última resposta, gerado de forma
-   * assíncrona ao fim de todo turno bem-sucedido (relay/src/sharedSession.ts)
-   * — usado como manchete da notificação do SO (`lib/notifications.ts`).
-   * Diferente de `suggestion`, não é "estado atual": é um evento de um turno
-   * específico, não reenviado numa reconexão. `null` em falha/vazio do
-   * gerador — quem consome cai pro fallback genérico da notificação. */
+  /** Resumo curto (até ~12 palavras) do que a última resposta fez ou deixou
+   * pendente, gerado de forma assíncrona ao fim de todo turno bem-sucedido
+   * (relay/src/sharedSession.ts) — usado como corpo da notificação do SO
+   * (`lib/notifications.ts`; o título é só o nome da conversa). Diferente de
+   * `suggestion`, não é "estado atual": é um evento de um turno específico,
+   * não reenviado numa reconexão. `null` em falha/vazio do gerador — quem
+   * consome cai pro fallback (última mensagem do usuário). */
   | { type: "notification_summary"; text: string | null };
 
 /** Uma sessão como o relay expõe em `GET /sessions` — `id` é estável desde a

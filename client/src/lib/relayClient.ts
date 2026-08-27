@@ -99,7 +99,7 @@ export interface RelayClientCallbacks {
    * ver relay-types.ts::RelayMessage["suggestion"]. `null` limpa qualquer
    * sugestão mostrada. */
   onSuggestion?: (text: string | null) => void;
-  /** Resumo pra manchete de notificação chegando (ao vivo) — ver
+  /** Resumo pro corpo da notificação chegando (ao vivo) — ver
    * relay-types.ts::RelayMessage["notification_summary"]. Ao contrário de
    * `onSuggestion`, não é reenviado numa reconexão (não é "estado atual"). */
   onNotificationSummary?: (text: string | null) => void;
