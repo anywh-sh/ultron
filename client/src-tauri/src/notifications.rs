@@ -7,22 +7,46 @@
 // `windows_toast::resolve_app_id` — porque criar o notifier com um AUMID não
 // registrado (rodando via `tauri dev`) faz a notificação inteira sumir, não
 // só o ícone. Nas outras plataformas seguimos usando o plugin normalmente.
+//
+// `session_id`/`profile_id` viajam junto só pra rotear o clique de volta pra
+// aba certa (client/src/hooks/useNotificationClick.ts tem o detalhe de como
+// cada plataforma entrega isso, e a limitação conhecida de reabertura a
+// frio — app totalmente fechado quando o clique acontece).
+#[cfg(target_os = "windows")]
+#[derive(Clone, serde::Serialize)]
+struct NotificationClickPayload {
+    session_id: String,
+    profile_id: String,
+}
 
 #[tauri::command]
-pub fn notify_turn_complete(app: tauri::AppHandle, title: String, body: String) {
+pub fn notify_turn_complete(app: tauri::AppHandle, title: String, body: String, session_id: String, profile_id: String) {
     #[cfg(target_os = "windows")]
-    windows_toast::show(app, title, body);
+    windows_toast::show(app, title, body, session_id, profile_id);
 
     #[cfg(not(target_os = "windows"))]
     {
         use tauri_plugin_notification::NotificationExt;
-        let _ = app.notification().builder().title(title).body(body).show();
+        // `extra` é o que o `onAction` do lado JS lê pra saber qual sessão
+        // rotear — só chega lá de fato no iOS (handler nativo do plugin); no
+        // macOS/Linux desktop esse crate não tem hook de clique nenhum (ver
+        // useNotificationClick.ts), então isso fica sem efeito prático aí,
+        // mas não custa nada mandar mesmo assim.
+        let _ = app
+            .notification()
+            .builder()
+            .title(title)
+            .body(body)
+            .extra("sessionId", session_id)
+            .extra("profileId", profile_id)
+            .show();
     }
 }
 
 #[cfg(target_os = "windows")]
 mod windows_toast {
-    use tauri::{path::BaseDirectory, AppHandle, Manager};
+    use super::NotificationClickPayload;
+    use tauri::{path::BaseDirectory, AppHandle, Emitter, Manager};
     use tauri_winrt_notification::{IconCrop, Toast};
 
     /// Mesmo teste que o tauri-plugin-notification original fazia (ver
@@ -68,7 +92,7 @@ mod windows_toast {
             .any(|known| known.to_lowercase() == parent)
     }
 
-    pub fn show(app: AppHandle, title: String, body: String) {
+    pub fn show(app: AppHandle, title: String, body: String, session_id: String, profile_id: String) {
         let icon = app
             .path()
             .resolve("icons/128x128.png", BaseDirectory::Resource)
@@ -89,6 +113,17 @@ mod windows_toast {
                     let _ = window.show();
                     let _ = window.set_focus();
                 }
+                // Sem entrada no listener ainda (app reaberto do zero pelo
+                // clique, não só desminimizado) — evento se perde, ver a
+                // limitação de reabertura a frio documentada em
+                // useNotificationClick.ts.
+                let _ = app.emit(
+                    "notification-clicked",
+                    NotificationClickPayload {
+                        session_id: session_id.clone(),
+                        profile_id: profile_id.clone(),
+                    },
+                );
                 Ok(())
             });
             let _ = toast.show();

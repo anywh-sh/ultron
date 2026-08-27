@@ -49,13 +49,15 @@ function cleanBody(text: string | null, fallback: string): string {
 /** Vai direto pro comando Rust `notify_turn_complete` em vez de
  * `sendNotification` do plugin: no Windows o plugin usa o ícone do
  * PowerShell fora de um build instalado e não repassa o clique no toast pro
- * JS, então o ícone é implementado nativamente do lado Rust (ver
- * src-tauri/src/notifications.rs). */
-function fire(profile: Profile, sessionTitle: string, lastUserText: string | null, headline: string): void {
+ * JS, então o ícone e o clique (foco de janela + troca de aba) são
+ * implementados nativamente do lado Rust (ver src-tauri/src/notifications.rs
+ * e hooks/useNotificationClick.ts). `sessionId`/`profileId` viajam junto só
+ * pra esse roteamento do clique — o título/corpo já vêm prontos daqui. */
+function fire(tabId: string, profile: Profile, sessionTitle: string, lastUserText: string | null, headline: string): void {
   if (!inTauri() || !permissionGranted) return;
   const title = `[${profile.label}] ${headline}`;
   const body = cleanBody(lastUserText, sessionTitle);
-  void invoke("notify_turn_complete", { title, body });
+  void invoke("notify_turn_complete", { title, body, sessionId: tabId, profileId: profile.id });
 }
 
 /** Chamado (via `App.tsx`) quando um turno termina fora do foco — agenda a
@@ -76,14 +78,14 @@ export function scheduleTurnCompleteNotification(
   isStillHidden: () => boolean,
 ): void {
   if (stopped) {
-    fire(profile, sessionTitle, lastUserText, STOPPED_HEADLINE);
+    fire(tabId, profile, sessionTitle, lastUserText, STOPPED_HEADLINE);
     return;
   }
   const existing = pending.get(tabId);
   if (existing) clearTimeout(existing.timer);
   const timer = setTimeout(() => {
     pending.delete(tabId);
-    if (isStillHidden()) fire(profile, sessionTitle, lastUserText, FALLBACK_HEADLINE);
+    if (isStillHidden()) fire(tabId, profile, sessionTitle, lastUserText, FALLBACK_HEADLINE);
   }, NOTIFICATION_SUMMARY_TIMEOUT_MS);
   pending.set(tabId, { timer, profile, sessionTitle, lastUserText, isStillHidden });
 }
@@ -97,5 +99,5 @@ export function resolveNotificationSummary(tabId: string, summary: string | null
   if (!entry) return;
   clearTimeout(entry.timer);
   pending.delete(tabId);
-  if (entry.isStillHidden()) fire(entry.profile, entry.sessionTitle, entry.lastUserText, summary ?? FALLBACK_HEADLINE);
+  if (entry.isStillHidden()) fire(tabId, entry.profile, entry.sessionTitle, entry.lastUserText, summary ?? FALLBACK_HEADLINE);
 }

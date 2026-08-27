@@ -20,6 +20,7 @@ import { useTabs, type Tab } from "@/hooks/useTabs";
 import { useSessionPanels } from "@/hooks/useSessionPanels";
 import { useTerminalTabs } from "@/hooks/useTerminalTabs";
 import { useWindowFocus } from "@/hooks/useWindowFocus";
+import { useNotificationClick } from "@/hooks/useNotificationClick";
 import { PROFILES, findProfile } from "@/lib/profiles";
 import { ensureNotificationPermission, scheduleTurnCompleteNotification, resolveNotificationSummary } from "@/lib/notifications";
 import { deleteSession, renameSession } from "@/lib/relayClient";
@@ -151,10 +152,25 @@ export default function App() {
     setDrawerOpen(false);
   }
 
-  function handleSearchSelectSession(profileId: string, sessionId: string, title: string): void {
+  /** Troca de perfil (sidebar) + abre/ativa a aba — usado tanto pela busca de
+   * sessão (Cmd/Ctrl+K) quanto pelo clique numa notificação (`useNotificationClick`
+   * abaixo), os dois casos de "ir direto pra uma sessão que pode não ser do
+   * perfil selecionado agora". */
+  function focusSession(profileId: string, sessionId: string, title: string | null = null): void {
     setActiveProfileId(profileId);
     tabsState.openTab(profileId, sessionId, title);
   }
+
+  function handleSearchSelectSession(profileId: string, sessionId: string, title: string): void {
+    focusSession(profileId, sessionId, title);
+  }
+
+  // Clique numa notificação de turno concluído — ver useNotificationClick.ts
+  // pra como cada plataforma entrega isso (e a limitação documentada lá:
+  // Windows e iOS funcionam, macOS/Linux desktop não tem o hook de clique).
+  useNotificationClick(({ sessionId, profileId }) => {
+    focusSession(profileId, sessionId);
+  });
 
   /** `profileId` explícito (não sempre `activeProfile`) pelo mesmo motivo do
    * `handleDeleteSession` logo abaixo: também é chamado a partir de uma aba
