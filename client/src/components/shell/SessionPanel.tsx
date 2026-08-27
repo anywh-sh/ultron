@@ -49,10 +49,15 @@ export function SessionPanel({
 
       <div className="flex shrink-0 items-center justify-between border-b border-border-soft">
         <div className="min-w-0 flex-1">{headerExtra}</div>
-        <div className="flex shrink-0 items-center gap-0.5 px-1">
+        {/* `py-1` igual ao wrapper da tira de abas (TerminalTabStrip) — sem
+         * isso a altura da linha era ditada pelo próprio botão (`icon-sm`,
+         * maior que os `icon-xs` das abas), então o hover dele encostava
+         * direto nas bordas de cima/baixo, sem gap nenhum. `icon-xs` aqui
+         * também deixa maximizar/fechar do mesmo tamanho do "+" da tira. */}
+        <div className="flex shrink-0 items-center gap-0.5 px-1 py-1">
           <Tooltip>
             <TooltipTrigger asChild>
-              <Button variant="ghost" size="icon-sm" onClick={onToggleMaximized} aria-label={maximized ? "Restaurar painel" : "Expandir painel"}>
+              <Button variant="ghost" size="icon-xs" onClick={onToggleMaximized} aria-label={maximized ? "Restaurar painel" : "Expandir painel"}>
                 {maximized ? <Minimize2 className="size-3.5" /> : <Maximize2 className="size-3.5" />}
               </Button>
             </TooltipTrigger>
@@ -60,7 +65,7 @@ export function SessionPanel({
           </Tooltip>
           <Tooltip>
             <TooltipTrigger asChild>
-              <Button variant="ghost" size="icon-sm" onClick={onClose} aria-label="Fechar painel">
+              <Button variant="ghost" size="icon-xs" onClick={onClose} aria-label="Fechar painel">
                 <X className="size-3.5" />
               </Button>
             </TooltipTrigger>

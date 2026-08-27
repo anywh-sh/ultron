@@ -355,6 +355,16 @@ body {
   text-align: left;
 }
 
+/* Terminal embutido (docs/30) — o CSS do próprio pacote xterm.js força fundo
+ * preto sólido no viewport (`.xterm-viewport { background-color: #000 }`,
+ * comentado lá como "necessário no OS X pra scrollbar ficar opaca"), por
+ * cima do canvas que já está transparente (ver TerminalView.tsx). Sem essa
+ * sobrescrita, o painel nunca mostraria o fundo real dele — ficaria sempre
+ * preto sólido por cima. */
+.xterm .xterm-viewport {
+  background-color: transparent !important;
+}
+
 /* Syntax highlight (rehype-highlight/hljs) — tema mínimo em cima da própria
  * paleta em vez de importar um tema pronto do highlight.js. hljs-string e
  * hljs-number/built_in usam tons próprios (não fazem parte da paleta de UI

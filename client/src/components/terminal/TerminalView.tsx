@@ -57,7 +57,14 @@ export function TerminalView({ profile, chatSessionId, terminalId }: TerminalVie
       scrollback: 5000,
       allowProposedApi: true,
       theme: {
-        background: "#262624",
+        // Transparente de propósito, não `--bg-sidebar` fixo — o canvas do
+        // xterm deixa o fundo de verdade do painel (definido uma vez só em
+        // `SessionPanel.tsx`) aparecer por trás, em vez de duplicar a cor
+        // aqui e arriscar as duas desencontrarem se o tema mudar depois. O
+        // `.xterm-viewport` do pacote também força fundo preto sólido no CSS
+        // dele (ver override em index.css) — sem os dois, um dos dois ainda
+        // ficaria opaco por cima do painel.
+        background: "transparent",
         foreground: "#f0eee6",
         cursor: "#d97757",
         cursorAccent: "#262624",

@@ -29,8 +29,8 @@ export function TerminalTabStrip({ tabs, activeTerminalId, onSelect, onClose, on
             if (event.key === "Enter" || event.key === " ") onSelect(tab.id);
           }}
           className={cn(
-            "group flex shrink-0 cursor-pointer items-center gap-1.5 rounded-md py-1 pr-1 pl-2.5 font-mono text-xs",
-            tab.id === activeTerminalId ? "bg-bg-elevated text-foreground" : "text-muted-foreground hover:bg-border",
+            "group flex shrink-0 cursor-pointer items-center gap-1.5 rounded-md py-1 pr-1 pl-2.5 font-mono text-xs hover:bg-border",
+            tab.id === activeTerminalId ? "text-foreground" : "text-muted-foreground",
           )}
         >
           <span className="max-w-[96px] truncate">{tab.label}</span>
