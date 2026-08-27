@@ -20,6 +20,10 @@ export interface UseRelayClientOptions {
   onSetCwdError?: (message: string) => void;
   onSessionTitle?: (title: string) => void;
   onSessionDeleted?: () => void;
+  /** Resumo pra notificação chegando — ver `RelayClientCallbacks.onNotificationSummary`.
+   * Passthrough puro (sem state interno): quem usa decide o que fazer, o hook
+   * não precisa re-renderizar por causa disso. */
+  onNotificationSummary?: (text: string | null) => void;
   /** Ver `RelayClientCallbacks.onReconnecting` — dispara antes de todo
    * replay de histórico que não seja da conexão inicial. */
   onReconnecting?: () => void;
@@ -134,6 +138,7 @@ export function useRelayClient(
       onDefaultModelState: setDefaultModel,
       onContextUsageState: setContextUsage,
       onSuggestion: setSuggestion,
+      onNotificationSummary: (text) => optionsRef.current.onNotificationSummary?.(text),
       onSessionTitle: (title) => optionsRef.current.onSessionTitle?.(title),
       onSessionDeleted: () => optionsRef.current.onSessionDeleted?.(),
       onConnectionChange: setConnected,

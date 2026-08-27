@@ -134,7 +134,14 @@ export type RelayMessage =
    * placeholder do composer quando o campo está vazio. `null` tanto no
    * "ainda não tem sugestão" quanto no "sugestão anterior não vale mais"
    * (novo turno começando, `/clear`). */
-  | { type: "suggestion"; text: string | null };
+  | { type: "suggestion"; text: string | null }
+  /** Resumo curtíssimo (2-4 palavras) da última resposta, gerado de forma
+   * assíncrona ao fim de todo turno bem-sucedido (relay/src/sharedSession.ts)
+   * — usado como manchete da notificação do SO (`lib/notifications.ts`).
+   * Diferente de `suggestion`, não é "estado atual": é um evento de um turno
+   * específico, não reenviado numa reconexão. `null` em falha/vazio do
+   * gerador — quem consome cai pro fallback genérico da notificação. */
+  | { type: "notification_summary"; text: string | null };
 
 /** Uma sessão como o relay expõe em `GET /sessions` — `id` é estável desde a
  * criação, `title` é o que a sidebar mostra (inferido do primeiro prompt ou

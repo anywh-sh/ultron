@@ -99,6 +99,10 @@ export interface RelayClientCallbacks {
    * ver relay-types.ts::RelayMessage["suggestion"]. `null` limpa qualquer
    * sugestão mostrada. */
   onSuggestion?: (text: string | null) => void;
+  /** Resumo pra manchete de notificação chegando (ao vivo) — ver
+   * relay-types.ts::RelayMessage["notification_summary"]. Ao contrário de
+   * `onSuggestion`, não é reenviado numa reconexão (não é "estado atual"). */
+  onNotificationSummary?: (text: string | null) => void;
   /** `/clear` (docs/26) — a conversa dessa sessão foi resetada (por este
    * dispositivo ou outro); quem consome isso deve esvaziar o log de
    * mensagens local, mesma ideia do `reset()` já usado em `onReconnecting`. */
@@ -210,6 +214,8 @@ export class RelayClient {
         this.callbacks.onConversationReset?.();
       } else if (parsed.type === "suggestion") {
         this.callbacks.onSuggestion?.(parsed.text);
+      } else if (parsed.type === "notification_summary") {
+        this.callbacks.onNotificationSummary?.(parsed.text);
       }
     });
   }

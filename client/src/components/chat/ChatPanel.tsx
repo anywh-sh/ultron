@@ -21,7 +21,14 @@ interface ChatPanelProps {
   /** Aba aberta via "nova conversa" — mostra o estado ocioso em vez do
    * skeleton de carregamento enquanto o log ainda está vazio. */
   isNewConversation?: boolean;
-  onTurnComplete?: () => void;
+  /** `lastUserText` é a última mensagem que o usuário mandou nesse turno
+   * (extraída sincronamente do log, sem round-trip) — `App` usa isso como
+   * corpo da notificação do SO. */
+  onTurnComplete?: (result: { stopped: boolean; lastUserText: string | null }) => void;
+  /** Resumo curtíssimo da resposta, gerado de forma assíncrona depois de
+   * `onTurnComplete` (ver relay-types.ts::notification_summary) — `App` usa
+   * isso como manchete da notificação, com fallback se não chegar a tempo. */
+  onNotificationSummary?: (text: string | null) => void;
   onTurnActiveChange?: (active: boolean) => void;
   /** Título inferido do primeiro prompt (ou de um rename ao vivo em outro
    * dispositivo) chegando pela WS dessa sessão — ver sharedSession.ts. */
@@ -55,6 +62,7 @@ export function ChatPanel({
   sessionId,
   isNewConversation,
   onTurnComplete,
+  onNotificationSummary,
   onTurnActiveChange,
   onTitle,
   onActivity,
@@ -69,6 +77,8 @@ export function ChatPanel({
   onTurnActiveChangeRef.current = onTurnActiveChange;
   const onTitleRef = useRef(onTitle);
   onTitleRef.current = onTitle;
+  const onNotificationSummaryRef = useRef(onNotificationSummary);
+  onNotificationSummaryRef.current = onNotificationSummary;
   const onDeletedRef = useRef(onDeleted);
   onDeletedRef.current = onDeleted;
 
@@ -142,13 +152,16 @@ export function ChatPanel({
     onTurnComplete: (stopped) => {
       logRef.current.handleTurnComplete(stopped);
       setTurnInFlight(false);
-      if (caughtUpRef.current) onTurnComplete?.();
+      if (!caughtUpRef.current) return;
+      const lastUserEntry = [...logRef.current.entries].reverse().find((entry) => entry.kind === "user");
+      onTurnComplete?.({ stopped, lastUserText: lastUserEntry?.kind === "user" ? lastUserEntry.text : null });
     },
     onTurnError: (message) => {
       logRef.current.handleTurnError(message);
       setTurnInFlight(false);
     },
     onSetCwdError: (message) => window.alert(`Não foi possível trocar a pasta: ${message}`),
+    onNotificationSummary: (text) => onNotificationSummaryRef.current?.(text),
     onSessionTitle: (title) => onTitleRef.current?.(title),
     onSessionDeleted: () => onDeletedRef.current?.(),
   });

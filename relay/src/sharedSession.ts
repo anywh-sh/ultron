@@ -2,6 +2,7 @@ import type { WebSocket } from "ws";
 import { ClaudeSession, type ClaudeEvent } from "./claudeSession.js";
 import { checkDirectory } from "./fsBrowse.js";
 import { defaultCwd } from "./paths.js";
+import { generateNotificationSummary } from "./notificationSummaryGenerator.js";
 import { generateSuggestion } from "./suggestionGenerator.js";
 import { readHistoryFromTranscript } from "./transcriptReader.js";
 import type { ContextUsage, ModelChoice, PermissionMode } from "./sessionStore.js";
@@ -323,6 +324,17 @@ export class SharedSession {
           .catch((error: unknown) => {
             console.error("[relay] falha ao gerar sugestão de próxima mensagem:", error);
           });
+        // Mesma ideia da sugestão acima (fire-and-forget, sem atrasar
+        // turn_complete), mas pro resumo usado na notificação do SO — ver
+        // notificationSummaryGenerator.ts. Diferente da sugestão, não é
+        // "estado atual" (não fica em `this.*`/não reenvia em `addClient`):
+        // é um evento de um turno específico, reproduzi-lo numa reconexão
+        // dispararia uma notificação zumbi de um turno já visto.
+        generateNotificationSummary(this.homeOverride, this.cwd, lastAssistantText)
+          .then((summary) => this.broadcastNotificationSummary(summary ?? null))
+          .catch((error: unknown) => {
+            console.error("[relay] falha ao gerar resumo de notificação:", error);
+          });
       }
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error);
@@ -409,6 +421,12 @@ export class SharedSession {
     if (this.suggestion === null) return;
     this.suggestion = null;
     this.broadcastSuggestion();
+  }
+
+  /** Evento efêmero de um turno específico (ver comentário em `runTurn`) —
+   * manda só pros clientes conectados agora, sem guardar estado nenhum. */
+  private broadcastNotificationSummary(text: string | null): void {
+    for (const client of this.clients) client.send(JSON.stringify({ type: "notification_summary", text }));
   }
 
   private sendTitle(target: WebSocket, title: string): void {
