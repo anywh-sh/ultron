@@ -12,8 +12,16 @@
 // aba certa (client/src/hooks/useNotificationClick.ts tem o detalhe de como
 // cada plataforma entrega isso, e a limitação conhecida de reabertura a
 // frio — app totalmente fechado quando o clique acontece).
+// `rename_all` é essencial aqui: diferente dos args de `#[tauri::command]` (o
+// macro já converte pra camelCase sozinho na ponte JS), `app.emit` serializa
+// esse payload com `serde::Serialize` puro — sem o rename, ia sair
+// `session_id`/`profile_id` (snake_case) no JSON, e o listener em
+// useNotificationClick.ts (que espera `sessionId`/`profileId`) recebia
+// `undefined` nos dois campos, roteando pra uma aba nova em branco em vez da
+// sessão certa (bug real, encontrado em teste no Windows).
 #[cfg(target_os = "windows")]
 #[derive(Clone, serde::Serialize)]
+#[serde(rename_all = "camelCase")]
 struct NotificationClickPayload {
     session_id: String,
     profile_id: String,
