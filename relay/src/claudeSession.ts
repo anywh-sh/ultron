@@ -18,6 +18,23 @@ import type { ContextUsage, ModelChoice, PermissionMode } from "./sessionStore.j
 const CLAUDE_BIN = process.env.CLAUDE_BIN ?? "/home/user/.local/bin/claude";
 const EXTRA_PATH_DIRS = ["/home/user/.local/bin", "/home/user/.nvm/versions/node/v20.19.0/bin"];
 
+/** Anexado em todo turno, independente do CLAUDE.md do projeto ativo — é uma
+ * preferência do CLIENTE ultron, não de um projeto específico. Sem isso, ao
+ * escrever um rascunho pra colar em outro lugar (Slack, e-mail), o modelo
+ * às vezes quebra o texto manualmente a cada ~80 colunas (hábito herdado de
+ * texto de terminal/commit) — dentro de um bloco ``` isso é literal (`pre`
+ * preserva `\n`), então em vez de um parágrafo fluido que a UI quebra
+ * sozinha pela largura da tela, sobra um parágrafo com quebras de linha no
+ * meio de frases. Texto enxuto de propósito (~1/3 do original) — isso entra
+ * em TODO turno mesmo quando não tem nada a ver com rascunho de texto, então
+ * o custo de token do reforço mais explícito não valia a pena até aparecer
+ * de novo na prática. Se voltar a acontecer, dá pra reforçar mesmo custando
+ * mais tokens.
+ */
+const APPEND_SYSTEM_PROMPT =
+  "When writing prose meant to be pasted elsewhere (Slack, email), write each paragraph as one " +
+  "continuous line, not manually wrapped at a fixed width.";
+
 /** Env de todo processo filho do relay (turno do `claude -p` aqui, shell
  * interativo em terminalSession.ts) — extraído pra um lugar só porque a
  * regra de ouro (nunca deixar `ANTHROPIC_API_KEY` vazar pro processo filho,
@@ -187,6 +204,8 @@ export class ClaudeSession {
       "stream-json",
       "--verbose",
       "--include-partial-messages",
+      "--append-system-prompt",
+      APPEND_SYSTEM_PROMPT,
       ...(model ? ["--model", model] : []),
       // `bypassPermissions` é o modo padrão histórico (o único que existia
       // antes de o modo ser selecionável, ver docs/25) — continua na flag
