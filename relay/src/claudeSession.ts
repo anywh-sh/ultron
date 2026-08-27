@@ -18,6 +18,21 @@ import type { ContextUsage, ModelChoice, PermissionMode } from "./sessionStore.j
 const CLAUDE_BIN = process.env.CLAUDE_BIN ?? "/home/user/.local/bin/claude";
 const EXTRA_PATH_DIRS = ["/home/user/.local/bin", "/home/user/.nvm/versions/node/v20.19.0/bin"];
 
+/** Env de todo processo filho do relay (turno do `claude -p` aqui, shell
+ * interativo em terminalSession.ts) — extraído pra um lugar só porque a
+ * regra de ouro (nunca deixar `ANTHROPIC_API_KEY` vazar pro processo filho,
+ * docs/00) tem que valer igual nos dois: um terminal aberto pelo usuário é
+ * tão capaz de rodar `claude` manualmente quanto o próprio spawn do turno. */
+export function buildChildEnv(homeOverride: string | undefined): NodeJS.ProcessEnv {
+  const env = { ...process.env };
+  delete env.ANTHROPIC_API_KEY;
+  if (homeOverride) {
+    env.HOME = homeOverride;
+  }
+  env.PATH = [...EXTRA_PATH_DIRS, env.PATH ?? ""].join(":");
+  return env;
+}
+
 export interface ClaudeEvent {
   type: string;
   session_id?: string;
@@ -194,15 +209,8 @@ export class ClaudeSession {
       args.push("--resume", this.sessionId);
     }
 
-    const env = { ...process.env };
-    delete env.ANTHROPIC_API_KEY;
-    if (this.options.homeOverride) {
-      env.HOME = this.options.homeOverride;
-    }
-    env.PATH = [...EXTRA_PATH_DIRS, env.PATH ?? ""].join(":");
-
     const child = spawn(CLAUDE_BIN, args, {
-      env,
+      env: buildChildEnv(this.options.homeOverride),
       cwd,
     });
     this.currentChild = child;

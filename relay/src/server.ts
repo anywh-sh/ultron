@@ -5,6 +5,7 @@ import { listDirectories } from "./fsBrowse.js";
 import { defaultCwd } from "./paths.js";
 import { SessionManager } from "./sessionManager.js";
 import { SessionStore, type ModelChoice, type PermissionMode } from "./sessionStore.js";
+import { killAllTerminalsForSession, killTerminal, spawnTerminal } from "./terminalSession.js";
 import { saveUpload } from "./uploads.js";
 
 // Config via env — permite rodar uma instância por perfil (systemd,
@@ -84,6 +85,31 @@ function isRenameBody(value: unknown): value is { id: string; title: string } {
 
 function isIdBody(value: unknown): value is { id: string } {
   return typeof value === "object" && value !== null && typeof (value as { id?: unknown }).id === "string";
+}
+
+function isTerminalCloseBody(value: unknown): value is { session: string; term: string } {
+  return (
+    typeof value === "object" &&
+    value !== null &&
+    typeof (value as { session?: unknown }).session === "string" &&
+    typeof (value as { term?: unknown }).term === "string"
+  );
+}
+
+function isTerminalInputMessage(value: unknown): value is { type: "input"; data: string } {
+  return (
+    typeof value === "object" &&
+    value !== null &&
+    (value as { type?: unknown }).type === "input" &&
+    typeof (value as { data?: unknown }).data === "string"
+  );
+}
+
+function isTerminalResizeMessage(value: unknown): value is { type: "resize"; cols: number; rows: number } {
+  if (typeof value !== "object" || value === null || (value as { type?: unknown }).type !== "resize") return false;
+  const cols = (value as { cols?: unknown }).cols;
+  const rows = (value as { rows?: unknown }).rows;
+  return typeof cols === "number" && cols > 0 && typeof rows === "number" && rows > 0;
 }
 
 /** Sem lib de parsing de body no projeto (só o upload binário tinha um
@@ -185,7 +211,37 @@ const httpServer = createServer((req, res) => {
           res.end(JSON.stringify({ error: "sessão não encontrada" }));
           return;
         }
-        res.end(JSON.stringify({ ok: true }));
+        // Varre e mata qualquer terminal (tmux) que essa sessão de chat
+        // ainda tivesse aberto — sem isso ficaria órfão pra sempre, sem
+        // nenhuma aba na UI que soubesse que ele existe (ver terminalSession.ts).
+        killAllTerminalsForSession(PORT, body.id)
+          .catch((error: unknown) => console.error("[relay] falha ao limpar terminais da sessão excluída:", error))
+          .finally(() => res.end(JSON.stringify({ ok: true })));
+      })
+      .catch(() => {
+        res.writeHead(400);
+        res.end(JSON.stringify({ error: "corpo inválido" }));
+      });
+    return;
+  }
+
+  if (req.method === "POST" && req.url?.startsWith("/terminals/close")) {
+    res.setHeader("Content-Type", "application/json");
+    res.setHeader("Access-Control-Allow-Origin", "*");
+    readJsonBody(req)
+      .then((body) => {
+        if (!isTerminalCloseBody(body)) {
+          res.writeHead(400);
+          res.end(JSON.stringify({ error: "session e term são obrigatórios" }));
+          return;
+        }
+        killTerminal(PORT, body.session, body.term)
+          .then(() => res.end(JSON.stringify({ ok: true })))
+          .catch((error: unknown) => {
+            console.error("[relay] falha ao fechar terminal:", error);
+            res.writeHead(500);
+            res.end(JSON.stringify({ error: "falha ao fechar terminal" }));
+          });
       })
       .catch(() => {
         res.writeHead(400);
@@ -238,8 +294,70 @@ httpServer.listen(PORT, HOST, () => {
   console.log(`[relay] listening on ws://${HOST}:${PORT}`, HOME_OVERRIDE ? `(HOME=${HOME_OVERRIDE})` : "");
 });
 
+/** Um shell interativo (tmux) por aba de terminal — protocolo próprio,
+ * bem mais simples que o do chat (sem replay de histórico: reanexar ao tmux
+ * já redesenha a tela sozinho, ver terminalSession.ts). Fechar a conexão WS
+ * (troca de aba/sessão, painel fechado, ou rede caindo) só detacha — nunca
+ * mata a sessão tmux por aqui; matar de verdade é só via `POST
+ * /terminals/close` (aba fechada explicitamente) ou na exclusão da sessão
+ * de chat inteira. */
+function handleTerminalConnection(socket: WebSocket, url: URL): void {
+  const chatSessionId = url.searchParams.get("session")?.trim() || DEFAULT_SESSION;
+  const terminalId = url.searchParams.get("term")?.trim();
+  if (!terminalId) {
+    socket.close();
+    return;
+  }
+  const cols = Number(url.searchParams.get("cols"));
+  const rows = Number(url.searchParams.get("rows"));
+
+  const cwd = sessionStore.getCwdState(chatSessionId).cwd;
+  const term = spawnTerminal({
+    homeOverride: HOME_OVERRIDE,
+    relayPort: PORT,
+    chatSessionId,
+    terminalId,
+    cwd,
+    cols: Number.isFinite(cols) && cols > 0 ? Math.floor(cols) : 80,
+    rows: Number.isFinite(rows) && rows > 0 ? Math.floor(rows) : 24,
+  });
+
+  const dataSub = term.onData((data) => {
+    if (socket.readyState === socket.OPEN) socket.send(JSON.stringify({ type: "data", data }));
+  });
+  const exitSub = term.onExit(({ exitCode }) => {
+    if (socket.readyState === socket.OPEN) socket.send(JSON.stringify({ type: "exit", code: exitCode }));
+  });
+
+  socket.on("message", (raw: Buffer) => {
+    let parsed: unknown;
+    try {
+      parsed = JSON.parse(raw.toString());
+    } catch {
+      return;
+    }
+    if (isTerminalInputMessage(parsed)) {
+      term.write(parsed.data);
+    } else if (isTerminalResizeMessage(parsed)) {
+      term.resize(Math.floor(parsed.cols), Math.floor(parsed.rows));
+    }
+  });
+
+  socket.on("close", () => {
+    dataSub.dispose();
+    exitSub.dispose();
+    term.kill();
+  });
+}
+
 wss.on("connection", (socket: WebSocket, request) => {
   const url = new URL(request.url ?? "/", `http://${request.headers.host ?? "localhost"}`);
+
+  if (url.pathname === "/terminal") {
+    handleTerminalConnection(socket, url);
+    return;
+  }
+
   const sessionId = url.searchParams.get("session")?.trim() || DEFAULT_SESSION;
 
   console.log(`[relay] client connected (session: ${sessionId})`);
