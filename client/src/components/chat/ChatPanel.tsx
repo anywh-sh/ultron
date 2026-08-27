@@ -108,6 +108,8 @@ export function ChatPanel({
     defaultModel,
     contextUsage,
     compactBoundary,
+    suggestion,
+    dismissSuggestion,
     sendMessage,
     stopTurn,
     setCwd,
@@ -244,6 +246,7 @@ export function ChatPanel({
           defaultModel={defaultModel}
           contextUsage={contextUsage}
           compactBoundary={compactBoundary}
+          suggestion={suggestion}
           onSend={(text, sentImages) => {
             // `/model`/`/clear` (docs/26): reconhecidos aqui, antes de virar
             // turno — nenhum dos dois passa como texto pro `claude -p` (ver
@@ -263,6 +266,7 @@ export function ChatPanel({
             sendMessage(buildWireMessage(text, sentImages));
             images.clearWithoutRevoke();
             setTurnInFlight(true);
+            dismissSuggestion();
             onActivity?.();
           }}
         />

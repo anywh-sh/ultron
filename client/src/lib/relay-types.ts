@@ -128,7 +128,13 @@ export type RelayMessage =
    * vez no boot do relay — não é por sessão, é o mesmo valor pra toda
    * conexão desse processo. Usado como fallback de exibição quando a sessão
    * nunca rodou `/model` (`model_state` ainda `null`). */
-  | { type: "default_model_state"; label: string };
+  | { type: "default_model_state"; label: string }
+  /** Sugestão de próxima mensagem, gerada de forma assíncrona ao fim de todo
+   * turno bem-sucedido (relay/src/sharedSession.ts) — mostrada como
+   * placeholder do composer quando o campo está vazio. `null` tanto no
+   * "ainda não tem sugestão" quanto no "sugestão anterior não vale mais"
+   * (novo turno começando, `/clear`). */
+  | { type: "suggestion"; text: string | null };
 
 /** Uma sessão como o relay expõe em `GET /sessions` — `id` é estável desde a
  * criação, `title` é o que a sidebar mostra (inferido do primeiro prompt ou

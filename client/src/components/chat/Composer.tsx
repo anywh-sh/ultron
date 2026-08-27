@@ -53,6 +53,11 @@ interface ComposerProps {
    * ver isIOS() abaixo) não tem a toolbar onde isso entraria. */
   contextUsage: ContextUsage | null;
   compactBoundary: CompactBoundaryEvent | null;
+  /** Sugestão de próxima mensagem (relay-types.ts) — mostrada como
+   * placeholder do composer enquanto o campo está vazio; `Tab` a preenche
+   * (ver `editorProps.handleKeyDown` abaixo). `null` some pro placeholder
+   * genérico de sempre. */
+  suggestion: string | null;
 }
 
 export interface ComposerHandle {
@@ -96,8 +101,19 @@ const EXTENSIONS = [
     underline: false,
   }),
   ComposerLink,
-  Placeholder.configure({ placeholder: "Escreva uma mensagem…" }),
 ];
+
+const DEFAULT_PLACEHOLDER = "Escreva uma mensagem…";
+
+/** Placeholder dinâmico: mostra a sugestão de próxima mensagem enquanto ela
+ * existir, senão cai no texto genérico de sempre. Precisa ser criado por
+ * instância de `Composer` (não um extension module-level, como o resto de
+ * `EXTENSIONS`) — cada aba tem sua própria sugestão, e `useEditor` não
+ * recria o editor a cada mudança de prop, então o valor tem que vir de uma
+ * ref atualizada a cada render (mesmo padrão de `submitRef` abaixo). */
+function createPlaceholderExtension(suggestionRef: MutableRefObject<string | null>) {
+  return Placeholder.configure({ placeholder: () => suggestionRef.current ?? DEFAULT_PLACEHOLDER });
+}
 
 /** Colore `/model haiku` etc digitado no composer, só quando é um comando
  * reconhecido de verdade (mesma checagem de `parseSlashCommand` — um
@@ -261,6 +277,7 @@ export const Composer = forwardRef<ComposerHandle, ComposerProps>(function Compo
     defaultModel,
     contextUsage,
     compactBoundary,
+    suggestion,
   },
   ref,
 ) {
@@ -277,7 +294,16 @@ export const Composer = forwardRef<ComposerHandle, ComposerProps>(function Compo
   // — ver o comentário de `createSlashCommandExtension`.
   const slashMenuActiveRef = useRef(false);
   const [slashCommandExtension] = useState(() => createSlashCommandExtension(slashMenuActiveRef));
-  const extensions = useMemo(() => [...EXTENSIONS, slashCommandExtension], [slashCommandExtension]);
+  // Canal de volta pro placeholder dinâmico (ver `createPlaceholderExtension`)
+  // e pro handler de `Tab` abaixo — os dois vivem fora do ciclo de render do
+  // Tiptap, então não veem a prop `suggestion` atualizar sozinhos.
+  const suggestionRef = useRef<string | null>(suggestion);
+  suggestionRef.current = suggestion;
+  const [placeholderExtension] = useState(() => createPlaceholderExtension(suggestionRef));
+  const extensions = useMemo(
+    () => [...EXTENSIONS, placeholderExtension, slashCommandExtension],
+    [placeholderExtension, slashCommandExtension],
+  );
 
   const editor = useEditor({
     extensions,
@@ -289,7 +315,7 @@ export const Composer = forwardRef<ComposerHandle, ComposerProps>(function Compo
     },
     editorProps: {
       attributes: { class: "composer-prosemirror", "aria-label": "Escreva uma mensagem…" },
-      handleKeyDown: (_view, event) => {
+      handleKeyDown: (view, event) => {
         // Menu de comandos aberto: deixa o Suggestion tratar Enter/setas (ver
         // `createSlashCommandExtension`) — sem isso o Enter sempre submeteria
         // em vez de preencher o comando selecionado.
@@ -297,6 +323,15 @@ export const Composer = forwardRef<ComposerHandle, ComposerProps>(function Compo
         if (event.key === "Enter" && !event.shiftKey) {
           event.preventDefault();
           submitRef.current();
+          return true;
+        }
+        // Campo vazio com uma sugestão mostrada como placeholder (ver
+        // `createPlaceholderExtension`) — `Tab` preenche o texto em vez de
+        // sair do campo (comportamento padrão do navegador), só nesse caso;
+        // fora dele `Tab` segue normal (não intercepta à toa).
+        if (event.key === "Tab" && !event.shiftKey && view.state.doc.textContent.length === 0 && suggestionRef.current) {
+          event.preventDefault();
+          view.dispatch(view.state.tr.insertText(suggestionRef.current));
           return true;
         }
         return false;

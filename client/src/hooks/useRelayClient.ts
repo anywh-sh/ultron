@@ -52,6 +52,17 @@ export interface UseRelayClientResult {
   /** Último `compact_boundary` visto, se houver — pensado pra um toast
    * transitório na UI, não estado persistente (ver `CompactBoundaryEvent`). */
   compactBoundary: CompactBoundaryEvent | null;
+  /** Sugestão de próxima mensagem, se houver — ver relay-types.ts. `null`
+   * tanto "ainda sem sugestão" quanto "sugestão anterior não vale mais". */
+  suggestion: string | null;
+  /** Limpa a sugestão só localmente (sem round-trip) — o relay já vai limpar
+   * a dele e broadcastar `null` assim que o `submitTurn` correspondente
+   * chegar, mas isso tem uma latência de rede; quem envia uma mensagem já
+   * sabe que a sugestão de agora não vale mais, então chama isso na hora
+   * pra não arriscar o placeholder antigo reaparecer por uma fração de
+   * segundo depois do composer ser limpo (mesmo espírito da atualização
+   * otimista de `onActivity` em ChatPanel). */
+  dismissSuggestion: () => void;
   sendMessage: (text: string) => void;
   stopTurn: () => void;
   setCwd: (path: string) => void;
@@ -80,6 +91,7 @@ export function useRelayClient(
   const [defaultModel, setDefaultModel] = useState<string | null>(null);
   const [contextUsage, setContextUsage] = useState<ContextUsage | null>(null);
   const [compactBoundary, setCompactBoundary] = useState<CompactBoundaryEvent | null>(null);
+  const [suggestion, setSuggestion] = useState<string | null>(null);
   const clientRef = useRef<RelayClient | null>(null);
 
   const optionsRef = useRef(options);
@@ -96,6 +108,7 @@ export function useRelayClient(
     setDefaultModel(null);
     setContextUsage(null);
     setCompactBoundary(null);
+    setSuggestion(null);
 
     const client = new RelayClient(profile.host, profile.relayPort, sessionId, {
       onEvent: (event) => {
@@ -120,6 +133,7 @@ export function useRelayClient(
       onModelState: setModelState,
       onDefaultModelState: setDefaultModel,
       onContextUsageState: setContextUsage,
+      onSuggestion: setSuggestion,
       onSessionTitle: (title) => optionsRef.current.onSessionTitle?.(title),
       onSessionDeleted: () => optionsRef.current.onSessionDeleted?.(),
       onConnectionChange: setConnected,
@@ -172,6 +186,10 @@ export function useRelayClient(
     clientRef.current?.clearConversation();
   }, []);
 
+  const dismissSuggestion = useCallback(() => {
+    setSuggestion(null);
+  }, []);
+
   return {
     connected,
     cwd,
@@ -181,6 +199,8 @@ export function useRelayClient(
     defaultModel,
     contextUsage,
     compactBoundary,
+    suggestion,
+    dismissSuggestion,
     sendMessage,
     stopTurn,
     setCwd,

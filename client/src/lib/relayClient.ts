@@ -78,6 +78,10 @@ export interface RelayClientCallbacks {
    * ver sharedSession.ts::broadcastContextUsage. `null` depois de um
    * `/clear` (ver onConversationReset). */
   onContextUsageState?: (usage: ContextUsage | null) => void;
+  /** Sugestão de próxima mensagem chegando (ao vivo ou logo na conexão) —
+   * ver relay-types.ts::RelayMessage["suggestion"]. `null` limpa qualquer
+   * sugestão mostrada. */
+  onSuggestion?: (text: string | null) => void;
   /** `/clear` (docs/26) — a conversa dessa sessão foi resetada (por este
    * dispositivo ou outro); quem consome isso deve esvaziar o log de
    * mensagens local, mesma ideia do `reset()` já usado em `onReconnecting`. */
@@ -187,6 +191,8 @@ export class RelayClient {
         this.callbacks.onContextUsageState?.(parsed.usage);
       } else if (parsed.type === "conversation_reset") {
         this.callbacks.onConversationReset?.();
+      } else if (parsed.type === "suggestion") {
+        this.callbacks.onSuggestion?.(parsed.text);
       }
     });
   }
