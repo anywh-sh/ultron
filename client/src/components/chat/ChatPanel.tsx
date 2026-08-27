@@ -186,7 +186,13 @@ export function ChatPanel({
         </div>
       )}
 
-      {isNewConversation && log.entries.length === 0 && log.streamingEntries.length === 0 ? (
+      {(isNewConversation || ready) && log.entries.length === 0 && log.streamingEntries.length === 0 ? (
+        // `isNewConversation` cobre a aba recém-aberta (mostra ocioso na hora,
+        // sem esperar `ready` — não tem nada mesmo pra carregar). `ready`
+        // cobre uma sessão existente que ficou vazia de verdade — depois de
+        // um `/clear` (docs/26), por exemplo — sem essa segunda condição a
+        // tela ficava só em branco (nem ocioso nem skeleton) até o próximo
+        // turno, porque `isNewConversation` já era `false` há muito tempo.
         <ChatIdleState />
       ) : ready ? (
         <MessageLog
