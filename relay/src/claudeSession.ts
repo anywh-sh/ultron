@@ -44,6 +44,17 @@ export interface SendTurnResult {
    * esperados (ex: erro antes de qualquer chamada de API) — nesse caso quem
    * chama deve manter o último valor conhecido, não zerar. */
   contextUsage?: ContextUsage;
+  /** Texto da última resposta do assistente no fio principal (não inclui
+   * subagentes, mesmo filtro de `isMainThreadEvent`) — usado só pra alimentar
+   * o gerador de sugestão de próxima mensagem (suggestionGenerator.ts).
+   * `undefined` se o turno não produziu nenhum bloco de texto (ex: só
+   * tool_use antes de interromper). */
+  lastAssistantText?: string;
+}
+
+interface ContentBlock {
+  type?: string;
+  text?: string;
 }
 
 interface ResultUsage {
@@ -213,6 +224,7 @@ export class ClaudeSession {
       let lastModel: string | undefined;
       let lastMainThreadUsage: ResultUsage | undefined;
       let contextUsage: ContextUsage | undefined;
+      let lastAssistantText: string | undefined;
 
       const readLines = (async () => {
         const rl = createInterface({ input: child.stdout });
@@ -224,8 +236,16 @@ export class ClaudeSession {
             lastModel = event.model;
           }
           if (event.type === "assistant" && isMainThreadEvent(event)) {
-            const usage = (event.message as { usage?: ResultUsage } | undefined)?.usage;
-            if (usage) lastMainThreadUsage = usage;
+            const message = event.message as { usage?: ResultUsage; content?: ContentBlock[] } | undefined;
+            if (message?.usage) lastMainThreadUsage = message.usage;
+            // Sobrescreve a cada evento assistant do fio principal — o
+            // último antes do `result` é a resposta final que o usuário viu,
+            // que é o que interessa pro gerador de sugestão (não precisa
+            // acumular todas as respostas intermediárias do turno).
+            const textBlocks = message?.content?.filter((block) => block.type === "text" && block.text);
+            if (textBlocks && textBlocks.length > 0) {
+              lastAssistantText = textBlocks.map((block) => block.text).join("\n");
+            }
           }
           if (event.type === "result") {
             // Capturado sempre que presente, erro ou não — um turno
@@ -250,18 +270,18 @@ export class ClaudeSession {
       await Promise.race([spawnError, readLines]);
 
       if (lastErrorResult) {
-        if (this.stopRequested) return { stopped: true, contextUsage };
+        if (this.stopRequested) return { stopped: true, contextUsage, lastAssistantText };
         this.sessionId = undefined;
         throw new Error(lastErrorResult);
       }
       if (eventCount === 0 || exitCode !== 0) {
-        if (this.stopRequested) return { stopped: true, contextUsage };
+        if (this.stopRequested) return { stopped: true, contextUsage, lastAssistantText };
         this.sessionId = undefined;
         throw new Error(
           stderrOutput.trim() || `claude saiu com código ${String(exitCode)} sem produzir nenhum evento`,
         );
       }
-      return { stopped: false, contextUsage };
+      return { stopped: false, contextUsage, lastAssistantText };
     } finally {
       this.currentChild = undefined;
     }

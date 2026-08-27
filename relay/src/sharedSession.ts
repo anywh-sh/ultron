@@ -2,6 +2,7 @@ import type { WebSocket } from "ws";
 import { ClaudeSession, type ClaudeEvent } from "./claudeSession.js";
 import { checkDirectory } from "./fsBrowse.js";
 import { defaultCwd } from "./paths.js";
+import { generateSuggestion } from "./suggestionGenerator.js";
 import { readHistoryFromTranscript } from "./transcriptReader.js";
 import type { ContextUsage, ModelChoice, PermissionMode } from "./sessionStore.js";
 
@@ -9,6 +10,11 @@ export type BroadcastMessage =
   | { type: "claude_event"; event: ClaudeEvent }
   | { type: "turn_complete"; stopped?: boolean }
   | { type: "turn_error"; message: string };
+
+// `suggestion` (e outros estados "atuais": cwd_state, permission_mode_state
+// etc.) não entra em `BroadcastMessage`/`history` de propósito — são mandados
+// direto via socket.send em vez de `this.broadcast`, e uma reconexão pega o
+// valor de agora via `addClient`, não um replay de mudanças passadas.
 
 export interface SharedSessionOptions {
   /** session_id já persistido pra essa sessão (Fase 7 / docs/18), se houver. */
@@ -90,6 +96,11 @@ export class SharedSession {
   private permissionMode: PermissionMode;
   private model: ModelChoice | undefined;
   private contextUsage: ContextUsage | undefined;
+  /** Sugestão de próxima mensagem (gerada de forma assíncrona ao fim de todo
+   * turno bem-sucedido, ver `runTurn`) — só em memória, de propósito: é uma
+   * conveniência de baixo risco, não precisa sobreviver a um restart do relay
+   * (diferente de `contextUsage`, que é persistido no SessionStore). */
+  private suggestion: string | null = null;
   /** Separado de `locked`: uma sessão pode travar o cwd no primeiro turno
    * (ex: um `/model opus` de abertura) sem ainda ter uma mensagem de verdade
    * pra título — ver `onFirstPrompt` acima. */
@@ -181,6 +192,7 @@ export class SharedSession {
     this.sendModelState(socket);
     if (this.title !== null) this.sendTitle(socket, this.title);
     this.sendContextUsage(socket);
+    this.sendSuggestion(socket);
 
     this.ensureHistoryLoaded();
     for (const message of this.history) {
@@ -225,6 +237,10 @@ export class SharedSession {
   }
 
   submitTurn(text: string): void {
+    // Sugestão de um turno anterior não vale mais assim que um novo começa —
+    // limpa na hora (não espera o turno terminar) pra não ficar pendurada
+    // durante toda a duração do turno em andamento.
+    this.clearSuggestion();
     // Enfileira: só um turno do `claude -p` roda por vez nessa sessão.
     this.turnQueue = this.turnQueue.then(() => this.runTurn(text));
   }
@@ -249,6 +265,7 @@ export class SharedSession {
       this.contextUsage = undefined;
       this.options.onSessionIdClear?.();
       this.broadcastContextUsageReset();
+      this.clearSuggestion();
       this.broadcastConversationReset();
     });
   }
@@ -276,7 +293,7 @@ export class SharedSession {
     }
 
     try {
-      const { stopped, contextUsage } = await this.claude.sendTurn(
+      const { stopped, contextUsage, lastAssistantText } = await this.claude.sendTurn(
         text,
         this.cwd,
         this.permissionMode,
@@ -293,6 +310,20 @@ export class SharedSession {
         this.broadcastContextUsage();
       }
       this.broadcast({ type: "turn_complete", stopped });
+      // Só sugere um follow-up de um turno que terminou de verdade (não
+      // interrompido) — fire-and-forget, não atrasa `turn_complete` acima.
+      // Velocidade não é prioridade aqui (é uma conveniência, não parte do
+      // fluxo principal), então nenhum timeout/cancelamento é necessário.
+      if (!stopped) {
+        generateSuggestion(this.homeOverride, this.cwd, text, lastAssistantText)
+          .then((suggestion) => {
+            this.suggestion = suggestion ?? null;
+            this.broadcastSuggestion();
+          })
+          .catch((error: unknown) => {
+            console.error("[relay] falha ao gerar sugestão de próxima mensagem:", error);
+          });
+      }
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error);
       console.error("[relay] turno falhou:", message);
@@ -359,6 +390,25 @@ export class SharedSession {
     for (const client of this.clients) {
       client.send(JSON.stringify({ type: "conversation_reset" }));
     }
+  }
+
+  /** Diferente de `sendContextUsage`, manda sempre (mesmo `null`) — não tem
+   * ambiguidade de "ainda não chegou" pra distinguir aqui: uma sessão sem
+   * nenhuma sugestão ainda e uma que teve a sugestão limpa parecem iguais
+   * pro cliente (nenhuma das duas mostra placeholder nenhum), então não
+   * precisa do guard que `sendContextUsage` tem. */
+  private sendSuggestion(target: WebSocket): void {
+    target.send(JSON.stringify({ type: "suggestion", text: this.suggestion }));
+  }
+
+  private broadcastSuggestion(): void {
+    for (const client of this.clients) this.sendSuggestion(client);
+  }
+
+  private clearSuggestion(): void {
+    if (this.suggestion === null) return;
+    this.suggestion = null;
+    this.broadcastSuggestion();
   }
 
   private sendTitle(target: WebSocket, title: string): void {
