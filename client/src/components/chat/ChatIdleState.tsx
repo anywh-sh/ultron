@@ -5,5 +5,5 @@ import { IdleScreen } from "@/components/shell/IdleScreen";
  * sentido aqui, não existe histórico nenhum pra carregar) e a sensação de
  * tela em branco enquanto a conexão com o relay ainda não confirmou. */
 export function ChatIdleState() {
-  return <IdleScreen heading="Nova conversa" subtitle="Escreva uma mensagem abaixo para começar." />;
+  return <IdleScreen heading="Nova sessão" subtitle="Escreva uma mensagem abaixo para começar." />;
 }

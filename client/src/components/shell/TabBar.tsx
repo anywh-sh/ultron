@@ -70,7 +70,7 @@ function SortableTab({ tab, profileId, onClose, onDelete }: SortableTabProps) {
           aria-label={tab.isRunning ? "Agente trabalhando nesta sessão" : undefined}
         />
         {tab.hasUnreadCompletion && <span className="size-1.5 shrink-0 rounded-full bg-primary" />}
-        <span className="max-w-[120px] truncate">{tab.title ?? "Nova conversa"}</span>
+        <span className="max-w-[120px] truncate">{tab.title ?? "Nova sessão"}</span>
       </TabsTrigger>
       <button
         type="button"
@@ -78,7 +78,7 @@ function SortableTab({ tab, profileId, onClose, onDelete }: SortableTabProps) {
           event.stopPropagation();
           onClose(tab.id);
         }}
-        aria-label={`Fechar aba ${tab.title ?? "nova conversa"}`}
+        aria-label={`Fechar aba ${tab.title ?? "nova sessão"}`}
         className={cn(
           "absolute right-1.5 cursor-pointer rounded p-0.5 opacity-0 transition-opacity",
           "hover:bg-border group-hover:opacity-100",
@@ -86,7 +86,7 @@ function SortableTab({ tab, profileId, onClose, onDelete }: SortableTabProps) {
       >
         <X className="size-3" />
       </button>
-      <SessionDeleteMenu menu={menu} title={tab.title ?? "nova conversa"} onDelete={() => onDelete(tab.id)} />
+      <SessionDeleteMenu menu={menu} title={tab.title ?? "nova sessão"} onDelete={() => onDelete(tab.id)} />
     </div>
   );
 }

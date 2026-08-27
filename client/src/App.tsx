@@ -305,7 +305,7 @@ export default function App() {
                 windowFocused;
               if (!stillVisible) {
                 profileTabs.setUnread(profile.id, tab.id, true);
-                notifyTurnComplete(findProfile(profile.id) ?? profile, tab.title ?? "Nova conversa");
+                notifyTurnComplete(findProfile(profile.id) ?? profile, tab.title ?? "Nova sessão");
               }
             }}
             onTitle={(title) => {
@@ -377,7 +377,7 @@ export default function App() {
           onRenameSession={handleRenameSession}
           onDeleteSession={(id) => handleDeleteSession(activeProfile.id, id)}
           onOpenSearch={() => setSearchOpen(true)}
-          title={activeTabOfActiveProfile?.title ?? "Nova conversa"}
+          title={activeTabOfActiveProfile?.title ?? "Nova sessão"}
           connected={activeConnected}
           onNewConversation={handleNewConversation}
         >
