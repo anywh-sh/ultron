@@ -1,3 +1,4 @@
+import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import type { SlashCommandEntry } from "@/lib/slashCommands";
 import { cn } from "@/lib/utils";
 
@@ -11,36 +12,36 @@ interface SlashCommandMenuProps {
 /**
  * Popup de autocompletar do composer (docs/26/27) — abre só quando `/` é o
  * primeiro caractere digitado (ver o `Suggestion` do Tiptap em Composer.tsx).
- * Duas colunas em vez de um tooltip flutuante por item: a descrição do item
- * selecionado/hover fica fixa na coluna da direita, sem reposicionar um
- * tooltip a cada seta pressionada — mais robusto que Radix Tooltip aqui, que
- * é pensado pra hover isolado, não pra navegação por teclado disparando o
- * mesmo efeito.
+ * Descrição do item selecionado/hover aparece como tooltip de verdade na
+ * lateral direita (`Tooltip` do projeto, `side="right"`) — `open` controlado
+ * pelo índice selecionado em vez do hover nativo do Radix, pra funcionar
+ * igual tanto navegando por teclado quanto passando o mouse.
  */
 export function SlashCommandMenu({ items, selectedIndex, onHover, onPick }: SlashCommandMenuProps) {
   if (items.length === 0) return null;
-  const selected = items[selectedIndex];
 
   return (
-    <div className="z-50 flex overflow-hidden rounded-xl border border-border bg-bg-elevated shadow-lg">
-      <ul className="max-h-56 w-44 shrink-0 overflow-y-auto border-r border-border p-1">
-        {items.map((entry, index) => (
-          <li key={entry.command}>
-            <button
-              type="button"
-              onMouseEnter={() => onHover(index)}
-              onClick={() => onPick(entry)}
-              className={cn(
-                "block w-full cursor-pointer truncate rounded-md px-2 py-1.5 text-left text-sm transition-colors",
-                index === selectedIndex ? "bg-border text-primary" : "text-foreground hover:bg-border/60",
-              )}
-            >
-              {entry.command}
-            </button>
-          </li>
-        ))}
-      </ul>
-      <div className="w-48 shrink-0 p-2.5 text-xs text-muted-foreground">{selected?.description}</div>
-    </div>
+    <ul className="z-50 max-h-56 w-48 overflow-y-auto rounded-xl border border-border bg-bg-elevated p-1 shadow-lg">
+      {items.map((entry, index) => (
+        <li key={entry.command}>
+          <Tooltip open={index === selectedIndex}>
+            <TooltipTrigger asChild>
+              <button
+                type="button"
+                onMouseEnter={() => onHover(index)}
+                onClick={() => onPick(entry)}
+                className={cn(
+                  "block w-full cursor-pointer truncate rounded-md px-2 py-1.5 text-left text-sm transition-colors",
+                  index === selectedIndex ? "bg-border text-primary" : "text-foreground hover:bg-border/60",
+                )}
+              >
+                {entry.command}
+              </button>
+            </TooltipTrigger>
+            <TooltipContent side="right">{entry.description}</TooltipContent>
+          </Tooltip>
+        </li>
+      ))}
+    </ul>
   );
 }
