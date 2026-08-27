@@ -24,6 +24,10 @@ interface FolderPickerDialogProps {
    * dois dispositivos), fecha sozinho — ver efeito abaixo. */
   locked: boolean;
   onSelect: (path: string) => void;
+  /** Ver comentário em `WorkingDirectoryButtonProps.onFocusComposer` — mesmo
+   * motivo, mesmo remédio, dessa vez no `onCloseAutoFocus` do `Dialog`
+   * (que por padrão devolveria o foco pro trigger que abriu o modal). */
+  onFocusComposer: () => void;
 }
 
 interface Crumb {
@@ -65,6 +69,7 @@ export function FolderPickerDialog({
   initialPath,
   locked,
   onSelect,
+  onFocusComposer,
 }: FolderPickerDialogProps) {
   const [browsePath, setBrowsePath] = useState(initialPath);
   const [pathInput, setPathInput] = useState(initialPath);
@@ -116,7 +121,13 @@ export function FolderPickerDialog({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-md">
+      <DialogContent
+        className="sm:max-w-md"
+        onCloseAutoFocus={(event) => {
+          event.preventDefault();
+          onFocusComposer();
+        }}
+      >
         <DialogHeader>
           <DialogTitle>Selecionar pasta</DialogTitle>
         </DialogHeader>

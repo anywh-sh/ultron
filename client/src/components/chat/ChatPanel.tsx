@@ -251,6 +251,7 @@ export function ChatPanel({
             connected={connected}
             isNewConversation={isNewConversation}
             onSetCwd={setCwd}
+            onFocusComposer={() => composerRef.current?.focus()}
           />
           {terminal && <TerminalToggleButton cwd={cwd} open={terminal.open} onToggle={terminal.onToggle} />}
         </div>

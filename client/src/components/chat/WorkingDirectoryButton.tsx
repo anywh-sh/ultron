@@ -29,6 +29,11 @@ interface WorkingDirectoryButtonProps {
    * verdade já está travada, só ainda não confirmamos isso. */
   isNewConversation?: boolean;
   onSetCwd: (path: string) => void;
+  /** Devolve o foco pro composer quando o dropdown ou o `FolderPickerDialog`
+   * fecham — sem isso o Radix restaura o foco pro trigger deste botão por
+   * padrão (`onCloseAutoFocus`), então escolher uma pasta deixava o usuário
+   * sem poder digitar de cara, tendo que clicar no campo de novo. */
+  onFocusComposer: () => void;
 }
 
 /** Nome só da última pasta do path, pro botão/lista não ficarem gigantes — o
@@ -54,6 +59,7 @@ export function WorkingDirectoryButton({
   connected,
   isNewConversation,
   onSetCwd,
+  onFocusComposer,
 }: WorkingDirectoryButtonProps) {
   const { recents, addRecent } = useRecentFolders(profile.id);
   const [pickerOpen, setPickerOpen] = useState(false);
@@ -108,7 +114,13 @@ export function WorkingDirectoryButton({
           <TooltipContent side="top">{cwd ?? (isNewConversation ? "Escolher pasta" : "Conectando…")}</TooltipContent>
         </Tooltip>
 
-        <DropdownMenuContent align="start">
+        <DropdownMenuContent
+          align="start"
+          onCloseAutoFocus={(event) => {
+            event.preventDefault();
+            onFocusComposer();
+          }}
+        >
           {locked ? (
             <>
               <DropdownMenuLabel className="flex flex-col gap-0.5">
@@ -148,6 +160,7 @@ export function WorkingDirectoryButton({
         initialPath={cwd ?? ""}
         locked={locked}
         onSelect={selectFolder}
+        onFocusComposer={onFocusComposer}
       />
     </>
   );
