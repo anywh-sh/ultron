@@ -1,4 +1,4 @@
-import { lazy, Suspense, useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { Menu } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Sheet, SheetContent, SheetTitle } from "@/components/ui/sheet";
@@ -10,6 +10,7 @@ import { TabBar } from "@/components/shell/TabBar";
 import { TitleBar } from "@/components/shell/TitleBar";
 import { MobileShell } from "@/components/shell/MobileShell";
 import { ChatPanel } from "@/components/chat/ChatPanel";
+import { TerminalPanelSlot } from "@/components/terminal/TerminalPanelSlot";
 import { useActiveProfile } from "@/hooks/useActiveProfile";
 import { useNavigationHistory } from "@/hooks/useNavigationHistory";
 import { useSessionNames } from "@/hooks/useSessionNames";
@@ -24,14 +25,6 @@ import { ensureNotificationPermission, notifyTurnComplete } from "@/lib/notifica
 import { deleteSession, renameSession } from "@/lib/relayClient";
 import { isIOS } from "@/lib/platform";
 import { cn } from "@/lib/utils";
-
-// xterm.js (+ addons) só entra no bundle inicial se/quando o usuário de
-// fato abrir um terminal (docs/30) — code splitting via `lazy`, não `import`
-// direto, é o que mantém o boot do app leve pro caso comum (a maioria das
-// sessões nunca abre o painel).
-const TerminalPanel = lazy(() =>
-  import("@/components/terminal/TerminalPanel").then((mod) => ({ default: mod.TerminalPanel })),
-);
 
 /** Override opcional via query string (`?profile=&session=`) — só pra permitir
  * deep-link direto num estado específico em testes via Playwright (docs/13). */
@@ -356,23 +349,32 @@ export default function App() {
     // plano (forceMount, pra manter a WS do chat viva — ver comentário mais
     // abaixo), então sem esse gate o painel de terminal ficaria conectado
     // pra sessões fora de foco também. Só a aba ativa realmente monta
-    // `TerminalPanel`; as outras nem chegam a existir no DOM, então nem
+    // `TerminalPanelSlot`; as outras nem chegam a existir no DOM, então nem
     // abrem WS nenhuma pro terminal — o custo de várias abas de chat
     // abertas ao mesmo tempo (vários perfis, vários contextos) fica restrito
     // a um único painel de terminal vivo por vez, não um por sessão.
+    //
+    // Diferente de antes, o gate aqui não inclui mais `panel.open` — é
+    // assim que a animação de abrir/fechar (mesma da sidebar esquerda,
+    // useResizableSidebar) funciona: `TerminalPanelSlot` fica montado o
+    // tempo todo enquanto a aba está ativa, e é ELE (por dentro, leve, sem
+    // xterm.js) quem decide a largura (0 fechado, animando pra `panel.width`
+    // aberto). Sem isso o conteúdo do painel só existia no DOM quando aberto
+    // — não tinha o que a transição CSS animasse, aparecia/sumia de vez.
     const isTabActive = tab.id === activeTabId;
-    const showTerminal = isTabActive && panel.open;
+    const chatHidden = isTabActive && panel.open && panel.maximized;
 
     // O wrapper (esta `div` + a `div` logo abaixo em volta de `chatContent`)
     // é renderizado incondicionalmente, com a MESMA forma sempre — só a
-    // presença do `Suspense`/`TerminalPanel` como irmão alterna. Antes disso
-    // era condicional (`if (!showTerminal) return chatContent` sem
-    // wrapper nenhum), e abrir/fechar/trocar de aba de terminal trocava o
-    // tipo do filho nessa posição da árvore (de `ChatPanel` direto pra
-    // `div`) — o React via isso como um elemento diferente e desmontava
-    // `ChatPanel` inteiro (perdendo `ready`, fechando a WS, reconectando),
-    // que é exatamente o flash de skeleton reportado ao abrir/expandir/
-    // fechar o painel. Manter a forma estável evita esse remount.
+    // presença do `TerminalPanelSlot` como irmão alterna (junto com a aba
+    // ficando ativa/inativa). Antes disso era condicional (`if
+    // (!showTerminal) return chatContent` sem wrapper nenhum), e abrir/
+    // fechar/trocar de aba de terminal trocava o tipo do filho nessa posição
+    // da árvore (de `ChatPanel` direto pra `div`) — o React via isso como um
+    // elemento diferente e desmontava `ChatPanel` inteiro (perdendo `ready`,
+    // fechando a WS, reconectando), que é exatamente o flash de skeleton
+    // reportado ao abrir/expandir/fechar o painel. Manter a forma estável
+    // evita esse remount.
     return (
       <div className="relative flex h-full min-w-0">
         {/* `invisible absolute inset-0` em vez de encolher pra 0 — mesmo
@@ -381,21 +383,17 @@ export default function App() {
          * corrompe o cache de alturas se o container medir tamanho 0 mesmo
          * que só brevemente (é exatamente o que aconteceria maximizando o
          * terminal se o chat fosse escondido via `display:none`/largura 0). */}
-        <div className={cn("min-w-0 flex-1", showTerminal && panel.maximized && "invisible absolute inset-0")}>
-          {chatContent}
-        </div>
-        {showTerminal && (
-          <Suspense fallback={<div className="h-full shrink-0 border-l border-border-soft bg-bg-sidebar" style={{ width: panel.width }} />}>
-            <TerminalPanel
-              profile={profile}
-              chatSessionId={tab.id}
-              panel={panel}
-              terminalTabs={terminalTabs}
-              onWidthChange={(width) => sessionPanels.setWidth(tab.id, width)}
-              onToggleMaximized={() => sessionPanels.toggleMaximized(tab.id)}
-              onClose={() => sessionPanels.closePanel(tab.id)}
-            />
-          </Suspense>
+        <div className={cn("min-w-0 flex-1", chatHidden && "invisible absolute inset-0")}>{chatContent}</div>
+        {isTabActive && (
+          <TerminalPanelSlot
+            profile={profile}
+            chatSessionId={tab.id}
+            panel={panel}
+            terminalTabs={terminalTabs}
+            onWidthChange={(width) => sessionPanels.setWidth(tab.id, width)}
+            onToggleMaximized={() => sessionPanels.toggleMaximized(tab.id)}
+            onClose={() => sessionPanels.closePanel(tab.id)}
+          />
         )}
       </div>
     );

@@ -2,7 +2,6 @@ import { useEffect, useRef } from "react";
 import { SessionPanel } from "@/components/shell/SessionPanel";
 import { TerminalTabStrip } from "@/components/terminal/TerminalTabStrip";
 import { TerminalView } from "@/components/terminal/TerminalView";
-import { usePanelDrag } from "@/hooks/usePanelDrag";
 import type { SessionPanelState } from "@/hooks/useSessionPanels";
 import type { useTerminalTabs } from "@/hooks/useTerminalTabs";
 import { closeTerminal } from "@/lib/relayClient";
@@ -13,7 +12,11 @@ interface TerminalPanelProps {
   chatSessionId: string;
   panel: SessionPanelState;
   terminalTabs: ReturnType<typeof useTerminalTabs>;
-  onWidthChange: (width: number) => void;
+  /** Handler de arraste — o estado de largura em si (`isDragging` incluso)
+   * mora em `TerminalPanelSlot` agora, não aqui: precisa ficar visível pro
+   * wrapper animado que fica montado mesmo com o painel fechado (ver
+   * TerminalPanelSlot.tsx). */
+  onStartDrag: (event: React.PointerEvent) => void;
   onToggleMaximized: () => void;
   onClose: () => void;
 }
@@ -37,28 +40,39 @@ interface TerminalPanelProps {
  * *todas* as sessões de chat, que é justamente o que a montagem
  * condicional acima evita.
  */
-export function TerminalPanel({ profile, chatSessionId, panel, terminalTabs, onWidthChange, onToggleMaximized, onClose }: TerminalPanelProps) {
-  const { isDragging, startDrag } = usePanelDrag(panel.width, onWidthChange);
+export function TerminalPanel({
+  profile,
+  chatSessionId,
+  panel,
+  terminalTabs,
+  onStartDrag,
+  onToggleMaximized,
+  onClose,
+}: TerminalPanelProps) {
   const { tabs, activeTerminalId } = terminalTabs.getTabs(chatSessionId);
-  const initializedRef = useRef(false);
-
-  // Painel recém-aberto sem nenhuma aba ainda (primeira vez que essa sessão
-  // abre o terminal) — cria "Terminal 1" sozinho, sem exigir um clique extra
-  // no "+". `initializedRef` evita recriar depois que o usuário fechou a
-  // última aba de propósito (ver efeito de auto-close logo abaixo).
+  const { addTerminal } = terminalTabs;
+  /** `true` assim que a lista já teve pelo menos uma aba — é o que distingue
+   * "painel recém-aberto, ainda vazio" (semeia "Terminal 1") de "tinha aba,
+   * usuário fechou a última" (fecha o painel). Um único efeito, não dois:
+   * a primeira versão disparava os dois em sequência na mesma passada —
+   * `addTerminal` já marca uma flag síncrona antes do estado novo (`tabs`)
+   * ter re-renderizado, então um efeito de "fechar se vazio" separado lia
+   * `tabs.length` ainda como 0 e fechava o painel um instante depois de
+   * abrir (achado testando de verdade: abrir sempre voltava a fechar
+   * sozinho). Um efeito só, guiado pela transição real de `tabs.length`
+   * entre renders, evita a corrida. */
+  const hasHadTabsRef = useRef(false);
   useEffect(() => {
-    if (initializedRef.current) return;
-    initializedRef.current = true;
-    if (tabs.length === 0) terminalTabs.addTerminal(chatSessionId);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [chatSessionId]);
-
-  // Fechou a última aba de terminal → não faz sentido manter o painel
-  // aberto mostrando nada. Só depois da inicialização acima, senão fecharia
-  // o painel na primeira renderização (antes do "Terminal 1" existir).
-  useEffect(() => {
-    if (initializedRef.current && tabs.length === 0) onClose();
-  }, [tabs.length, onClose]);
+    if (tabs.length > 0) {
+      hasHadTabsRef.current = true;
+      return;
+    }
+    if (hasHadTabsRef.current) {
+      onClose();
+    } else {
+      addTerminal(chatSessionId);
+    }
+  }, [tabs.length, chatSessionId, onClose, addTerminal]);
 
   function handleCloseTerminal(terminalId: string): void {
     terminalTabs.closeTerminal(chatSessionId, terminalId);
@@ -69,10 +83,8 @@ export function TerminalPanel({ profile, chatSessionId, panel, terminalTabs, onW
 
   return (
     <SessionPanel
-      width={panel.width}
-      isDragging={isDragging}
       maximized={panel.maximized}
-      onStartDrag={startDrag}
+      onStartDrag={onStartDrag}
       onToggleMaximized={onToggleMaximized}
       onClose={onClose}
       headerExtra={

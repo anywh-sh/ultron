@@ -2,11 +2,8 @@ import type { ReactNode } from "react";
 import { Maximize2, Minimize2, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
-import { cn } from "@/lib/utils";
 
 interface SessionPanelProps {
-  width: number;
-  isDragging: boolean;
   maximized: boolean;
   onStartDrag: (event: React.PointerEvent) => void;
   onToggleMaximized: () => void;
@@ -23,23 +20,13 @@ interface SessionPanelProps {
  * (`TerminalPanelContent`); o visualizador de arquivos do work dir
  * (planejado) reaproveita esta mesma casca depois, só trocando `headerExtra`
  * e `children` (ver useSessionPanels.ts pro porquê de painel e conteúdo
- * serem coisas separadas).
+ * serem coisas separadas). Largura/animação de abrir-fechar não são
+ * responsabilidade daqui — `TerminalPanelSlot` já entrega um espaço do
+ * tamanho certo (ver comentário lá); esta casca só preenche 100% dele.
  */
-export function SessionPanel({
-  width,
-  isDragging,
-  maximized,
-  onStartDrag,
-  onToggleMaximized,
-  onClose,
-  headerExtra,
-  children,
-}: SessionPanelProps) {
+export function SessionPanel({ maximized, onStartDrag, onToggleMaximized, onClose, headerExtra, children }: SessionPanelProps) {
   return (
-    <div
-      className={cn("relative flex h-full min-w-0 shrink-0 flex-col border-l border-border-soft bg-bg-sidebar", maximized && "flex-1")}
-      style={maximized ? undefined : { width, transition: isDragging ? "none" : "width 150ms ease" }}
-    >
+    <div className="relative flex h-full w-full min-w-0 flex-col border-l border-border-soft bg-bg-sidebar">
       {!maximized && (
         <div
           onPointerDown={onStartDrag}
