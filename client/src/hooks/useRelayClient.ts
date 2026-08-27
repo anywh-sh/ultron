@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from "react";
-import { RelayClient, type ClaudeEvent, type ContextUsage, type PermissionMode } from "@/lib/relayClient";
+import { RelayClient, type ClaudeEvent, type ContextUsage, type ModelChoice, type PermissionMode } from "@/lib/relayClient";
 import type { Profile } from "@/lib/profiles";
 
 /** Um `compact_boundary` recebido, com timestamp — o timestamp garante uma
@@ -23,6 +23,8 @@ export interface UseRelayClientOptions {
   /** Ver `RelayClientCallbacks.onReconnecting` — dispara antes de todo
    * replay de histórico que não seja da conexão inicial. */
   onReconnecting?: () => void;
+  /** `/clear` (docs/26) — ver `RelayClientCallbacks.onConversationReset`. */
+  onConversationReset?: () => void;
 }
 
 export interface UseRelayClientResult {
@@ -35,8 +37,13 @@ export interface UseRelayClientResult {
   /** `null` só na janela breve entre conectar e o primeiro
    * `permission_mode_state` chegar — mesmo motivo do `cwd` acima. */
   permissionMode: PermissionMode | null;
+  /** `null` tanto na janela breve entre conectar e o primeiro `model_state`
+   * quanto no estado final "nunca escolhido via /model" — os dois se
+   * comportam igual pra UI (usa o padrão do CLI), não precisa distinguir. */
+  model: ModelChoice | null;
   /** `null` até o primeiro `context_usage_state` chegar — nunca chega numa
-   * sessão nova sem nenhum turno concluído ainda (ver sharedSession.ts). */
+   * sessão nova sem nenhum turno concluído ainda (ver sharedSession.ts), e
+   * volta a `null` depois de um `/clear` (docs/26). */
   contextUsage: ContextUsage | null;
   /** Último `compact_boundary` visto, se houver — pensado pra um toast
    * transitório na UI, não estado persistente (ver `CompactBoundaryEvent`). */
@@ -45,6 +52,8 @@ export interface UseRelayClientResult {
   stopTurn: () => void;
   setCwd: (path: string) => void;
   setPermissionMode: (mode: PermissionMode) => void;
+  setModel: (model: ModelChoice) => void;
+  clearConversation: () => void;
 }
 
 /**
@@ -63,6 +72,7 @@ export function useRelayClient(
   const [cwd, setCwdState] = useState<string | null>(null);
   const [cwdLocked, setCwdLocked] = useState(false);
   const [permissionMode, setPermissionModeState] = useState<PermissionMode | null>(null);
+  const [model, setModelState] = useState<ModelChoice | null>(null);
   const [contextUsage, setContextUsage] = useState<ContextUsage | null>(null);
   const [compactBoundary, setCompactBoundary] = useState<CompactBoundaryEvent | null>(null);
   const clientRef = useRef<RelayClient | null>(null);
@@ -77,6 +87,7 @@ export function useRelayClient(
     setCwdState(null);
     setCwdLocked(false);
     setPermissionModeState(null);
+    setModelState(null);
     setContextUsage(null);
     setCompactBoundary(null);
 
@@ -100,11 +111,13 @@ export function useRelayClient(
       },
       onSetCwdError: (message) => optionsRef.current.onSetCwdError?.(message),
       onPermissionModeState: setPermissionModeState,
+      onModelState: setModelState,
       onContextUsageState: setContextUsage,
       onSessionTitle: (title) => optionsRef.current.onSessionTitle?.(title),
       onSessionDeleted: () => optionsRef.current.onSessionDeleted?.(),
       onConnectionChange: setConnected,
       onReconnecting: () => optionsRef.current.onReconnecting?.(),
+      onConversationReset: () => optionsRef.current.onConversationReset?.(),
     });
     clientRef.current = client;
     client.connect();
@@ -144,16 +157,27 @@ export function useRelayClient(
     clientRef.current?.setPermissionMode(mode);
   }, []);
 
+  const setModel = useCallback((newModel: ModelChoice) => {
+    clientRef.current?.setModel(newModel);
+  }, []);
+
+  const clearConversation = useCallback(() => {
+    clientRef.current?.clearConversation();
+  }, []);
+
   return {
     connected,
     cwd,
     cwdLocked,
     permissionMode,
+    model,
     contextUsage,
     compactBoundary,
     sendMessage,
     stopTurn,
     setCwd,
     setPermissionMode,
+    setModel,
+    clearConversation,
   };
 }

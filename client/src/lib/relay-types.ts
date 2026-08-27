@@ -95,6 +95,10 @@ export interface ClaudeEvent {
  * docs/25). */
 export type PermissionMode = "default" | "acceptEdits" | "plan" | "bypassPermissions";
 
+/** Espelha `ModelChoice` do relay (relay/src/sessionStore.ts) — mesma
+ * convenção do `PermissionMode` acima, sem import cross-package. */
+export type ModelChoice = "default" | "sonnet" | "opus" | "haiku" | "fable";
+
 /** Espelha `ContextUsage` do relay (relay/src/sessionStore.ts) — mesmo
  * `contextWindowSize` vindo direto do CLI (`modelUsage[model].contextWindow`
  * do evento `result`), nunca uma tabela estática no cliente. */
@@ -114,7 +118,12 @@ export type RelayMessage =
   | { type: "session_title"; title: string }
   | { type: "session_deleted" }
   | { type: "permission_mode_state"; mode: PermissionMode }
-  | { type: "context_usage_state"; usage: ContextUsage };
+  | { type: "model_state"; model: ModelChoice | null }
+  | { type: "context_usage_state"; usage: ContextUsage | null }
+  /** `/clear` (docs/26) — sinal por conexão (não entra em replay), avisa um
+   * cliente já conectado que a conversa foi resetada; quem conecta depois
+   * já vê o histórico vazio naturalmente. */
+  | { type: "conversation_reset" };
 
 /** Uma sessão como o relay expõe em `GET /sessions` — `id` é estável desde a
  * criação, `title` é o que a sidebar mostra (inferido do primeiro prompt ou

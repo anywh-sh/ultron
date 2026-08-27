@@ -1,12 +1,13 @@
 // Cliente do protocolo do relay próprio (não é mais o protocolo do ttyd —
 // ver docs/11-decisao-pivo-stream-json.md e docs/12-prototipo-relay.md).
-import type { ClaudeEvent, ContextUsage, PermissionMode, RelayMessage, SessionSummary } from "@/lib/relay-types";
+import type { ClaudeEvent, ContextUsage, ModelChoice, PermissionMode, RelayMessage, SessionSummary } from "@/lib/relay-types";
 
 export type {
   ClaudeContentBlock,
   ClaudeMessage,
   ClaudeEvent,
   ContextUsage,
+  ModelChoice,
   PermissionMode,
   SessionSummary,
 } from "@/lib/relay-types";
@@ -64,11 +65,19 @@ export interface RelayClientCallbacks {
   /** Mandado logo na conexão (antes do replay) e de novo toda vez que o modo
    * muda — ver sharedSession.ts::setPermissionMode. */
   onPermissionModeState: (mode: PermissionMode) => void;
-  /** Mandado logo na conexão (antes do replay, se já houver algum turno
-   * concluído nessa sessão) e de novo ao fim de todo turno que produziu
-   * uso de contexto — ver sharedSession.ts::broadcastContextUsage. Pode
-   * nunca disparar numa sessão nova sem nenhum turno ainda. */
-  onContextUsageState?: (usage: ContextUsage) => void;
+  /** Mandado logo na conexão e de novo toda vez que o modelo muda — ver
+   * sharedSession.ts::setModel. `null` é um estado final válido ("nunca
+   * escolhido via /model, usa o padrão do CLI"), não "ainda carregando". */
+  onModelState: (model: ModelChoice | null) => void;
+  /** Mandado logo na conexão (se já houver algum turno concluído nessa
+   * sessão) e de novo ao fim de todo turno que produziu uso de contexto —
+   * ver sharedSession.ts::broadcastContextUsage. `null` depois de um
+   * `/clear` (ver onConversationReset). */
+  onContextUsageState?: (usage: ContextUsage | null) => void;
+  /** `/clear` (docs/26) — a conversa dessa sessão foi resetada (por este
+   * dispositivo ou outro); quem consome isso deve esvaziar o log de
+   * mensagens local, mesma ideia do `reset()` já usado em `onReconnecting`. */
+  onConversationReset?: () => void;
   onConnectionChange?: (connected: boolean) => void;
   /** Título inferido do primeiro prompt (ou de um rename manual feito em
    * outro dispositivo) chegando ao vivo — ver sharedSession.ts::setTitle. */
@@ -166,8 +175,12 @@ export class RelayClient {
         this.callbacks.onSessionDeleted?.();
       } else if (parsed.type === "permission_mode_state") {
         this.callbacks.onPermissionModeState(parsed.mode);
+      } else if (parsed.type === "model_state") {
+        this.callbacks.onModelState(parsed.model);
       } else if (parsed.type === "context_usage_state") {
         this.callbacks.onContextUsageState?.(parsed.usage);
+      } else if (parsed.type === "conversation_reset") {
+        this.callbacks.onConversationReset?.();
       }
     });
   }
@@ -199,6 +212,22 @@ export class RelayClient {
       return;
     }
     this.socket.send(JSON.stringify({ type: "set_permission_mode", mode }));
+  }
+
+  /** Sem fila de "pendente antes de conectar" (diferente de `setCwd`/
+   * `setPermissionMode`): só é acionado via `/model` digitado no composer,
+   * que já fica desabilitado enquanto `!connected` — nunca dá pra chamar
+   * isso antes do socket abrir. */
+  setModel(model: ModelChoice): void {
+    if (this.socket?.readyState !== WebSocket.OPEN) return;
+    this.socket.send(JSON.stringify({ type: "set_model", model }));
+  }
+
+  /** `/clear` (docs/26) — mesmo raciocínio de `setModel` sobre não precisar
+   * de fila de pendência. */
+  clearConversation(): void {
+    if (this.socket?.readyState !== WebSocket.OPEN) return;
+    this.socket.send(JSON.stringify({ type: "clear_conversation" }));
   }
 
   disconnect(): void {
