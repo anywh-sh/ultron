@@ -53,14 +53,26 @@ export interface SpawnTerminalOptions {
  * só tem efeito na criação — reanexar a uma sessão existente ignora `cwd`
  * de propósito (é o comportamento normal de terminal: a pasta de um shell
  * já rodando não teleporta se a working directory da conversa mudar depois;
- * quem quiser outra pasta dá `cd` à mão ou abre uma aba nova). */
+ * quem quiser outra pasta dá `cd` à mão ou abre uma aba nova).
+ *
+ * `; set-option -g status off` encadeado (token `;` literal — sem shell no
+ * meio, `pty.spawn` recebe argv puro, então isso não é sintaxe de shell,
+ * é o próprio tmux reconhecendo `;` como separador de comando) desliga a
+ * status bar do tmux, que senão aparecia como uma linha de "lixo" (id da
+ * sessão truncado + hostname + hora) dentro do terminal — chrome do tmux
+ * duplicando o que a tira de abas do app já mostra. `-g` (global, não por
+ * sessão) garante que isso vale tanto criando quanto reanexando: um `-t
+ * <nome>` explícito só teria efeito na criação, igual `-c` acima. Isolado
+ * ao socket próprio deste perfil (`tmuxSocketName`) — nunca toca o tmux de
+ * verdade do usuário (socket default), só esse servidor efêmero que o
+ * terminal embutido cria sozinho. */
 export function spawnTerminal(options: SpawnTerminalOptions): IPty {
   const socket = tmuxSocketName(options.relayPort);
   const name = tmuxSessionName(options.chatSessionId, options.terminalId);
 
   return pty.spawn(
     TMUX_BIN,
-    ["-L", socket, "new-session", "-A", "-s", name, "-c", options.cwd],
+    ["-L", socket, "new-session", "-A", "-s", name, "-c", options.cwd, ";", "set-option", "-g", "status", "off"],
     {
       name: "xterm-256color",
       cols: options.cols,
