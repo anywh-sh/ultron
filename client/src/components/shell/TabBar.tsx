@@ -11,14 +11,13 @@ import { SortableContext, horizontalListSortingStrategy, useSortable } from "@dn
 import { CSS } from "@dnd-kit/utilities";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { cn } from "@/lib/utils";
-import type { Tab } from "@/hooks/useProfileTabs";
+import type { Tab } from "@/hooks/useTabs";
 import { useContextMenu } from "@/hooks/useContextMenu";
 import { SessionDeleteMenu } from "@/components/shell/SessionDeleteMenu";
 
 interface TabBarProps {
   tabs: Tab[];
   activeTabId: string | null;
-  profileId: string;
   onSelect: (tabId: string) => void;
   onClose: (tabId: string) => void;
   onReorder: (activeTabId: string, overTabId: string) => void;
@@ -28,7 +27,6 @@ interface TabBarProps {
 
 interface SortableTabProps {
   tab: Tab;
-  profileId: string;
   onClose: (tabId: string) => void;
   onDelete: (tabId: string) => void;
 }
@@ -40,7 +38,7 @@ interface SortableTabProps {
  * Sem `KeyboardSensor` no `DndContext` pelo mesmo motivo: ArrowLeft/Right já
  * move o foco entre abas via Radix, colidiria com "mover item arrastado".
  */
-function SortableTab({ tab, profileId, onClose, onDelete }: SortableTabProps) {
+function SortableTab({ tab, onClose, onDelete }: SortableTabProps) {
   const { setNodeRef, listeners, transform, transition, isDragging } = useSortable({ id: tab.id });
   const menu = useContextMenu();
 
@@ -64,7 +62,7 @@ function SortableTab({ tab, profileId, onClose, onDelete }: SortableTabProps) {
         <span
           className={cn(
             "size-1.5 shrink-0 rounded-full",
-            profileId === "trabalho" ? "bg-profile-work" : "bg-profile-personal",
+            tab.profileId === "trabalho" ? "bg-profile-work" : "bg-profile-personal",
             tab.isRunning && "animate-pulse",
           )}
           aria-label={tab.isRunning ? "Agente trabalhando nesta sessão" : undefined}
@@ -106,7 +104,7 @@ function SortableTab({ tab, profileId, onClose, onDelete }: SortableTabProps) {
  * dentro do wrapper `relative` pra ocuparem o mesmo espaço sem depender do
  * fluxo flex.
  */
-export function TabBar({ tabs, activeTabId, profileId, onSelect, onClose, onReorder, onDelete, renderPanel }: TabBarProps) {
+export function TabBar({ tabs, activeTabId, onSelect, onClose, onReorder, onDelete, renderPanel }: TabBarProps) {
   const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 8 } }));
 
   function handleDragEnd(event: DragEndEvent): void {
@@ -123,7 +121,7 @@ export function TabBar({ tabs, activeTabId, profileId, onSelect, onClose, onReor
             className="h-auto w-full justify-start gap-0 rounded-none border-b border-border-soft bg-transparent p-0"
           >
             {tabs.map((tab) => (
-              <SortableTab key={tab.id} tab={tab} profileId={profileId} onClose={onClose} onDelete={onDelete} />
+              <SortableTab key={tab.id} tab={tab} onClose={onClose} onDelete={onDelete} />
             ))}
           </TabsList>
         </SortableContext>

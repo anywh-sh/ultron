@@ -20,10 +20,9 @@ function readRecents(profileId: string): string[] {
 /**
  * MRU de pastas escolhidas no picker de working directory, até 5, isolada
  * por perfil (docs da feature) — mesma convenção de localStorage por perfil
- * que `useProfileTabs.ts` já usa. Mais simples que aquele hook porque quem
- * chama (`WorkingDirectoryButton`) sempre tem um `profileId` concreto e
- * estável no mount, sem o cross-profile "abas em background" que motiva o
- * `byProfile` de lá.
+ * que `useTabs.ts` já usava antes de virar uma lista geral (docs/29). Mais
+ * simples que aquele hook porque quem chama (`WorkingDirectoryButton`) sempre
+ * tem um `profileId` concreto e estável no mount.
  */
 export function useRecentFolders(profileId: string) {
   const [recents, setRecents] = useState<string[]>(() => readRecents(profileId));

@@ -15,12 +15,11 @@ import { useNavigationHistory } from "@/hooks/useNavigationHistory";
 import { useSessionNames } from "@/hooks/useSessionNames";
 import { useResizableSidebar } from "@/hooks/useResizableSidebar";
 import { useIsCompactViewport } from "@/hooks/useIsCompactViewport";
-import { useProfileTabs } from "@/hooks/useProfileTabs";
+import { useTabs, type Tab } from "@/hooks/useTabs";
 import { useWindowFocus } from "@/hooks/useWindowFocus";
 import { PROFILES, findProfile } from "@/lib/profiles";
 import { ensureNotificationPermission, notifyTurnComplete } from "@/lib/notifications";
 import { deleteSession, renameSession } from "@/lib/relayClient";
-import { cn } from "@/lib/utils";
 import { isIOS } from "@/lib/platform";
 
 /** Override opcional via query string (`?profile=&session=`) — só pra permitir
@@ -36,7 +35,7 @@ export default function App() {
   const { sessions, loading: sessionsLoading, upsertTitle, removeSession, touch } = useSessionNames(activeProfile);
   const isCompact = useIsCompactViewport();
   const resizable = useResizableSidebar();
-  const profileTabs = useProfileTabs();
+  const tabsState = useTabs();
   const nav = useNavigationHistory();
   const windowFocused = useWindowFocus();
 
@@ -64,56 +63,53 @@ export default function App() {
     return () => window.removeEventListener("keydown", handleKeyDown);
   }, []);
 
-  // Primeiro lançamento (ou primeira vez visitando um perfil nesta sessão do
-  // app): restaura as abas da última vez (lista completa + ordem + qual
-  // estava ativa). Só roda quando o perfil ativo ainda não tem nenhuma aba
-  // aberta. Deep-link de teste via query string (docs/13) tem prioridade e
-  // continua abrindo só a sessão pedida.
+  // Primeiro lançamento: restaura as abas da última vez (lista completa +
+  // ordem + qual estava ativa), de todos os perfis juntas (docs/29). Só roda
+  // uma vez, enquanto ainda não há nenhuma aba aberta. Deep-link de teste via
+  // query string (docs/13) tem prioridade e continua abrindo só a sessão
+  // pedida, no perfil indicado (ou no perfil padrão).
   useEffect(() => {
-    if (profileTabs.getTabs(activeProfile.id).tabs.length > 0) return;
+    if (tabsState.tabs.length > 0) return;
     if (queryOverride.session) {
-      profileTabs.openTab(activeProfile.id, queryOverride.session);
+      tabsState.openTab(activeProfile.id, queryOverride.session);
       return;
     }
-    const persisted = profileTabs.getPersistedTabs(activeProfile.id);
-    if (persisted) profileTabs.restoreTabs(activeProfile.id, persisted.tabs, persisted.activeTabId);
+    const persisted = tabsState.getPersistedTabs();
+    if (persisted) tabsState.restoreTabs(persisted.tabs, persisted.activeTabId);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [activeProfile.id]);
+  }, []);
+
+  const activeTabId = tabsState.activeTabId;
 
   // Limpa o badge de "turno concluído" da aba que está visível agora.
-  const activeTabIdOfActiveProfile = profileTabs.getTabs(activeProfile.id).activeTabId;
   useEffect(() => {
-    if (activeTabIdOfActiveProfile) profileTabs.setUnread(activeProfile.id, activeTabIdOfActiveProfile, false);
+    if (activeTabId) tabsState.setUnread(activeTabId, false);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [activeProfile.id, activeTabIdOfActiveProfile]);
+  }, [activeTabId]);
 
   // Evita mostrar "Conectado" herdado da aba anterior por um instante ao
-  // trocar de sessão/perfil — o ChatPanel recém-montado reporta o estado
-  // real assim que o WebSocket dele conectar (ou não).
+  // trocar de sessão — o ChatPanel recém-montado reporta o estado real assim
+  // que o WebSocket dele conectar (ou não).
   useEffect(() => {
     setActiveConnected(false);
-  }, [activeProfile.id, activeTabIdOfActiveProfile]);
+  }, [activeTabId]);
 
   // Empilha uma entrada de histórico (Back/Forward da titlebar — docs/21)
-  // toda vez que o perfil ou a aba ativa mudam, exceto quando a mudança veio
-  // do próprio goBack/goForward (o hook filtra isso internamente).
+  // toda vez que a aba ativa muda, exceto quando a mudança veio do próprio
+  // goBack/goForward (o hook filtra isso internamente).
   useEffect(() => {
-    nav.notifyLocationChanged({ profileId: activeProfile.id, tabId: activeTabIdOfActiveProfile });
+    nav.notifyLocationChanged({ tabId: activeTabId });
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [activeProfile.id, activeTabIdOfActiveProfile]);
+  }, [activeTabId]);
 
   function handleGoBack(): void {
     const location = nav.goBack();
-    if (!location) return;
-    setActiveProfileId(location.profileId);
-    if (location.tabId) profileTabs.setActiveTab(location.profileId, location.tabId);
+    if (location?.tabId) tabsState.setActiveTab(location.tabId);
   }
 
   function handleGoForward(): void {
     const location = nav.goForward();
-    if (!location) return;
-    setActiveProfileId(location.profileId);
-    if (location.tabId) profileTabs.setActiveTab(location.profileId, location.tabId);
+    if (location?.tabId) tabsState.setActiveTab(location.tabId);
   }
 
   function handleProfileChange(profileId: string): void {
@@ -128,26 +124,26 @@ export default function App() {
   // ChatPanel abaixo), não antes.
   function handleNewConversation(): void {
     const id = crypto.randomUUID();
-    profileTabs.openTab(activeProfile.id, id, null, true);
+    tabsState.openTab(activeProfile.id, id, null, true);
     setDrawerOpen(false);
   }
 
   function handleSelectSession(id: string): void {
     const title = sessions.find((session) => session.id === id)?.title ?? null;
-    profileTabs.openTab(activeProfile.id, id, title);
+    tabsState.openTab(activeProfile.id, id, title);
     setDrawerOpen(false);
   }
 
   function handleSearchSelectSession(profileId: string, sessionId: string, title: string): void {
     setActiveProfileId(profileId);
-    profileTabs.openTab(profileId, sessionId, title);
+    tabsState.openTab(profileId, sessionId, title);
   }
 
   function handleRenameSession(id: string, title: string): void {
     renameSession(activeProfile.host, activeProfile.relayPort, id, title)
       .then(() => {
         upsertTitle(id, title);
-        profileTabs.setTabTitle(activeProfile.id, id, title);
+        tabsState.setTabTitle(id, title);
       })
       .catch((error: unknown) => {
         console.error("[ultron] falha ao renomear sessão", error);
@@ -157,14 +153,14 @@ export default function App() {
 
   /** Só tira a sessão do controle do ultron — não apaga o transcript que o
    * Claude Code já mantém sozinho. `profileId` explícito (não sempre
-   * `activeProfile`) porque também é chamado a partir da TabBar de um perfil
-   * em segundo plano (abas continuam montadas trocando de perfil, docs/18). */
+   * `activeProfile`) porque também é chamado a partir de uma aba de outro
+   * perfil que não o selecionado na sidebar agora (docs/29). */
   function handleDeleteSession(profileId: string, id: string): void {
     const profile = findProfile(profileId);
     if (!profile) return;
     deleteSession(profile.host, profile.relayPort, id)
       .then(() => {
-        profileTabs.closeTab(profileId, id);
+        tabsState.closeTab(id);
         if (profileId === activeProfile.id) removeSession(id);
       })
       .catch((error: unknown) => {
@@ -174,8 +170,8 @@ export default function App() {
   }
 
   function handleCloseActiveTab(): void {
-    if (!activeTabIdOfActiveProfile) return;
-    profileTabs.closeTab(activeProfile.id, activeTabIdOfActiveProfile);
+    if (!activeTabId) return;
+    tabsState.closeTab(activeTabId);
   }
 
   function handleToggleSidebarShortcut(): void {
@@ -192,11 +188,11 @@ export default function App() {
   // verdade pra ciclar abas lá também é Ctrl+Tab literal, igual
   // browser/VS Code — usar `metaKey` aqui só criaria um atalho morto.
   function handleCycleTab(direction: 1 | -1): void {
-    const { tabs, activeTabId } = profileTabs.getTabs(activeProfile.id);
+    const { tabs } = tabsState;
     if (tabs.length < 2) return;
-    const currentIndex = tabs.findIndex((tab) => tab.id === activeTabId);
+    const currentIndex = tabs.findIndex((tab) => tab.id === tabsState.activeTabId);
     const nextIndex = (currentIndex + direction + tabs.length) % tabs.length;
-    profileTabs.setActiveTab(activeProfile.id, tabs[nextIndex].id);
+    tabsState.setActiveTab(tabs[nextIndex].id);
   }
 
   // Atalhos padrão de qualquer app (equivalentes em Ctrl no Windows/Linux e
@@ -230,19 +226,19 @@ export default function App() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [
     activeProfile.id,
-    activeTabIdOfActiveProfile,
+    activeTabId,
     isCompact,
-    profileTabs.closeTab,
-    profileTabs.openTab,
-    profileTabs.setActiveTab,
+    tabsState.closeTab,
+    tabsState.openTab,
+    tabsState.setActiveTab,
     resizable.toggleCollapsed,
   ]);
 
+  // Sessões "rodando" só do perfil selecionado na sidebar agora — é o
+  // universo que a lista da sidebar mostra (docs/29: abas em si não têm mais
+  // noção de perfil selecionado, só a sidebar tem).
   const runningSessions = new Set(
-    profileTabs
-      .getTabs(activeProfile.id)
-      .tabs.filter((tab) => tab.isRunning)
-      .map((tab) => tab.id),
+    tabsState.tabs.filter((tab) => tab.profileId === activeProfile.id && tab.isRunning).map((tab) => tab.id),
   );
 
   const sidebarProps = {
@@ -250,7 +246,7 @@ export default function App() {
     onProfileChange: handleProfileChange,
     sessions,
     sessionsLoading,
-    selectedSession: activeTabIdOfActiveProfile,
+    selectedSession: activeTabId,
     runningSessions,
     onSelectSession: handleSelectSession,
     onNewConversation: handleNewConversation,
@@ -258,107 +254,92 @@ export default function App() {
     onDeleteSession: (id: string) => handleDeleteSession(activeProfile.id, id),
   };
 
-  const activeTabOfActiveProfile = profileTabs
-    .getTabs(activeProfile.id)
-    .tabs.find((tab) => tab.id === activeTabIdOfActiveProfile);
+  const activeTab = tabsState.tabs.find((tab) => tab.id === activeTabId);
+
+  // Uma aba pode ser de qualquer perfil (docs/29) — o `ChatPanel` de cada
+  // uma usa o perfil gravado na própria aba, não o perfil selecionado na
+  // sidebar agora.
+  const renderPanel = (tab: Tab) => {
+    const profile = findProfile(tab.profileId) ?? PROFILES[0];
+    return (
+      <ChatPanel
+        // No iOS (sem TabBar/forceMount), `activeTab && renderPanel(activeTab)`
+        // é um único slot de JSX cujo `sessionId` só muda de valor — sem
+        // `key` amarrada à sessão, o React reaproveita a mesma instância
+        // ao trocar de conversa (só atualiza props), e o estado interno
+        // (useMessageLog etc.) não reseta sozinho. `onReconnecting` não
+        // ajuda aqui: ele só dispara numa reconexão de verdade da MESMA
+        // instância de RelayClient, não quando useRelayClient troca de
+        // sessionId e cria uma instância nova. Resultado era o bug real:
+        // clicar em "+" abria uma sessão nova de verdade (conectava,
+        // "Reconectando"→"Conectado") mas a tela continuava mostrando o
+        // log da conversa anterior. No desktop isso já não acontecia (TabBar
+        // já tem `key={tab.id}` no TabsContent, cada aba com instância
+        // própria) — aqui é só deixar explícito no mesmo lugar.
+        key={tab.id}
+        profile={profile}
+        sessionId={tab.id}
+        isNewConversation={tab.isNew}
+        onTurnActiveChange={(active) => tabsState.setRunning(tab.id, active)}
+        onTurnComplete={() => {
+          const stillVisible = tab.id === tabsState.activeTabId && windowFocused;
+          if (!stillVisible) {
+            tabsState.setUnread(tab.id, true);
+            notifyTurnComplete(profile, tab.title ?? "Nova sessão");
+          }
+        }}
+        onTitle={(title) => {
+          tabsState.setTabTitle(tab.id, title);
+          if (tab.profileId === activeProfile.id) upsertTitle(tab.id, title);
+        }}
+        onActivity={() => {
+          if (tab.profileId === activeProfile.id) touch(tab.id);
+        }}
+        onDeleted={() => {
+          tabsState.closeTab(tab.id);
+          if (tab.profileId === activeProfile.id) removeSession(tab.id);
+        }}
+        onConnectedChange={(connected) => {
+          if (tab.id === tabsState.activeTabId) setActiveConnected(connected);
+        }}
+      />
+    );
+  };
 
   // Compartilhado entre o shell desktop e o iOS — o que muda entre os dois é
   // só o chrome ao redor (TitleBar+Sidebar vs. MobileShell), não como cada
-  // sessão/perfil é montado.
+  // sessão é montada.
   //
-  // `relative` aqui embaixo (e no `h-full` por tab logo abaixo) não é sobre
-  // layout — sem isso, o `backdrop-filter` da MobileTopBar/composer do iOS
-  // não sampleia o log de mensagens no WebKit real (bug real, reproduzido
-  // via Playwright WebKit — docs/24). Qualquer div `position: static` nessa
-  // cadeia até `.mobile-canvas` quebra o blur. Não remover mesmo parecendo
-  // redundante — inofensivo pro desktop (não muda posição/tamanho de nada).
+  // `relative` aqui embaixo não é sobre layout — sem isso, o `backdrop-filter`
+  // da MobileTopBar/composer do iOS não sampleia o log de mensagens no
+  // WebKit real (bug real, reproduzido via Playwright WebKit — docs/24).
+  // Qualquer div `position: static` nessa cadeia até `.mobile-canvas` quebra
+  // o blur. Não remover mesmo parecendo redundante — inofensivo pro desktop
+  // (não muda posição/tamanho de nada).
   const tabsContent = (
     <div className="relative min-h-0 flex-1">
-      {PROFILES.map((profile) => {
-        const { tabs, activeTabId } = profileTabs.getTabs(profile.id);
-        const isActiveProfile = profile.id === activeProfile.id;
-
-        const renderPanel = (tab: (typeof tabs)[number]) => (
-          <ChatPanel
-            // No iOS (sem TabBar/forceMount), `activeTab && renderPanel(activeTab)`
-            // é um único slot de JSX cujo `sessionId` só muda de valor — sem
-            // `key` amarrada à sessão, o React reaproveita a mesma instância
-            // ao trocar de conversa (só atualiza props), e o estado interno
-            // (useMessageLog etc.) não reseta sozinho. `onReconnecting` não
-            // ajuda aqui: ele só dispara numa reconexão de verdade da MESMA
-            // instância de RelayClient, não quando useRelayClient troca de
-            // sessionId e cria uma instância nova. Resultado era o bug real:
-            // clicar em "+" abria uma sessão nova de verdade (conectava,
-            // "Reconectando"→"Conectado") mas a tela continuava mostrando o
-            // log da conversa anterior. No desktop isso já não acontecia (TabBar
-            // já tem `key={tab.id}` no TabsContent, cada aba com instância
-            // própria) — aqui é só deixar explícito no mesmo lugar.
-            key={tab.id}
-            profile={findProfile(profile.id) ?? profile}
-            sessionId={tab.id}
-            isNewConversation={tab.isNew}
-            onTurnActiveChange={(active) => profileTabs.setRunning(profile.id, tab.id, active)}
-            onTurnComplete={() => {
-              const stillVisible =
-                profile.id === activeProfile.id &&
-                tab.id === profileTabs.getTabs(profile.id).activeTabId &&
-                windowFocused;
-              if (!stillVisible) {
-                profileTabs.setUnread(profile.id, tab.id, true);
-                notifyTurnComplete(findProfile(profile.id) ?? profile, tab.title ?? "Nova sessão");
-              }
-            }}
-            onTitle={(title) => {
-              profileTabs.setTabTitle(profile.id, tab.id, title);
-              if (profile.id === activeProfile.id) upsertTitle(tab.id, title);
-            }}
-            onActivity={() => {
-              if (profile.id === activeProfile.id) touch(tab.id);
-            }}
-            onDeleted={() => {
-              profileTabs.closeTab(profile.id, tab.id);
-              if (profile.id === activeProfile.id) removeSession(tab.id);
-            }}
-            onConnectedChange={(connected) => {
-              if (profile.id === activeProfile.id && tab.id === profileTabs.getTabs(profile.id).activeTabId) {
-                setActiveConnected(connected);
-              }
-            }}
-          />
-        );
-
+      {tabsState.tabs.length === 0 ? (
+        <EmptyState />
+      ) : isIOS() ? (
         // iOS (docs/23, Fase B): MVP é uma sessão em foco por vez, sem manter
         // várias conexões WebSocket vivas em paralelo em segundo plano — só
         // monta a sessão ativa, sem o mecanismo de abas do TabBar
         // (forceMount/dnd-kit, pensado pra desktop).
-        const activeTab = tabs.find((tab) => tab.id === activeTabId);
-
-        return (
-          // `invisible`/`absolute inset-0`, não `hidden` — mesmo motivo do
-          // `TabBar.tsx`: o perfil inativo continua montado (mantém a conexão
-          // WS viva) e `display:none` corrompe o cache de alturas do
-          // `@tanstack/react-virtual` do `MessageLog`, fazendo o scroll pular
-          // de lugar quando o perfil volta a ficar ativo.
-          <div key={profile.id} className={cn("absolute inset-0 h-full", isActiveProfile ? "visible" : "invisible")}>
-            {tabs.length === 0 ? (
-              isActiveProfile && <EmptyState />
-            ) : isIOS() ? (
-              activeTab && renderPanel(activeTab)
-            ) : (
-              <TabBar
-                tabs={tabs}
-                activeTabId={activeTabId}
-                profileId={profile.id}
-                onSelect={(tabId) => profileTabs.setActiveTab(profile.id, tabId)}
-                onClose={(tabId) => profileTabs.closeTab(profile.id, tabId)}
-                onReorder={(activeTabId, overTabId) => profileTabs.reorderTabs(profile.id, activeTabId, overTabId)}
-                onDelete={(tabId) => handleDeleteSession(profile.id, tabId)}
-                renderPanel={renderPanel}
-              />
-            )}
-          </div>
-        );
-      })}
+        activeTab && renderPanel(activeTab)
+      ) : (
+        <TabBar
+          tabs={tabsState.tabs}
+          activeTabId={activeTabId}
+          onSelect={tabsState.setActiveTab}
+          onClose={tabsState.closeTab}
+          onReorder={tabsState.reorderTabs}
+          onDelete={(tabId) => {
+            const tab = tabsState.tabs.find((t) => t.id === tabId);
+            if (tab) handleDeleteSession(tab.profileId, tabId);
+          }}
+          renderPanel={renderPanel}
+        />
+      )}
     </div>
   );
 
@@ -371,13 +352,13 @@ export default function App() {
           onProfileChange={handleProfileChange}
           sessions={sessions}
           sessionsLoading={sessionsLoading}
-          selectedSession={activeTabIdOfActiveProfile}
+          selectedSession={activeTabId}
           runningSessions={runningSessions}
           onSelectSession={handleSelectSession}
           onRenameSession={handleRenameSession}
           onDeleteSession={(id) => handleDeleteSession(activeProfile.id, id)}
           onOpenSearch={() => setSearchOpen(true)}
-          title={activeTabOfActiveProfile?.title ?? "Nova sessão"}
+          title={activeTab?.title ?? "Nova sessão"}
           connected={activeConnected}
           onNewConversation={handleNewConversation}
         >
