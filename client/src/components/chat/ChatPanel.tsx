@@ -104,6 +104,7 @@ export function ChatPanel({
     cwd,
     cwdLocked,
     permissionMode,
+    model,
     contextUsage,
     compactBoundary,
     sendMessage,
@@ -238,6 +239,7 @@ export function ChatPanel({
           onRemoveImage={images.remove}
           permissionMode={permissionMode}
           onChangePermissionMode={setPermissionMode}
+          model={model}
           contextUsage={contextUsage}
           compactBoundary={compactBoundary}
           onSend={(text, sentImages) => {

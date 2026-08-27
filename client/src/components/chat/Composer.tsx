@@ -23,13 +23,14 @@ import { useVoiceRecording } from "@/hooks/useVoiceRecording";
 import type { PendingImage } from "@/hooks/useImageUpload";
 import { ComposerLinkView } from "@/components/chat/ComposerLinkView";
 import { PermissionModeButton } from "@/components/chat/PermissionModeButton";
+import { ModelLabel } from "@/components/chat/ModelLabel";
 import { ContextUsageButton } from "@/components/chat/ContextUsageButton";
 import { CompactBoundaryToast } from "@/components/chat/CompactBoundaryToast";
 import { SlashCommandMenu } from "@/components/chat/SlashCommandMenu";
 import { serializeEditorContent } from "@/lib/composerLinks";
 import { filterSlashCommands, parseSlashCommand, type SlashCommandEntry } from "@/lib/slashCommands";
 import type { CompactBoundaryEvent } from "@/hooks/useRelayClient";
-import type { ContextUsage, PermissionMode } from "@/lib/relayClient";
+import type { ContextUsage, ModelChoice, PermissionMode } from "@/lib/relayClient";
 
 interface ComposerProps {
   onSend: (text: string, images: PendingImage[]) => void;
@@ -42,6 +43,9 @@ interface ComposerProps {
   onRemoveImage: (path: string) => void;
   permissionMode: PermissionMode | null;
   onChangePermissionMode: (mode: PermissionMode) => void;
+  /** `null` até o primeiro `/model` da sessão (docs/26) — `ModelLabel` não
+   * mostra nada nesse caso. */
+  model: ModelChoice | null;
   /** Desktop-only por ora — o layout iOS (linha única attach/texto/enviar,
    * ver isIOS() abaixo) não tem a toolbar onde isso entraria. */
   contextUsage: ContextUsage | null;
@@ -250,6 +254,7 @@ export const Composer = forwardRef<ComposerHandle, ComposerProps>(function Compo
     onRemoveImage,
     permissionMode,
     onChangePermissionMode,
+    model,
     contextUsage,
     compactBoundary,
   },
@@ -418,6 +423,7 @@ export const Composer = forwardRef<ComposerHandle, ComposerProps>(function Compo
           <div className="flex items-center justify-between gap-2">
             <div className="flex min-w-0 flex-1 items-center gap-2 px-1">
               <PermissionModeButton mode={permissionMode} onChange={onChangePermissionMode} />
+              <ModelLabel model={model} />
               <ContextUsageButton usage={contextUsage} />
               <CompactBoundaryToast event={compactBoundary} />
               {isRecording && (
