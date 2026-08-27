@@ -14,6 +14,8 @@ Environment=RELAY_SESSIONS_FILE=/home/user/.ultron-sessions/pessoal.json
 ExecStart=/home/user/.nvm/versions/node/v20.19.0/bin/node dist/server.js
 Restart=always
 RestartSec=3
+KillMode=mixed
+TimeoutStopSec=300
 
 [Install]
 WantedBy=multi-user.target
