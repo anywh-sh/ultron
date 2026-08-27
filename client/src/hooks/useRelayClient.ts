@@ -41,6 +41,10 @@ export interface UseRelayClientResult {
    * quanto no estado final "nunca escolhido via /model" — os dois se
    * comportam igual pra UI (usa o padrão do CLI), não precisa distinguir. */
   model: ModelChoice | null;
+  /** Modelo padrão de verdade da conta desse perfil (docs/28) — fallback de
+   * exibição pra quando `model` acima é `null`. `null` só na janela breve
+   * antes da sondagem do relay terminar (ou se ela falhar). */
+  defaultModel: string | null;
   /** `null` até o primeiro `context_usage_state` chegar — nunca chega numa
    * sessão nova sem nenhum turno concluído ainda (ver sharedSession.ts), e
    * volta a `null` depois de um `/clear` (docs/26). */
@@ -73,6 +77,7 @@ export function useRelayClient(
   const [cwdLocked, setCwdLocked] = useState(false);
   const [permissionMode, setPermissionModeState] = useState<PermissionMode | null>(null);
   const [model, setModelState] = useState<ModelChoice | null>(null);
+  const [defaultModel, setDefaultModel] = useState<string | null>(null);
   const [contextUsage, setContextUsage] = useState<ContextUsage | null>(null);
   const [compactBoundary, setCompactBoundary] = useState<CompactBoundaryEvent | null>(null);
   const clientRef = useRef<RelayClient | null>(null);
@@ -88,6 +93,7 @@ export function useRelayClient(
     setCwdLocked(false);
     setPermissionModeState(null);
     setModelState(null);
+    setDefaultModel(null);
     setContextUsage(null);
     setCompactBoundary(null);
 
@@ -112,6 +118,7 @@ export function useRelayClient(
       onSetCwdError: (message) => optionsRef.current.onSetCwdError?.(message),
       onPermissionModeState: setPermissionModeState,
       onModelState: setModelState,
+      onDefaultModelState: setDefaultModel,
       onContextUsageState: setContextUsage,
       onSessionTitle: (title) => optionsRef.current.onSessionTitle?.(title),
       onSessionDeleted: () => optionsRef.current.onSessionDeleted?.(),
@@ -171,6 +178,7 @@ export function useRelayClient(
     cwdLocked,
     permissionMode,
     model,
+    defaultModel,
     contextUsage,
     compactBoundary,
     sendMessage,

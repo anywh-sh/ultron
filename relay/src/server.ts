@@ -1,5 +1,6 @@
 import { createServer } from "node:http";
 import { WebSocketServer, type WebSocket } from "ws";
+import { detectDefaultModel } from "./defaultModel.js";
 import { listDirectories } from "./fsBrowse.js";
 import { defaultCwd } from "./paths.js";
 import { SessionManager } from "./sessionManager.js";
@@ -106,6 +107,24 @@ function readJsonBody(req: import("node:http").IncomingMessage): Promise<unknown
 
 const sessionStore = new SessionStore(SESSIONS_FILE, defaultCwd(HOME_OVERRIDE));
 const sessionManager = new SessionManager(HOME_OVERRIDE, sessionStore);
+
+// Sondagem do modelo padrão da conta desse perfil (docs/28) — roda uma vez
+// no boot, em paralelo com tudo o mais (não bloqueia `httpServer.listen`
+// abaixo). `defaultModelClients` cobre a corrida óbvia: a conexão WS do
+// primeiro cliente quase sempre chega antes da sondagem resolver.
+let defaultModelLabel: string | undefined;
+const defaultModelClients = new Set<WebSocket>();
+detectDefaultModel(HOME_OVERRIDE, defaultCwd(HOME_OVERRIDE))
+  .then((label) => {
+    defaultModelLabel = label;
+    if (!label) return;
+    for (const client of defaultModelClients) {
+      client.send(JSON.stringify({ type: "default_model_state", label }));
+    }
+  })
+  .catch((error: unknown) => {
+    console.error("[relay] falha ao detectar modelo padrão:", error);
+  });
 
 const httpServer = createServer((req, res) => {
   if (req.method === "OPTIONS") {
@@ -227,6 +246,9 @@ wss.on("connection", (socket: WebSocket, request) => {
   const session = sessionManager.getOrCreate(sessionId);
   session.addClient(socket);
 
+  defaultModelClients.add(socket);
+  if (defaultModelLabel) socket.send(JSON.stringify({ type: "default_model_state", label: defaultModelLabel }));
+
   socket.on("message", (raw: Buffer) => {
     const parsed: unknown = JSON.parse(raw.toString());
     if (isStopTurnMessage(parsed)) {
@@ -259,6 +281,7 @@ wss.on("connection", (socket: WebSocket, request) => {
 
   socket.on("close", () => {
     session.removeClient(socket);
+    defaultModelClients.delete(socket);
     console.log(`[relay] client disconnected (session: ${sessionId})`);
   });
 });

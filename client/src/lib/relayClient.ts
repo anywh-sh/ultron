@@ -69,6 +69,10 @@ export interface RelayClientCallbacks {
    * sharedSession.ts::setModel. `null` é um estado final válido ("nunca
    * escolhido via /model, usa o padrão do CLI"), não "ainda carregando". */
   onModelState: (model: ModelChoice | null) => void;
+  /** Modelo padrão de verdade da conta desse perfil (docs/28) — mandado
+   * assim que o relay termina de sondar no boot (pode chegar antes ou depois
+   * da conexão abrir), não muda depois disso na vida do processo. */
+  onDefaultModelState?: (label: string) => void;
   /** Mandado logo na conexão (se já houver algum turno concluído nessa
    * sessão) e de novo ao fim de todo turno que produziu uso de contexto —
    * ver sharedSession.ts::broadcastContextUsage. `null` depois de um
@@ -177,6 +181,8 @@ export class RelayClient {
         this.callbacks.onPermissionModeState(parsed.mode);
       } else if (parsed.type === "model_state") {
         this.callbacks.onModelState(parsed.model);
+      } else if (parsed.type === "default_model_state") {
+        this.callbacks.onDefaultModelState?.(parsed.label);
       } else if (parsed.type === "context_usage_state") {
         this.callbacks.onContextUsageState?.(parsed.usage);
       } else if (parsed.type === "conversation_reset") {

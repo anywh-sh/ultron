@@ -105,6 +105,7 @@ export function ChatPanel({
     cwdLocked,
     permissionMode,
     model,
+    defaultModel,
     contextUsage,
     compactBoundary,
     sendMessage,
@@ -240,6 +241,7 @@ export function ChatPanel({
           permissionMode={permissionMode}
           onChangePermissionMode={setPermissionMode}
           model={model}
+          defaultModel={defaultModel}
           contextUsage={contextUsage}
           compactBoundary={compactBoundary}
           onSend={(text, sentImages) => {

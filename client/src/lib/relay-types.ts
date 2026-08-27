@@ -123,7 +123,12 @@ export type RelayMessage =
   /** `/clear` (docs/26) — sinal por conexão (não entra em replay), avisa um
    * cliente já conectado que a conversa foi resetada; quem conecta depois
    * já vê o histórico vazio naturalmente. */
-  | { type: "conversation_reset" };
+  | { type: "conversation_reset" }
+  /** Modelo padrão de verdade da conta desse perfil (docs/28), sondado uma
+   * vez no boot do relay — não é por sessão, é o mesmo valor pra toda
+   * conexão desse processo. Usado como fallback de exibição quando a sessão
+   * nunca rodou `/model` (`model_state` ainda `null`). */
+  | { type: "default_model_state"; label: string };
 
 /** Uma sessão como o relay expõe em `GET /sessions` — `id` é estável desde a
  * criação, `title` é o que a sidebar mostra (inferido do primeiro prompt ou

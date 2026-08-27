@@ -43,9 +43,12 @@ interface ComposerProps {
   onRemoveImage: (path: string) => void;
   permissionMode: PermissionMode | null;
   onChangePermissionMode: (mode: PermissionMode) => void;
-  /** `null` até o primeiro `/model` da sessão (docs/26) — `ModelLabel` não
-   * mostra nada nesse caso. */
+  /** `null` até o primeiro `/model` da sessão (docs/26) — nesse caso
+   * `ModelLabel` cai pro `defaultModel` (docs/28). */
   model: ModelChoice | null;
+  /** Modelo padrão de verdade da conta desse perfil (docs/28) — fallback do
+   * `ModelLabel` quando `model` é `null`. */
+  defaultModel: string | null;
   /** Desktop-only por ora — o layout iOS (linha única attach/texto/enviar,
    * ver isIOS() abaixo) não tem a toolbar onde isso entraria. */
   contextUsage: ContextUsage | null;
@@ -255,6 +258,7 @@ export const Composer = forwardRef<ComposerHandle, ComposerProps>(function Compo
     permissionMode,
     onChangePermissionMode,
     model,
+    defaultModel,
     contextUsage,
     compactBoundary,
   },
@@ -423,7 +427,7 @@ export const Composer = forwardRef<ComposerHandle, ComposerProps>(function Compo
           <div className="flex items-center justify-between gap-2">
             <div className="flex min-w-0 flex-1 items-center gap-2 px-1">
               <PermissionModeButton mode={permissionMode} onChange={onChangePermissionMode} />
-              <ModelLabel model={model} />
+              <ModelLabel model={model} defaultModel={defaultModel} />
               <ContextUsageButton usage={contextUsage} />
               <CompactBoundaryToast event={compactBoundary} />
               {isRecording && (
