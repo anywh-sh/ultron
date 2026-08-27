@@ -1,9 +1,13 @@
-import { forwardRef, useImperativeHandle, useRef, useState } from "react";
+import { forwardRef, useImperativeHandle, useMemo, useRef, useState, type MutableRefObject } from "react";
 import { ArrowUp, Check, ChevronDown, Mic, Paperclip, Square, X } from "lucide-react";
-import { EditorContent, ReactMarkViewRenderer, useEditor } from "@tiptap/react";
+import { Extension } from "@tiptap/core";
+import { EditorContent, ReactMarkViewRenderer, ReactRenderer, useEditor } from "@tiptap/react";
 import StarterKit from "@tiptap/starter-kit";
 import { Link } from "@tiptap/extension-link";
 import { Placeholder } from "@tiptap/extension-placeholder";
+import Suggestion from "@tiptap/suggestion";
+import { Plugin, PluginKey } from "@tiptap/pm/state";
+import { Decoration, DecorationSet } from "@tiptap/pm/view";
 import { Button } from "@/components/ui/button";
 import {
   DropdownMenu,
@@ -21,7 +25,9 @@ import { ComposerLinkView } from "@/components/chat/ComposerLinkView";
 import { PermissionModeButton } from "@/components/chat/PermissionModeButton";
 import { ContextUsageButton } from "@/components/chat/ContextUsageButton";
 import { CompactBoundaryToast } from "@/components/chat/CompactBoundaryToast";
+import { SlashCommandMenu } from "@/components/chat/SlashCommandMenu";
 import { serializeEditorContent } from "@/lib/composerLinks";
+import { filterSlashCommands, parseSlashCommand, type SlashCommandEntry } from "@/lib/slashCommands";
 import type { CompactBoundaryEvent } from "@/hooks/useRelayClient";
 import type { ContextUsage, PermissionMode } from "@/lib/relayClient";
 
@@ -86,6 +92,144 @@ const EXTENSIONS = [
   Placeholder.configure({ placeholder: "Escreva uma mensagem…" }),
 ];
 
+/** Colore `/model haiku` etc digitado no composer, só quando é um comando
+ * reconhecido de verdade (mesma checagem de `parseSlashCommand` — um
+ * `/model gpt4` inválido fica sem cor nenhuma, já que vai virar mensagem
+ * normal). Barra com opacidade reduzida + cor primária, nome do comando com
+ * cor primária cheia, parâmetro (se houver) sem estilo nenhum — pedido
+ * explícito do usuário (docs/27). Decoração pura (`Decoration.inline`), não
+ * mexe no documento — o texto que vai pro `onSend` continua o texto puro de
+ * sempre. */
+function slashCommandDecorationPlugin() {
+  return new Plugin({
+    key: new PluginKey("slashCommandDecoration"),
+    props: {
+      decorations(state) {
+        const text = state.doc.textBetween(0, state.doc.content.size, "\n", "\n");
+        if (!parseSlashCommand(text)) return DecorationSet.empty;
+        const match = /^(\/\S+)(\s+\S+)?$/.exec(text);
+        if (!match) return DecorationSet.empty;
+        // Início do texto do primeiro (único) parágrafo — ver schema do
+        // composer acima, nunca tem outro nó de bloco antes.
+        const from = 1;
+        const commandEnd = from + match[1].length;
+        return DecorationSet.create(state.doc, [
+          Decoration.inline(from, from + 1, { class: "composer-command-slash" }),
+          Decoration.inline(from + 1, commandEnd, { class: "composer-command-name" }),
+        ]);
+      },
+    },
+  });
+}
+
+/**
+ * `/` como primeiro caractere do composer (vazio até então, `startOfLine` +
+ * `allowSpaces` do Suggestion garantem isso — ver docs/27) abre um popup de
+ * autocompletar dos comandos disponíveis. Menu renderizado via `ReactRenderer`
+ * + `props.mount()` (posicionamento gerenciado pelo próprio pacote via
+ * Floating UI, ancorado no cursor) — sem estado React aqui: os callbacks do
+ * Tiptap vivem fora do ciclo de render, então a seleção atual e os itens
+ * filtrados ficam em variáveis fechadas no closure de `addProseMirrorPlugins`,
+ * atualizadas via `component.updateProps`.
+ *
+ * `activeRef` é o único canal de volta pro componente React: o
+ * `handleKeyDown` de nível de editor (configurado em `useEditor` abaixo) já
+ * roda ANTES dos plugins do ProseMirror (inclusive o do Suggestion) — sem
+ * essa checagem, Enter sempre submeteria a mensagem em vez de deixar o
+ * Suggestion escolher o item selecionado no menu.
+ */
+function createSlashCommandExtension(activeRef: MutableRefObject<boolean>) {
+  return Extension.create({
+    name: "slashCommand",
+    addProseMirrorPlugins() {
+      let component: ReactRenderer | null = null;
+      let unmount: (() => void) | null = null;
+      let selectedIndex = 0;
+      let currentItems: SlashCommandEntry[] = [];
+      let currentCommand: ((entry: SlashCommandEntry) => void) | null = null;
+
+      function applySelection(index: number) {
+        selectedIndex = index;
+        component?.updateProps({
+          items: currentItems,
+          selectedIndex,
+          onHover: applySelection,
+          onPick: currentCommand,
+        });
+      }
+
+      function close() {
+        activeRef.current = false;
+        unmount?.();
+        component?.destroy();
+        component = null;
+      }
+
+      return [
+        slashCommandDecorationPlugin(),
+        Suggestion<SlashCommandEntry, SlashCommandEntry>({
+          editor: this.editor,
+          char: "/",
+          startOfLine: true,
+          allowSpaces: true,
+          // Sem isso, escolher um item reabre o menu na hora: o texto
+          // resultante ("/model fable") ainda bate com "/" no início da
+          // linha, então o Suggestion tentava começar uma sessão nova só
+          // com ele mesmo como opção. Só mostra enquanto o texto ainda não é
+          // um comando completo e válido — mesma checagem de `onSend`
+          // (ChatPanel) e da decoração visual acima.
+          shouldShow: ({ text }) => parseSlashCommand(text) === null,
+          items: ({ query }) => filterSlashCommands(query),
+          command: ({ editor, range, props }) => {
+            editor.chain().focus().insertContentAt(range, props.command).run();
+          },
+          render: () => ({
+            onStart: (props) => {
+              currentItems = props.items;
+              currentCommand = props.command;
+              selectedIndex = 0;
+              activeRef.current = currentItems.length > 0;
+              component = new ReactRenderer(SlashCommandMenu, {
+                editor: props.editor,
+                props: { items: currentItems, selectedIndex, onHover: applySelection, onPick: currentCommand },
+              });
+              unmount = props.mount(component.element as HTMLElement);
+            },
+            onUpdate: (props) => {
+              currentItems = props.items;
+              currentCommand = props.command;
+              selectedIndex = 0;
+              activeRef.current = currentItems.length > 0;
+              component?.updateProps({ items: currentItems, selectedIndex, onHover: applySelection, onPick: currentCommand });
+            },
+            onKeyDown: (props) => {
+              if (props.event.key === "Escape") {
+                close();
+                return true;
+              }
+              if (currentItems.length === 0) return false;
+              if (props.event.key === "ArrowDown") {
+                applySelection((selectedIndex + 1) % currentItems.length);
+                return true;
+              }
+              if (props.event.key === "ArrowUp") {
+                applySelection((selectedIndex - 1 + currentItems.length) % currentItems.length);
+                return true;
+              }
+              if (props.event.key === "Enter") {
+                currentCommand?.(currentItems[selectedIndex]);
+                return true;
+              }
+              return false;
+            },
+            onExit: close,
+          }),
+        }),
+      ];
+    },
+  });
+}
+
 /** Foco de teclado destaca o container inteiro (textarea + toolbar), não só
  * a textarea isolada — docs/17. Fluxo de voz: gravar → waveform+timer →
  * cancelar ou parar → transcrever → texto cai aqui pra revisão (não envia
@@ -120,9 +264,14 @@ export const Composer = forwardRef<ComposerHandle, ComposerProps>(function Compo
   const [isMultiline, setIsMultiline] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const submitRef = useRef<() => void>(() => {});
+  // Único canal de volta do Suggestion (fora do React) pro editorProps abaixo
+  // — ver o comentário de `createSlashCommandExtension`.
+  const slashMenuActiveRef = useRef(false);
+  const [slashCommandExtension] = useState(() => createSlashCommandExtension(slashMenuActiveRef));
+  const extensions = useMemo(() => [...EXTENSIONS, slashCommandExtension], [slashCommandExtension]);
 
   const editor = useEditor({
-    extensions: EXTENSIONS,
+    extensions,
     onFocus: () => setFocused(true),
     onBlur: () => setFocused(false),
     onUpdate: ({ editor: current }) => {
@@ -132,6 +281,10 @@ export const Composer = forwardRef<ComposerHandle, ComposerProps>(function Compo
     editorProps: {
       attributes: { class: "composer-prosemirror", "aria-label": "Escreva uma mensagem…" },
       handleKeyDown: (_view, event) => {
+        // Menu de comandos aberto: deixa o Suggestion tratar Enter/setas (ver
+        // `createSlashCommandExtension`) — sem isso o Enter sempre submeteria
+        // em vez de preencher o comando selecionado.
+        if (event.key === "Enter" && !event.shiftKey && slashMenuActiveRef.current) return false;
         if (event.key === "Enter" && !event.shiftKey) {
           event.preventDefault();
           submitRef.current();

@@ -33,3 +33,33 @@ export function parseSlashCommand(text: string): SlashCommand | null {
 
   return null;
 }
+
+export interface SlashCommandEntry {
+  /** Texto completo que preenche o composer ao selecionar — inclui a barra. */
+  command: string;
+  description: string;
+}
+
+/** Catálogo pro menu de autocompletar (SlashCommandMenu) — uma entrada por
+ * combinação já pronta pra enviar (inclusive cada modelo curado), não só
+ * pelos dois nomes de comando. Descobrir "quais modelos existem" via
+ * digitação livre seria pior UX do que já listar todos prontos. */
+export const SLASH_COMMAND_ENTRIES: SlashCommandEntry[] = [
+  { command: "/clear", description: "Limpa o histórico desta conversa" },
+  { command: "/model default", description: "Usa o modelo padrão da CLI" },
+  { command: "/model sonnet", description: "Usa o Sonnet" },
+  { command: "/model opus", description: "Usa o Opus — mais capaz, mais lento" },
+  { command: "/model haiku", description: "Usa o Haiku — mais rápido" },
+  { command: "/model fable", description: "Usa o Fable" },
+];
+
+/** Filtra por substring (case-insensitive) contra o texto do comando (sem a
+ * barra) ou a descrição — cobre tanto "digitei o nome" quanto "digitei o que
+ * ele faz". Query vazia devolve o catálogo inteiro, na ordem declarada. */
+export function filterSlashCommands(query: string): SlashCommandEntry[] {
+  const q = query.trim().toLowerCase();
+  if (!q) return SLASH_COMMAND_ENTRIES;
+  return SLASH_COMMAND_ENTRIES.filter(
+    (entry) => entry.command.slice(1).toLowerCase().includes(q) || entry.description.toLowerCase().includes(q),
+  );
+}

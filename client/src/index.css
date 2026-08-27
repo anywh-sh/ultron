@@ -268,6 +268,17 @@ body {
   cursor: text;
 }
 
+/* `/model haiku` etc reconhecido no composer (docs/27) — barra apagada, nome
+ * do comando na cor primária cheia; o parâmetro (se houver) fica sem
+ * decoração nenhuma, de propósito (pedido do usuário). */
+.composer-command-slash {
+  color: var(--primary);
+  opacity: 0.55;
+}
+.composer-command-name {
+  color: var(--primary);
+}
+
 /* Markdown das respostas do assistente (react-markdown). Sem plugin de
  * typography — o app é pequeno o bastante pra escrever isso à mão em vez de
  * puxar mais uma dependência. */
