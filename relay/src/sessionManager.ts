@@ -26,6 +26,20 @@ export class SessionManager {
     return this.sessionStore.listTitled();
   }
 
+  /** Resolve quando nenhuma sessão tiver turno em andamento — usado pelo
+   * shutdown gracioso (server.ts) antes de deixar o processo sair. */
+  async waitForAllIdle(): Promise<void> {
+    await Promise.all([...this.sessions.values()].map((session) => session.waitForIdle()));
+  }
+
+  /** Interrompe (SIGINT, mesmo caminho do botão "Parar") o turno em
+   * andamento de toda sessão — usado só como fallback do shutdown gracioso
+   * quando o prazo de espera normal estoura, pra terminar rápido e limpo em
+   * vez de deixar o systemd matar os processos `claude -p` cru. */
+  stopAllTurns(): void {
+    for (const session of this.sessions.values()) session.stopTurn();
+  }
+
   getOrCreate(id: string): SharedSession {
     let session = this.sessions.get(id);
     if (!session) {

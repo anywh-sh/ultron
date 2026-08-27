@@ -134,6 +134,11 @@ function readJsonBody(req: import("node:http").IncomingMessage): Promise<unknown
 const sessionStore = new SessionStore(SESSIONS_FILE, defaultCwd(HOME_OVERRIDE));
 const sessionManager = new SessionManager(HOME_OVERRIDE, sessionStore);
 
+// `true` a partir do primeiro SIGTERM/SIGINT recebido — rejeita turno novo
+// (ver `isUserMessage` acima) enquanto `gracefulShutdown` espera os turnos
+// já em andamento terminarem, ver definição no fim do arquivo.
+let shuttingDown = false;
+
 // Sondagem do modelo padrão da conta desse perfil (docs/28) — roda uma vez
 // no boot, em paralelo com tudo o mais (não bloqueia `httpServer.listen`
 // abaixo). `defaultModelClients` cobre a corrida óbvia: a conexão WS do
@@ -408,6 +413,10 @@ wss.on("connection", (socket: WebSocket, request) => {
       console.warn("[relay] mensagem ignorada, formato inesperado:", parsed);
       return;
     }
+    if (shuttingDown) {
+      socket.send(JSON.stringify({ type: "turn_error", message: "relay reiniciando, tente de novo em instantes" }));
+      return;
+    }
     session.submitTurn(parsed.text);
   });
 
@@ -417,3 +426,54 @@ wss.on("connection", (socket: WebSocket, request) => {
     console.log(`[relay] client disconnected (session: ${sessionId})`);
   });
 });
+
+// Quanto tempo esperar turno(s) em andamento terminarem sozinhos antes de
+// desistir e abortar via SIGINT (ver abaixo) — generoso de propósito
+// (respostas longas existem), mas configurável pra não exigir rebuild se
+// precisar ajustar. O unit systemd (`TimeoutStopSec`) precisa ficar MAIOR
+// que isso + `SHUTDOWN_ABORT_GRACE_MS`, senão o systemd manda SIGKILL pro
+// cgroup inteiro antes da gente sequer terminar de esperar.
+const SHUTDOWN_GRACE_MS = Number(process.env.RELAY_SHUTDOWN_GRACE_MS ?? 4 * 60 * 1000);
+// Depois do SIGINT de fallback (mesmo caminho do botão "Parar" — testado
+// contra o binário, sai limpo com `result` válido), quanto esperar o
+// processo `claude -p` de fato terminar antes de sair de qualquer jeito.
+const SHUTDOWN_ABORT_GRACE_MS = 10_000;
+
+function delay(ms: number): Promise<void> {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+/**
+ * SIGTERM (`systemctl restart`/`stop`) ou SIGINT (Ctrl+C em dev) — por
+ * padrão o systemd (`KillMode=control-group`, não usado aqui de propósito,
+ * ver infra/systemd/) mandaria o sinal pro processo `claude -p` filho ao
+ * mesmo tempo que pro relay, matando um turno em andamento cru (só o SIGINT
+ * mandado pelo botão "Parar" foi validado como saída limpa, não SIGTERM).
+ * Com `KillMode=mixed` no unit, só o relay recebe o sinal — esta função para
+ * de aceitar conexão nova e turno novo, espera os turnos já em andamento
+ * terminarem sozinhos, e só recorre ao SIGINT (`stopTurn`, mesmo caminho do
+ * botão "Parar") se algum ficar preso além do prazo de graça.
+ */
+async function gracefulShutdown(signal: NodeJS.Signals): Promise<void> {
+  if (shuttingDown) return;
+  shuttingDown = true;
+  console.log(`[relay] ${signal} recebido — parando de aceitar conexão nova e esperando turno(s) em andamento...`);
+  httpServer.close();
+
+  const idle = sessionManager.waitForAllIdle();
+  const timedOut = await Promise.race([idle.then(() => false), delay(SHUTDOWN_GRACE_MS).then(() => true)]);
+
+  if (timedOut) {
+    console.warn(
+      `[relay] turno(s) ainda em andamento após ${SHUTDOWN_GRACE_MS}ms — abortando com SIGINT (mesmo caminho do botão "Parar") antes de sair.`,
+    );
+    sessionManager.stopAllTurns();
+    await Promise.race([idle, delay(SHUTDOWN_ABORT_GRACE_MS)]);
+  }
+
+  console.log("[relay] saindo.");
+  process.exit(0);
+}
+
+process.on("SIGTERM", () => void gracefulShutdown("SIGTERM"));
+process.on("SIGINT", () => void gracefulShutdown("SIGINT"));

@@ -252,6 +252,15 @@ export class SharedSession {
     this.claude.stop();
   }
 
+  /** Resolve quando não houver turno em andamento (nem enfileirado) nesta
+   * sessão — usado pelo shutdown gracioso do relay (server.ts) pra saber
+   * quando é seguro sair sem interromper nada no meio. `turnQueue` nunca
+   * rejeita (`runTurn` trata os próprios erros e nunca relança), então dá
+   * pra devolver ele direto sem try/catch aqui. */
+  waitForIdle(): Promise<void> {
+    return this.turnQueue;
+  }
+
   /** `/clear` (docs/26) — mesma fila dos turnos de verdade (`turnQueue`),
    * pra nunca correr em paralelo com um turno em andamento e arriscar um dos
    * dois sobrescrever o `session_id`/`history` do outro fora de ordem. Não
