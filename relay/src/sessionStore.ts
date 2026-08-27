@@ -25,6 +25,12 @@ export interface SessionCwdState {
  * pra CI com allowlist pré-definida, não pra chat interativo. */
 export type PermissionMode = "default" | "acceptEdits" | "plan" | "bypassPermissions";
 
+/** Espelha os aliases que `claude --model` aceita, curados do mesmo jeito
+ * que `PermissionMode` (docs/25): as variantes de contexto estendido
+ * (`sonnet[1m]` etc.) e `opusplan` ficam de fora por enquanto, exigem
+ * explicação própria que não foi pedida ainda. */
+export type ModelChoice = "default" | "sonnet" | "opus" | "haiku" | "fable";
+
 /** Uso de contexto do turno mais recente de uma sessão — ver ClaudeSession
  * (quem extrai isso do evento `result` do `claude -p`) e o plano do
  * indicador de janela de contexto. `contextWindowSize` vem direto do CLI
@@ -64,6 +70,13 @@ export interface SessionEntry {
    * selecionável. Diferente de `cwd`, não trava depois do primeiro turno —
    * o modo pode mudar a qualquer momento da conversa. */
   permissionMode?: PermissionMode;
+  /** Opcional: `undefined` (nunca escolhido via `/model`) significa "não
+   * passa `--model` no spawn", igual o comportamento de sempre antes dessa
+   * feature existir — diferente de `permissionMode`, não tem um valor
+   * hardcoded de fallback, porque "deixar o CLI decidir seu próprio padrão"
+   * já É o comportamento padrão. Mesma regra de "não trava depois do
+   * primeiro turno" do `permissionMode`. */
+  model?: ModelChoice;
   /** Opcional pelo mesmo motivo de `permissionMode`: tolera registros
    * gravados antes dessa feature existir. Nunca reconstruído a partir do
    * `.jsonl` do Claude Code num restart — o evento `result` (única fonte do
@@ -256,6 +269,14 @@ export class SessionStore {
     this.persist();
   }
 
+  /** `/clear` (docs/26) — solta a continuidade gravada, senão um restart do
+   * relay voltaria a dar `--resume` na conversa que o usuário já limpou. */
+  clearSessionId(id: string): void {
+    this.ensureEntry(id);
+    this.records[id].sessionId = null;
+    this.persist();
+  }
+
   getCwdState(id: string): SessionCwdState {
     return this.records[id]?.cwd ?? { cwd: this.defaultCwd, locked: false };
   }
@@ -279,6 +300,16 @@ export class SessionStore {
   setPermissionMode(id: string, mode: PermissionMode): void {
     this.ensureEntry(id);
     this.records[id].permissionMode = mode;
+    this.persist();
+  }
+
+  getModel(id: string): ModelChoice | undefined {
+    return this.records[id]?.model;
+  }
+
+  setModel(id: string, model: ModelChoice): void {
+    this.ensureEntry(id);
+    this.records[id].model = model;
     this.persist();
   }
 

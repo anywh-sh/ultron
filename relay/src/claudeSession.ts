@@ -1,6 +1,6 @@
 import { spawn, type ChildProcessWithoutNullStreams } from "node:child_process";
 import { createInterface } from "node:readline";
-import type { ContextUsage, PermissionMode } from "./sessionStore.js";
+import type { ContextUsage, ModelChoice, PermissionMode } from "./sessionStore.js";
 
 // Um turno = um processo `claude -p`. Continuidade entre turnos vem de
 // `--resume <session_id>`, não de manter um processo vivo — ver
@@ -123,6 +123,14 @@ export class ClaudeSession {
     return this.sessionId;
   }
 
+  /** `/clear` (docs/26) — não roda nada no `claude`, só solta a continuidade
+   * local: o próximo `sendTurn` não leva `--resume`, então começa uma
+   * conversa nova de verdade no lado da CLI, sem gastar processo/turno só
+   * pra "avisar" ela disso. */
+  resetSessionId(): void {
+    this.sessionId = undefined;
+  }
+
   /**
    * Interrompe o turno em andamento, se houver — usado pelo botão "Parar" no
    * cliente. Testado direto contra o binário: `claude -p` captura `SIGINT` e
@@ -142,6 +150,7 @@ export class ClaudeSession {
     text: string,
     cwd: string,
     permissionMode: PermissionMode,
+    model: ModelChoice | undefined,
     onEvent: (event: ClaudeEvent) => void,
   ): Promise<SendTurnResult> {
     this.stopRequested = false;
@@ -152,6 +161,7 @@ export class ClaudeSession {
       "stream-json",
       "--verbose",
       "--include-partial-messages",
+      ...(model ? ["--model", model] : []),
       // `bypassPermissions` é o modo padrão histórico (o único que existia
       // antes de o modo ser selecionável, ver docs/25) — continua na flag
       // dedicada porque é a forma testada contra o binário real de evitar

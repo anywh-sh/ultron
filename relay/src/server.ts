@@ -3,7 +3,7 @@ import { WebSocketServer, type WebSocket } from "ws";
 import { listDirectories } from "./fsBrowse.js";
 import { defaultCwd } from "./paths.js";
 import { SessionManager } from "./sessionManager.js";
-import { SessionStore, type PermissionMode } from "./sessionStore.js";
+import { SessionStore, type ModelChoice, type PermissionMode } from "./sessionStore.js";
 import { saveUpload } from "./uploads.js";
 
 // Config via env — permite rodar uma instância por perfil (systemd,
@@ -37,6 +37,10 @@ function isStopTurnMessage(value: unknown): value is { type: "stop_turn" } {
   return typeof value === "object" && value !== null && (value as { type?: unknown }).type === "stop_turn";
 }
 
+function isClearConversationMessage(value: unknown): value is { type: "clear_conversation" } {
+  return typeof value === "object" && value !== null && (value as { type?: unknown }).type === "clear_conversation";
+}
+
 function isSetCwdMessage(value: unknown): value is { type: "set_cwd"; path: string } {
   return (
     typeof value === "object" &&
@@ -54,6 +58,17 @@ function isSetPermissionModeMessage(value: unknown): value is { type: "set_permi
     value !== null &&
     (value as { type?: unknown }).type === "set_permission_mode" &&
     PERMISSION_MODES.includes((value as { mode?: unknown }).mode as PermissionMode)
+  );
+}
+
+const MODEL_CHOICES: readonly ModelChoice[] = ["default", "sonnet", "opus", "haiku", "fable"];
+
+function isSetModelMessage(value: unknown): value is { type: "set_model"; model: ModelChoice } {
+  return (
+    typeof value === "object" &&
+    value !== null &&
+    (value as { type?: unknown }).type === "set_model" &&
+    MODEL_CHOICES.includes((value as { model?: unknown }).model as ModelChoice)
   );
 }
 
@@ -218,6 +233,10 @@ wss.on("connection", (socket: WebSocket, request) => {
       session.stopTurn();
       return;
     }
+    if (isClearConversationMessage(parsed)) {
+      session.clearConversation();
+      return;
+    }
     if (isSetCwdMessage(parsed)) {
       const result = session.setCwd(parsed.path);
       if (!result.ok) socket.send(JSON.stringify({ type: "set_cwd_error", message: result.error }));
@@ -225,6 +244,10 @@ wss.on("connection", (socket: WebSocket, request) => {
     }
     if (isSetPermissionModeMessage(parsed)) {
       session.setPermissionMode(parsed.mode);
+      return;
+    }
+    if (isSetModelMessage(parsed)) {
+      session.setModel(parsed.model);
       return;
     }
     if (!isUserMessage(parsed)) {

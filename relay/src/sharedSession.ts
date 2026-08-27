@@ -3,7 +3,7 @@ import { ClaudeSession, type ClaudeEvent } from "./claudeSession.js";
 import { checkDirectory } from "./fsBrowse.js";
 import { defaultCwd } from "./paths.js";
 import { readHistoryFromTranscript } from "./transcriptReader.js";
-import type { ContextUsage, PermissionMode } from "./sessionStore.js";
+import type { ContextUsage, ModelChoice, PermissionMode } from "./sessionStore.js";
 
 export type BroadcastMessage =
   | { type: "claude_event"; event: ClaudeEvent }
@@ -16,6 +16,10 @@ export interface SharedSessionOptions {
   /** Chamado com o session_id aprendido depois de cada turno bem-sucedido —
    * é assim que o SessionManager grava no SessionStore. */
   onSessionIdChange?: (sessionId: string) => void;
+  /** Chamado quando `/clear` solta a continuidade local (docs/26) — é assim
+   * que o SessionManager apaga o session_id gravado no SessionStore, senão
+   * um restart do relay voltaria a dar `--resume` na conversa já limpa. */
+  onSessionIdClear?: () => void;
   /** cwd atual da sessão (padrão do app se o usuário nunca escolheu uma pasta). */
   initialCwd: string;
   /** Se `true`, a pasta já foi consumida por um turno e não pode mais mudar
@@ -31,10 +35,13 @@ export interface SharedSessionOptions {
    * ou reload de uma sessão nova cujo título já tinha sido inferido antes do
    * restart do relay). */
   initialTitle?: string | null;
-  /** Chamado uma única vez, com o texto do primeiro prompt de verdade —
-   * SessionManager usa isso pra disparar a geração de título em paralelo ao
-   * turno (não bloqueia a resposta). Mesmo momento que `onLockChange`, só
-   * que já carrega o texto. */
+  /** Chamado uma única vez, com o texto da primeira mensagem que não é um
+   * comando (não começa com "/") — SessionManager usa isso pra disparar a
+   * geração de título em paralelo ao turno (não bloqueia a resposta).
+   * Desacoplado de `onLockChange` de propósito: uma sessão cujas primeiras
+   * mensagens são `/model opus`/`/clear` trava o cwd normalmente no
+   * primeiro turno, mas só ganha título quando uma mensagem de verdade
+   * chegar (docs/26) — sem isso o título saía do texto do comando. */
   onFirstPrompt?: (text: string) => void;
   /** Chamado no início de TODO turno (não só o primeiro) — é o que deixa o
    * SessionManager marcar `lastActiveAt` no SessionStore, usado pra ordenar
@@ -55,6 +62,13 @@ export interface SharedSessionOptions {
    * assim que o SessionManager grava no SessionStore. Pode não disparar num
    * turno que falhou antes de qualquer chamada de API. */
   onContextUsageChange?: (usage: ContextUsage) => void;
+  /** Modelo já persistido pra essa sessão (docs/26), ou `undefined` se nunca
+   * escolhido via `/model` — nesse caso não passa `--model` no spawn,
+   * comportamento idêntico a antes dessa feature existir. */
+  initialModel?: ModelChoice;
+  /** Chamado sempre que o modelo muda — mesmo padrão de
+   * `onPermissionModeChange`, pode disparar a qualquer momento. */
+  onModelChange?: (model: ModelChoice) => void;
 }
 
 export type SetCwdResult = { ok: true } | { ok: false; error: string };
@@ -74,7 +88,17 @@ export class SharedSession {
   private locked: boolean;
   private title: string | null;
   private permissionMode: PermissionMode;
+  private model: ModelChoice | undefined;
   private contextUsage: ContextUsage | undefined;
+  /** Separado de `locked`: uma sessão pode travar o cwd no primeiro turno
+   * (ex: um `/model opus` de abertura) sem ainda ter uma mensagem de verdade
+   * pra título — ver `onFirstPrompt` acima. */
+  private firstPromptSeeded = false;
+  /** `true` depois de um `/clear` — impede `ensureHistoryLoaded` de recarregar
+   * o transcript antigo do disco pra um cliente que conecta depois do clear
+   * (o guard normal dela só olha `history.length`, que a gente zera de
+   * propósito no clear). */
+  private historyCleared = false;
 
   constructor(
     private readonly homeOverride: string | undefined,
@@ -85,6 +109,7 @@ export class SharedSession {
     this.locked = options.initialLocked;
     this.title = options.initialTitle ?? null;
     this.permissionMode = options.initialPermissionMode;
+    this.model = options.initialModel;
     this.contextUsage = options.initialContextUsage;
   }
 
@@ -94,6 +119,10 @@ export class SharedSession {
 
   getPermissionMode(): PermissionMode {
     return this.permissionMode;
+  }
+
+  getModel(): ModelChoice | undefined {
+    return this.model;
   }
 
   getContextUsage(): ContextUsage | undefined {
@@ -106,6 +135,15 @@ export class SharedSession {
     this.permissionMode = mode;
     this.options.onPermissionModeChange?.(mode);
     this.broadcastPermissionMode();
+  }
+
+  /** Mesmo padrão de `setPermissionMode` — vale a partir do próximo turno,
+   * sem trava nem validação de valor (o WS handler já valida contra
+   * `MODEL_CHOICES` antes de chegar aqui, docs/26). */
+  setModel(model: ModelChoice): void {
+    this.model = model;
+    this.options.onModelChange?.(model);
+    this.broadcastModelState();
   }
 
   getTitle(): string | null {
@@ -140,6 +178,7 @@ export class SharedSession {
     // sem esperar um turno ou o replay de histórico terminar.
     this.sendCwdState(socket);
     this.sendPermissionMode(socket);
+    this.sendModelState(socket);
     if (this.title !== null) this.sendTitle(socket, this.title);
     this.sendContextUsage(socket);
 
@@ -180,7 +219,7 @@ export class SharedSession {
    * sessão. Sem `initialSessionId` não tem o que ler (sessão nova).
    */
   private ensureHistoryLoaded(): void {
-    if (this.history.length > 0 || !this.options.initialSessionId) return;
+    if (this.history.length > 0 || this.historyCleared || !this.options.initialSessionId) return;
     const home = defaultCwd(this.homeOverride); // onde ~/.claude/projects/ do processo filho vive
     this.history.push(...readHistoryFromTranscript(home, this.cwd, this.options.initialSessionId));
   }
@@ -196,6 +235,24 @@ export class SharedSession {
     this.claude.stop();
   }
 
+  /** `/clear` (docs/26) — mesma fila dos turnos de verdade (`turnQueue`),
+   * pra nunca correr em paralelo com um turno em andamento e arriscar um dos
+   * dois sobrescrever o `session_id`/`history` do outro fora de ordem. Não
+   * mexe em cwd, permissionMode nem model — só o CONTEÚDO da conversa reseta,
+   * igual o `/clear` de verdade da CLI (só que sem rodar processo nenhum:
+   * ver `ClaudeSession.resetSessionId`). */
+  clearConversation(): void {
+    this.turnQueue = this.turnQueue.then(() => {
+      this.claude.resetSessionId();
+      this.history.length = 0;
+      this.historyCleared = true;
+      this.contextUsage = undefined;
+      this.options.onSessionIdClear?.();
+      this.broadcastContextUsageReset();
+      this.broadcastConversationReset();
+    });
+  }
+
   private async runTurn(text: string): Promise<void> {
     this.options.onActivity?.();
 
@@ -208,13 +265,26 @@ export class SharedSession {
       this.locked = true;
       this.options.onLockChange?.();
       this.broadcastCwdState();
+    }
+    // Comandos (`/clear`, `/model` etc, docs/26) não contam como primeiro
+    // prompt de verdade pro título — só roda a geração quando a primeira
+    // mensagem que não começa com "/" chegar, mesmo que não seja o primeiro
+    // turno da sessão.
+    if (!this.firstPromptSeeded && !text.trim().startsWith("/")) {
+      this.firstPromptSeeded = true;
       this.options.onFirstPrompt?.(text);
     }
 
     try {
-      const { stopped, contextUsage } = await this.claude.sendTurn(text, this.cwd, this.permissionMode, (event) => {
-        this.broadcast({ type: "claude_event", event });
-      });
+      const { stopped, contextUsage } = await this.claude.sendTurn(
+        text,
+        this.cwd,
+        this.permissionMode,
+        this.model,
+        (event) => {
+          this.broadcast({ type: "claude_event", event });
+        },
+      );
       const sessionId = this.claude.getSessionId();
       if (sessionId) this.options.onSessionIdChange?.(sessionId);
       if (contextUsage) {
@@ -246,6 +316,18 @@ export class SharedSession {
     for (const client of this.clients) this.sendPermissionMode(client);
   }
 
+  /** Diferente de `sendContextUsage`, manda sempre — `model` indefinido é um
+   * estado válido e final ("nunca escolhido, usa o padrão do CLI"), não um
+   * "ainda não chegou" transitório, então não tem ambiguidade em avisar o
+   * cliente logo na conexão. */
+  private sendModelState(target: WebSocket): void {
+    target.send(JSON.stringify({ type: "model_state", model: this.model ?? null }));
+  }
+
+  private broadcastModelState(): void {
+    for (const client of this.clients) this.sendModelState(client);
+  }
+
   private sendContextUsage(target: WebSocket): void {
     if (!this.contextUsage) return;
     target.send(JSON.stringify({ type: "context_usage_state", usage: this.contextUsage }));
@@ -256,6 +338,27 @@ export class SharedSession {
    * via `addClient` (`sendContextUsage`), não um replay de mudanças. */
   private broadcastContextUsage(): void {
     for (const client of this.clients) this.sendContextUsage(client);
+  }
+
+  /** Só usado quando um `/clear` (ou equivalente) reinicia a conversa —
+   * diferente de `sendContextUsage`, manda mesmo sem valor (`null`), porque
+   * aqui o objetivo é avisar quem já está conectado que o valor anterior
+   * não vale mais (o guard de `sendContextUsage` existe pra não confundir
+   * "sessão nova, nunca teve turno" com "teve e foi resetada"). */
+  private broadcastContextUsageReset(): void {
+    for (const client of this.clients) {
+      client.send(JSON.stringify({ type: "context_usage_state", usage: null }));
+    }
+  }
+
+  /** Só pros clientes já conectados (mesmo raciocínio de
+   * `broadcastContextUsageReset`) — quem conectar depois do clear já vê o
+   * `history` vazio naturalmente via `addClient`, não precisa de sinal
+   * nenhum. */
+  private broadcastConversationReset(): void {
+    for (const client of this.clients) {
+      client.send(JSON.stringify({ type: "conversation_reset" }));
+    }
   }
 
   private sendTitle(target: WebSocket, title: string): void {

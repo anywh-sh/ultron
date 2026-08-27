@@ -18,7 +18,7 @@ const MAX_PROMPT_CHARS = 2000;
  * com conteúdo real) do que a sessão nunca aparecer na lista. */
 function fallbackTitle(prompt: string): string {
   const trimmed = prompt.trim().replace(/\s+/g, " ");
-  return trimmed.length > 60 ? `${trimmed.slice(0, 60)}…` : trimmed || "Nova conversa";
+  return trimmed.length > 60 ? `${trimmed.slice(0, 60)}…` : trimmed || "Nova sessão";
 }
 
 /**
