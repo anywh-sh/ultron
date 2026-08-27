@@ -46,6 +46,18 @@ export function TerminalView({ profile, chatSessionId, terminalId }: TerminalVie
     const container = containerRef.current;
     if (!container) return;
 
+    // Tentativa anterior usava `theme.background: "transparent"` +
+    // `allowTransparency` pro canvas deixar o fundo do painel (`SessionPanel`,
+    // `--bg-sidebar`) aparecer por trás — na prática ainda sobrava um
+    // retângulo escuro visivelmente diferente (testado no app real). Mais
+    // simples e mais robusto: em vez de perseguir transparência de verdade
+    // através de canvas 2D + addon WebGL + CSS do próprio pacote, pinta o
+    // terminal com a MESMA cor sólida do painel — lida direto de
+    // `--bg-sidebar` (não hardcoded aqui) pra nunca desencontrar se o tema
+    // mudar. Bônus: sem `allowTransparency`, os canvases voltam a não
+    // precisar de canal alpha, um pouco mais barato de compositar.
+    const bgSidebar = getComputedStyle(document.documentElement).getPropertyValue("--bg-sidebar").trim() || "#1f1e1c";
+
     const term = new XTerm({
       fontFamily: "'JetBrains Mono Variable', ui-monospace, monospace",
       fontSize: 13,
@@ -56,23 +68,11 @@ export function TerminalView({ profile, chatSessionId, terminalId }: TerminalVie
       // por causa de um `npm run dev` esquecido rodando havia horas.
       scrollback: 5000,
       allowProposedApi: true,
-      // Sem isso, `theme.background: "transparent"` não tem efeito nenhum —
-      // por padrão o xterm.js cria os canvases internos (texto, seleção, e
-      // principalmente o do addon WebGL) sem canal alpha, então qualquer cor
-      // "transparente" acaba pintada como preto sólido de qualquer jeito.
-      allowTransparency: true,
       theme: {
-        // Transparente de propósito, não `--bg-sidebar` fixo — o canvas do
-        // xterm deixa o fundo de verdade do painel (definido uma vez só em
-        // `SessionPanel.tsx`) aparecer por trás, em vez de duplicar a cor
-        // aqui e arriscar as duas desencontrarem se o tema mudar depois. O
-        // `.xterm-viewport` do pacote também força fundo preto sólido no CSS
-        // dele (ver override em index.css) — sem os dois, um dos dois ainda
-        // ficaria opaco por cima do painel.
-        background: "transparent",
+        background: bgSidebar,
         foreground: "#f0eee6",
         cursor: "#d97757",
-        cursorAccent: "#262624",
+        cursorAccent: bgSidebar,
         selectionBackground: "rgba(217, 119, 87, 0.35)",
         black: "#1f1e1c",
         red: "#c06456",
