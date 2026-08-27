@@ -336,10 +336,24 @@ function handleTerminalConnection(socket: WebSocket, url: URL): void {
     } catch {
       return;
     }
-    if (isTerminalInputMessage(parsed)) {
-      term.write(parsed.data);
-    } else if (isTerminalResizeMessage(parsed)) {
-      term.resize(Math.floor(parsed.cols), Math.floor(parsed.rows));
+    try {
+      if (isTerminalInputMessage(parsed)) {
+        term.write(parsed.data);
+      } else if (isTerminalResizeMessage(parsed)) {
+        term.resize(Math.floor(parsed.cols), Math.floor(parsed.rows));
+      }
+    } catch (error) {
+      // `term.write`/`term.resize` chamam ioctl no fd do pty por baixo —
+      // achado rodando o app de verdade: uma mensagem em trânsito (ex:
+      // resize debounced) pode chegar depois do pty já ter morrido (`close`
+      // do socket já rodou `term.kill()`, ou o processo saiu sozinho),
+      // lançando uma exceção síncrona (`EBADF`). Sem este try/catch isso
+      // não ficava só nessa aba de terminal — derrubava o processo do relay
+      // INTEIRO (exceção não tratada dentro do handler de um EventEmitter),
+      // junto com toda sessão de chat conectada nele. Descartar a mensagem
+      // é seguro: o cliente do terminal já vai reconectar sozinho se o pty
+      // de fato morreu.
+      console.error("[relay] mensagem de terminal descartada, pty possivelmente já morto:", error);
     }
   });
 
