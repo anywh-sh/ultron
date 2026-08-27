@@ -145,11 +145,16 @@ export default function App() {
     tabsState.openTab(profileId, sessionId, title);
   }
 
-  function handleRenameSession(id: string, title: string): void {
-    renameSession(activeProfile.host, activeProfile.relayPort, id, title)
+  /** `profileId` explícito (não sempre `activeProfile`) pelo mesmo motivo do
+   * `handleDeleteSession` logo abaixo: também é chamado a partir de uma aba
+   * de outro perfil que não o selecionado na sidebar agora (docs/29). */
+  function handleRenameSession(profileId: string, id: string, title: string): void {
+    const profile = findProfile(profileId);
+    if (!profile) return;
+    renameSession(profile.host, profile.relayPort, id, title)
       .then(() => {
-        upsertTitle(id, title);
         tabsState.setTabTitle(id, title);
+        if (profileId === activeProfile.id) upsertTitle(id, title);
       })
       .catch((error: unknown) => {
         console.error("[ultron] falha ao renomear sessão", error);
@@ -278,7 +283,7 @@ export default function App() {
     runningSessions,
     onSelectSession: handleSelectSession,
     onNewConversation: handleNewConversation,
-    onRenameSession: handleRenameSession,
+    onRenameSession: (id: string, title: string) => handleRenameSession(activeProfile.id, id, title),
     onDeleteSession: (id: string) => handleDeleteSession(activeProfile.id, id),
   };
 
@@ -426,6 +431,10 @@ export default function App() {
           onSelect={tabsState.setActiveTab}
           onClose={tabsState.closeTab}
           onReorder={tabsState.reorderTabs}
+          onRenameSession={(tabId, title) => {
+            const tab = tabsState.tabs.find((t) => t.id === tabId);
+            if (tab) handleRenameSession(tab.profileId, tabId, title);
+          }}
           onDelete={(tabId) => {
             const tab = tabsState.tabs.find((t) => t.id === tabId);
             if (tab) handleDeleteSession(tab.profileId, tabId);
@@ -448,7 +457,7 @@ export default function App() {
           selectedSession={activeTabId}
           runningSessions={runningSessions}
           onSelectSession={handleSelectSession}
-          onRenameSession={handleRenameSession}
+          onRenameSession={(id, title) => handleRenameSession(activeProfile.id, id, title)}
           onDeleteSession={(id) => handleDeleteSession(activeProfile.id, id)}
           onOpenSearch={() => setSearchOpen(true)}
           title={activeTab?.title ?? "Nova sessão"}

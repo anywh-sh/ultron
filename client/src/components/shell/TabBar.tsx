@@ -1,4 +1,4 @@
-import type { ReactNode } from "react";
+import { useState, type ReactNode } from "react";
 import { X } from "lucide-react";
 import {
   DndContext,
@@ -14,6 +14,7 @@ import { cn } from "@/lib/utils";
 import type { Tab } from "@/hooks/useTabs";
 import { useContextMenu } from "@/hooks/useContextMenu";
 import { SessionDeleteMenu } from "@/components/shell/SessionDeleteMenu";
+import { RenameSessionDialog } from "@/components/shell/RenameSessionDialog";
 
 interface TabBarProps {
   tabs: Tab[];
@@ -21,6 +22,7 @@ interface TabBarProps {
   onSelect: (tabId: string) => void;
   onClose: (tabId: string) => void;
   onReorder: (activeTabId: string, overTabId: string) => void;
+  onRenameSession: (tabId: string, title: string) => void;
   onDelete: (tabId: string) => void;
   renderPanel: (tab: Tab) => ReactNode;
 }
@@ -28,6 +30,7 @@ interface TabBarProps {
 interface SortableTabProps {
   tab: Tab;
   onClose: (tabId: string) => void;
+  onRename: (tab: Tab) => void;
   onDelete: (tabId: string) => void;
 }
 
@@ -38,7 +41,7 @@ interface SortableTabProps {
  * Sem `KeyboardSensor` no `DndContext` pelo mesmo motivo: ArrowLeft/Right já
  * move o foco entre abas via Radix, colidiria com "mover item arrastado".
  */
-function SortableTab({ tab, onClose, onDelete }: SortableTabProps) {
+function SortableTab({ tab, onClose, onRename, onDelete }: SortableTabProps) {
   const { setNodeRef, listeners, transform, transition, isDragging } = useSortable({ id: tab.id });
   const menu = useContextMenu();
 
@@ -84,7 +87,12 @@ function SortableTab({ tab, onClose, onDelete }: SortableTabProps) {
       >
         <X className="size-3" />
       </button>
-      <SessionDeleteMenu menu={menu} title={tab.title ?? "nova sessão"} onDelete={() => onDelete(tab.id)} />
+      <SessionDeleteMenu
+        menu={menu}
+        title={tab.title ?? "nova sessão"}
+        onRename={() => onRename(tab)}
+        onDelete={() => onDelete(tab.id)}
+      />
     </div>
   );
 }
@@ -104,8 +112,18 @@ function SortableTab({ tab, onClose, onDelete }: SortableTabProps) {
  * dentro do wrapper `relative` pra ocuparem o mesmo espaço sem depender do
  * fluxo flex.
  */
-export function TabBar({ tabs, activeTabId, onSelect, onClose, onReorder, onDelete, renderPanel }: TabBarProps) {
+export function TabBar({
+  tabs,
+  activeTabId,
+  onSelect,
+  onClose,
+  onReorder,
+  onRenameSession,
+  onDelete,
+  renderPanel,
+}: TabBarProps) {
   const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 8 } }));
+  const [renaming, setRenaming] = useState<{ id: string; title: string } | null>(null);
 
   function handleDragEnd(event: DragEndEvent): void {
     const { active, over } = event;
@@ -121,7 +139,13 @@ export function TabBar({ tabs, activeTabId, onSelect, onClose, onReorder, onDele
             className="h-auto w-full justify-start gap-0 rounded-none border-b border-border-soft bg-transparent p-0"
           >
             {tabs.map((tab) => (
-              <SortableTab key={tab.id} tab={tab} onClose={onClose} onDelete={onDelete} />
+              <SortableTab
+                key={tab.id}
+                tab={tab}
+                onClose={onClose}
+                onRename={(renamedTab) => setRenaming({ id: renamedTab.id, title: renamedTab.title ?? "" })}
+                onDelete={onDelete}
+              />
             ))}
           </TabsList>
         </SortableContext>
@@ -139,6 +163,18 @@ export function TabBar({ tabs, activeTabId, onSelect, onClose, onReorder, onDele
           </TabsContent>
         ))}
       </div>
+
+      <RenameSessionDialog
+        open={renaming !== null}
+        onOpenChange={(open) => {
+          if (!open) setRenaming(null);
+        }}
+        initialTitle={renaming?.title ?? ""}
+        onSave={(title) => {
+          if (renaming) onRenameSession(renaming.id, title);
+          setRenaming(null);
+        }}
+      />
     </Tabs>
   );
 }
