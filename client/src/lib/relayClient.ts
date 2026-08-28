@@ -1,12 +1,22 @@
 // Cliente do protocolo do relay próprio (não é mais o protocolo do ttyd —
 // ver docs/11-decisao-pivo-stream-json.md e docs/12-prototipo-relay.md).
-import type { ClaudeEvent, ContextUsage, ModelChoice, PermissionMode, RelayMessage, SessionSummary } from "@/lib/relay-types";
+import type {
+  ClaudeEvent,
+  ContextUsage,
+  HistoryPageMessage,
+  ModelChoice,
+  PermissionMode,
+  RelayMessage,
+  SessionSummary,
+} from "@/lib/relay-types";
 
 export type {
   ClaudeContentBlock,
   ClaudeMessage,
   ClaudeEvent,
   ContextUsage,
+  HistoryMessage,
+  HistoryPageMessage,
   ModelChoice,
   PermissionMode,
   SessionSummary,
@@ -120,6 +130,14 @@ export interface RelayClientCallbacks {
    * quem consome isso deve resetar o log de mensagens aqui, senão o replay
    * duplica tudo em cima do que já estava na tela (docs/23, Fase D1). */
   onReconnecting?: () => void;
+  /** Cauda recente do histórico dessa sessão — mandada uma vez por conexão,
+   * logo antes de `onCaughtUp` (Fase 2/3, docs/30). Opcional só durante a
+   * migração: quem ainda não hidrata o log em lote (Fase 4) simplesmente
+   * ignora e continua vendo o log vazio até essa fase existir. */
+  onHistoryPage?: (page: HistoryPageMessage) => void;
+  /** Resposta a `loadOlderHistory` (Fase 2/3, docs/30) — turnos mais antigos
+   * que a cauda inicial, pedidos sob demanda (Fase 5: scroll pra cima). */
+  onOlderHistory?: (page: HistoryPageMessage) => void;
 }
 
 const RECONNECT_BASE_DELAY_MS = 500;
@@ -216,6 +234,10 @@ export class RelayClient {
         this.callbacks.onSuggestion?.(parsed.text);
       } else if (parsed.type === "notification_summary") {
         this.callbacks.onNotificationSummary?.(parsed.text);
+      } else if (parsed.type === "history_page") {
+        this.callbacks.onHistoryPage?.(parsed);
+      } else if (parsed.type === "older_history") {
+        this.callbacks.onOlderHistory?.(parsed);
       }
     });
   }
@@ -263,6 +285,16 @@ export class RelayClient {
   clearConversation(): void {
     if (this.socket?.readyState !== WebSocket.OPEN) return;
     this.socket.send(JSON.stringify({ type: "clear_conversation" }));
+  }
+
+  /** Busca turnos mais antigos que `beforeCursor` (Fase 2/3, docs/30) —
+   * disparado pelo usuário rolando pra cima na UI (Fase 5). Mesmo raciocínio
+   * de `setModel` sobre não precisar de fila de pendência: só faz sentido
+   * chamar depois que a cauda inicial já chegou (`onHistoryPage`), então o
+   * socket sempre já está aberto nesse ponto. */
+  loadOlderHistory(beforeCursor: number): void {
+    if (this.socket?.readyState !== WebSocket.OPEN) return;
+    this.socket.send(JSON.stringify({ type: "load_older_history", beforeCursor }));
   }
 
   disconnect(): void {

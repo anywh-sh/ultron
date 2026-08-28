@@ -108,11 +108,37 @@ export interface ContextUsage {
   usedTokens: number;
 }
 
+/** Uma entrada de `history` do relay (relay/src/sharedSession.ts::BroadcastMessage)
+ * — o subconjunto de `RelayMessage` que também aparece dentro de
+ * `history_page`/`older_history`, batelado em vez de um `socket.send` por
+ * evento (Fase 2/3, docs/30). */
+export type HistoryMessage =
+  | { type: "claude_event"; event: ClaudeEvent }
+  | { type: "turn_complete"; stopped?: boolean }
+  | { type: "turn_error"; message: string };
+
+/** Página de histórico — forma compartilhada por `history_page` (cauda
+ * inicial) e `older_history` (resposta a `load_older_history`). `hasMore`
+ * indica se existem turnos mais antigos que `cursor` pra buscar. */
+export interface HistoryPageMessage {
+  messages: HistoryMessage[];
+  cursor: number;
+  hasMore: boolean;
+}
+
 export type RelayMessage =
   | { type: "claude_event"; event: ClaudeEvent }
   | { type: "turn_complete"; stopped?: boolean }
   | { type: "turn_error"; message: string }
   | { type: "caught_up" }
+  /** Cauda recente do histórico dessa sessão (Fase 2, docs/30) — mandada uma
+   * vez por conexão, logo antes de `caught_up`, no lugar do que antes era um
+   * `claude_event`/`turn_complete` por `socket.send`. */
+  | ({ type: "history_page" } & HistoryPageMessage)
+  /** Resposta a um `load_older_history` pedido pelo próprio cliente (scroll
+   * pra cima) — mesma forma de `history_page`, só que fora do fluxo de
+   * conexão inicial, e só pro socket que pediu. */
+  | ({ type: "older_history" } & HistoryPageMessage)
   | { type: "cwd_state"; cwd: string; locked: boolean }
   | { type: "set_cwd_error"; message: string }
   | { type: "session_title"; title: string }

@@ -1,5 +1,12 @@
 import { useCallback, useEffect, useRef, useState } from "react";
-import { RelayClient, type ClaudeEvent, type ContextUsage, type ModelChoice, type PermissionMode } from "@/lib/relayClient";
+import {
+  RelayClient,
+  type ClaudeEvent,
+  type ContextUsage,
+  type HistoryPageMessage,
+  type ModelChoice,
+  type PermissionMode,
+} from "@/lib/relayClient";
 import type { Profile } from "@/lib/profiles";
 
 /** Um `compact_boundary` recebido, com timestamp — o timestamp garante uma
@@ -29,6 +36,12 @@ export interface UseRelayClientOptions {
   onReconnecting?: () => void;
   /** `/clear` (docs/26) — ver `RelayClientCallbacks.onConversationReset`. */
   onConversationReset?: () => void;
+  /** Cauda recente do histórico dessa sessão — ver
+   * `RelayClientCallbacks.onHistoryPage` (Fase 2/3, docs/30). */
+  onHistoryPage?: (page: HistoryPageMessage) => void;
+  /** Resposta a `loadOlderHistory` — ver `RelayClientCallbacks.onOlderHistory`
+   * (Fase 2/3, docs/30). */
+  onOlderHistory?: (page: HistoryPageMessage) => void;
 }
 
 export interface UseRelayClientResult {
@@ -73,6 +86,9 @@ export interface UseRelayClientResult {
   setPermissionMode: (mode: PermissionMode) => void;
   setModel: (model: ModelChoice) => void;
   clearConversation: () => void;
+  /** Busca turnos mais antigos que `beforeCursor` — ver
+   * `RelayClient.loadOlderHistory` (Fase 2/3, docs/30). */
+  loadOlderHistory: (beforeCursor: number) => void;
 }
 
 /**
@@ -144,6 +160,8 @@ export function useRelayClient(
       onConnectionChange: setConnected,
       onReconnecting: () => optionsRef.current.onReconnecting?.(),
       onConversationReset: () => optionsRef.current.onConversationReset?.(),
+      onHistoryPage: (page) => optionsRef.current.onHistoryPage?.(page),
+      onOlderHistory: (page) => optionsRef.current.onOlderHistory?.(page),
     });
     clientRef.current = client;
     client.connect();
@@ -195,6 +213,10 @@ export function useRelayClient(
     setSuggestion(null);
   }, []);
 
+  const loadOlderHistory = useCallback((beforeCursor: number) => {
+    clientRef.current?.loadOlderHistory(beforeCursor);
+  }, []);
+
   return {
     connected,
     cwd,
@@ -212,5 +234,6 @@ export function useRelayClient(
     setPermissionMode,
     setModel,
     clearConversation,
+    loadOlderHistory,
   };
 }
