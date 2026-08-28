@@ -105,6 +105,17 @@ function isTerminalInputMessage(value: unknown): value is { type: "input"; data:
   );
 }
 
+/** Fase 2 do histórico paginado (docs/30) — pedido de turnos mais antigos que
+ * a cauda inicial, disparado pelo usuário rolando pra cima na UI. */
+function isLoadOlderHistoryMessage(value: unknown): value is { type: "load_older_history"; beforeCursor: number } {
+  return (
+    typeof value === "object" &&
+    value !== null &&
+    (value as { type?: unknown }).type === "load_older_history" &&
+    typeof (value as { beforeCursor?: unknown }).beforeCursor === "number"
+  );
+}
+
 function isTerminalResizeMessage(value: unknown): value is { type: "resize"; cols: number; rows: number } {
   if (typeof value !== "object" || value === null || (value as { type?: unknown }).type !== "resize") return false;
   const cols = (value as { cols?: unknown }).cols;
@@ -407,6 +418,10 @@ wss.on("connection", (socket: WebSocket, request) => {
     }
     if (isSetModelMessage(parsed)) {
       session.setModel(parsed.model);
+      return;
+    }
+    if (isLoadOlderHistoryMessage(parsed)) {
+      session.loadOlderHistory(socket, parsed.beforeCursor);
       return;
     }
     if (!isUserMessage(parsed)) {

@@ -5,6 +5,7 @@ import { defaultCwd } from "./paths.js";
 import { generateNotificationSummary } from "./notificationSummaryGenerator.js";
 import { generateSuggestion } from "./suggestionGenerator.js";
 import { readHistoryFromTranscript } from "./transcriptReader.js";
+import { INITIAL_HISTORY_TAIL_TURNS, pageHistoryBefore } from "./historyPaging.js";
 import type { ContextUsage, ModelChoice, PermissionMode } from "./sessionStore.js";
 
 export type BroadcastMessage =
@@ -196,9 +197,15 @@ export class SharedSession {
     this.sendSuggestion(socket);
 
     this.ensureHistoryLoaded();
-    for (const message of this.history) {
-      socket.send(JSON.stringify(message));
-    }
+    // Fase 2 (docs/30) — só a cauda recente (`INITIAL_HISTORY_TAIL_TURNS`
+    // turnos), não `history` inteiro: sessões longas (achado real, "IVT
+    // Fix" — 1670 linhas reconstruídas) travavam a conexão mandando tudo de
+    // uma vez. O resto vem sob demanda via `loadOlderHistory`, disparado pelo
+    // usuário rolando pra cima na UI. Uma única mensagem com o array inteiro
+    // (não um `send` por evento) — é o que deixa o cliente hidratar o log
+    // com um dispatch só em vez de um por evento (custo O(n²) do reducer).
+    const page = pageHistoryBefore(this.history, this.history.length, INITIAL_HISTORY_TAIL_TURNS);
+    socket.send(JSON.stringify({ type: "history_page", messages: page.messages, cursor: page.cursor, hasMore: page.hasMore }));
     // Marca o fim do replay pra esse cliente — não entra em `history` (não é
     // um evento da sessão, é por-conexão), então nunca é reenviado pros
     // próximos clientes que conectarem. É o que deixa o cliente distinguir
@@ -206,6 +213,15 @@ export class SharedSession {
     // concluído depois que ele conectou (relevante pra notificação do SO).
     socket.send(JSON.stringify({ type: "caught_up" }));
     this.clients.add(socket);
+  }
+
+  /** Fase 2 (docs/30) — busca sob demanda de turnos mais antigos que a cauda
+   * mandada em `addClient`, disparada pelo usuário rolando pra cima na UI.
+   * Só responde pro socket que pediu: não é um evento da sessão (não entra
+   * de novo em `history`, já está lá), é uma busca pontual de um cliente. */
+  loadOlderHistory(socket: WebSocket, beforeCursor: number): void {
+    const page = pageHistoryBefore(this.history, beforeCursor, INITIAL_HISTORY_TAIL_TURNS);
+    socket.send(JSON.stringify({ type: "older_history", messages: page.messages, cursor: page.cursor, hasMore: page.hasMore }));
   }
 
   removeClient(socket: WebSocket): void {
