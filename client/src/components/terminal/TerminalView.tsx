@@ -96,6 +96,20 @@ export function TerminalView({ profile, chatSessionId, terminalId }: TerminalVie
     const fitAddon = new FitAddon();
     term.loadAddon(fitAddon);
     term.open(container);
+    // Ctrl+V puro: por padrão o xterm trata Ctrl+<letra> como caractere de
+    // controle pro shell (aqui, 0x16 — "quoted insert" do readline/vim) e
+    // cancela o keydown nativo — no Chromium/WebView2 isso suprime a ação
+    // padrão de colar, então o evento `paste` nunca chega a disparar
+    // (Ctrl+Shift+V já funciona, não passa por esse caminho; Cmd+V no
+    // macOS também não, usa `metaKey`, não `ctrlKey`). Devolver `false`
+    // aqui faz o xterm ignorar esse keydown específico e deixar o colar
+    // nativo do navegador acontecer normalmente.
+    term.attachCustomKeyEventHandler((event) => {
+      if (event.type === "keydown" && event.ctrlKey && !event.shiftKey && !event.altKey && !event.metaKey && event.key.toLowerCase() === "v") {
+        return false;
+      }
+      return true;
+    });
     try {
       // Renderer WebGL custa bem menos CPU que o canvas padrão pra output
       // pesado (ex: `npm install`, `cat` de arquivo grande) — importante com
