@@ -244,7 +244,6 @@ export function ChatPanel({
           streamingEntries={log.streamingEntries}
           hasMoreHistory={log.hasMoreHistory}
           loadingOlderHistory={log.loadingOlderHistory}
-          prependVersion={log.prependVersion}
           onLoadOlderHistory={handleLoadOlderHistory}
           className={isIOS() ? "pt-[calc(env(safe-area-inset-top)+64px)] pb-32" : undefined}
         />

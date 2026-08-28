@@ -20,9 +20,6 @@ interface MessageLogProps {
    * chamador, `ChatPanel`, mas checar aqui também evita reagir a scroll
    * repetido enquanto a resposta não chega). */
   loadingOlderHistory: boolean;
-  /** Incrementa a cada prepend de verdade — dispara o ajuste de scroll que
-   * preserva a posição de leitura (ver `useLayoutEffect` abaixo). */
-  prependVersion: number;
   /** Chamado quando o usuário rola perto do topo da lista, com mais
    * histórico ainda por buscar. */
   onLoadOlderHistory: () => void;
@@ -157,7 +154,6 @@ export const MessageLog = memo(function MessageLog({
   streamingEntries,
   hasMoreHistory,
   loadingOlderHistory,
-  prependVersion,
   onLoadOlderHistory,
   className,
 }: MessageLogProps) {
@@ -213,34 +209,50 @@ export const MessageLog = memo(function MessageLog({
     virtualizer.scrollToEnd();
   }, [virtualizer]);
 
-  // Scroll reverso (Fase 5, docs/30): guarda a "âncora" (altura total +
-  // posição de scroll) no instante em que o pedido de turnos mais antigos é
-  // disparado — não dá pra saber de antemão quando a resposta chega, então
-  // isso é o único momento confiável pra capturar o "antes".
-  const prependAnchorRef = useRef<{ totalSize: number; scrollTop: number } | null>(null);
+  // Scroll reverso (Fase 5, docs/30): guarda a altura total no instante em
+  // que o pedido de turnos mais antigos é disparado — não dá pra saber de
+  // antemão quando a resposta chega, então isso é o único momento confiável
+  // pra capturar o "antes". `null` quando não há compensação em andamento.
+  const prependAnchorRef = useRef<number | null>(null);
 
   const handleScroll = useCallback(() => {
     const el = parentRef.current;
     if (!el || el.scrollTop > 120 || loadingOlderHistory || !hasMoreHistory) return;
-    prependAnchorRef.current = { totalSize: virtualizer.getTotalSize(), scrollTop: el.scrollTop };
+    prependAnchorRef.current = virtualizer.getTotalSize();
     onLoadOlderHistory();
   }, [hasMoreHistory, loadingOlderHistory, onLoadOlderHistory, virtualizer]);
 
-  // Dispara só quando `prependVersion` de fato muda (um prepend de verdade
-  // aconteceu) — não em todo re-render nem quando o log só cresce no fim
-  // (turno ao vivo chegando), que já é coberto por `anchorTo`/`followOnAppend`
-  // acima e não deve ter o scroll mexido. Compara a altura total de antes
-  // (capturada em `handleScroll`) com a de agora e desloca o scroll pela
-  // diferença, pra o conteúdo inserido acima não "empurrar" a leitura atual.
+  // Achado testando com conteúdo de tamanho real (blocos de código, textos
+  // longos): compensar o scroll uma única vez (na primeira mudança de altura
+  // depois do prepend) não bastava — os itens novos entram com a altura
+  // ESTIMADA (`estimateSize: 88`), `measureElement` só mede a de verdade de
+  // forma assíncrona (ResizeObserver) depois que o DOM já pintou, e essa
+  // correção de tamanho chega numa altura TOTAL diferente da que a gente já
+  // tinha compensado — sem tratar isso, o scroll "chacoalha" (desce um
+  // pouco, sobe de novo) enquanto as medições reais vão chegando. Por isso
+  // este efeito roda em TODO render onde `totalSize` mudou (não só uma vez
+  // por prepend) enquanto a âncora estiver ativa, e só solta a âncora depois
+  // de ~300ms sem nenhuma mudança de tamanho — sinal de que as medições já
+  // assentaram. A janela curta importa: manter a âncora presa por muito
+  // tempo passaria a "corrigir" também um turno ao vivo crescendo no fim,
+  // que `anchorTo`/`followOnAppend` já cuidam sozinhos.
+  const totalSize = virtualizer.getTotalSize();
+  const settleTimeoutRef = useRef<number | undefined>(undefined);
   useLayoutEffect(() => {
     const anchor = prependAnchorRef.current;
     const el = parentRef.current;
-    if (!anchor || !el) return;
-    prependAnchorRef.current = null;
-    const delta = virtualizer.getTotalSize() - anchor.totalSize;
-    el.scrollTop = anchor.scrollTop + delta;
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [prependVersion]);
+    if (anchor === null || !el) return;
+    const delta = totalSize - anchor;
+    if (delta !== 0) el.scrollTop += delta;
+    prependAnchorRef.current = totalSize;
+
+    window.clearTimeout(settleTimeoutRef.current);
+    settleTimeoutRef.current = window.setTimeout(() => {
+      prependAnchorRef.current = null;
+    }, 300);
+
+    return () => window.clearTimeout(settleTimeoutRef.current);
+  }, [totalSize]);
 
   return (
     // `relative` não é sobre layout — é o fix pro bug real do WebKit

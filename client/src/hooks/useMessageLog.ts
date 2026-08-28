@@ -38,11 +38,6 @@ interface MessageLogState {
    * (Fase 5, UI: scroll pra cima dispara `beginLoadingOlderHistory` antes de
    * chamar `loadOlderHistory` no relay). */
   loadingOlderHistory: boolean;
-  /** Incrementa a cada `PREPEND_HISTORY` de verdade (nunca em `HYDRATE`,
-   * `RESET` etc.) — `MessageLog` observa isso pra saber exatamente quando
-   * ajustar o scroll pela altura inserida no início, sem confundir com
-   * crescimento no fim (turno ao vivo chegando). */
-  prependVersion: number;
 }
 
 type Action =
@@ -66,7 +61,6 @@ const initialState: MessageLogState = {
   hasMoreHistory: false,
   historyCursor: null,
   loadingOlderHistory: false,
-  prependVersion: 0,
 };
 
 function newId(): string {
@@ -236,7 +230,6 @@ function reducer(state: MessageLogState, action: Action): MessageLogState {
         hasMoreHistory: action.hasMore,
         historyCursor: action.cursor,
         loadingOlderHistory: false,
-        prependVersion: state.prependVersion + 1,
       };
     }
 
@@ -256,9 +249,6 @@ export interface UseMessageLogResult {
   historyCursor: number | null;
   /** Pedido de página mais antiga em voo — ver `beginLoadingOlderHistory`. */
   loadingOlderHistory: boolean;
-  /** Incrementa a cada prepend de verdade — `MessageLog` usa isso pra saber
-   * quando ajustar o scroll (ver comentário em `MessageLogState`). */
-  prependVersion: number;
   addUserMessage: (text: string, images?: PendingImage[]) => void;
   handleEvent: (event: ClaudeEvent) => void;
   handleTurnError: (message: string) => void;
@@ -297,7 +287,6 @@ export function useMessageLog(): UseMessageLogResult {
     hasMoreHistory: state.hasMoreHistory,
     historyCursor: state.historyCursor,
     loadingOlderHistory: state.loadingOlderHistory,
-    prependVersion: state.prependVersion,
     addUserMessage: (text, images) => dispatch({ type: "USER_MESSAGE", text, images }),
     handleEvent: (event) => dispatch({ type: "CLAUDE_EVENT", event }),
     handleTurnError: (message) => dispatch({ type: "TURN_ERROR", message }),
