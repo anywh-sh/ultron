@@ -147,6 +147,10 @@ export function ChatPanel({
     // já faz, só que sem passar por `ready`/skeleton (a conversa continua
     // "pronta", só ficou vazia).
     onConversationReset: () => logRef.current.reset(),
+    // Cauda inicial do histórico (Fase 2-4, docs/30) — chega antes de
+    // `onCaughtUp`, hidrata o log com um dispatch só em vez do replay antigo
+    // evento-a-evento.
+    onHistoryPage: (page) => logRef.current.hydrate(page),
     onCaughtUp: () => {
       caughtUpRef.current = true;
       setReady(true);
