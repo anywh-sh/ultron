@@ -146,6 +146,14 @@ export type RelayMessage =
   | { type: "permission_mode_state"; mode: PermissionMode }
   | { type: "model_state"; model: ModelChoice | null }
   | { type: "context_usage_state"; usage: ContextUsage | null }
+  /** Turno em andamento na sessão — estado "atual" (mesmo raciocínio de
+   * `cwd_state`/`permission_mode_state`), mandado de novo a cada conexão
+   * nova (docs/30). `startedAt` (epoch ms) deixa o cronômetro do
+   * `TurnIndicator` contar a partir do início real do turno mesmo num
+   * dispositivo que não foi quem mandou a mensagem, ou que conectou no meio
+   * dele — sem isso só quem mandou via o indicador (achado real testando
+   * multi-dispositivo). `undefined` quando `active` é `false`. */
+  | { type: "turn_state"; active: boolean; startedAt?: number }
   /** `/clear` (docs/26) — sinal por conexão (não entra em replay), avisa um
    * cliente já conectado que a conversa foi resetada; quem conecta depois
    * já vê o histórico vazio naturalmente. */

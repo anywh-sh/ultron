@@ -112,6 +112,11 @@ export class SharedSession {
    * (o guard normal dela só olha `history.length`, que a gente zera de
    * propósito no clear). */
   private historyCleared = false;
+  /** `null` fora de um turno — timestamp (epoch ms) de quando o turno atual
+   * começou, enquanto um estiver rodando. Estado "atual" (como `cwd`),
+   * não fica em `history`: um cliente conectando (ou reconectando) pega o
+   * valor de agora via `addClient`, igual `sendCwdState`. */
+  private turnStartedAt: number | null = null;
 
   constructor(
     private readonly homeOverride: string | undefined,
@@ -195,6 +200,7 @@ export class SharedSession {
     if (this.title !== null) this.sendTitle(socket, this.title);
     this.sendContextUsage(socket);
     this.sendSuggestion(socket);
+    this.sendTurnState(socket);
 
     this.ensureHistoryLoaded();
     // Fase 2 (docs/30) — só a cauda recente (`INITIAL_HISTORY_TAIL_TURNS`
@@ -304,6 +310,17 @@ export class SharedSession {
   private async runTurn(origin: WebSocket, text: string): Promise<void> {
     this.options.onActivity?.();
 
+    // Turno em andamento é estado "atual" (mesmo raciocínio de cwd/permissão/
+    // modelo), não um evento de `history` — achado real testando multi-
+    // dispositivo: sem isso, só quem mandou a mensagem via o indicador de
+    // "pensando"/cronômetro (`TurnIndicator`), porque `turnInFlight` no
+    // cliente só liga otimisticamente em quem clicou "Enviar". `startedAt`
+    // (não só um booleano) deixa o cronômetro de outro dispositivo — ou de
+    // um terceiro conectando no meio do turno — contar a partir do início
+    // real, não de quando ele soube.
+    this.turnStartedAt = Date.now();
+    this.broadcastTurnState();
+
     // Sincroniza a pergunta pros OUTROS dispositivos conectados nesta mesma
     // sessão — achado real: sem isso, quem não mandou a mensagem via ao vivo
     // a resposta do assistente aparecer sem a pergunta que a motivou (o
@@ -384,7 +401,18 @@ export class SharedSession {
       const message = error instanceof Error ? error.message : String(error);
       console.error("[relay] turno falhou:", message);
       this.broadcast({ type: "turn_error", message });
+    } finally {
+      this.turnStartedAt = null;
+      this.broadcastTurnState();
     }
+  }
+
+  private sendTurnState(target: WebSocket): void {
+    target.send(JSON.stringify({ type: "turn_state", active: this.turnStartedAt !== null, startedAt: this.turnStartedAt ?? undefined }));
+  }
+
+  private broadcastTurnState(): void {
+    for (const client of this.clients) this.sendTurnState(client);
   }
 
   private sendCwdState(target: WebSocket): void {

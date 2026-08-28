@@ -109,8 +109,16 @@ export function ChatPanel({
 
   // Cobre do clique em "Enviar" até o turno terminar (sucesso ou erro) — não
   // só o tempo de resposta do modelo, também a ida/volta de rede, pra nunca
-  // dar sensação de travado (feedback do usuário).
-  const [turnInFlight, setTurnInFlight] = useState(false);
+  // dar sensação de travado (feedback do usuário). Guarda o instante de
+  // início (não só um booleano) pro `TurnIndicator` cronometrar a partir do
+  // início real do turno, não de quando este componente soube — importante
+  // pro dispositivo que NÃO mandou a mensagem (ver `onTurnState` abaixo,
+  // achado testando multi-dispositivo: sem isso só quem mandou via o
+  // indicador de "pensando"). Otimista aqui (`Date.now()` no clique de
+  // enviar, antes do round-trip com o relay), corrigido pelo `startedAt` de
+  // verdade assim que `onTurnState` chegar.
+  const [turnStartedAt, setTurnStartedAt] = useState<number | null>(null);
+  const turnInFlight = turnStartedAt !== null;
 
   // Reporta o estado pro Tab (`isRunning`) via ref — abas em background
   // continuam montadas (docs/18), então isso também cobre turnos rodando
@@ -160,15 +168,23 @@ export function ChatPanel({
     },
     onTurnComplete: (stopped) => {
       logRef.current.handleTurnComplete(stopped);
-      setTurnInFlight(false);
+      setTurnStartedAt(null);
       if (!caughtUpRef.current) return;
       const lastUserEntry = [...logRef.current.entries].reverse().find((entry) => entry.kind === "user");
       onTurnComplete?.({ stopped, lastUserText: lastUserEntry?.kind === "user" ? lastUserEntry.text : null });
     },
     onTurnError: (message) => {
       logRef.current.handleTurnError(message);
-      setTurnInFlight(false);
+      setTurnStartedAt(null);
     },
+    // Turno em andamento é estado da SESSÃO, não de quem mandou — sem isso,
+    // um dispositivo que não iniciou o turno (ou que conecta no meio dele)
+    // nunca via o indicador de "pensando"/cronômetro (achado real testando
+    // multi-dispositivo). `startedAt` do relay corrige o cronômetro pro
+    // início de verdade; o `setTurnStartedAt(Date.now())` otimista do envio
+    // (Composer.onSend) já cobre o instante entre o clique e este evento
+    // chegar de volta.
+    onTurnState: (state) => setTurnStartedAt(state.active ? (state.startedAt ?? Date.now()) : null),
     onSetCwdError: (message) => window.alert(`Não foi possível trocar a pasta: ${message}`),
     onNotificationSummary: (text) => onNotificationSummaryRef.current?.(text),
     onSessionTitle: (title) => onTitleRef.current?.(title),
@@ -251,7 +267,7 @@ export function ChatPanel({
         <MessageLogSkeleton />
       )}
 
-      {turnInFlight && <TurnIndicator />}
+      {turnStartedAt !== null && <TurnIndicator startedAt={turnStartedAt} />}
 
       {/* iOS (docs/24): cwd + composer flutuam por cima do log, saindo do
        * fluxo normal — o log continua rolando visível (desfocado) por baixo
@@ -310,7 +326,7 @@ export function ChatPanel({
             log.addUserMessage(text, sentImages);
             sendMessage(buildWireMessage(text, sentImages));
             images.clearWithoutRevoke();
-            setTurnInFlight(true);
+            setTurnStartedAt(Date.now());
             dismissSuggestion();
             onActivity?.();
           }}

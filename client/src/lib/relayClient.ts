@@ -105,6 +105,10 @@ export interface RelayClientCallbacks {
    * ver sharedSession.ts::broadcastContextUsage. `null` depois de um
    * `/clear` (ver onConversationReset). */
   onContextUsageState?: (usage: ContextUsage | null) => void;
+  /** Turno em andamento na sessão (não só de quem mandou) — mandado logo na
+   * conexão e de novo toda vez que um turno começa/termina, em qualquer
+   * dispositivo (docs/30). Ver relay-types.ts::RelayMessage["turn_state"]. */
+  onTurnState?: (state: { active: boolean; startedAt?: number }) => void;
   /** Sugestão de próxima mensagem chegando (ao vivo ou logo na conexão) —
    * ver relay-types.ts::RelayMessage["suggestion"]. `null` limpa qualquer
    * sugestão mostrada. */
@@ -228,6 +232,8 @@ export class RelayClient {
         this.callbacks.onDefaultModelState?.(parsed.label);
       } else if (parsed.type === "context_usage_state") {
         this.callbacks.onContextUsageState?.(parsed.usage);
+      } else if (parsed.type === "turn_state") {
+        this.callbacks.onTurnState?.({ active: parsed.active, startedAt: parsed.startedAt });
       } else if (parsed.type === "conversation_reset") {
         this.callbacks.onConversationReset?.();
       } else if (parsed.type === "suggestion") {

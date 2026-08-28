@@ -36,6 +36,11 @@ export interface UseRelayClientOptions {
   onReconnecting?: () => void;
   /** `/clear` (docs/26) — ver `RelayClientCallbacks.onConversationReset`. */
   onConversationReset?: () => void;
+  /** Turno em andamento na sessão, não só de quem mandou — ver
+   * `RelayClientCallbacks.onTurnState` (docs/30). Passthrough puro, mesmo
+   * raciocínio de `onNotificationSummary`: `ChatPanel` já mantém o próprio
+   * `turnStartedAt`, não precisa de state duplicado aqui. */
+  onTurnState?: (state: { active: boolean; startedAt?: number }) => void;
   /** Cauda recente do histórico dessa sessão — ver
    * `RelayClientCallbacks.onHistoryPage` (Fase 2/3, docs/30). */
   onHistoryPage?: (page: HistoryPageMessage) => void;
@@ -162,6 +167,7 @@ export function useRelayClient(
       onConversationReset: () => optionsRef.current.onConversationReset?.(),
       onHistoryPage: (page) => optionsRef.current.onHistoryPage?.(page),
       onOlderHistory: (page) => optionsRef.current.onOlderHistory?.(page),
+      onTurnState: (state) => optionsRef.current.onTurnState?.(state),
     });
     clientRef.current = client;
     client.connect();
