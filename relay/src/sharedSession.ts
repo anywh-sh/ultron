@@ -237,13 +237,18 @@ export class SharedSession {
     this.history.push(...readHistoryFromTranscript(home, this.cwd, this.options.initialSessionId));
   }
 
-  submitTurn(text: string): void {
+  /** `origin` é o socket que mandou esta mensagem — usado só pra saber quem
+   * já tem a bolha da pergunta localmente (o `ChatPanel` de quem mandou já
+   * commitou ela de forma otimista antes de chamar isto) e não duplicar nele
+   * o `user_prompt` sintético que `runTurn` broadcasta pros OUTROS
+   * dispositivos conectados na mesma sessão (ver comentário lá). */
+  submitTurn(origin: WebSocket, text: string): void {
     // Sugestão de um turno anterior não vale mais assim que um novo começa —
     // limpa na hora (não espera o turno terminar) pra não ficar pendurada
     // durante toda a duração do turno em andamento.
     this.clearSuggestion();
     // Enfileira: só um turno do `claude -p` roda por vez nessa sessão.
-    this.turnQueue = this.turnQueue.then(() => this.runTurn(text));
+    this.turnQueue = this.turnQueue.then(() => this.runTurn(origin, text));
   }
 
   /** Interrompe o turno em andamento, se houver — não mexe na fila (turnos
@@ -280,8 +285,22 @@ export class SharedSession {
     });
   }
 
-  private async runTurn(text: string): Promise<void> {
+  private async runTurn(origin: WebSocket, text: string): Promise<void> {
     this.options.onActivity?.();
+
+    // Sincroniza a pergunta pros OUTROS dispositivos conectados nesta mesma
+    // sessão — achado real: sem isso, quem não mandou a mensagem via ao vivo
+    // a resposta do assistente aparecer sem a pergunta que a motivou (o
+    // protocolo nunca carregava o texto do usuário, só os eventos que a CLI
+    // emite depois). Mesmo formato sintético que `transcriptReader.ts` já usa
+    // pro replay reconstruído do disco — o reducer do cliente
+    // (`useMessageLog.ts`) já sabe tratar `user_prompt`. Não manda pra
+    // `origin`: quem mandou já commitou a bolha localmente de forma otimista
+    // (`ChatPanel`), receber de volta duplicaria.
+    {
+      const event: ClaudeEvent = { type: "user_prompt", message: { content: [{ type: "text", text }] } };
+      this.broadcastExcept({ type: "claude_event", event }, origin);
+    }
 
     // Trava a pasta no momento exato do primeiro turno de verdade — não na
     // conexão WS (que já acontece antes de qualquer mensagem) nem em
@@ -455,6 +474,18 @@ export class SharedSession {
     const payload = JSON.stringify(message);
     for (const client of this.clients) {
       client.send(payload);
+    }
+  }
+
+  /** Mesmo que `broadcast` (entra em `history`, um terceiro dispositivo
+   * conectando depois vê no replay), só que pula um socket — usado pelo
+   * `user_prompt` sintético em `runTurn`, que não deve voltar pra quem já
+   * tem a bolha localmente. */
+  private broadcastExcept(message: BroadcastMessage, exclude: WebSocket): void {
+    this.history.push(message);
+    const payload = JSON.stringify(message);
+    for (const client of this.clients) {
+      if (client !== exclude) client.send(payload);
     }
   }
 }

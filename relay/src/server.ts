@@ -417,7 +417,7 @@ wss.on("connection", (socket: WebSocket, request) => {
       socket.send(JSON.stringify({ type: "turn_error", message: "relay reiniciando, tente de novo em instantes" }));
       return;
     }
-    session.submitTurn(parsed.text);
+    session.submitTurn(socket, parsed.text);
   });
 
   socket.on("close", () => {
