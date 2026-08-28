@@ -14,24 +14,19 @@ export function formatDuration(seconds: number): string {
   return `${m}:${s}`;
 }
 
-/** `[Hh] [MMm] SSs` — cronômetro do turno em andamento (TurnIndicator),
+/** `[Hh] [Mm] Ss` — cronômetro do turno em andamento (TurnIndicator),
  * separado de `formatDuration` porque o formato `mm:ss` lá é convenção de
- * timer de gravação, não de "há quanto tempo o agente está pensando".
- * Unidade mais significativa mostrada nunca tem zero à esquerda (`1m 08s`,
- * não `01m 08s` — só ganha um segundo dígito de verdade quando passa de 9);
- * as de baixo dela continuam preenchidas (`08s`) pro alinhamento. Unidades
- * zeradas à esquerda somem: sem hora nenhuma sem passar de 1h, sem minuto
- * nenhum sem passar de 1m. */
+ * timer de gravação, não de "há quanto tempo o agente está pensando". Nunca
+ * preenche com zero à esquerda em nenhuma unidade (`1h 1m 5s`, não
+ * `1h 01m 05s`) — um segundo dígito só aparece quando o valor passa de 9 de
+ * verdade. Unidades zeradas à esquerda somem: sem hora nenhuma sem passar de
+ * 1h, sem minuto nenhum sem passar de 1m. */
 export function formatDurationLong(totalSeconds: number): string {
   const hours = Math.floor(totalSeconds / 3600);
   const minutes = Math.floor((totalSeconds % 3600) / 60);
   const seconds = totalSeconds % 60;
 
-  if (hours > 0) {
-    return `${hours}h ${minutes.toString().padStart(2, "0")}m ${seconds.toString().padStart(2, "0")}s`;
-  }
-  if (minutes > 0) {
-    return `${minutes}m ${seconds.toString().padStart(2, "0")}s`;
-  }
+  if (hours > 0) return `${hours}h ${minutes}m ${seconds}s`;
+  if (minutes > 0) return `${minutes}m ${seconds}s`;
   return `${seconds}s`;
 }
