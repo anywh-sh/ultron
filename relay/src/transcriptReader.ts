@@ -1,4 +1,4 @@
-import { existsSync, readFileSync } from "node:fs";
+import { existsSync, readFileSync, realpathSync } from "node:fs";
 import { join } from "node:path";
 import type { ClaudeEvent } from "./claudeSession.js";
 import type { BroadcastMessage } from "./sharedSession.js";
@@ -64,6 +64,24 @@ export function sanitizeCwd(cwd: string): string {
   return cwd.replace(/[^a-zA-Z0-9-]/g, "-");
 }
 
+/** O Claude Code CLI deriva o nome da pasta do `cwd` real do processo
+ * (`process.cwd()`, que o kernel já devolve sem componentes de symlink) —
+ * sanitizar o `cwd` bruto sem resolver symlink primeiro faz essa conta bater
+ * com uma pasta que não existe sempre que algum componente do caminho for
+ * symlink (achado real: `~/.ultron-trabalho-home/mode` -> `~/mode`, sessões
+ * do repo `widgets` calculavam `-home-user--ultron-trabalho-home-mode-widgets` em vez
+ * da pasta de verdade, `-home-user-mode-widgets`). Cai pro `cwd` bruto se o
+ * caminho não existir mais (sessão de teste/fixture, ou pasta apagada) —
+ * mesmo comportamento de antes nesse caso, só sem tentar resolver o que não
+ * dá. */
+function resolveRealCwd(cwd: string): string {
+  try {
+    return realpathSync(cwd);
+  } catch {
+    return cwd;
+  }
+}
+
 /** Exportado só pra teste — deixa o teste escrever a fixture no mesmo lugar
  * que o código real vai procurar, em vez de duplicar a regra de sanitização.
  * `home` e `cwd` já vêm resolvidos pelo caller (`SharedSession`, via
@@ -71,7 +89,7 @@ export function sanitizeCwd(cwd: string): string {
  * segundo) — cwd é por sessão desde a feature de working directory, não dá
  * mais pra assumir que é igual a `home`/`process.cwd()` aqui dentro. */
 export function transcriptPath(home: string, cwd: string, sessionId: string): string {
-  return join(home, ".claude", "projects", sanitizeCwd(cwd), `${sessionId}.jsonl`);
+  return join(home, ".claude", "projects", sanitizeCwd(resolveRealCwd(cwd)), `${sessionId}.jsonl`);
 }
 
 /**

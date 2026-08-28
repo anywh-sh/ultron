@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
+import { mkdirSync, mkdtempSync, rmSync, symlinkSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 import { readHistoryFromTranscript, transcriptPath } from "./transcriptReader.js";
@@ -70,6 +70,32 @@ test("segundo turno fecha o primeiro com turn_complete sintético, tool_use/tool
       ]);
     },
   );
+});
+
+test("cwd atravessando um symlink resolve pro caminho real (bug real: ~/.ultron-trabalho-home/mode -> ~/mode)", () => {
+  const realHome = mkdtempSync(join(tmpdir(), "ultron-transcript-test-real-"));
+  const linkDir = mkdtempSync(join(tmpdir(), "ultron-transcript-test-link-"));
+  const cwdLink = join(linkDir, "mode");
+  try {
+    symlinkSync(realHome, cwdLink);
+    // Escreve o transcript na pasta calculada a partir do caminho REAL — é
+    // onde o Claude Code de verdade grava (ele nunca vê o componente
+    // symlink, `process.cwd()` já chega resolvido do kernel).
+    const file = transcriptPath(realHome, realHome, "s-symlink");
+    mkdirSync(dirname(file), { recursive: true });
+    writeFileSync(file, JSON.stringify({ type: "assistant", message: { content: [{ type: "text", text: "oi" }] } }));
+
+    // `cwd` da sessão salvo pelo relay é o caminho COM o symlink no meio
+    // (o que o usuário escolheu/o que ficou persistido) — antes do fix isso
+    // calculava uma pasta diferente da que foi escrita acima e devolvia [].
+    const result = readHistoryFromTranscript(realHome, cwdLink, "s-symlink");
+    assert.deepEqual(result, [
+      { type: "claude_event", event: { type: "assistant", message: { content: [{ type: "text", text: "oi" }] } } },
+    ]);
+  } finally {
+    rmSync(realHome, { recursive: true, force: true });
+    rmSync(linkDir, { recursive: true, force: true });
+  }
 });
 
 test("isMeta, tipos desconhecidos e linha truncada são ignorados sem quebrar o parse", () => {
