@@ -1,4 +1,5 @@
 import { memo, useCallback, useLayoutEffect, useMemo, useRef } from "react";
+import { Loader2 } from "lucide-react";
 import { useVirtualizer } from "@tanstack/react-virtual";
 import { LogEntryRow } from "@/components/chat/LogEntryRow";
 import { UserBubble, AssistantText } from "@/components/chat/Message";
@@ -11,6 +12,20 @@ import type { LogEntry } from "@/hooks/useMessageLog";
 interface MessageLogProps {
   entries: LogEntry[];
   streamingEntries: LogEntry[];
+  /** Se existem turnos mais antigos que o que já está carregado (Fase 5,
+   * docs/30) — controla se rolar perto do topo ainda dispara busca. */
+  hasMoreHistory: boolean;
+  /** Pedido de página mais antiga em voo — mostra o indicador no topo e
+   * também guarda contra pedido duplicado (a mesma guarda já existe no
+   * chamador, `ChatPanel`, mas checar aqui também evita reagir a scroll
+   * repetido enquanto a resposta não chega). */
+  loadingOlderHistory: boolean;
+  /** Incrementa a cada prepend de verdade — dispara o ajuste de scroll que
+   * preserva a posição de leitura (ver `useLayoutEffect` abaixo). */
+  prependVersion: number;
+  /** Chamado quando o usuário rola perto do topo da lista, com mais
+   * histórico ainda por buscar. */
+  onLoadOlderHistory: () => void;
   /** Espaço extra no rodapé — no iOS, o composer flutua por cima do log
    * (docs/24), então o conteúdo precisa de mais respiro pra não terminar
    * escondido atrás dele. */
@@ -137,7 +152,15 @@ function renderItem(item: RenderItem) {
 // so wrapping this in `memo` lets the expensive subtree (markdown parsing +
 // syntax highlighting in every row) bail out instead of re-rendering along
 // with `ChatPanel`.
-export const MessageLog = memo(function MessageLog({ entries, streamingEntries, className }: MessageLogProps) {
+export const MessageLog = memo(function MessageLog({
+  entries,
+  streamingEntries,
+  hasMoreHistory,
+  loadingOlderHistory,
+  prependVersion,
+  onLoadOlderHistory,
+  className,
+}: MessageLogProps) {
   const parentRef = useRef<HTMLDivElement>(null);
 
   // `entries` só ganha uma referência nova quando algo é de fato commitado
@@ -190,6 +213,35 @@ export const MessageLog = memo(function MessageLog({ entries, streamingEntries, 
     virtualizer.scrollToEnd();
   }, [virtualizer]);
 
+  // Scroll reverso (Fase 5, docs/30): guarda a "âncora" (altura total +
+  // posição de scroll) no instante em que o pedido de turnos mais antigos é
+  // disparado — não dá pra saber de antemão quando a resposta chega, então
+  // isso é o único momento confiável pra capturar o "antes".
+  const prependAnchorRef = useRef<{ totalSize: number; scrollTop: number } | null>(null);
+
+  const handleScroll = useCallback(() => {
+    const el = parentRef.current;
+    if (!el || el.scrollTop > 120 || loadingOlderHistory || !hasMoreHistory) return;
+    prependAnchorRef.current = { totalSize: virtualizer.getTotalSize(), scrollTop: el.scrollTop };
+    onLoadOlderHistory();
+  }, [hasMoreHistory, loadingOlderHistory, onLoadOlderHistory, virtualizer]);
+
+  // Dispara só quando `prependVersion` de fato muda (um prepend de verdade
+  // aconteceu) — não em todo re-render nem quando o log só cresce no fim
+  // (turno ao vivo chegando), que já é coberto por `anchorTo`/`followOnAppend`
+  // acima e não deve ter o scroll mexido. Compara a altura total de antes
+  // (capturada em `handleScroll`) com a de agora e desloca o scroll pela
+  // diferença, pra o conteúdo inserido acima não "empurrar" a leitura atual.
+  useLayoutEffect(() => {
+    const anchor = prependAnchorRef.current;
+    const el = parentRef.current;
+    if (!anchor || !el) return;
+    prependAnchorRef.current = null;
+    const delta = virtualizer.getTotalSize() - anchor.totalSize;
+    el.scrollTop = anchor.scrollTop + delta;
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [prependVersion]);
+
   return (
     // `relative` não é sobre layout — é o fix pro bug real do WebKit
     // (docs/24, reproduzido via Playwright WebKit real, não Chromium):
@@ -197,7 +249,16 @@ export const MessageLog = memo(function MessageLog({ entries, streamingEntries, 
     // ela (ou qualquer ancestral entre ela e o elemento com o blur) ficar
     // `position: static`. Toda a cadeia até `.mobile-canvas` precisa disso
     // — ver App.tsx (wrappers de tab) e MobileShell.tsx. Não remover.
-    <div ref={parentRef} className={cn("scrollbar-thin relative flex-1 overflow-y-auto px-4 py-3", className)}>
+    <div
+      ref={parentRef}
+      onScroll={handleScroll}
+      className={cn("scrollbar-thin relative flex-1 overflow-y-auto px-4 py-3", className)}
+    >
+      {loadingOlderHistory && (
+        <div className="sticky top-0 z-10 flex justify-center py-1.5">
+          <Loader2 className="size-4 animate-spin text-muted-foreground" />
+        </div>
+      )}
       <div style={{ position: "relative", width: "100%", height: virtualizer.getTotalSize() }}>
         {virtualizer.getVirtualItems().map((virtualItem) => {
           const item = allItems[virtualItem.index];

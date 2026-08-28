@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { ImagePlus } from "lucide-react";
 import { useRelayClient } from "@/hooks/useRelayClient";
 import { useMessageLog } from "@/hooks/useMessageLog";
@@ -136,6 +136,7 @@ export function ChatPanel({
     setPermissionMode,
     setModel,
     clearConversation,
+    loadOlderHistory,
   } = useRelayClient(profile, sessionId, {
     onEvent: (event) => logRef.current.handleEvent(event),
     onReconnecting: () => {
@@ -151,6 +152,8 @@ export function ChatPanel({
     // `onCaughtUp`, hidrata o log com um dispatch só em vez do replay antigo
     // evento-a-evento.
     onHistoryPage: (page) => logRef.current.hydrate(page),
+    // Turnos mais antigos pedidos via scroll pra cima (Fase 5, docs/30).
+    onOlderHistory: (page) => logRef.current.prependHistory(page),
     onCaughtUp: () => {
       caughtUpRef.current = true;
       setReady(true);
@@ -177,6 +180,16 @@ export function ChatPanel({
   useEffect(() => {
     onConnectedChangeRef.current?.(connected);
   }, [connected]);
+
+  // Disparado pelo `MessageLog` ao rolar perto do topo (Fase 5, docs/30) — o
+  // guard mora aqui (não só no `MessageLog`) porque `logRef` é a fonte de
+  // verdade mais atual do estado de paginação, sem depender de re-render.
+  const handleLoadOlderHistory = useCallback(() => {
+    const current = logRef.current;
+    if (current.loadingOlderHistory || !current.hasMoreHistory || current.historyCursor === null) return;
+    current.beginLoadingOlderHistory();
+    loadOlderHistory(current.historyCursor);
+  }, [loadOlderHistory]);
 
   // Foca o composer assim que a aba de uma conversa nova monta — permite
   // digitar de cara sem precisar clicar no campo (ex.: Ctrl/Cmd+N e já
@@ -229,6 +242,10 @@ export function ChatPanel({
         <MessageLog
           entries={log.entries}
           streamingEntries={log.streamingEntries}
+          hasMoreHistory={log.hasMoreHistory}
+          loadingOlderHistory={log.loadingOlderHistory}
+          prependVersion={log.prependVersion}
+          onLoadOlderHistory={handleLoadOlderHistory}
           className={isIOS() ? "pt-[calc(env(safe-area-inset-top)+64px)] pb-32" : undefined}
         />
       ) : (
