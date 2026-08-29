@@ -385,7 +385,7 @@ export function ChatPanel({
         <MessageLogSkeleton />
       )}
 
-      {turnStartedAt !== null && <TurnIndicator startedAt={turnStartedAt} />}
+      {!isIOS() && turnStartedAt !== null && <TurnIndicator startedAt={turnStartedAt} />}
 
       {/* iOS (docs/24): cwd + composer flutuam por cima do log, saindo do
        * fluxo normal — o log continua rolando visível (desfocado) por baixo
@@ -430,6 +430,13 @@ export function ChatPanel({
             </button>
           </div>
         )}
+
+        {/* No iOS o indicador de turno mora aqui dentro (não em document flow
+         * normal, como no desktop) — este bloco inteiro é `absolute
+         * bottom-0` (ver comentário acima), então um elemento fora dele
+         * vazava pra fora da área flutuante e acabava renderizando abaixo do
+         * composer (perto do teclado) em vez de acima. */}
+        {isIOS() && turnStartedAt !== null && <TurnIndicator startedAt={turnStartedAt} />}
 
         <Composer
           ref={composerRef}
