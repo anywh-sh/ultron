@@ -11,10 +11,18 @@ import { handleExternalLinkClick } from "@/lib/externalLink";
  */
 const WIRE_LINK_REGEX = /\[([^\]]+)\]\(([a-zA-Z][a-zA-Z\d+.-]*:[^\s)]+)\)/g;
 
+/** Espaço de largura zero que `Composer.tsx` (`hardBreakAnchorPlugin`) injeta
+ * como texto real depois de `hardBreak`s consecutivos, só pra dar ao
+ * navegador uma caixa de layout válida onde ancorar o cursor (bug real,
+ * confirmado via Playwright/Chromium — sem isso o cursor "sobe" uma linha em
+ * telas com 2+ quebras seguidas sem texto entre elas). Puramente cosmético,
+ * nunca deve sobreviver na mensagem enviada. */
+const HARD_BREAK_ANCHOR_REGEX = /​/g;
+
 function serializeInline(node: JSONContent): string {
   if (node.type === "hardBreak") return "\n";
   if (node.type !== "text") return "";
-  const text = node.text ?? "";
+  const text = (node.text ?? "").replace(HARD_BREAK_ANCHOR_REGEX, "");
   const linkMark = node.marks?.find((mark) => mark.type === "link");
   const href = linkMark?.attrs?.href as string | undefined;
   return href ? `[${text}](${href})` : text;

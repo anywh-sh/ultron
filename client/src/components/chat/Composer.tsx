@@ -97,6 +97,18 @@ const ComposerLink = Link.extend({
   HTMLAttributes: { class: "composer-link", rel: "noopener noreferrer nofollow" },
 });
 
+/** Wrapper de extensão pro plugin de ancoragem de cursor (ver
+ * `hardBreakAnchorPlugin` abaixo, definição depois por causa da ordem
+ * de leitura do arquivo — chamada aqui só acontece quando o Tiptap monta o
+ * editor, bem depois do module load, então a function declaration hoisted
+ * já existe nesse ponto). */
+const HardBreakCaretAnchor = Extension.create({
+  name: "hardBreakCaretAnchor",
+  addProseMirrorPlugins() {
+    return [hardBreakAnchorPlugin()];
+  },
+});
+
 const EXTENSIONS = [
   StarterKit.configure({
     blockquote: false,
@@ -115,6 +127,7 @@ const EXTENSIONS = [
     underline: false,
   }),
   ComposerLink,
+  HardBreakCaretAnchor,
 ];
 
 const DEFAULT_PLACEHOLDER = "Escreva uma mensagem…";
@@ -143,6 +156,69 @@ function buildComposerDoc(text: string): JSONContent {
  * ref atualizada a cada render (mesmo padrão de `submitRef` abaixo). */
 function createPlaceholderExtension(suggestionRef: MutableRefObject<string | null>) {
   return Placeholder.configure({ placeholder: () => suggestionRef.current ?? DEFAULT_PLACEHOLDER });
+}
+
+/** Caractere de largura zero usado só como "âncora" de layout pra linhas
+ * vazias criadas por `hardBreak` consecutivos — ver `hardBreakAnchorPlugin`
+ * abaixo. `serializeInline` (`composerLinks.tsx`) remove todas as ocorrências
+ * antes de virar o texto enviado; nunca deve escapar pra fora do editor. */
+const HARD_BREAK_ANCHOR = "​";
+
+/**
+ * Bug real, confirmado testando no Chromium via Playwright (não só teoria):
+ * uma posição de cursor entre dois `<br>` adjacentes sem nenhum texto — uma
+ * linha vazia de verdade, criada por 2+ `hardBreak` seguidos (Shift+Enter no
+ * desktop, Enter no iOS — ver `handleKeyDown` abaixo) sem digitar nada entre
+ * eles — não tem caixa de layout própria: `Range.getClientRects()`/
+ * `getBoundingClientRect()` voltam `(0,0,0,0)` nessa posição, e o navegador
+ * cai de volta pra desenhar o cursor na linha anterior. É exatamente o bug
+ * relatado: "cursor fica uma linha acima" depois de duas (ou mais) quebras.
+ *
+ * Uma primeira tentativa via widget decoration (DOM puro, fora do modelo do
+ * documento — a mesma técnica que o próprio ProseMirror já usa pro
+ * `<br class="ProseMirror-trailingBreak">`) não resolveu: o ProseMirror marca
+ * todo widget como `contenteditable=false`, então o navegador trata como um
+ * átomo não-editável e a seleção ainda ancora no elemento container (offset
+ * por índice de filho), não dentro de texto de verdade — o rect continuava
+ * colapsado. A correção real precisa de texto editável genuíno ali, por isso
+ * isto insere um caractere de largura zero (invisível, `HARD_BREAK_ANCHOR`)
+ * como texto de verdade no documento, não só na view.
+ *
+ * `appendTransaction` (não um comando específico do Shift+Enter) porque o
+ * Enter do iOS não passa pelo comando `setHardBreak` — cai no fallback padrão
+ * do ProseMirror pra `schema.linebreakReplacement` quando o schema do doc não
+ * permite um segundo parágrafo (ver comentário de `buildComposerDoc`). Rodar
+ * numa normalização pós-transação cobre os dois caminhos (e paste, undo/redo,
+ * `setContent` da edição via composer) com uma lógica só. Sem loop infinito:
+ * a própria inserção do âncora faz a condição "próximo nó não é texto real"
+ * parar de bater na passada seguinte. */
+function hardBreakAnchorPlugin() {
+  return new Plugin({
+    key: new PluginKey("hardBreakAnchor"),
+    appendTransaction(transactions, _oldState, newState) {
+      if (!transactions.some((tr) => tr.docChanged)) return null;
+      const insertPositions: number[] = [];
+      newState.doc.descendants((node, pos) => {
+        if (node.type.name !== "hardBreak") return;
+        const after = pos + node.nodeSize;
+        const nextNode = newState.doc.resolve(after).nodeAfter;
+        // Precisa de âncora quando não há nada depois (fim do parágrafo) ou
+        // o próximo nó também é uma quebra (linha vazia de verdade) — texto
+        // real (mesmo começando pelo próprio âncora de uma passada anterior)
+        // já basta como caixa de layout, não duplica.
+        const needsAnchor = !nextNode || nextNode.type.name === "hardBreak";
+        if (needsAnchor) insertPositions.push(after);
+      });
+      if (insertPositions.length === 0) return null;
+      const tr = newState.tr;
+      // De trás pra frente: inserir não desloca posições ainda não
+      // processadas (todas vêm antes, no doc original).
+      insertPositions
+        .sort((a, b) => b - a)
+        .forEach((pos) => tr.insertText(HARD_BREAK_ANCHOR, pos));
+      return tr;
+    },
+  });
 }
 
 /** Colore `/model haiku` etc digitado no composer, só quando é um comando
