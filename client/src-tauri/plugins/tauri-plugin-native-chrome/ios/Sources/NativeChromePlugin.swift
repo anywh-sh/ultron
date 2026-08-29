@@ -25,15 +25,17 @@ import WebKit
 /// WebView, não view nativa.
 ///
 /// NÃO VALIDADO EM DISPOSITIVO REAL ainda — feito a partir da API pública
-/// documentada da Apple (iOS 16+), mas esta sessão de trabalho não tem acesso
-/// a um Mac/iPhone físico. Validar via o fluxo do Mac remoto (docs/31) antes
-/// de considerar a Fase de menu nativo do docs/33 concluída: posição do menu
-/// (o `sourcePoint` usa o espaço de coordenadas da própria `WKWebView`, que
-/// deveria bater com `TouchEvent.clientX/clientY` do lado JS, mas isso nunca
-/// foi confirmado contra o dispositivo real), thread (todas as chamadas de
-/// UIKit aqui são despachadas pra main queue por segurança, já que não é
-/// documented se o bridge do Tauri já entrega `Invoke` na main thread), e o
-/// caso de descartar o menu sem escolher nada (`willDismissMenuFor`).
+/// documentada da Apple (iOS 16+). Validar via o fluxo do Mac remoto
+/// (docs/31) antes de considerar a Fase de menu nativo do docs/33 concluída:
+/// posição do menu (o `sourcePoint` usa o espaço de coordenadas da própria
+/// `WKWebView`, que deveria bater com `TouchEvent.clientX/clientY` do lado
+/// JS, mas isso nunca foi confirmado contra o dispositivo real) e o caso de
+/// descartar o menu sem escolher nada (`willDismissMenuFor`). Thread: todo
+/// código que toca UIKit aqui salta pro `@MainActor` explicitamente
+/// (`Task { @MainActor in }`/`MainActor.assumeIsolated`, nunca
+/// `DispatchQueue.main.async` puro — mesmo achado da Fase E de docs/23 pra
+/// este mesmo plugin, Swift 6 strict concurrency exige prova de isolamento
+/// que o GCD sozinho não dá pro compilador).
 class NativeChromePlugin: Plugin, UIEditMenuInteractionDelegate {
   private var editMenuInteraction: UIEditMenuInteraction?
   private var pendingItems: [ContextMenuItemArgs] = []
@@ -48,7 +50,13 @@ class NativeChromePlugin: Plugin, UIEditMenuInteractionDelegate {
 
   @objc func showContextMenu(_ invoke: Invoke) throws {
     let args = try invoke.parseArgs(ShowContextMenuArgs.self)
-    DispatchQueue.main.async {
+    // `Task { @MainActor in }`, não `DispatchQueue.main.async` puro — mesmo
+    // achado já documentado na Fase E (docs/23) pra este mesmo plugin: GCD
+    // salta pra main thread em runtime, mas o compilador (Swift 6 strict
+    // concurrency) não consegue provar isolamento a partir disso, e
+    // `UIEditMenuInteraction.presentEditMenu`/`UIMenu`/`UIAction` são
+    // `@MainActor`-isolados de verdade no SDK.
+    Task { @MainActor in
       // Um menu já pendente (long-press duplo antes do primeiro resolver) —
       // resolve ele como descartado antes de abrir o novo, pra nunca deixar
       // uma promise de JS pendurada pra sempre.
@@ -78,21 +86,28 @@ class NativeChromePlugin: Plugin, UIEditMenuInteractionDelegate {
     menuFor configuration: UIEditMenuConfiguration,
     suggestedActions: [UIMenuElement]
   ) -> UIMenu? {
-    let actions: [UIMenuElement] = pendingItems.map { item in
-      var attributes: UIMenuElement.Attributes = []
-      if item.disabled { attributes.insert(.disabled) }
-      let action = UIAction(
-        title: item.label,
-        image: item.systemIcon.flatMap { UIImage(systemName: $0) },
-        attributes: attributes,
-        handler: { [weak self] _ in self?.resolvePending(with: item.id) }
-      )
-      if let reason = item.disabledReason {
-        action.subtitle = reason
+    // Chamado pelo UIKit síncrono (não dá pra virar `async`/`Task` aqui, o
+    // retorno precisa ser imediato) — `assumeIsolated` só afirma pro
+    // compilador o que já é verdade em runtime: todo delegate de
+    // `UIEditMenuInteraction` roda na main thread, mesmo contrato de
+    // qualquer UIInteraction do UIKit.
+    MainActor.assumeIsolated {
+      let actions: [UIMenuElement] = pendingItems.map { item in
+        var attributes: UIMenuElement.Attributes = []
+        if item.disabled { attributes.insert(.disabled) }
+        let action = UIAction(
+          title: item.label,
+          image: item.systemIcon.flatMap { UIImage(systemName: $0) },
+          attributes: attributes,
+          handler: { [weak self] _ in self?.resolvePending(with: item.id) }
+        )
+        if let reason = item.disabledReason {
+          action.subtitle = reason
+        }
+        return action
       }
-      return action
+      return UIMenu(children: actions)
     }
-    return UIMenu(children: actions)
   }
 
   func editMenuInteraction(
