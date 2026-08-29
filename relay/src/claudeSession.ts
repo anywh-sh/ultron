@@ -16,7 +16,14 @@ import type { ContextUsage, ModelChoice, PermissionMode } from "./sessionStore.j
 // seriam encontrados só pelo nome — mesma classe de bug que já corrigimos
 // pro tmux em docs/08.
 const CLAUDE_BIN = process.env.CLAUDE_BIN ?? "/home/user/.local/bin/claude";
-const EXTRA_PATH_DIRS = ["/home/user/.local/bin", "/home/user/.nvm/versions/node/v20.19.0/bin"];
+// `relay/scripts` (não `dist/` nem `src/`) — o helper é um script bash
+// standalone, não precisa de build, e fica no PATH pro turno achar
+// `ultron-bg` só pelo nome (ver docs/32).
+const EXTRA_PATH_DIRS = [
+  "/home/user/.local/bin",
+  "/home/user/.nvm/versions/node/v20.19.0/bin",
+  "/home/user/personal/ultron/relay/scripts",
+];
 
 /** Anexado em todo turno, independente do CLAUDE.md do projeto ativo — é uma
  * preferência do CLIENTE ultron, não de um projeto específico. Sem isso, ao
@@ -30,10 +37,31 @@ const EXTRA_PATH_DIRS = ["/home/user/.local/bin", "/home/user/.nvm/versions/node
  * o custo de token do reforço mais explícito não valia a pena até aparecer
  * de novo na prática. Se voltar a acontecer, dá pra reforçar mesmo custando
  * mais tokens.
+ *
+ * Segundo parágrafo: cada turno é um processo `claude -p` novo (comentário do topo do arquivo)
+ * — o registro interno que sustenta `run_in_background`/`BashOutput` vive só
+ * na memória DESSE processo e some quando o turno termina. Sem este aviso,
+ * o modelo promete "vou rodar em background e te aviso quando terminar"
+ * usando esse mecanismo nativo (ou `&`/`nohup` cru) e a promessa nunca se
+ * cumpre — achado real do usuário, causa raiz documentada em docs/32.
+ * `ultron-bg` (script em `relay/scripts/`, incluído no PATH acima) resolve
+ * isso ficando fora do processo do turno, mas a Fase D de docs/32 (turno de
+ * follow-up automático quando o job termina) ainda não existe — por isso a
+ * instrução aqui é deliberadamente conservadora: usar `ultron-bg`, mas NUNCA
+ * alegar aviso proativo (isso ainda seria mentira). Atualizar este texto
+ * quando a Fase D estiver no ar.
  */
 const APPEND_SYSTEM_PROMPT =
   "When writing prose meant to be pasted elsewhere (Slack, email), write each paragraph as one " +
-  "continuous line, not manually wrapped at a fixed width.";
+  "continuous line, not manually wrapped at a fixed width.\n\n" +
+  "For any command that will keep running after this turn ends (a build, a long test suite, " +
+  "anything whose result matters later) and is worth tracking, launch it with `ultron-bg start " +
+  '--label "<short description>" --cmd "<full shell command>"` — check on it within this same ' +
+  "turn with `ultron-bg status <id>` if useful. Never use `&`, `nohup`, or the Bash tool's own " +
+  "`run_in_background` for this: none of those survive past this turn, so any promise to 'check " +
+  "back' or 'let you know' made through them is always broken. There is also no automatic " +
+  "notification across turns yet — tell the user what you started and that they can ask about its " +
+  "status later; do not claim you will proactively notify them.";
 
 /** Env de todo processo filho do relay (turno do `claude -p` aqui, shell
  * interativo em terminalSession.ts) — extraído pra um lugar só porque a
