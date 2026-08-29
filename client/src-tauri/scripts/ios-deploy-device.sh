@@ -3,19 +3,22 @@
 # direto no iPhone de teste físico, sem passar pelo fluxo de distribuição
 # Ad Hoc (que exige conta Apple Developer paga) — docs/31, docs/33.
 #
-# Uso (rodar direto no Terminal.app do Mac — ver aviso abaixo):
+# Uso (rodar direto no Terminal.app do Mac, NUNCA via SSH — ver aviso abaixo):
 #   ./ios-deploy-device.sh                        # usa "My iPhone"
 #   ./ios-deploy-device.sh --device "outro nome"
-#   ./ios-deploy-device.sh --setup-keychain       # autorização única, ver embaixo
 #
-# PRECISA RODAR NO TERMINAL.APP LOCAL DO MAC, NÃO VIA SSH — a menos que
-# `--setup-keychain` já tenha sido rodado uma vez antes. Descoberto na prática
-# (2026-08-29, 3 sessões seguidas até consolidar isso): a etapa de `codesign`
-# de verdade precisa do Keychain da sessão gráfica; via SSH ela falha com
-# `errSecInternalComponent` mesmo com o certificado certo instalado. Rodar
-# `--setup-keychain` uma vez (localmente) resolve isso de vez, autorizando o
-# `codesign` a usar a chave sem prompt interativo — depois disso este script
-# também funciona via SSH.
+# PRECISA RODAR NO TERMINAL.APP LOCAL DO MAC, NÃO VIA SSH. Descoberto na
+# prática (2026-08-29): a etapa de `codesign` de verdade falha via SSH com
+# `errSecInternalComponent`, e isso NÃO é uma questão de permissão da chave
+# nem de keychain trancado — já tentamos `security set-key-partition-list`
+# (autorização sem prompt, mecanismo que Fastlane/CI usam) e
+# `security unlock-keychain` explícito, os dois "funcionaram" localmente sem
+# erro nenhum, e o `codesign` via SSH continuou falhando igual logo depois.
+# A causa é a sessão SSH em si não ter o contexto de sessão gráfica (Aqua/
+# WindowServer) que essa operação exige — não tem escape hatch conhecido
+# pra isso (ver docs/31 pro registro completo da investigação). `--setup-keychain`
+# abaixo existe só porque já estava testado antes desse achado — não resolve
+# o problema de rodar via SSH, mas não faz mal nenhum rodar mesmo assim.
 #
 # Outros dois erros já vistos, cobertos abaixo automaticamente ou com
 # instrução clara:
@@ -60,13 +63,13 @@ done
 export PATH="$HOME/.nvm/versions/node/v22.12.0/bin:/opt/homebrew/bin:$PATH"
 
 if $SETUP_KEYCHAIN; then
-  echo "Autorizando codesign a usar a chave de assinatura sem sessão gráfica."
-  echo "Isso muda a política de acesso da chave no login keychain (mesmo mecanismo"
-  echo "que ferramentas tipo Fastlane usam em CI) — rode só uma vez; o macOS deve"
-  echo "pedir sua senha de login em seguida."
+  echo "Autorizando codesign a usar a chave de assinatura sem prompt de permissão."
+  echo "NÃO resolve rodar este script via SSH (testado 2026-08-29, ver docs/31) —"
+  echo "isso continua exigindo Terminal.app local de qualquer forma. Só evita o"
+  echo "prompt de 'permitir codesign usar esta chave' ao rodar localmente."
   keychain="$(security default-keychain | tr -d ' "')"
   security set-key-partition-list -S apple-tool:,apple:,codesign: -s "$keychain"
-  echo "Pronto — não precisa repetir isso a cada deploy."
+  echo "Pronto."
   exit 0
 fi
 
@@ -87,9 +90,10 @@ echo "Buildando (release, --export-method release-testing)... log completo em $l
 
 if grep -q "errSecInternalComponent" "$log"; then
   echo
-  echo "codesign falhou por falta de acesso ao Keychain da sessão gráfica."
-  echo "Rode este script direto no Terminal.app do Mac (não via SSH), ou rode"
-  echo "'$0 --setup-keychain' uma vez pra liberar isso permanentemente."
+  echo "codesign falhou por rodar fora da sessão gráfica — isso só acontece via SSH."
+  echo "Não tem contorno conhecido (já tentamos set-key-partition-list e"
+  echo "unlock-keychain, nenhum resolve — ver docs/31). Rode este script direto"
+  echo "no Terminal.app do Mac."
   exit 1
 fi
 
