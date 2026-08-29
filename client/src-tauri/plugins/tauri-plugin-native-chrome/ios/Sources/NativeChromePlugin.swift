@@ -35,8 +35,13 @@ import WebKit
 /// (`Task { @MainActor in }`/`MainActor.assumeIsolated`, nunca
 /// `DispatchQueue.main.async` puro — mesmo achado da Fase E de docs/23 pra
 /// este mesmo plugin, Swift 6 strict concurrency exige prova de isolamento
-/// que o GCD sozinho não dá pro compilador).
-class NativeChromePlugin: Plugin, UIEditMenuInteractionDelegate {
+/// que o GCD sozinho não dá pro compilador). `@unchecked Sendable`: sem
+/// isso, capturar `self`/`invoke` dentro do `Task { @MainActor in }` a
+/// partir de um método `@objc` nonisolated (`load`/`showContextMenu`, que
+/// podem em teoria ser chamados de qualquer thread pelo bridge do Tauri) dá
+/// erro "sending risks causing data races" — mesma classe de erro, mesmo
+/// fix já validado nesta classe antes (Fase E, docs/23).
+class NativeChromePlugin: Plugin, UIEditMenuInteractionDelegate, @unchecked Sendable {
   private var editMenuInteraction: UIEditMenuInteraction?
   private var pendingItems: [ContextMenuItemArgs] = []
   private var pendingInvoke: Invoke?
@@ -127,6 +132,12 @@ class NativeChromePlugin: Plugin, UIEditMenuInteractionDelegate {
     resolvePending(with: nil)
   }
 }
+
+/// `Invoke` (pacote `Tauri`, não nosso) também é capturado dentro do
+/// `Task { @MainActor in }` de `showContextMenu` — mesmo raciocínio do
+/// `@unchecked Sendable` da classe acima, só que via extensão retroativa
+/// porque não é um tipo que definimos aqui.
+extension Invoke: @unchecked Sendable {}
 
 private struct ContextMenuItemArgs: Decodable {
   let id: String
