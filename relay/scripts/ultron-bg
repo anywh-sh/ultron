@@ -6,8 +6,18 @@
 # `kill -0` continuando a "ver" alguém vivo ali).
 #
 # Uso:
-#   ultron-bg start --label "<descrição curta>" -- <comando...>
+#   ultron-bg start --label "<descrição curta>" --cmd "<comando shell completo>"
 #   ultron-bg status <id>
+#
+# `--cmd` recebe UMA string (o comando inteiro, com `&&`/`|`/`;`/redirects
+# como o autor da chamada quiser) rodada via `bash -c`, nunca uma lista de
+# argv — testado contra o binário `claude` real (docs/32, Fase B): o modelo
+# naturalmente tenta passar comandos compostos (`sleep 8 && echo ok`) citando
+# os operadores pra eles sobreviverem até aqui; uma versão anterior deste
+# script recebia `-- <comando...>` como argv solto e rodava via `exec "$@"`
+# (sem shell nenhum) — `&&`/`|`/etc chegavam como texto literal e o comando
+# falhava silenciosamente (job "terminava" com exit code de erro sem
+# ninguém notar, porque o modelo já tinha respondido antes de checar).
 set -euo pipefail
 
 JOBS_DIR="${HOME:?HOME precisa estar definido}/.ultron/bg-jobs"
@@ -23,18 +33,25 @@ json_escape() {
 }
 
 cmd_start() {
-  local label=""
-  if [[ "${1:-}" == "--label" ]]; then
-    label=$2
-    shift 2
-  fi
-  if [[ "${1:-}" != "--" ]]; then
-    echo "uso: ultron-bg start --label \"<descrição>\" -- <comando...>" >&2
-    exit 1
-  fi
-  shift
-  if [[ $# -eq 0 ]]; then
-    echo "nenhum comando fornecido depois de --" >&2
+  local label="" cmd=""
+  while [[ $# -gt 0 ]]; do
+    case "$1" in
+      --label)
+        label=$2
+        shift 2
+        ;;
+      --cmd)
+        cmd=$2
+        shift 2
+        ;;
+      *)
+        echo "uso: ultron-bg start --label \"<descrição>\" --cmd \"<comando shell completo>\"" >&2
+        exit 1
+        ;;
+    esac
+  done
+  if [[ -z "$cmd" ]]; then
+    echo "--cmd é obrigatório e não pode ser vazio" >&2
     exit 1
   fi
 
@@ -51,7 +68,13 @@ cmd_start() {
   # arquivo `.exit`, nunca esse PID (setsid pode ter feito fork interno
   # dependendo da versão do util-linux, então `$!` nem sempre é o PID
   # exato do comando final).
-  EXITFILE="$exitfile" setsid bash -c '"$@"; echo $? > "$EXITFILE"' _ "$@" \
+  # `eval "$1"` (não `"$1"` sozinho) — precisa reinterpretar a string como
+  # código shell (`&&`, `|`, `;`, redirects...), não executá-la como um
+  # nome de programa literal. `eval` roda numa SUBSHELL `( ... )` própria —
+  # sem isso, um comando terminando em `exit N` explícito (padrão comum)
+  # mata o processo inteiro do wrapper antes de gravar o `.exit`, e o job
+  # fica marcado como rodando pra sempre (achado real testando, docs/32).
+  EXITFILE="$exitfile" setsid bash -c '(eval "$1"); echo $? > "$EXITFILE"' _ "$cmd" \
     < /dev/null > "$log" 2>&1 &
   local pid=$!
   disown 2>/dev/null || true
@@ -94,7 +117,7 @@ case "${1:-}" in
     cmd_status "$@"
     ;;
   *)
-    echo "uso: ultron-bg start --label \"<descrição>\" -- <comando...>" >&2
+    echo "uso: ultron-bg start --label \"<descrição>\" --cmd \"<comando shell completo>\"" >&2
     echo "     ultron-bg status <id>" >&2
     exit 1
     ;;
