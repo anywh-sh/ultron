@@ -7,6 +7,27 @@ import { generateSuggestion } from "./suggestionGenerator.js";
 import { readHistoryFromTranscript } from "./transcriptReader.js";
 import { INITIAL_HISTORY_TAIL_TURNS, pageHistoryBefore } from "./historyPaging.js";
 import type { ContextUsage, ModelChoice, PermissionMode } from "./sessionStore.js";
+import type { FinishedBackgroundJob } from "./backgroundJobs.js";
+
+/** Fase D de docs/32 — texto do turno sintético disparado quando um job
+ * `ultron-bg` termina. Instrução explícita pra só reportar (não iniciar
+ * trabalho novo nem outro `ultron-bg`) — sem essa trava, um turno automático
+ * que já tem ferramentas liberadas (mesmo `permissionMode` da sessão)
+ * poderia virar uma cadeia de ações não pedidas pelo usuário.
+ */
+function buildBackgroundJobFollowupPrompt(job: FinishedBackgroundJob): string {
+  const status = job.exitCode === 0 ? "concluiu com sucesso (exit 0)" : `terminou com erro (exit ${String(job.exitCode)})`;
+  const logTail = job.logTail.trim() || "(sem saída)";
+  return (
+    `[ultron-bg] O processo em background "${job.label}" que você iniciou ${status}. Log (cauda):\n` +
+    "```\n" +
+    logTail +
+    "\n```\n\n" +
+    "Resuma o resultado pro usuário, de forma concisa. Isto é só um relatório automático — não inicie " +
+    "trabalho novo nem rode outro ultron-bg a partir daqui; se o resultado pedir alguma ação, pergunte " +
+    "antes de agir."
+  );
+}
 
 export type BroadcastMessage =
   | { type: "claude_event"; event: ClaudeEvent }
@@ -77,6 +98,11 @@ export interface SharedSessionOptions {
   /** Chamado sempre que o modelo muda — mesmo padrão de
    * `onPermissionModeChange`, pode disparar a qualquer momento. */
   onModelChange?: (model: ModelChoice) => void;
+  /** Chamado com todo `ClaudeEvent` de todo turno (real ou de follow-up de
+   * background) — é assim que o `SessionManager` liga o `BackgroundJobTracker`
+   * sem a `SharedSession` precisar saber nada sobre `ultron-bg` (docs/32,
+   * Fase D). Puramente observacional. */
+  onEvent?: (event: ClaudeEvent) => void;
 }
 
 export type SetCwdResult = { ok: true } | { ok: false; error: string };
@@ -273,6 +299,22 @@ export class SharedSession {
     this.turnQueue = this.turnQueue.then(() => this.runTurn(origin, text));
   }
 
+  /** Fase D de docs/32 — disparado pelo `BackgroundJobTracker` (via
+   * `SessionManager`) quando um job iniciado com `ultron-bg` termina DEPOIS
+   * que o turno original que o lançou já tinha acabado (o motivo de
+   * `ultron-bg` existir: o processo `claude -p` daquele turno já morreu,
+   * então não tem mais quem avisar o usuário por conta própria). Mesma
+   * fila (`turnQueue`) que serializa `/clear` contra turnos de verdade —
+   * nunca roda em paralelo com um turno do usuário nem corrompe
+   * `session_id`/histórico fora de ordem. Sem `origin` (nenhum cliente
+   * mandou isso) — `runTurn` broadcasta o prompt sintético pra todo mundo
+   * conectado, não só "pros outros". */
+  submitBackgroundJobResult(job: FinishedBackgroundJob): void {
+    this.clearSuggestion();
+    const text = buildBackgroundJobFollowupPrompt(job);
+    this.turnQueue = this.turnQueue.then(() => this.runTurn(undefined, text, { label: job.label }));
+  }
+
   /** Interrompe o turno em andamento, se houver — não mexe na fila (turnos
    * enfileirados, se algum dia existirem, continuam normalmente depois). */
   stopTurn(): void {
@@ -307,7 +349,17 @@ export class SharedSession {
     });
   }
 
-  private async runTurn(origin: WebSocket, text: string): Promise<void> {
+  /** `origin` é `undefined` só pro turno de follow-up sintético
+   * (`submitBackgroundJobResult`) — nenhum cliente específico "já tem a
+   * bolha localmente" nesse caso, então o prompt sintético vai pra todo
+   * mundo, e a trava de cwd/título (só faz sentido pro PRIMEIRO turno de
+   * verdade da sessão, que por definição já aconteceu antes de qualquer job
+   * existir pra terminar) é pulada. */
+  private async runTurn(
+    origin: WebSocket | undefined,
+    text: string,
+    synthetic?: { label: string },
+  ): Promise<void> {
     this.options.onActivity?.();
 
     // Turno em andamento é estado "atual" (mesmo raciocínio de cwd/permissão/
@@ -331,27 +383,37 @@ export class SharedSession {
     // `origin`: quem mandou já commitou a bolha localmente de forma otimista
     // (`ChatPanel`), receber de volta duplicaria.
     {
-      const event: ClaudeEvent = { type: "user_prompt", message: { content: [{ type: "text", text }] } };
-      this.broadcastExcept({ type: "claude_event", event }, origin);
+      const event: ClaudeEvent = synthetic
+        ? { type: "user_prompt", synthetic: "background_job", label: synthetic.label, message: { content: [{ type: "text", text }] } }
+        : { type: "user_prompt", message: { content: [{ type: "text", text }] } };
+      if (origin) {
+        this.broadcastExcept({ type: "claude_event", event }, origin);
+      } else {
+        this.broadcast({ type: "claude_event", event });
+      }
     }
 
-    // Trava a pasta no momento exato do primeiro turno de verdade — não na
-    // conexão WS (que já acontece antes de qualquer mensagem) nem em
-    // `submitTurn` (evita corrida entre dois `submitTurn` em sequência antes
-    // do primeiro desenfileirar). O session_id que este turno pode gerar
-    // fica amarrado ao `this.cwd` de agora pro `--resume` funcionar depois.
-    if (!this.locked) {
-      this.locked = true;
-      this.options.onLockChange?.();
-      this.broadcastCwdState();
-    }
-    // Comandos (`/clear`, `/model` etc, docs/26) não contam como primeiro
-    // prompt de verdade pro título — só roda a geração quando a primeira
-    // mensagem que não começa com "/" chegar, mesmo que não seja o primeiro
-    // turno da sessão.
-    if (!this.firstPromptSeeded && !text.trim().startsWith("/")) {
-      this.firstPromptSeeded = true;
-      this.options.onFirstPrompt?.(text);
+    if (!synthetic) {
+      // Trava a pasta no momento exato do primeiro turno de verdade — não na
+      // conexão WS (que já acontece antes de qualquer mensagem) nem em
+      // `submitTurn` (evita corrida entre dois `submitTurn` em sequência antes
+      // do primeiro desenfileirar). O session_id que este turno pode gerar
+      // fica amarrado ao `this.cwd` de agora pro `--resume` funcionar depois.
+      if (!this.locked) {
+        this.locked = true;
+        this.options.onLockChange?.();
+        this.broadcastCwdState();
+      }
+      // Comandos (`/clear`, `/model` etc, docs/26) não contam como primeiro
+      // prompt de verdade pro título — só roda a geração quando a primeira
+      // mensagem que não começa com "/" chegar, mesmo que não seja o primeiro
+      // turno da sessão. Um turno sintético nunca conta (não é "a primeira
+      // mensagem" de ninguém, e a sessão já tem título há muito tempo se um
+      // job teve tempo de rodar e terminar).
+      if (!this.firstPromptSeeded && !text.trim().startsWith("/")) {
+        this.firstPromptSeeded = true;
+        this.options.onFirstPrompt?.(text);
+      }
     }
 
     try {
@@ -362,6 +424,11 @@ export class SharedSession {
         this.model,
         (event) => {
           this.broadcast({ type: "claude_event", event });
+          // Fase D de docs/32 — deixa o tracker de jobs `ultron-bg` (dono na
+          // `SessionManager`) ver todo evento de todo turno, procurando o
+          // marcador de início. Puramente observacional: nunca lança nem
+          // altera o fluxo do turno.
+          this.options.onEvent?.(event);
         },
       );
       const sessionId = this.claude.getSessionId();
@@ -376,7 +443,10 @@ export class SharedSession {
       // interrompido) — fire-and-forget, não atrasa `turn_complete` acima.
       // Velocidade não é prioridade aqui (é uma conveniência, não parte do
       // fluxo principal), então nenhum timeout/cancelamento é necessário.
-      if (!stopped) {
+      // Turno sintético (`synthetic`) nunca sugere: o "texto do usuário" que
+      // alimentaria o gerador é a instrução interna do follow-up, não algo
+      // que faça sentido oferecer como próxima mensagem de verdade.
+      if (!stopped && !synthetic) {
         generateSuggestion(this.homeOverride, this.cwd, text, lastAssistantText)
           .then((suggestion) => {
             this.suggestion = suggestion ?? null;
@@ -385,6 +455,8 @@ export class SharedSession {
           .catch((error: unknown) => {
             console.error("[relay] falha ao gerar sugestão de próxima mensagem:", error);
           });
+      }
+      if (!stopped) {
         // Mesma ideia da sugestão acima (fire-and-forget, sem atrasar
         // turn_complete), mas pro resumo usado na notificação do SO — ver
         // notificationSummaryGenerator.ts. Diferente da sugestão, não é

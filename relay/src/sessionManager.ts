@@ -1,6 +1,7 @@
 import { generateTitle } from "./titleGenerator.js";
 import { SharedSession } from "./sharedSession.js";
 import type { SessionStore } from "./sessionStore.js";
+import { BackgroundJobTracker, type FinishedBackgroundJob } from "./backgroundJobs.js";
 
 // Múltiplas sessões identificadas por id dentro de um mesmo perfil (= um
 // processo de relay) — equivalente ao que janelas tmux davam na arquitetura
@@ -12,6 +13,13 @@ import type { SessionStore } from "./sessionStore.js";
 // já tituladas entram em `listTitled()`, que é o que a sidebar lista.
 export class SessionManager {
   private readonly sessions = new Map<string, SharedSession>();
+  /** Um tracker só pro processo inteiro (não um por sessão) — jobs
+   * `ultron-bg` de sessões diferentes não têm relação entre si, mas o
+   * poller e o teto de observação (docs/32, Fase C) fazem mais sentido
+   * compartilhados do que duplicados N vezes. */
+  private readonly backgroundJobs = new BackgroundJobTracker({
+    onFinished: (job) => this.handleBackgroundJobFinished(job),
+  });
 
   constructor(
     private readonly homeOverride: string | undefined,
@@ -20,6 +28,21 @@ export class SessionManager {
     for (const id of sessionStore.listIds()) {
       this.sessions.set(id, this.createSession(id));
     }
+  }
+
+  /** Fase D de docs/32 — chamado pelo `BackgroundJobTracker` quando um job
+   * termina. `this.sessions.get` (não `getOrCreate`): se a sessão foi
+   * deletada enquanto o job rodava, não tem pra quem reportar — descarta
+   * silenciosamente em vez de ressuscitar uma entrada no `SessionStore`. */
+  private handleBackgroundJobFinished(job: FinishedBackgroundJob): void {
+    const session = this.sessions.get(job.sessionId);
+    if (!session) {
+      console.warn(
+        `[relay] background job "${job.label}" (${job.id}) terminou, mas a sessão ${job.sessionId} não existe mais — descartando`,
+      );
+      return;
+    }
+    session.submitBackgroundJobResult(job);
   }
 
   listTitled(): { id: string; title: string }[] {
@@ -93,6 +116,7 @@ export class SessionManager {
       initialContextUsage: this.sessionStore.getContextUsage(id),
       onContextUsageChange: (usage) => this.sessionStore.setContextUsage(id, usage),
       onActivity: () => this.sessionStore.touch(id),
+      onEvent: (event) => this.backgroundJobs.observeEvent(id, event),
       initialTitle: this.sessionStore.getTitle(id),
       onFirstPrompt: (text) => {
         // Só dispara pra sessão de verdade nova — uma sessão migrada de um
