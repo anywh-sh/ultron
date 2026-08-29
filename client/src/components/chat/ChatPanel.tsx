@@ -156,6 +156,7 @@ export function ChatPanel({
     clearConversation,
     loadOlderHistory,
     backgroundJobs,
+    cancelBackgroundJob,
   } = useRelayClient(profile, sessionId, {
     onEvent: (event) => logRef.current.handleEvent(event),
     onReconnecting: () => {
@@ -309,7 +310,7 @@ export function ChatPanel({
               onSetCwd={setCwd}
               onFocusComposer={() => composerRef.current?.focus()}
             />
-            <BackgroundJobIndicator jobs={backgroundJobs} />
+            <BackgroundJobIndicator jobs={backgroundJobs} onCancel={cancelBackgroundJob} />
           </div>
           {terminal && <TerminalToggleButton cwd={cwd} open={terminal.open} onToggle={terminal.onToggle} />}
         </div>

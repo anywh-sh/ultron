@@ -311,6 +311,16 @@ export class RelayClient {
     this.socket.send(JSON.stringify({ type: "load_older_history", beforeCursor }));
   }
 
+  /** Cancela um job `ultron-bg` pela UI (docs/32, Fase F) — mesmo raciocínio
+   * de `setModel`/`clearConversation` sobre não precisar de fila de
+   * pendência: o chip que expõe isso só aparece quando já existe um job na
+   * lista, o que significa que `background_job_state` já chegou, o que
+   * significa que o socket já está aberto. */
+  cancelBackgroundJob(id: string): void {
+    if (this.socket?.readyState !== WebSocket.OPEN) return;
+    this.socket.send(JSON.stringify({ type: "cancel_background_job", id }));
+  }
+
   disconnect(): void {
     this.shouldReconnect = false;
     this.clearReconnectTimer();

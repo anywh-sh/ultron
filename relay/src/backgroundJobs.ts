@@ -1,4 +1,5 @@
-import { closeSync, existsSync, openSync, readFileSync, readSync, statSync } from "node:fs";
+import { closeSync, existsSync, mkdirSync, openSync, readFileSync, readSync, statSync, writeFileSync } from "node:fs";
+import { dirname } from "node:path";
 import type { ClaudeEvent } from "./claudeSession.js";
 
 // Fase C de docs/32 — rastreia jobs iniciados via `ultron-bg` (relay/scripts)
@@ -24,6 +25,14 @@ export interface WatchedJob {
   logPath: string;
   exitPath: string;
   startedAt: number;
+  /** PID reportado pelo `ultron-bg start` (Fase F de docs/32) — só usado
+   * pra cancelamento (`cancel`, `kill -<pid>` no grupo de processo inteiro),
+   * NUNCA pra detectar conclusão (isso é papel do arquivo `.exit`; reuso de
+   * PID pelo SO mascararia um job morto como "ainda rodando"). `setsid` faz
+   * esse PID ser ao mesmo tempo o PID/PGID/SID do processo — confirmado na
+   * prática (docs/32, Fase A) —, então sinalizar o grupo (`-pid`) alcança
+   * tudo que o comando gerou, não só o processo raiz. */
+  pid: number;
 }
 
 /** Subconjunto de `WatchedJob` seguro pra expor ao cliente (Fase E de
@@ -170,6 +179,14 @@ export interface BackgroundJobTrackerOptions {
   maxWatchMs?: number;
   /** Cauda do log entregue em `FinishedBackgroundJob.logTail`. */
   logTailBytes?: number;
+  /** Caminho pro arquivo de persistência (Fase F de docs/32) — se
+   * informado, a lista de jobs observados sobrevive a um restart do relay:
+   * gravada a cada mudança (mesmo padrão síncrono do `SessionStore`,
+   * `writeFileSync` do estado inteiro), recarregada no construtor e o
+   * polling retomado de onde parou. `undefined` (padrão dos testes) mantém
+   * o comportamento só-em-memória de antes — sem isso um restart no meio de
+   * um job perdia o rastreamento pra sempre (edge case #10 do plano). */
+  persistPath?: string;
 }
 
 const DEFAULT_POLL_INTERVAL_MS = 10_000;
@@ -187,6 +204,59 @@ export class BackgroundJobTracker {
     this.pollIntervalMs = options.pollIntervalMs ?? DEFAULT_POLL_INTERVAL_MS;
     this.maxWatchMs = options.maxWatchMs ?? DEFAULT_MAX_WATCH_MS;
     this.logTailBytes = options.logTailBytes ?? DEFAULT_LOG_TAIL_BYTES;
+
+    if (this.options.persistPath) {
+      for (const job of this.load(this.options.persistPath)) {
+        this.jobs.set(`${job.sessionId}:${job.id}`, job);
+      }
+      // Um job pode ter terminado (ou expirado) enquanto o relay estava
+      // fora do ar — não espera o primeiro `pollIntervalMs` pra descobrir,
+      // resolve isso já no boot. `setImmediate` (não uma chamada síncrona
+      // aqui dentro do construtor): achado real testando restart — quem
+      // instancia isto (`SessionManager`) só atribui o próprio campo depois
+      // que ESTE construtor retornar; um `onChanged`/`onFinished` disparado
+      // síncrono demais via `pollOnce()` chegava no callback do
+      // `SessionManager` ANTES dele terminar de guardar a referência do
+      // tracker, e `this.backgroundJobs` (lá) ainda estava `undefined`.
+      if (this.jobs.size > 0) {
+        this.ensurePolling();
+        setImmediate(() => this.pollOnce());
+      }
+    }
+  }
+
+  /** Nunca lança — arquivo ausente (primeira vez) ou corrompido só começa
+   * vazio, mesmo padrão de `SessionStore.load`. */
+  private load(persistPath: string): WatchedJob[] {
+    let parsed: unknown;
+    try {
+      parsed = JSON.parse(readFileSync(persistPath, "utf8"));
+    } catch {
+      return [];
+    }
+    if (!Array.isArray(parsed)) return [];
+    return parsed.filter(
+      (entry): entry is WatchedJob =>
+        typeof entry === "object" &&
+        entry !== null &&
+        typeof entry.sessionId === "string" &&
+        typeof entry.id === "string" &&
+        typeof entry.label === "string" &&
+        typeof entry.logPath === "string" &&
+        typeof entry.exitPath === "string" &&
+        typeof entry.startedAt === "number" &&
+        typeof entry.pid === "number",
+    );
+  }
+
+  /** Grava o estado inteiro a cada mutação — mesmo padrão síncrono e sem
+   * debounce do `SessionStore` (docs/18): mudanças de job são raras (início/
+   * fim/cancelamento, nunca por poll tick), o custo de um `writeFileSync` a
+   * mais não importa. No-op se `persistPath` não foi configurado. */
+  private persist(): void {
+    if (!this.options.persistPath) return;
+    mkdirSync(dirname(this.options.persistPath), { recursive: true });
+    writeFileSync(this.options.persistPath, JSON.stringify([...this.jobs.values()], null, 2));
   }
 
   /** Chamado com todo `ClaudeEvent` de todo turno (ver `SharedSession.runTurn`)
@@ -203,8 +273,10 @@ export class BackgroundJobTracker {
       logPath: started.log,
       exitPath: started.exitFile,
       startedAt: Date.now(),
+      pid: started.pid,
     });
     this.ensurePolling();
+    this.persist();
     this.options.onChanged?.(sessionId);
   }
 
@@ -232,6 +304,7 @@ export class BackgroundJobTracker {
           `[relay] background job "${job.label}" (${job.id}) expirou sem terminar depois de ${String(this.maxWatchMs)}ms — parando de observar`,
         );
         this.jobs.delete(key);
+        this.persist();
         this.options.onChanged?.(job.sessionId);
         continue;
       }
@@ -244,9 +317,11 @@ export class BackgroundJobTracker {
         logTail = readLogTail(job.logPath, this.logTailBytes);
       } catch (error) {
         console.error(`[relay] falha lendo resultado do background job "${job.label}" (${job.id}):`, error);
+        this.persist();
         this.options.onChanged?.(job.sessionId);
         continue;
       }
+      this.persist();
       this.options.onFinished({ ...job, exitCode, logTail });
       this.options.onChanged?.(job.sessionId);
     }
@@ -254,6 +329,44 @@ export class BackgroundJobTracker {
       clearInterval(this.timer);
       this.timer = undefined;
     }
+  }
+
+  /** Fase F de docs/32 — cancelamento pela UI. Mata o GRUPO de processo
+   * inteiro (`pid` negativo, alcança tudo que o comando gerou, não só o
+   * processo raiz), não passa por `.exit`/`onFinished`: diferente de um job
+   * que termina sozinho, quem cancelou já sabe que cancelou (clicou o
+   * botão), um turno de follow-up automático resumindo "foi cancelado"
+   * seria ruído redundante. `SIGTERM` primeiro (dá chance de limpar
+   * arquivos temporários etc.), `SIGKILL` ~2s depois pra quem ignora o
+   * primeiro — mesma prática padrão de ferramentas tipo `timeout(1)`.
+   * Retorna `false` sem efeito nenhum se o job já não está mais sendo
+   * observado (terminou sozinho ou já foi cancelado antes) — corrida
+   * possível entre o usuário clicar "cancelar" e o poll seguinte achar o
+   * `.exit`. */
+  cancel(sessionId: string, jobId: string): boolean {
+    const key = `${sessionId}:${jobId}`;
+    const job = this.jobs.get(key);
+    if (!job) return false;
+
+    this.jobs.delete(key);
+    this.persist();
+    this.options.onChanged?.(sessionId);
+
+    try {
+      process.kill(-job.pid, "SIGTERM");
+    } catch {
+      // Grupo já não existe (job tinha acabado de terminar sozinho bem
+      // nesse instante) — nada a matar, mas a lista já foi atualizada acima.
+      return true;
+    }
+    setTimeout(() => {
+      try {
+        process.kill(-job.pid, "SIGKILL");
+      } catch {
+        // Já morreu com o SIGTERM — esperado na maioria dos casos.
+      }
+    }, 2000).unref();
+    return true;
   }
 
   /** Só pra teste/shutdown — produção nunca precisa parar o poller enquanto

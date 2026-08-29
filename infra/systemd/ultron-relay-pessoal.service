@@ -11,6 +11,7 @@ Environment=RELAY_PORT=8765
 Environment=RELAY_HOST=100.64.0.1
 Environment=RELAY_UPLOAD_DIR=/tmp/ultron-uploads-pessoal
 Environment=RELAY_SESSIONS_FILE=/home/user/.ultron-sessions/pessoal.json
+Environment=RELAY_BACKGROUND_JOBS_FILE=/home/user/.ultron-sessions/pessoal-bg-jobs.json
 ExecStart=/home/user/.nvm/versions/node/v20.19.0/bin/node dist/server.js
 Restart=always
 RestartSec=3

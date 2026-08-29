@@ -21,6 +21,10 @@ const DEFAULT_SESSION = "default";
 // fallback "./sessions.local.json" é só pra `npm run dev` local.
 const SESSIONS_FILE = process.env.RELAY_SESSIONS_FILE ?? "./sessions.local.json";
 
+// Mesmo raciocínio de SESSIONS_FILE — Fase F de docs/32, persistência dos
+// jobs `ultron-bg` observados (sobrevive a um restart do relay).
+const BACKGROUND_JOBS_FILE = process.env.RELAY_BACKGROUND_JOBS_FILE ?? "./background-jobs.local.json";
+
 interface UserMessage {
   type: "user_message";
   text: string;
@@ -116,6 +120,16 @@ function isLoadOlderHistoryMessage(value: unknown): value is { type: "load_older
   );
 }
 
+/** Fase F de docs/32 — cancelamento de um job `ultron-bg` pedido pela UI. */
+function isCancelBackgroundJobMessage(value: unknown): value is { type: "cancel_background_job"; id: string } {
+  return (
+    typeof value === "object" &&
+    value !== null &&
+    (value as { type?: unknown }).type === "cancel_background_job" &&
+    typeof (value as { id?: unknown }).id === "string"
+  );
+}
+
 function isTerminalResizeMessage(value: unknown): value is { type: "resize"; cols: number; rows: number } {
   if (typeof value !== "object" || value === null || (value as { type?: unknown }).type !== "resize") return false;
   const cols = (value as { cols?: unknown }).cols;
@@ -143,7 +157,7 @@ function readJsonBody(req: import("node:http").IncomingMessage): Promise<unknown
 }
 
 const sessionStore = new SessionStore(SESSIONS_FILE, defaultCwd(HOME_OVERRIDE));
-const sessionManager = new SessionManager(HOME_OVERRIDE, sessionStore);
+const sessionManager = new SessionManager(HOME_OVERRIDE, sessionStore, BACKGROUND_JOBS_FILE);
 
 // `true` a partir do primeiro SIGTERM/SIGINT recebido — rejeita turno novo
 // (ver `isUserMessage` acima) enquanto `gracefulShutdown` espera os turnos
@@ -422,6 +436,10 @@ wss.on("connection", (socket: WebSocket, request) => {
     }
     if (isLoadOlderHistoryMessage(parsed)) {
       session.loadOlderHistory(socket, parsed.beforeCursor);
+      return;
+    }
+    if (isCancelBackgroundJobMessage(parsed)) {
+      session.cancelBackgroundJob(parsed.id);
       return;
     }
     if (!isUserMessage(parsed)) {

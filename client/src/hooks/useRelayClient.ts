@@ -100,6 +100,10 @@ export interface UseRelayClientResult {
    * `background_job_state`" (docs/32, Fase E): as duas não têm UI diferente
    * (indicador escondido nos dois casos), não precisa distinguir. */
   backgroundJobs: BackgroundJobSummary[];
+  /** Pede pro relay matar um job `ultron-bg` em andamento (docs/32, Fase F)
+   * — `background_job_state` some da lista assim que o relay processar,
+   * sem confirmação em separado (o próprio job sumir do chip já é o sinal). */
+  cancelBackgroundJob: (id: string) => void;
 }
 
 /**
@@ -232,6 +236,10 @@ export function useRelayClient(
     clientRef.current?.loadOlderHistory(beforeCursor);
   }, []);
 
+  const cancelBackgroundJob = useCallback((id: string) => {
+    clientRef.current?.cancelBackgroundJob(id);
+  }, []);
+
   return {
     connected,
     cwd,
@@ -251,5 +259,6 @@ export function useRelayClient(
     clearConversation,
     loadOlderHistory,
     backgroundJobs,
+    cancelBackgroundJob,
   };
 }

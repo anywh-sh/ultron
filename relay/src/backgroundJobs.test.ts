@@ -1,8 +1,9 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { mkdtempSync, rmSync, writeFileSync } from "node:fs";
+import { existsSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
+import { spawn } from "node:child_process";
 import type { ClaudeEvent } from "./claudeSession.js";
 import {
   BackgroundJobTracker,
@@ -102,9 +103,9 @@ function withJobFiles(run: (dir: string, logPath: string, exitPath: string) => v
   }
 }
 
-function startedEvent(id: string, log: string, exitFile: string, label = "teste"): ClaudeEvent {
+function startedEvent(id: string, log: string, exitFile: string, label = "teste", pid = 12345): ClaudeEvent {
   return toolResultEvent(
-    JSON.stringify({ ultron_bg: "started", id, pid: 12345, log, exitFile, label }),
+    JSON.stringify({ ultron_bg: "started", id, pid, log, exitFile, label }),
   );
 }
 
@@ -228,4 +229,114 @@ test("BackgroundJobTracker: dois jobs da mesma sessão são observados/concluíd
     assert.equal(tracker.listWatched()[0]?.label, "job-b");
     tracker.stopPolling();
   });
+});
+
+// ---- persistência em disco (Fase F) --------------------------------------
+
+test("BackgroundJobTracker: com persistPath, um job observado sobrevive a um novo tracker (simula restart do relay)", () => {
+  withJobFiles((dir, logPath, exitPath) => {
+    writeFileSync(logPath, "rodando...\n");
+    const persistPath = join(dir, "watched.json");
+
+    const trackerA = new BackgroundJobTracker({ onFinished: () => undefined, persistPath });
+    trackerA.observeEvent("sess-1", startedEvent("job-1", logPath, exitPath, "sobrevive-restart"));
+    assert.equal(trackerA.listWatched().length, 1);
+    trackerA.stopPolling();
+
+    // "Restart do relay": um tracker NOVO, mesmo persistPath — nunca viu o
+    // evento de início, só o que sobrou em disco.
+    const finishedB: FinishedBackgroundJob[] = [];
+    const trackerB = new BackgroundJobTracker({ onFinished: (job) => finishedB.push(job), persistPath });
+    assert.equal(trackerB.listWatched().length, 1);
+    assert.equal(trackerB.listWatched()[0]?.label, "sobrevive-restart");
+    assert.equal(trackerB.listWatched()[0]?.pid, 12345);
+
+    // job na verdade já tinha terminado enquanto o tracker A "estava fora
+    // do ar" — trackerB precisa descobrir isso sem esperar o poll normal.
+    writeFileSync(exitPath, "0");
+    trackerB.pollOnce();
+    assert.equal(finishedB.length, 1);
+    assert.equal(trackerB.listWatched().length, 0);
+    trackerB.stopPolling();
+
+    // arquivo de persistência também reflete a conclusão (não fica com um
+    // job fantasma que um TERCEIRO restart ressuscitaria de novo).
+    const persisted = JSON.parse(readFileSync(persistPath, "utf8")) as unknown[];
+    assert.equal(persisted.length, 0);
+  });
+});
+
+test("BackgroundJobTracker: sem persistPath, comportamento continua só-em-memória (nenhum arquivo criado)", () => {
+  withJobFiles((dir, logPath, exitPath) => {
+    writeFileSync(logPath, "rodando...\n");
+    const tracker = new BackgroundJobTracker({ onFinished: () => undefined });
+    tracker.observeEvent("sess-1", startedEvent("job-1", logPath, exitPath));
+    assert.equal(existsSync(join(dir, "watched.json")), false);
+    tracker.stopPolling();
+  });
+});
+
+test("BackgroundJobTracker: persistPath ausente ou corrompido começa vazio, não lança", () => {
+  const dir = mkdtempSync(join(tmpdir(), "ultron-bgjobs-test-"));
+  try {
+    const missing = join(dir, "não-existe.json");
+    const trackerMissing = new BackgroundJobTracker({ onFinished: () => undefined, persistPath: missing });
+    assert.equal(trackerMissing.listWatched().length, 0);
+    trackerMissing.stopPolling();
+
+    const corrupted = join(dir, "corrompido.json");
+    writeFileSync(corrupted, "isto não é json{{{");
+    const trackerCorrupted = new BackgroundJobTracker({ onFinished: () => undefined, persistPath: corrupted });
+    assert.equal(trackerCorrupted.listWatched().length, 0);
+    trackerCorrupted.stopPolling();
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
+});
+
+// ---- cancel (Fase F) ------------------------------------------------------
+
+test("BackgroundJobTracker: cancel mata o processo de verdade, remove da lista e NÃO dispara onFinished", async () => {
+  const dir = mkdtempSync(join(tmpdir(), "ultron-bgjobs-test-"));
+  try {
+    const logPath = join(dir, "job.log");
+    const exitPath = join(dir, "job.exit");
+    writeFileSync(logPath, "");
+
+    // `detached: true` faz o Node chamar `setsid()` no filho — mesma
+    // topologia do `ultron-bg` real (o PID do processo já é o PGID/SID do
+    // grupo), então `process.kill(-pid, ...)` alcança ele do mesmo jeito.
+    const child = spawn("sleep", ["30"], { detached: true, stdio: "ignore" });
+    const pid = child.pid;
+    assert.ok(pid, "spawn deveria ter retornado um PID");
+
+    const finished: FinishedBackgroundJob[] = [];
+    const tracker = new BackgroundJobTracker({ onFinished: (job) => finished.push(job) });
+    tracker.observeEvent("sess-1", startedEvent("job-1", logPath, exitPath, "sleep-cancelavel", pid));
+    assert.equal(tracker.listWatched().length, 1);
+
+    const ok = tracker.cancel("sess-1", "job-1");
+    assert.equal(ok, true);
+    assert.equal(tracker.listWatched().length, 0, "cancel deve remover o job da lista na hora, sem esperar o processo morrer");
+
+    await new Promise((resolve) => setTimeout(resolve, 500));
+    let alive = true;
+    try {
+      process.kill(pid, 0);
+    } catch {
+      alive = false;
+    }
+    assert.equal(alive, false, "o processo real deveria ter sido morto pelo cancel");
+    assert.equal(finished.length, 0, "cancel não deve disparar onFinished — quem cancelou já sabe que cancelou");
+
+    tracker.stopPolling();
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
+});
+
+test("BackgroundJobTracker: cancel de um id que não existe (ou já terminou) retorna false sem lançar", () => {
+  const tracker = new BackgroundJobTracker({ onFinished: () => undefined });
+  assert.equal(tracker.cancel("sess-1", "job-fantasma"), false);
+  tracker.stopPolling();
 });

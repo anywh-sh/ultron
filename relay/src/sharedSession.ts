@@ -103,6 +103,11 @@ export interface SharedSessionOptions {
    * sem a `SharedSession` precisar saber nada sobre `ultron-bg` (docs/32,
    * Fase D). Puramente observacional. */
   onEvent?: (event: ClaudeEvent) => void;
+  /** Fase F de docs/32 — chamado com o id de um job `ultron-bg` que o
+   * usuário pediu pra cancelar pela UI. Mesmo raciocínio de `onEvent`: a
+   * `SharedSession` não sabe nada sobre o `BackgroundJobTracker`, só repassa
+   * pro `SessionManager` decidir o que fazer. */
+  onCancelBackgroundJob?: (jobId: string) => void;
 }
 
 export type SetCwdResult = { ok: true } | { ok: false; error: string };
@@ -229,6 +234,14 @@ export class SharedSession {
   setBackgroundJobs(jobs: WatchedJob[]): void {
     this.backgroundJobs = jobs.map(toBackgroundJobSummary);
     this.broadcastBackgroundJobs();
+  }
+
+  /** Fase F de docs/32 — pedido de cancelamento vindo da UI (chip do
+   * `ChatPanel`). Passthrough puro pro `SessionManager`; `setBackgroundJobs`
+   * (chamado por ele via `onChanged` do tracker) já cuida de avisar os
+   * clientes que o job sumiu da lista — não precisa fazer nada extra aqui. */
+  cancelBackgroundJob(jobId: string): void {
+    this.options.onCancelBackgroundJob?.(jobId);
   }
 
   addClient(socket: WebSocket): void {

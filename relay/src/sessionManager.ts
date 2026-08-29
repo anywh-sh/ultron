@@ -17,17 +17,44 @@ export class SessionManager {
    * `ultron-bg` de sessões diferentes não têm relação entre si, mas o
    * poller e o teto de observação (docs/32, Fase C) fazem mais sentido
    * compartilhados do que duplicados N vezes. */
-  private readonly backgroundJobs = new BackgroundJobTracker({
-    onFinished: (job) => this.handleBackgroundJobFinished(job),
-    onChanged: (sessionId) => this.syncBackgroundJobState(sessionId),
-  });
+  private readonly backgroundJobs: BackgroundJobTracker;
 
   constructor(
     private readonly homeOverride: string | undefined,
     private readonly sessionStore: SessionStore,
+    /** Fase F de docs/32 — arquivo onde o `BackgroundJobTracker` persiste a
+     * lista de jobs observados, pra sobreviver a um restart do relay. Mesmo
+     * `undefined` opcional que `BackgroundJobTrackerOptions.persistPath`
+     * aceita (usado pelos testes que não passam isso), mas em produção
+     * `server.ts` sempre passa um caminho de verdade. */
+    backgroundJobsFilePath?: string,
   ) {
+    // `this.sessions` precisa existir ANTES do `BackgroundJobTracker` ser
+    // construído: se houver jobs persistidos de uma sessão que já terminou
+    // durante a queda do relay (Fase F), o construtor do tracker agenda um
+    // poll imediato (`setImmediate`, não síncrono — achado real: era
+    // síncrono numa versão anterior, e `onFinished`/`onChanged` disparavam
+    // ANTES de `this.backgroundJobs` sequer terminar de ser atribuído aqui,
+    // travando o boot com `TypeError: Cannot read properties of undefined`)
+    // pra descobrir isso sem esperar o primeiro poll normal — mas mesmo
+    // adiado, ele roda antes de qualquer cliente se conectar; se
+    // `this.sessions` ainda estivesse vazio nesse momento,
+    // `handleBackgroundJobFinished` acharia a sessão "inexistente" e
+    // descartaria o follow-up à toa, mesmo ela existindo de verdade.
     for (const id of sessionStore.listIds()) {
       this.sessions.set(id, this.createSession(id));
+    }
+    this.backgroundJobs = new BackgroundJobTracker({
+      onFinished: (job) => this.handleBackgroundJobFinished(job),
+      onChanged: (sessionId) => this.syncBackgroundJobState(sessionId),
+      persistPath: backgroundJobsFilePath,
+    });
+    // Jobs recarregados do disco que AINDA estão rodando (não capturados
+    // pelo `onChanged` síncrono acima, que só dispara em fim/expiração) —
+    // sincroniza o `background_job_state` delas agora, não só quando o
+    // tracker detectar a próxima mudança.
+    for (const job of this.backgroundJobs.listWatched()) {
+      this.syncBackgroundJobState(job.sessionId);
     }
   }
 
@@ -127,6 +154,9 @@ export class SessionManager {
       onContextUsageChange: (usage) => this.sessionStore.setContextUsage(id, usage),
       onActivity: () => this.sessionStore.touch(id),
       onEvent: (event) => this.backgroundJobs.observeEvent(id, event),
+      onCancelBackgroundJob: (jobId) => {
+        this.backgroundJobs.cancel(id, jobId);
+      },
       initialTitle: this.sessionStore.getTitle(id),
       onFirstPrompt: (text) => {
         // Só dispara pra sessão de verdade nova — uma sessão migrada de um
