@@ -12,7 +12,7 @@ import type { BroadcastMessage } from "./sharedSession.js";
  * `pr-link`, `file-history-*`...). Só os campos que realmente usamos ficam
  * tipados; o resto é ignorado por design.
  */
-interface TranscriptLine {
+export interface TranscriptLine {
   type: string;
   isMeta?: boolean;
   message?: { content?: unknown };
@@ -28,7 +28,9 @@ function isTextBlock(value: unknown): value is { type: "text"; text: string } {
   );
 }
 
-function isToolResultOnly(content: unknown): boolean {
+/** Exportado — reaproveitado por `transcriptFork.ts` pra achar a mesma linha
+ * "mensagem humana genuína" ao contar turnos pra truncar (docs/33). */
+export function isToolResultOnly(content: unknown): boolean {
   return (
     Array.isArray(content) &&
     content.length > 0 &&
@@ -41,8 +43,11 @@ function isToolResultOnly(content: unknown): boolean {
  * com pelo menos um bloco de texto. `undefined` quando o registro não é
  * isso: feedback de `tool_result` (agentic loop, não digitado por ninguém)
  * ou ruído `isMeta` (reminders/caveats injetados pelo próprio Claude Code).
+ *
+ * Exportado — `transcriptFork.ts` (docs/33) usa o mesmo critério pra contar
+ * turnos ao decidir onde cortar o arquivo na edição de mensagem.
  */
-function extractHumanText(line: TranscriptLine): string | undefined {
+export function extractHumanText(line: TranscriptLine): string | undefined {
   if (line.isMeta) return undefined;
   const content = line.message?.content;
   if (typeof content === "string") return content;
@@ -130,7 +135,16 @@ export function readHistoryFromTranscript(home: string, cwd: string, sessionId: 
     const humanText = extractHumanText(line);
     if (humanText !== undefined) {
       if (turnOpen) messages.push({ type: "turn_complete" });
-      const event: ClaudeEvent = { type: "user_prompt", message: { content: [{ type: "text", text: humanText }] } };
+      // Timestamp real da linha (docs/33) — o client usa isso pra mostrar
+      // "há X min" em mensagens reconstruídas do disco; quem manda ao vivo já
+      // sabe a própria hora do clique, não depende disso. Omitido (não
+      // `undefined` explícito) quando a linha não tem `timestamp` — mantém a
+      // forma do evento idêntica à de antes dessa feature existir nesse caso.
+      const event: ClaudeEvent = {
+        type: "user_prompt",
+        message: { content: [{ type: "text", text: humanText }] },
+        ...(typeof line.timestamp === "string" ? { timestamp: line.timestamp } : {}),
+      };
       messages.push({ type: "claude_event", event });
       turnOpen = true;
       continue;

@@ -86,6 +86,12 @@ export interface ClaudeEvent {
   is_error?: boolean;
   result?: string;
   errors?: string[];
+  /** Presente só em `type: "user_prompt"` (sintético, nunca vem do stdout do
+   * CLI) — ISO da linha real do `.jsonl` na reconstrução de histórico, ou
+   * `new Date().toISOString()` no broadcast ao vivo pros outros dispositivos
+   * (docs/33). Quem mandou a mensagem já sabe a própria hora do clique, não
+   * depende disso. */
+  timestamp?: string;
   [key: string]: unknown;
 }
 
@@ -202,6 +208,14 @@ export class ClaudeSession {
    * pra "avisar" ela disso. */
   resetSessionId(): void {
     this.sessionId = undefined;
+  }
+
+  /** Edição de mensagem (docs/33) — depois de `transcriptFork.ts` gravar um
+   * `.jsonl` novo truncado, o próximo `sendTurn` precisa dar `--resume`
+   * nesse id novo, não no antigo (que ainda tem a mensagem editada e tudo
+   * que veio depois). */
+  setSessionId(sessionId: string): void {
+    this.sessionId = sessionId;
   }
 
   /**

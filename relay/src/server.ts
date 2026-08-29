@@ -43,6 +43,18 @@ function isStopTurnMessage(value: unknown): value is { type: "stop_turn" } {
   return typeof value === "object" && value !== null && (value as { type?: unknown }).type === "stop_turn";
 }
 
+/** Edição de mensagem (docs/33) — `fromEnd` conta a partir do fim (`1` = a
+ * última mensagem do usuário). */
+function isEditMessageMessage(value: unknown): value is { type: "edit_message"; fromEnd: number; text: string } {
+  return (
+    typeof value === "object" &&
+    value !== null &&
+    (value as { type?: unknown }).type === "edit_message" &&
+    typeof (value as { fromEnd?: unknown }).fromEnd === "number" &&
+    typeof (value as { text?: unknown }).text === "string"
+  );
+}
+
 function isClearConversationMessage(value: unknown): value is { type: "clear_conversation" } {
   return typeof value === "object" && value !== null && (value as { type?: unknown }).type === "clear_conversation";
 }
@@ -440,6 +452,14 @@ wss.on("connection", (socket: WebSocket, request) => {
     }
     if (isCancelBackgroundJobMessage(parsed)) {
       session.cancelBackgroundJob(parsed.id);
+      return;
+    }
+    if (isEditMessageMessage(parsed)) {
+      if (shuttingDown) {
+        socket.send(JSON.stringify({ type: "edit_message_error", message: "relay reiniciando, tente de novo em instantes" }));
+        return;
+      }
+      session.editMessage(socket, parsed.fromEnd, parsed.text);
       return;
     }
     if (!isUserMessage(parsed)) {

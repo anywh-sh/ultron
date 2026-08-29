@@ -4,8 +4,9 @@ import { checkDirectory } from "./fsBrowse.js";
 import { defaultCwd } from "./paths.js";
 import { generateNotificationSummary } from "./notificationSummaryGenerator.js";
 import { generateSuggestion } from "./suggestionGenerator.js";
-import { readHistoryFromTranscript } from "./transcriptReader.js";
-import { INITIAL_HISTORY_TAIL_TURNS, pageHistoryBefore } from "./historyPaging.js";
+import { readHistoryFromTranscript, transcriptPath } from "./transcriptReader.js";
+import { forkTruncatedTranscript } from "./transcriptFork.js";
+import { INITIAL_HISTORY_TAIL_TURNS, findEditTarget, pageHistoryBefore, type EditTarget } from "./historyPaging.js";
 import type { ContextUsage, ModelChoice, PermissionMode } from "./sessionStore.js";
 import { toBackgroundJobSummary, type BackgroundJobSummary, type FinishedBackgroundJob, type WatchedJob } from "./backgroundJobs.js";
 
@@ -347,6 +348,84 @@ export class SharedSession {
    * enfileirados, se algum dia existirem, continuam normalmente depois). */
   stopTurn(): void {
     this.claude.stop();
+  }
+
+  /**
+   * Edição de mensagem (docs/33): parar o turno atual (se houver) + cortar o
+   * `.jsonl` real no ponto da mensagem editada + rodar um turno novo com o
+   * texto editado — automático a partir desta única chamada. Interrompe o
+   * turno ANTES de enfileirar (não dentro de `performEdit`) pra não esperar
+   * a resposta em andamento terminar sozinha; a fila (`turnQueue`, mesma que
+   * já serializa turnos normais e `/clear`) garante que `performEdit` só
+   * roda depois que esse turno interrompido resolver de verdade — só nesse
+   * momento o processo `claude -p` já saiu e o `.jsonl` tem a escrita
+   * completa em disco (`ClaudeSession.stop`, testado contra o binário real:
+   * `SIGINT` sempre sai antes de `sendTurn` resolver).
+   */
+  editMessage(origin: WebSocket, fromEnd: number, text: string): void {
+    const target = findEditTarget(this.history, fromEnd);
+    if (!target) {
+      origin.send(JSON.stringify({ type: "edit_message_error", message: "Mensagem não encontrada — o histórico pode ter mudado." }));
+      return;
+    }
+    this.clearSuggestion();
+    this.claude.stop();
+    this.turnQueue = this.turnQueue.then(() => this.performEdit(origin, target, text));
+  }
+
+  /** Reaproveita o `runTurn` normal pro turno com o texto editado — mesmo
+   * broadcast de `user_prompt` pros outros dispositivos (excluindo `origin`,
+   * que já se autotruncou de forma otimista igual a um envio normal), mesmo
+   * streaming, mesmo `turn_complete`. Só o que vem antes (truncar o
+   * transcript real + o `history` em memória + avisar os OUTROS
+   * dispositivos do corte) é específico de edição. */
+  private async performEdit(origin: WebSocket, target: EditTarget, text: string): Promise<void> {
+    try {
+      if (target.turnsBefore > 0) {
+        const sessionId = this.claude.getSessionId();
+        // Sem session_id conhecido mas com turnos antes do corte: só
+        // acontece se o primeiro turno de verdade tiver falhado antes de
+        // qualquer `result` (nunca chegou a existir um `.jsonl` referenciável
+        // — ver comentário de `ClaudeSession.sendTurn`). Nesse caso não tem
+        // arquivo pra truncar; o próximo turno já sai sem `--resume` de
+        // qualquer jeito, então não faz nada aqui (comportamento correto por
+        // omissão, não por tratamento especial).
+        if (sessionId) {
+          const home = defaultCwd(this.homeOverride);
+          const path = transcriptPath(home, this.cwd, sessionId);
+          const newSessionId = forkTruncatedTranscript(path, target.turnsBefore);
+          this.claude.setSessionId(newSessionId);
+          this.options.onSessionIdChange?.(newSessionId);
+        }
+      } else {
+        // Editando a primeiríssima mensagem da sessão — não sobra nada pra
+        // preservar num arquivo novo, equivalente a um `/clear` seguido do
+        // texto editado.
+        this.claude.resetSessionId();
+        this.options.onSessionIdClear?.();
+      }
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      console.error("[relay] falha ao truncar transcript pra edição:", message);
+      origin.send(JSON.stringify({ type: "edit_message_error", message: "Não foi possível editar essa mensagem." }));
+      return;
+    }
+
+    this.history.length = target.cutIndex;
+    this.contextUsage = undefined;
+    this.broadcastContextUsageReset();
+
+    // Sincroniza OUTROS dispositivos conectados nesta sessão pro ponto
+    // truncado — `origin` não recebe isso porque já se autotruncou de forma
+    // otimista antes de mandar `edit_message` (mesmo padrão do
+    // `user_prompt` sintético em `runTurn`, que também pula `origin`).
+    const page = pageHistoryBefore(this.history, this.history.length, INITIAL_HISTORY_TAIL_TURNS);
+    const payload = JSON.stringify({ type: "history_truncated", messages: page.messages, cursor: page.cursor, hasMore: page.hasMore });
+    for (const client of this.clients) {
+      if (client !== origin) client.send(payload);
+    }
+
+    await this.runTurn(origin, text);
   }
 
   /** Resolve quando não houver turno em andamento (nem enfileirado) nesta

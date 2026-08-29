@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { pageHistoryBefore } from "./historyPaging.js";
+import { findEditTarget, pageHistoryBefore } from "./historyPaging.js";
 import type { BroadcastMessage } from "./sharedSession.js";
 
 function userPrompt(text: string): BroadcastMessage {
@@ -82,4 +82,53 @@ test("load_older_history: cursor de uma página busca a página anterior, sem so
   assert.equal(third.hasMore, false); // os 5 turnos restantes, do início
   assert.equal(third.cursor, 0);
   assert.deepEqual([...third.messages, ...second.messages, ...first.messages], history);
+});
+
+function syntheticBackgroundJobPrompt(label: string): BroadcastMessage {
+  return {
+    type: "claude_event",
+    event: { type: "user_prompt", synthetic: "background_job", label, message: { content: [{ type: "text", text: "..." }] } },
+  };
+}
+
+test("findEditTarget: fromEnd 1 acha a última mensagem, cutIndex no início do turno", () => {
+  const history = buildTurns(3);
+  const target = findEditTarget(history, 1);
+  assert.deepEqual(target, { cutIndex: 6, turnsBefore: 2 });
+});
+
+test("findEditTarget: fromEnd maior conta turnos mais antigos", () => {
+  const history = buildTurns(3);
+  const target = findEditTarget(history, 3);
+  assert.deepEqual(target, { cutIndex: 0, turnsBefore: 0 });
+});
+
+test("findEditTarget: fromEnd além do que existe devolve undefined (pedido inválido)", () => {
+  const history = buildTurns(3);
+  assert.equal(findEditTarget(history, 4), undefined);
+  assert.equal(findEditTarget([], 1), undefined);
+});
+
+test("findEditTarget: pula turnos sintéticos de ultron-bg ao contar do fim", () => {
+  const history = [
+    ...buildTurns(2), // turno real 0, turno real 1
+    syntheticBackgroundJobPrompt("job x"),
+    assistantText("resumo do job"),
+    turnComplete,
+    userPrompt("pergunta real mais recente"),
+    assistantText("resposta"),
+    turnComplete,
+  ];
+  // fromEnd=1 deve achar "pergunta real mais recente" (pula o turno sintético
+  // antes dele), não o turno sintético em si.
+  const last = findEditTarget(history, 1);
+  assert.deepEqual(history[last!.cutIndex], userPrompt("pergunta real mais recente"));
+  // turnsBefore conta TODOS os turnos antes (2 reais + 1 sintético = 3),
+  // porque cada um vira exatamente uma linha no .jsonl real.
+  assert.equal(last!.turnsBefore, 3);
+
+  // fromEnd=2 deve pular o sintético e achar o turno real 1 (buildTurns).
+  const secondFromEnd = findEditTarget(history, 2);
+  assert.deepEqual(history[secondFromEnd!.cutIndex], userPrompt("pergunta 1"));
+  assert.equal(secondFromEnd!.turnsBefore, 1);
 });

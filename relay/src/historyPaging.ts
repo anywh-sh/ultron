@@ -51,3 +51,48 @@ export function pageHistoryBefore(history: BroadcastMessage[], beforeCursor: num
   const cursor = starts[cutoffIndex];
   return { messages: history.slice(cursor, beforeCursor), cursor, hasMore: cutoffIndex > 0 };
 }
+
+/** `true` só pro turno de follow-up automático de um job `ultron-bg`
+ * terminado (docs/32, Fase D) — nunca aparece pro usuário como mensagem
+ * editável (o client renderiza como nota de sistema, `kind:
+ * "background-job-note"`, não como bolha `kind: "user"`). Mensagens antigas
+ * de antes da Fase 1 de docs/30 (sem `user_prompt` marcando o início do
+ * turno) caem no `false` default — tratadas como reais, mesmo comportamento
+ * que já existia antes dessa distinção existir. */
+function isSyntheticBackgroundJobStart(message: BroadcastMessage): boolean {
+  return (
+    message.type === "claude_event" && message.event.type === "user_prompt" && message.event.synthetic === "background_job"
+  );
+}
+
+export interface EditTarget {
+  /** Índice em `history` onde o turno editado começa — tudo a partir daqui
+   * (inclusive) é descartado. */
+  cutIndex: number;
+  /** Quantos turnos (reais + sintéticos) precedem esse ponto. Cada turno,
+   * real ou sintético, corresponde a exatamente uma chamada `claude -p` e
+   * portanto exatamente uma linha `user` no `.jsonl` real — por isso esse
+   * número é também o parâmetro que `transcriptFork.ts` precisa pra cortar o
+   * arquivo no mesmo lugar, sem precisar reconstruir a distinção
+   * real/sintético a partir do disco (docs/33). */
+  turnsBefore: number;
+}
+
+/**
+ * Acha o ponto de corte pra editar a `fromEnd`-ésima mensagem do usuário
+ * contando do fim (`1` = a última) — pula turnos sintéticos de `ultron-bg`
+ * ao contar, já que eles não aparecem pro usuário como mensagem editável
+ * (docs/33). `undefined` se `fromEnd` for maior que a quantidade de turnos
+ * reais existentes (pedido inválido/obsoleto — quem chama deve recusar em
+ * vez de truncar errado).
+ */
+export function findEditTarget(history: BroadcastMessage[], fromEnd: number): EditTarget | undefined {
+  const starts = turnStartIndices(history);
+  let realTurnsSeen = 0;
+  for (let k = starts.length - 1; k >= 0; k--) {
+    if (isSyntheticBackgroundJobStart(history[starts[k]])) continue;
+    realTurnsSeen++;
+    if (realTurnsSeen === fromEnd) return { cutIndex: starts[k], turnsBefore: k };
+  }
+  return undefined;
+}
