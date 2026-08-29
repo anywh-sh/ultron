@@ -116,7 +116,23 @@
   }
 }
 
+/* `position: fixed` na `body` (não só `overflow: hidden`) é o truque padrão
+ * pra impedir o comportamento nativo do WebKit em iOS de rolar o documento
+ * inteiro pra "trazer o campo focado pra vista" quando um contenteditable
+ * (o composer, ProseMirror) cresce — esse auto-scroll ignora qualquer
+ * `overflow: hidden` que não seja acompanhado de `position: fixed`/`inset`.
+ * Sem isso, um composer com texto longo cria um scroll fantasma da página
+ * inteira por cima do layout próprio do app (`h-screen overflow-hidden` em
+ * `App.tsx`), que já deveria bastar mas não basta sozinho no WKWebView. */
+html,
 body {
+  height: 100%;
+  overflow: hidden;
+}
+body {
+  position: fixed;
+  inset: 0;
+  overscroll-behavior: none;
   background: var(--background);
   color: var(--foreground);
   font-family: var(--font-sans);
@@ -250,6 +266,10 @@ body {
  * combina com o texto maior do resto da UI mobile). */
 .composer-editor.ios .ProseMirror {
   font-size: 1rem;
+  /* `--composer-max-height` é calculado em JS a partir de
+   * `visualViewport.height` (Composer.tsx) — o fixo de 480px acima não
+   * reflete o espaço disponível quando o teclado do iOS está aberto. */
+  max-height: var(--composer-max-height, 480px);
 }
 .composer-editor .ProseMirror p {
   margin: 0;

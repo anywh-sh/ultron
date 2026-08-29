@@ -1,4 +1,13 @@
-import { forwardRef, useImperativeHandle, useMemo, useRef, useState, type MutableRefObject } from "react";
+import {
+  forwardRef,
+  useEffect,
+  useImperativeHandle,
+  useMemo,
+  useRef,
+  useState,
+  type CSSProperties,
+  type MutableRefObject,
+} from "react";
 import { ArrowUp, Check, ChevronDown, Mic, Paperclip, Square, X } from "lucide-react";
 import { Extension, type JSONContent } from "@tiptap/core";
 import { EditorContent, ReactMarkViewRenderer, ReactRenderer, useEditor } from "@tiptap/react";
@@ -309,6 +318,31 @@ export const Composer = forwardRef<ComposerHandle, ComposerProps>(function Compo
   // altura real do editor em vez de contar quebras de linha do texto: uma
   // linha pode ocupar duas visuais por wrap sem nenhum "\n".
   const [isMultiline, setIsMultiline] = useState(false);
+  // Limite máximo do campo de texto quando o conteúdo excede o que cabe numa
+  // tela (`.composer-editor .ProseMirror` no CSS) — no iOS um valor fixo em
+  // px estoura a área visível assim que o teclado abre, porque `vh`/`dvh` não
+  // encolhem com o teclado (só com chrome de navegador). `visualViewport.height`
+  // é a única fonte que reflete o espaço realmente disponível acima do
+  // teclado, e dispara `resize` quando ele abre/fecha — por isso o cap é
+  // recalculado nesse evento, não fixo. `null` (desktop, ou iOS antes do
+  // primeiro layout) cai no fallback fixo do CSS.
+  const [composerMaxHeight, setComposerMaxHeight] = useState<number | null>(null);
+  useEffect(() => {
+    const vv = window.visualViewport;
+    if (!isIOS() || !vv) return;
+    // Reserva pro que fica acima do composer dentro da área visível (top bar
+    // com safe-area-inset-top, ver `ChatPanel.tsx`) e pro padding/altura da
+    // própria pílula (linha de attach/enviar + paddings) — sem essa margem o
+    // texto cresce até encostar no topo da tela em vez de parar antes dele.
+    const RESERVED_PX = 180;
+    const MIN_PX = 72;
+    function update() {
+      setComposerMaxHeight(Math.max(MIN_PX, vv!.height - RESERVED_PX));
+    }
+    update();
+    vv.addEventListener("resize", update);
+    return () => vv.removeEventListener("resize", update);
+  }, []);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const submitRef = useRef<() => void>(() => {});
   // Único canal de volta do Suggestion (fora do React) pro editorProps abaixo
@@ -463,7 +497,11 @@ export const Composer = forwardRef<ComposerHandle, ComposerProps>(function Compo
             <Paperclip className="size-5" />
           </button>
 
-          <EditorContent editor={editor} className={cn("composer-editor ios min-w-0 flex-1")} />
+          <EditorContent
+            editor={editor}
+            className={cn("composer-editor ios min-w-0 flex-1")}
+            style={composerMaxHeight !== null ? ({ "--composer-max-height": `${composerMaxHeight}px` } as CSSProperties) : undefined}
+          />
 
           <button
             type={turnInFlight ? "button" : "submit"}
