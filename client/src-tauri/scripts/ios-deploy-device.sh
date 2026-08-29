@@ -120,9 +120,13 @@ fi
 
 cd "$CLIENT_DIR"
 build_settings="$(xcodebuild -showBuildSettings -workspace src-tauri/gen/apple/client.xcodeproj/project.xcworkspace -scheme client_iOS -configuration release -sdk iphoneos 2>/dev/null)"
-built_products_dir="$(echo "$build_settings" | grep -m1 'BUILT_PRODUCTS_DIR' | sed 's/.*= //')"
-full_product_name="$(echo "$build_settings" | grep -m1 'FULL_PRODUCT_NAME' | sed 's/.*= //')"
-bundle_id="$(echo "$build_settings" | grep -m1 'PRODUCT_BUNDLE_IDENTIFIER' | sed 's/.*= //')"
+# Ancorado (^\s*CHAVE = ) — sem isso, `grep -m1 'PRODUCT_BUNDLE_IDENTIFIER'`
+# pega `DERIVE_MACCATALYST_PRODUCT_BUNDLE_IDENTIFIER = NO` primeiro (vem antes
+# na saída do xcodebuild), e o script tentava lançar um app chamado "NO" —
+# bug real encontrado testando contra o device de verdade.
+built_products_dir="$(echo "$build_settings" | grep -m1 -E '^\s*BUILT_PRODUCTS_DIR = ' | sed 's/.*= //')"
+full_product_name="$(echo "$build_settings" | grep -m1 -E '^\s*FULL_PRODUCT_NAME = ' | sed 's/.*= //')"
+bundle_id="$(echo "$build_settings" | grep -m1 -E '^\s*PRODUCT_BUNDLE_IDENTIFIER = ' | sed 's/.*= //')"
 app_path="$built_products_dir/$full_product_name"
 
 if [[ ! -d "$app_path" ]]; then
