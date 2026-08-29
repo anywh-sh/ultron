@@ -1,0 +1,101 @@
+#!/bin/bash
+# Helper pra deixar um comando rodando desacoplado do processo que o
+# iniciou (o turno `claude -p`, que morre ao fim do turno — docs/32) e
+# detectável depois por quem quer que seja (o relay faz polling do
+# arquivo `.exit`, não do PID: reuso de PID pelo SO mascararia um
+# `kill -0` continuando a "ver" alguém vivo ali).
+#
+# Uso:
+#   ultron-bg start --label "<descrição curta>" -- <comando...>
+#   ultron-bg status <id>
+set -euo pipefail
+
+JOBS_DIR="${HOME:?HOME precisa estar definido}/.ultron/bg-jobs"
+
+json_escape() {
+  local s=$1
+  s=${s//\\/\\\\}
+  s=${s//\"/\\\"}
+  s=${s//$'\n'/\\n}
+  s=${s//$'\r'/\\r}
+  s=${s//$'\t'/\\t}
+  printf '%s' "$s"
+}
+
+cmd_start() {
+  local label=""
+  if [[ "${1:-}" == "--label" ]]; then
+    label=$2
+    shift 2
+  fi
+  if [[ "${1:-}" != "--" ]]; then
+    echo "uso: ultron-bg start --label \"<descrição>\" -- <comando...>" >&2
+    exit 1
+  fi
+  shift
+  if [[ $# -eq 0 ]]; then
+    echo "nenhum comando fornecido depois de --" >&2
+    exit 1
+  fi
+
+  mkdir -p "$JOBS_DIR"
+  local id log exitfile
+  id="$(date +%s%N)-$RANDOM"
+  log="$JOBS_DIR/$id.log"
+  exitfile="$JOBS_DIR/$id.exit"
+
+  # `setsid` desacopla de sessão/grupo de processo (não recebe SIGINT do
+  # `stop()` do relay, que só sinaliza o PID direto do `claude -p` — nunca
+  # um grupo). `< /dev/null` evita segurar stdin aberto. `pid` é só
+  # informativo pro usuário/modelo — a detecção de término real usa o
+  # arquivo `.exit`, nunca esse PID (setsid pode ter feito fork interno
+  # dependendo da versão do util-linux, então `$!` nem sempre é o PID
+  # exato do comando final).
+  EXITFILE="$exitfile" setsid bash -c '"$@"; echo $? > "$EXITFILE"' _ "$@" \
+    < /dev/null > "$log" 2>&1 &
+  local pid=$!
+  disown 2>/dev/null || true
+
+  printf '{"ultron_bg":"started","id":"%s","pid":%d,"log":"%s","exitFile":"%s","label":"%s"}\n' \
+    "$(json_escape "$id")" "$pid" "$(json_escape "$log")" "$(json_escape "$exitfile")" "$(json_escape "$label")"
+}
+
+cmd_status() {
+  local id=${1:?uso: ultron-bg status <id>}
+  local log="$JOBS_DIR/$id.log"
+  local exitfile="$JOBS_DIR/$id.exit"
+
+  if [[ ! -f "$log" ]]; then
+    echo "job desconhecido: $id" >&2
+    exit 1
+  fi
+
+  if [[ -f "$exitfile" ]]; then
+    local exit_code log_tail
+    exit_code=$(<"$exitfile")
+    log_tail=$(tail -c 4000 "$log" 2>/dev/null || true)
+    printf '{"ultron_bg":"status","id":"%s","done":true,"exitCode":%s,"logTail":"%s"}\n' \
+      "$(json_escape "$id")" "$exit_code" "$(json_escape "$log_tail")"
+  else
+    local log_tail
+    log_tail=$(tail -c 4000 "$log" 2>/dev/null || true)
+    printf '{"ultron_bg":"status","id":"%s","done":false,"logTail":"%s"}\n' \
+      "$(json_escape "$id")" "$(json_escape "$log_tail")"
+  fi
+}
+
+case "${1:-}" in
+  start)
+    shift
+    cmd_start "$@"
+    ;;
+  status)
+    shift
+    cmd_status "$@"
+    ;;
+  *)
+    echo "uso: ultron-bg start --label \"<descrição>\" -- <comando...>" >&2
+    echo "     ultron-bg status <id>" >&2
+    exit 1
+    ;;
+esac
