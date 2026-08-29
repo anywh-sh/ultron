@@ -148,6 +148,14 @@ export interface RelayClientCallbacks {
    * (mesmo array vazio, se não houver nenhum) e de novo sempre que a lista
    * muda, em qualquer dispositivo (docs/32, Fase E). */
   onBackgroundJobState?: (jobs: BackgroundJobSummary[]) => void;
+  /** Edição de mensagem (docs/33) — chega só nos OUTROS dispositivos
+   * conectados na sessão, sincronizando o ponto de corte antes do turno
+   * editado começar a transmitir. Mesmo tratamento de `onReconnecting` +
+   * `onHistoryPage`: quem consome reseta o log e hidrata com esta página. */
+  onHistoryTruncated?: (page: HistoryPageMessage) => void;
+  /** `edit_message` inválido ou que falhou ao truncar o transcript real —
+   * só chega em quem pediu a edição. */
+  onEditMessageError?: (message: string) => void;
 }
 
 const RECONNECT_BASE_DELAY_MS = 500;
@@ -252,6 +260,10 @@ export class RelayClient {
         this.callbacks.onOlderHistory?.(parsed);
       } else if (parsed.type === "background_job_state") {
         this.callbacks.onBackgroundJobState?.(parsed.jobs);
+      } else if (parsed.type === "history_truncated") {
+        this.callbacks.onHistoryTruncated?.(parsed);
+      } else if (parsed.type === "edit_message_error") {
+        this.callbacks.onEditMessageError?.(parsed.message);
       }
     });
   }
@@ -264,6 +276,17 @@ export class RelayClient {
   stopTurn(): void {
     if (this.socket?.readyState !== WebSocket.OPEN) return;
     this.socket.send(JSON.stringify({ type: "stop_turn" }));
+  }
+
+  /** Edição de mensagem (docs/33) — `fromEnd` conta a partir do fim (`1` = a
+   * última mensagem do usuário). O relay para o turno atual (se houver),
+   * corta o transcript real no ponto certo e roda um turno novo com `text`.
+   * Sem fila de pendência (mesmo raciocínio de `setModel`): só faz sentido
+   * chamar depois que já existe pelo menos uma mensagem renderizada, o que
+   * significa que o socket já está aberto. */
+  editMessage(fromEnd: number, text: string): void {
+    if (this.socket?.readyState !== WebSocket.OPEN) return;
+    this.socket.send(JSON.stringify({ type: "edit_message", fromEnd, text }));
   }
 
   setCwd(path: string): void {

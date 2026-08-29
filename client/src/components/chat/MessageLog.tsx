@@ -27,6 +27,17 @@ interface MessageLogProps {
    * (docs/24), então o conteúdo precisa de mais respiro pra não terminar
    * escondido atrás dele. */
   className?: string;
+  /** Edição de mensagem (docs/33) — `id` da entry `kind: "user"` que está
+   * virando `<textarea>` agora (desktop apenas; no iOS o `ChatPanel` nunca
+   * seta isto, a edição lá acontece via composer, não inline). `null` fora
+   * de edição. */
+  editingMessageId: string | null;
+  /** Identidade estável (vem de refs em `ChatPanel`, não closures novas a
+   * cada render) — ver comentário do `memo` em `Message.tsx`. */
+  onStartEdit: (id: string, text: string) => void;
+  onCancelEdit: () => void;
+  onSaveEdit: (id: string, text: string) => void;
+  onCopy: (text: string) => void;
 }
 
 type RenderItem =
@@ -97,7 +108,15 @@ function itemKey(item: RenderItem): string {
   return item.entry.id;
 }
 
-function renderItem(item: RenderItem) {
+interface UserActionHandlers {
+  editingMessageId: string | null;
+  onStartEdit: (id: string, text: string) => void;
+  onCancelEdit: () => void;
+  onSaveEdit: (id: string, text: string) => void;
+  onCopy: (text: string) => void;
+}
+
+function renderItem(item: RenderItem, userActions: UserActionHandlers) {
   if (item.kind === "tool") {
     return (
       <LogEntryRow key={item.use.id} rail="neutral">
@@ -117,7 +136,20 @@ function renderItem(item: RenderItem) {
   const entry = item.entry;
   switch (entry.kind) {
     case "user":
-      return <UserBubble key={entry.id} text={entry.text} images={entry.images} />;
+      return (
+        <UserBubble
+          key={entry.id}
+          id={entry.id}
+          text={entry.text}
+          images={entry.images}
+          sentAt={entry.sentAt}
+          isEditing={userActions.editingMessageId === entry.id}
+          onStartEdit={userActions.onStartEdit}
+          onCancelEdit={userActions.onCancelEdit}
+          onSaveEdit={userActions.onSaveEdit}
+          onCopy={userActions.onCopy}
+        />
+      );
     case "text":
       return (
         <LogEntryRow key={entry.id} rail="none">
@@ -165,8 +197,14 @@ export const MessageLog = memo(function MessageLog({
   loadingOlderHistory,
   onLoadOlderHistory,
   className,
+  editingMessageId,
+  onStartEdit,
+  onCancelEdit,
+  onSaveEdit,
+  onCopy,
 }: MessageLogProps) {
   const parentRef = useRef<HTMLDivElement>(null);
+  const userActions: UserActionHandlers = { editingMessageId, onStartEdit, onCancelEdit, onSaveEdit, onCopy };
 
   // `entries` só ganha uma referência nova quando algo é de fato commitado
   // (ver reducer em useMessageLog) — memoizar aqui evita recalcular o
@@ -301,7 +339,7 @@ export const MessageLog = memo(function MessageLog({
                 transform: `translateY(${virtualItem.start}px)`,
               }}
             >
-              {renderItem(item)}
+              {renderItem(item, userActions)}
             </div>
           );
         })}

@@ -48,6 +48,12 @@ export interface UseRelayClientOptions {
   /** Resposta a `loadOlderHistory` — ver `RelayClientCallbacks.onOlderHistory`
    * (Fase 2/3, docs/30). */
   onOlderHistory?: (page: HistoryPageMessage) => void;
+  /** Edição de mensagem em OUTRO dispositivo conectado na sessão (docs/33) —
+   * ver `RelayClientCallbacks.onHistoryTruncated`. */
+  onHistoryTruncated?: (page: HistoryPageMessage) => void;
+  /** `edit_message` que este dispositivo pediu falhou — ver
+   * `RelayClientCallbacks.onEditMessageError`. */
+  onEditMessageError?: (message: string) => void;
 }
 
 export interface UseRelayClientResult {
@@ -104,6 +110,8 @@ export interface UseRelayClientResult {
    * — `background_job_state` some da lista assim que o relay processar,
    * sem confirmação em separado (o próprio job sumir do chip já é o sinal). */
   cancelBackgroundJob: (id: string) => void;
+  /** Edição de mensagem (docs/33) — ver `RelayClient.editMessage`. */
+  editMessage: (fromEnd: number, text: string) => void;
 }
 
 /**
@@ -181,6 +189,8 @@ export function useRelayClient(
       onOlderHistory: (page) => optionsRef.current.onOlderHistory?.(page),
       onTurnState: (state) => optionsRef.current.onTurnState?.(state),
       onBackgroundJobState: setBackgroundJobs,
+      onHistoryTruncated: (page) => optionsRef.current.onHistoryTruncated?.(page),
+      onEditMessageError: (message) => optionsRef.current.onEditMessageError?.(message),
     });
     clientRef.current = client;
     client.connect();
@@ -240,6 +250,10 @@ export function useRelayClient(
     clientRef.current?.cancelBackgroundJob(id);
   }, []);
 
+  const editMessage = useCallback((fromEnd: number, text: string) => {
+    clientRef.current?.editMessage(fromEnd, text);
+  }, []);
+
   return {
     connected,
     cwd,
@@ -260,5 +274,6 @@ export function useRelayClient(
     loadOlderHistory,
     backgroundJobs,
     cancelBackgroundJob,
+    editMessage,
   };
 }

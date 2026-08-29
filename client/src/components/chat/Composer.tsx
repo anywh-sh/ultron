@@ -1,6 +1,6 @@
 import { forwardRef, useImperativeHandle, useMemo, useRef, useState, type MutableRefObject } from "react";
 import { ArrowUp, Check, ChevronDown, Mic, Paperclip, Square, X } from "lucide-react";
-import { Extension } from "@tiptap/core";
+import { Extension, type JSONContent } from "@tiptap/core";
 import { EditorContent, ReactMarkViewRenderer, ReactRenderer, useEditor } from "@tiptap/react";
 import StarterKit from "@tiptap/starter-kit";
 import { Link } from "@tiptap/extension-link";
@@ -62,6 +62,11 @@ interface ComposerProps {
 
 export interface ComposerHandle {
   focus: () => void;
+  /** Edição de mensagem via composer (docs/33, iOS) — substitui o conteúdo
+   * pelo texto original da mensagem editada (ou limpa, com `""`, ao
+   * cancelar). Texto puro, sem markdown/HTML: mesma forma que `onSend`
+   * entrega pra fora, só que no sentido contrário. */
+  setContent: (text: string) => void;
 }
 
 const WAVEFORM_BARS = [0, 1, 2, 3, 4];
@@ -104,6 +109,22 @@ const EXTENSIONS = [
 ];
 
 const DEFAULT_PLACEHOLDER = "Escreva uma mensagem…";
+
+/** Reconstrói o doc do Tiptap a partir de texto plano (docs/33, edição via
+ * composer no iOS) — via JSON, não uma string HTML interpolada: o texto
+ * pode ter `<`/`&`/etc que quebrariam um parse HTML ingênuo. Um parágrafo
+ * só com `hardBreak` entre linhas: o schema do composer nunca produz mais
+ * de um parágrafo de qualquer jeito (Enter sem shift sempre envia, nunca
+ * `splitBlock` — ver `handleKeyDown` abaixo), então não tem "parágrafo
+ * original" pra restaurar, só a mesma sequência de quebras de linha. */
+function buildComposerDoc(text: string): JSONContent {
+  const content: JSONContent[] = [];
+  text.split("\n").forEach((line, index) => {
+    if (index > 0) content.push({ type: "hardBreak" });
+    if (line) content.push({ type: "text", text: line });
+  });
+  return { type: "doc", content: [{ type: "paragraph", content }] };
+}
 
 /** Placeholder dinâmico: mostra a sugestão de próxima mensagem enquanto ela
  * existir, senão cai no texto genérico de sempre. Precisa ser criado por
@@ -320,7 +341,12 @@ export const Composer = forwardRef<ComposerHandle, ComposerProps>(function Compo
         // `createSlashCommandExtension`) — sem isso o Enter sempre submeteria
         // em vez de preencher o comando selecionado.
         if (event.key === "Enter" && !event.shiftKey && slashMenuActiveRef.current) return false;
-        if (event.key === "Enter" && !event.shiftKey) {
+        // No iOS o teclado não tem um jeito prático de "Shift+Enter" — Enter
+        // vira quebra de linha (comportamento padrão do ProseMirror, `return
+        // false`), envio fica só pelo botão (docs/33). Desktop não muda:
+        // Enter continua enviando, Shift+Enter continua sendo a única forma
+        // de quebra de linha lá.
+        if (event.key === "Enter" && !event.shiftKey && !isIOS()) {
           event.preventDefault();
           submitRef.current();
           return true;
@@ -341,6 +367,7 @@ export const Composer = forwardRef<ComposerHandle, ComposerProps>(function Compo
 
   useImperativeHandle(ref, () => ({
     focus: () => editor?.commands.focus(),
+    setContent: (text) => editor?.commands.setContent(text ? buildComposerDoc(text) : ""),
   }));
 
   const voice = useVoiceRecording({

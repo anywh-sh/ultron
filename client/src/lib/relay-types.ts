@@ -87,6 +87,11 @@ export interface ClaudeEvent {
   tool_use_result?: ToolUseResult;
   /** Presente em `type: "system", subtype: "compact_boundary"`. */
   compactMetadata?: CompactBoundaryMetadata;
+  /** Presente só em `type: "user_prompt"` — ISO da linha real do `.jsonl`
+   * (histórico/replay) ou hora aproximada do broadcast ao vivo pros outros
+   * dispositivos (docs/33). Quem mandou a mensagem já sabe a própria hora do
+   * clique, não depende disso. */
+  timestamp?: string;
   [key: string]: unknown;
 }
 
@@ -182,7 +187,17 @@ export type RelayMessage =
    * nova e sempre que a lista muda (início, fim ou expiração de um job —
    * ver relay/src/sessionManager.ts::syncBackgroundJobState, docs/32 Fase E).
    * Array vazio (não omitido) quando não há nenhum. */
-  | { type: "background_job_state"; jobs: BackgroundJobSummary[] };
+  | { type: "background_job_state"; jobs: BackgroundJobSummary[] }
+  /** Edição de mensagem (docs/33) — mandado só pros OUTROS dispositivos
+   * conectados na sessão (quem editou já se autotruncou de forma otimista,
+   * igual a um envio normal); sincroniza o ponto de corte antes do turno
+   * novo começar a transmitir. Mesma forma de `history_page`, tratado do
+   * mesmo jeito no client (reset + hydrate). */
+  | ({ type: "history_truncated" } & HistoryPageMessage)
+  /** Resposta a um `edit_message` inválido (mensagem não encontrada — ex:
+   * histórico mudou por outro dispositivo) ou que falhou ao truncar o
+   * transcript real. Só pro socket que pediu. */
+  | { type: "edit_message_error"; message: string };
 
 /** Um job `ultron-bg` observado agora nessa sessão — docs/32, Fase E.
  * Espelha `BackgroundJobSummary` do relay (relay/src/backgroundJobs.ts):

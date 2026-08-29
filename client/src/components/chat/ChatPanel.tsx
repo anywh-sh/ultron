@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
-import { ImagePlus } from "lucide-react";
+import { ImagePlus, X } from "lucide-react";
 import { useRelayClient } from "@/hooks/useRelayClient";
-import { useMessageLog } from "@/hooks/useMessageLog";
+import { useMessageLog, type LogEntry } from "@/hooks/useMessageLog";
 import { useImageUpload, type PendingImage } from "@/hooks/useImageUpload";
 import { MessageLog } from "@/components/chat/MessageLog";
 import { MessageLogSkeleton } from "@/components/chat/MessageLogSkeleton";
@@ -66,6 +66,24 @@ function buildWireMessage(text: string, images: PendingImage[]): string {
   return [text, imageRefs].filter(Boolean).join("\n\n");
 }
 
+/** Edição de mensagem (docs/33) — conta quantas entries `kind: "user"`
+ * existem entre `id` e o fim de `entries` (inclusive), contando do fim (`1`
+ * = a última). É sempre calculável a partir do que já está carregado: a
+ * paginação do histórico carrega de trás pra frente, então tudo que vem
+ * DEPOIS de uma mensagem já renderizada também já está carregado. `null` se
+ * `id` não for encontrado (não deveria acontecer — o id vem de uma entry
+ * renderizada agora mesmo). */
+function computeFromEnd(entries: LogEntry[], id: string): number | null {
+  let count = 0;
+  for (let i = entries.length - 1; i >= 0; i--) {
+    const entry = entries[i];
+    if (entry.kind !== "user") continue;
+    count++;
+    if (entry.id === id) return count;
+  }
+  return null;
+}
+
 export function ChatPanel({
   profile,
   sessionId,
@@ -110,6 +128,20 @@ export function ChatPanel({
 
   const images = useImageUpload(profile, (message) => window.alert(message));
   const composerRef = useRef<ComposerHandle>(null);
+
+  // Edição de mensagem (docs/33). `fromEnd` é calculado uma vez, no momento
+  // do clique em "editar" (`computeFromEnd`), e guardado aqui em vez de
+  // recalculado no momento de salvar — evita depender do log não ter mudado
+  // no meio do caminho. `editTargetRef`/`performEditRef` existem pra
+  // `onStartEdit`/`onSaveEdit`/`onSend` lerem sempre o valor mais recente
+  // sem entrar como dependência de `useCallback` nenhum — é o que mantém a
+  // identidade desses callbacks estável entre renders (ver comentário do
+  // `memo` em `Message.tsx`: sem isso, TODAS as bolhas perderiam o bail-out
+  // do memo a cada render do `ChatPanel`, não só a que está sendo editada).
+  const [editTarget, setEditTarget] = useState<{ id: string; fromEnd: number } | null>(null);
+  const editTargetRef = useRef(editTarget);
+  editTargetRef.current = editTarget;
+  const performEditRef = useRef<(id: string, text: string) => void>(() => {});
 
   // Contador em vez de um boolean simples: dragenter/dragleave disparam pra
   // cada elemento filho sobrevoado, um simples enter/leave "pisca" o overlay
@@ -157,6 +189,7 @@ export function ChatPanel({
     loadOlderHistory,
     backgroundJobs,
     cancelBackgroundJob,
+    editMessage,
   } = useRelayClient(profile, sessionId, {
     onEvent: (event) => logRef.current.handleEvent(event),
     onReconnecting: () => {
@@ -174,6 +207,15 @@ export function ChatPanel({
     onHistoryPage: (page) => logRef.current.hydrate(page),
     // Turnos mais antigos pedidos via scroll pra cima (Fase 5, docs/30).
     onOlderHistory: (page) => logRef.current.prependHistory(page),
+    // Edição de mensagem em OUTRO dispositivo conectado nesta sessão
+    // (docs/33) — mesmo tratamento de reset+hydrate de `onReconnecting`/
+    // `onHistoryPage`, só que sem tocar em `ready`/`caughtUpRef`: este
+    // dispositivo já está em dia, não é uma reconexão de verdade.
+    onHistoryTruncated: (page) => {
+      logRef.current.reset();
+      logRef.current.hydrate(page);
+    },
+    onEditMessageError: (message) => window.alert(message),
     onCaughtUp: () => {
       caughtUpRef.current = true;
       setReady(true);
@@ -216,6 +258,54 @@ export function ChatPanel({
   useEffect(() => {
     onConnectedChangeRef.current?.(connected);
   }, [connected]);
+
+  // Edição de mensagem (docs/33): trunca localmente (otimista, igual a um
+  // envio normal) e manda `edit_message` — o relay para o turno atual (se
+  // houver), corta o transcript real no ponto certo e roda um turno novo. Se
+  // `target.id` não bater mais com o `id` pedido (ex: outra edição já rodou
+  // no meio do caminho), ignora em vez de truncar no lugar errado.
+  performEditRef.current = (id, newText) => {
+    const target = editTargetRef.current;
+    if (!target || target.id !== id) return;
+    log.editUserMessage(id, newText);
+    editMessage(target.fromEnd, newText);
+    setTurnStartedAt(Date.now());
+    setEditTarget(null);
+    dismissSuggestion();
+    onActivity?.();
+  };
+
+  // Identidade estável (refs por dentro, sem depender de state/props no array
+  // de deps) — ver comentário no topo do componente sobre por que isso
+  // importa pro `memo` de `UserBubble`/`MessageLog`.
+  const onStartEdit = useCallback((id: string, text: string) => {
+    const fromEnd = computeFromEnd(logRef.current.entries, id);
+    if (fromEnd === null) return;
+    setEditTarget({ id, fromEnd });
+    // No iOS a edição acontece via composer (docs/33: balão não vira input
+    // lá) — preenche com o texto original e mostra o aviso (ver JSX abaixo).
+    // No desktop isso não faz nada: `editingMessageId` já basta pro
+    // `UserBubble` virar `<textarea>` sozinho.
+    if (isIOS()) {
+      composerRef.current?.setContent(text);
+      composerRef.current?.focus();
+    }
+  }, []);
+
+  const onCancelEdit = useCallback(() => {
+    setEditTarget(null);
+    if (isIOS()) composerRef.current?.setContent("");
+  }, []);
+
+  const onSaveEdit = useCallback((id: string, text: string) => {
+    performEditRef.current(id, text);
+  }, []);
+
+  const onCopyMessage = useCallback((text: string) => {
+    navigator.clipboard.writeText(text).catch(() => {
+      window.alert("Não foi possível copiar a mensagem.");
+    });
+  }, []);
 
   // Disparado pelo `MessageLog` ao rolar perto do topo (Fase 5, docs/30) — o
   // guard mora aqui (não só no `MessageLog`) porque `logRef` é a fonte de
@@ -282,6 +372,14 @@ export function ChatPanel({
           loadingOlderHistory={log.loadingOlderHistory}
           onLoadOlderHistory={handleLoadOlderHistory}
           className={isIOS() ? "pt-[calc(env(safe-area-inset-top)+64px)] pb-32" : undefined}
+          // No iOS a edição nunca vira `<textarea>` inline (docs/33) — o
+          // `ChatPanel` nunca passa um id daqui pra lá nessa plataforma,
+          // mesmo com `editTarget` setado (ver aviso no composer abaixo).
+          editingMessageId={isIOS() ? null : (editTarget?.id ?? null)}
+          onStartEdit={onStartEdit}
+          onCancelEdit={onCancelEdit}
+          onSaveEdit={onSaveEdit}
+          onCopy={onCopyMessage}
         />
       ) : (
         <MessageLogSkeleton />
@@ -315,6 +413,24 @@ export function ChatPanel({
           {terminal && <TerminalToggleButton cwd={cwd} open={terminal.open} onToggle={terminal.onToggle} />}
         </div>
 
+        {/* iOS (docs/33): edição não vira `<textarea>` inline no balão (ver
+         * `editingMessageId` acima) — preenche o composer normal com o texto
+         * original e mostra este aviso, já que enviar a partir daqui vai
+         * descartar a resposta original e tudo que veio depois dela. */}
+        {isIOS() && editTarget && (
+          <div className="flex items-center justify-between gap-2 rounded-xl bg-bg-elevated/80 px-3 py-2 text-xs text-muted-foreground backdrop-blur-lg">
+            <span>Editando essa mensagem vai recomeçar a conversa a partir desse ponto.</span>
+            <button
+              type="button"
+              onClick={onCancelEdit}
+              aria-label="Cancelar edição"
+              className="shrink-0 cursor-pointer text-muted-foreground hover:text-foreground"
+            >
+              <X className="size-3.5" />
+            </button>
+          </div>
+        )}
+
         <Composer
           ref={composerRef}
           disabled={!connected}
@@ -332,6 +448,15 @@ export function ChatPanel({
           compactBoundary={compactBoundary}
           suggestion={suggestion}
           onSend={(text, sentImages) => {
+            // Edição via composer (docs/33, iOS) — o envio normal (comandos
+            // de barra, `addUserMessage`+`sendMessage`) não se aplica aqui:
+            // o texto vai pro `edit_message`, não pro `user_message`.
+            // Imagens anexadas nesse estado são ignoradas de propósito
+            // (editar mensagem com imagem é fora de escopo da v1).
+            if (editTargetRef.current) {
+              performEditRef.current(editTargetRef.current.id, text);
+              return;
+            }
             // `/model`/`/clear` (docs/26): reconhecidos aqui, antes de virar
             // turno — nenhum dos dois passa como texto pro `claude -p` (ver
             // slashCommands.ts pro motivo de cada um). Comando com argumento

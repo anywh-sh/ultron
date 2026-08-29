@@ -3,7 +3,7 @@ import type { ClaudeEvent, ClaudeContentBlock, HistoryMessage, HistoryPageMessag
 import type { PendingImage } from "@/hooks/useImageUpload";
 
 export type LogEntry =
-  | { kind: "user"; id: string; text: string; images?: PendingImage[] }
+  | { kind: "user"; id: string; text: string; images?: PendingImage[]; sentAt: number }
   | { kind: "text"; id: string; text: string; streaming: boolean }
   | { kind: "tool-use"; id: string; toolUseId?: string; name: string; input: ClaudeContentBlock["input"] }
   | {
@@ -47,7 +47,14 @@ interface MessageLogState {
 }
 
 type Action =
-  | { type: "USER_MESSAGE"; text: string; images?: PendingImage[] }
+  | { type: "USER_MESSAGE"; text: string; images?: PendingImage[]; sentAt: number }
+  /** Edição de mensagem (docs/33) — trunca `entries` até (exclusive) a
+   * entry `id` (mensagem editada e tudo que veio depois, na tela deste
+   * dispositivo) e empurra a nova, otimista, igual `USER_MESSAGE`. O relay
+   * faz o corte de verdade (transcript real + `history` em memória) de
+   * forma assíncrona; isso aqui só antecipa a UI local, mesmo espírito do
+   * resto do reducer. */
+  | { type: "EDIT_USER_MESSAGE"; id: string; text: string; sentAt: number }
   | { type: "CLAUDE_EVENT"; event: ClaudeEvent }
   | { type: "TURN_ERROR"; message: string }
   | { type: "TURN_COMPLETE"; stopped?: boolean }
@@ -125,7 +132,13 @@ function applyClaudeEvent(state: MessageLogState, event: ClaudeEvent): MessageLo
     const block = event.message?.content?.[0];
     const text = block?.type === "text" ? block.text : undefined;
     if (typeof text !== "string") return state;
-    return { ...state, entries: [...state.entries, { kind: "user", id: newId(), text }] };
+    // `event.timestamp` só vem preenchido em replay/histórico ou no
+    // broadcast pros OUTROS dispositivos (docs/33) — quem mandou a mensagem
+    // já commitou ela via `USER_MESSAGE` com a hora local do clique, nunca
+    // passa por aqui pra ela mesma. `Date.now()` de fallback só cobriria um
+    // formato de evento inesperado, não deveria acontecer na prática.
+    const sentAt = event.timestamp ? Date.parse(event.timestamp) : Date.now();
+    return { ...state, entries: [...state.entries, { kind: "user", id: newId(), text, sentAt }] };
   }
 
   if (event.type === "stream_event" && event.event) {
@@ -202,8 +215,23 @@ function reducer(state: MessageLogState, action: Action): MessageLogState {
     case "USER_MESSAGE":
       return {
         ...state,
-        entries: [...state.entries, { kind: "user", id: newId(), text: action.text, images: action.images }],
+        entries: [...state.entries, { kind: "user", id: newId(), text: action.text, images: action.images, sentAt: action.sentAt }],
       };
+
+    case "EDIT_USER_MESSAGE": {
+      const index = state.entries.findIndex((entry) => entry.id === action.id);
+      // Não deveria acontecer (o id vem de uma entry renderizada agora
+      // mesmo), mas se o log mudou debaixo do usuário por algum motivo,
+      // trata como um envio normal em vez de arriscar truncar no lugar
+      // errado — mais seguro que silenciosamente cortar tudo (`index: -1`
+      // fatiaria o array inteiro).
+      const base = index === -1 ? state.entries : state.entries.slice(0, index);
+      return {
+        ...state,
+        entries: [...base, { kind: "user", id: newId(), text: action.text, sentAt: action.sentAt }],
+        streamingText: [],
+      };
+    }
 
     case "CLAUDE_EVENT":
       return applyHistoryMessage(state, { type: "claude_event", event: action.event });
@@ -264,6 +292,12 @@ export interface UseMessageLogResult {
   /** Pedido de página mais antiga em voo — ver `beginLoadingOlderHistory`. */
   loadingOlderHistory: boolean;
   addUserMessage: (text: string, images?: PendingImage[]) => void;
+  /** Edição de mensagem (docs/33) — trunca localmente (otimista) até a
+   * mensagem `id` e empurra a nova em cima. O relay client é quem
+   * efetivamente manda `edit_message` pro relay; isso aqui só atualiza a
+   * tela deste dispositivo, mesmo padrão de `addUserMessage`/`sendMessage`
+   * em `ChatPanel.onSend`. */
+  editUserMessage: (id: string, text: string) => void;
   handleEvent: (event: ClaudeEvent) => void;
   handleTurnError: (message: string) => void;
   handleTurnComplete: (stopped?: boolean) => void;
@@ -301,7 +335,8 @@ export function useMessageLog(): UseMessageLogResult {
     hasMoreHistory: state.hasMoreHistory,
     historyCursor: state.historyCursor,
     loadingOlderHistory: state.loadingOlderHistory,
-    addUserMessage: (text, images) => dispatch({ type: "USER_MESSAGE", text, images }),
+    addUserMessage: (text, images) => dispatch({ type: "USER_MESSAGE", text, images, sentAt: Date.now() }),
+    editUserMessage: (id, text) => dispatch({ type: "EDIT_USER_MESSAGE", id, text, sentAt: Date.now() }),
     handleEvent: (event) => dispatch({ type: "CLAUDE_EVENT", event }),
     handleTurnError: (message) => dispatch({ type: "TURN_ERROR", message }),
     handleTurnComplete: (stopped) => dispatch({ type: "TURN_COMPLETE", stopped }),
