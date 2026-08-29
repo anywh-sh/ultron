@@ -311,7 +311,12 @@ export const MessageLog = memo(function MessageLog({
     <div
       ref={parentRef}
       onScroll={handleScroll}
-      className={cn("scrollbar-thin relative flex-1 overflow-y-auto px-4 py-3", className)}
+      // `overflow-x-hidden` explícito, não só a ausência dele: sem isso o
+      // eixo X herda o valor computado `auto` (regra da spec de overflow —
+      // `overflow-y` não-`visible` força o outro eixo pra `auto` também),
+      // que abre scroll horizontal assim que qualquer conteúdo (um path
+      // longo em `code`, por ex.) estourar a largura por 1px que seja.
+      className={cn("scrollbar-thin relative flex-1 overflow-x-hidden overflow-y-auto px-4 py-3", className)}
     >
       {loadingOlderHistory && (
         <div className="sticky top-0 z-10 flex justify-center py-1.5">

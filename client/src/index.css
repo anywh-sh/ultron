@@ -304,6 +304,13 @@ body {
  * puxar mais uma dependência. */
 .prose-chat {
   line-height: 1.65;
+  /* `anywhere` (não só `break-word`) — um path/URL longo sem espaço é uma
+   * única "palavra" pro navegador, que por padrão não tem onde quebrar; sem
+   * isso ela estoura a largura da bolha e abre o scroll horizontal fantasma
+   * que `overflow-x-hidden` do container (`MessageLog.tsx`) já bloqueia,
+   * mas só cortando o texto — aqui é o que faz ele quebrar de linha de
+   * verdade em vez de ficar cortado. */
+  overflow-wrap: anywhere;
 }
 .prose-chat > * + * {
   margin-top: 0.6em;
