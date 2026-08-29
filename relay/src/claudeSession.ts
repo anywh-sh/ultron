@@ -45,11 +45,12 @@ const EXTRA_PATH_DIRS = [
  * usando esse mecanismo nativo (ou `&`/`nohup` cru) e a promessa nunca se
  * cumpre — achado real do usuário, causa raiz documentada em docs/32.
  * `ultron-bg` (script em `relay/scripts/`, incluído no PATH acima) resolve
- * isso ficando fora do processo do turno, mas a Fase D de docs/32 (turno de
- * follow-up automático quando o job termina) ainda não existe — por isso a
- * instrução aqui é deliberadamente conservadora: usar `ultron-bg`, mas NUNCA
- * alegar aviso proativo (isso ainda seria mentira). Atualizar este texto
- * quando a Fase D estiver no ar.
+ * isso ficando fora do processo do turno; o `BackgroundJobTracker`
+ * (`backgroundJobs.ts`, ligado em `sessionManager.ts`) observa a conclusão e
+ * dispara um turno de follow-up automático (`SharedSession.
+ * submitBackgroundJobResult`, docs/32 Fase D) — a promessa abaixo já é
+ * cumprida de verdade, validada ponta-a-ponta contra o binário real
+ * (`relay/test-background-job.mjs`).
  */
 const APPEND_SYSTEM_PROMPT =
   "When writing prose meant to be pasted elsewhere (Slack, email), write each paragraph as one " +
@@ -59,9 +60,10 @@ const APPEND_SYSTEM_PROMPT =
   '--label "<short description>" --cmd "<full shell command>"` — check on it within this same ' +
   "turn with `ultron-bg status <id>` if useful. Never use `&`, `nohup`, or the Bash tool's own " +
   "`run_in_background` for this: none of those survive past this turn, so any promise to 'check " +
-  "back' or 'let you know' made through them is always broken. There is also no automatic " +
-  "notification across turns yet — tell the user what you started and that they can ask about its " +
-  "status later; do not claim you will proactively notify them.";
+  "back' or 'let you know' made through them is always broken. Once launched with `ultron-bg`, " +
+  "you don't need to wait for it or keep polling before ending your turn — when it finishes, you " +
+  "will automatically get a new turn reporting the result, which the user is notified about. You " +
+  "can tell them that.";
 
 /** Env de todo processo filho do relay (turno do `claude -p` aqui, shell
  * interativo em terminalSession.ts) — extraído pra um lugar só porque a
