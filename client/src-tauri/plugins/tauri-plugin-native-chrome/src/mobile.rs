@@ -31,4 +31,11 @@ impl<R: Runtime> NativeChrome<R> {
       .run_mobile_plugin("setConnectionIndicator", payload)
       .map_err(Into::into)
   }
+
+  pub fn show_context_menu(&self, payload: ShowContextMenuRequest) -> crate::Result<ShowContextMenuResponse> {
+    self
+      .0
+      .run_mobile_plugin("showContextMenu", payload)
+      .map_err(Into::into)
+  }
 }

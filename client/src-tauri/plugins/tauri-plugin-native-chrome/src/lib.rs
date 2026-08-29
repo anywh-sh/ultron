@@ -35,7 +35,10 @@ impl<R: Runtime, T: Manager<R>> crate::NativeChromeExt<R> for T {
 /// Initializes the plugin.
 pub fn init<R: Runtime>() -> TauriPlugin<R> {
   Builder::new("native-chrome")
-    .invoke_handler(tauri::generate_handler![commands::set_connection_indicator])
+    .invoke_handler(tauri::generate_handler![
+      commands::set_connection_indicator,
+      commands::show_context_menu
+    ])
     .setup(|app, api| {
       #[cfg(mobile)]
       let native_chrome = mobile::init(app, api)?;
