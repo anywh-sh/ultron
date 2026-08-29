@@ -43,9 +43,11 @@ class NativeChromePlugin: Plugin, UIEditMenuInteractionDelegate {
   private var pendingResolved = false
 
   @objc public override func load(webview: WKWebView) {
-    let interaction = UIEditMenuInteraction(delegate: self)
-    webview.addInteraction(interaction)
-    self.editMenuInteraction = interaction
+    Task { @MainActor in
+      let interaction = UIEditMenuInteraction(delegate: self)
+      webview.addInteraction(interaction)
+      self.editMenuInteraction = interaction
+    }
   }
 
   @objc func showContextMenu(_ invoke: Invoke) throws {
@@ -70,7 +72,11 @@ class NativeChromePlugin: Plugin, UIEditMenuInteractionDelegate {
       self.pendingInvoke = invoke
       self.pendingResolved = false
       let point = CGPoint(x: args.point.x, y: args.point.y)
-      interaction.presentEditMenu(with: UIEditMenuConfiguration(sourcePoint: point))
+      // `identifier` não tem default nesse SDK apesar do que a doc pública
+      // sugere (`init(identifier:sourcePoint:)`, sempre os dois argumentos)
+      // — `nil` é o valor correto quando não precisamos rastrear/comparar
+      // configurações entre chamadas.
+      interaction.presentEditMenu(with: UIEditMenuConfiguration(identifier: nil, sourcePoint: point))
     }
   }
 
