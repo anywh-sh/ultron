@@ -1,4 +1,4 @@
-import { Brain, Pencil } from "lucide-react";
+import { Brain, Loader2, Pencil } from "lucide-react";
 import { cn } from "@/lib/utils";
 import type { SessionSummary } from "@/lib/relay-types";
 import { useContextMenu } from "@/hooks/useContextMenu";
@@ -8,6 +8,10 @@ interface SessionListItemProps {
   session: SessionSummary;
   selected: boolean;
   running: boolean;
+  /** Job `ultron-bg` observado agora nessa sessão (docs/32, Fase E) — mesmo
+   * limite de `running`: só sessões abertas como aba têm essa informação
+   * (sem aba = sem conexão WS viva pra saber). */
+  hasBackgroundJob: boolean;
   onSelect: (id: string) => void;
   onRename: (id: string, currentTitle: string) => void;
   onDelete: (id: string) => void;
@@ -18,6 +22,7 @@ export function SessionListItem({
   session,
   selected,
   running,
+  hasBackgroundJob,
   onSelect,
   onRename,
   onDelete,
@@ -38,6 +43,9 @@ export function SessionListItem({
       >
         <span className="truncate">{session.title}</span>
         {running && <Brain className="size-3 shrink-0 animate-pulse text-primary" aria-label="Agente trabalhando nesta sessão" />}
+        {hasBackgroundJob && (
+          <Loader2 className="size-3 shrink-0 animate-spin text-muted-foreground" aria-label="Job em background rodando nesta sessão" />
+        )}
       </button>
       <button
         type="button"

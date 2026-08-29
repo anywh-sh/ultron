@@ -26,6 +26,19 @@ export interface WatchedJob {
   startedAt: number;
 }
 
+/** Subconjunto de `WatchedJob` seguro pra expor ao cliente (Fase E de
+ * docs/32) — sem `logPath`/`exitPath` (caminhos de arquivo no servidor,
+ * detalhe interno) nem `sessionId` (já implícito na conexão WS da sessão). */
+export interface BackgroundJobSummary {
+  id: string;
+  label: string;
+  startedAt: number;
+}
+
+export function toBackgroundJobSummary(job: WatchedJob): BackgroundJobSummary {
+  return { id: job.id, label: job.label, startedAt: job.startedAt };
+}
+
 export interface FinishedBackgroundJob extends WatchedJob {
   exitCode: number;
   logTail: string;
@@ -136,9 +149,17 @@ function readLogTail(logPath: string, maxBytes: number): string {
 }
 
 export interface BackgroundJobTrackerOptions {
-  /** Chamado (síncrono ou não) quando um job observado termina — sem
-   * follow-up nenhum na Fase C, só logging (ver server.ts/sharedSession.ts). */
+  /** Chamado quando um job observado termina — na Fase D dispara o turno de
+   * follow-up (ver `sessionManager.ts`). */
   onFinished: (job: FinishedBackgroundJob) => void;
+  /** Disparado sempre que a lista de jobs observados de uma sessão muda —
+   * início, conclusão OU expiração pelo teto (`maxWatchMs`). Fase E de
+   * docs/32: é o que alimenta o `background_job_state` que o cliente usa
+   * pro indicador de UI ("existe um job rodando agora"). Só o `sessionId`
+   * — quem consome busca a lista atual via `listWatchedForSession`, não
+   * carrega o array pronto (evita o callback ficar desatualizado se duas
+   * mudanças acontecerem em sequência antes de quem escuta reagir). */
+  onChanged?: (sessionId: string) => void;
   /** ms entre polls do disco — separado em option (não constante) só pra
    * teste conseguir usar um intervalo curto sem depender do valor de
    * produção. */
@@ -184,10 +205,15 @@ export class BackgroundJobTracker {
       startedAt: Date.now(),
     });
     this.ensurePolling();
+    this.options.onChanged?.(sessionId);
   }
 
   listWatched(): WatchedJob[] {
     return [...this.jobs.values()];
+  }
+
+  listWatchedForSession(sessionId: string): WatchedJob[] {
+    return [...this.jobs.values()].filter((job) => job.sessionId === sessionId);
   }
 
   private ensurePolling(): void {
@@ -206,6 +232,7 @@ export class BackgroundJobTracker {
           `[relay] background job "${job.label}" (${job.id}) expirou sem terminar depois de ${String(this.maxWatchMs)}ms — parando de observar`,
         );
         this.jobs.delete(key);
+        this.options.onChanged?.(job.sessionId);
         continue;
       }
       if (!existsSync(job.exitPath)) continue;
@@ -217,9 +244,11 @@ export class BackgroundJobTracker {
         logTail = readLogTail(job.logPath, this.logTailBytes);
       } catch (error) {
         console.error(`[relay] falha lendo resultado do background job "${job.label}" (${job.id}):`, error);
+        this.options.onChanged?.(job.sessionId);
         continue;
       }
       this.options.onFinished({ ...job, exitCode, logTail });
+      this.options.onChanged?.(job.sessionId);
     }
     if (this.jobs.size === 0 && this.timer) {
       clearInterval(this.timer);

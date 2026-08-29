@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import {
   RelayClient,
+  type BackgroundJobSummary,
   type ClaudeEvent,
   type ContextUsage,
   type HistoryPageMessage,
@@ -94,6 +95,11 @@ export interface UseRelayClientResult {
   /** Busca turnos mais antigos que `beforeCursor` — ver
    * `RelayClient.loadOlderHistory` (Fase 2/3, docs/30). */
   loadOlderHistory: (beforeCursor: number) => void;
+  /** Jobs `ultron-bg` observados agora nessa sessão — array vazio (nunca
+   * `null`) tanto "nenhum job" quanto "ainda não chegou o primeiro
+   * `background_job_state`" (docs/32, Fase E): as duas não têm UI diferente
+   * (indicador escondido nos dois casos), não precisa distinguir. */
+  backgroundJobs: BackgroundJobSummary[];
 }
 
 /**
@@ -117,6 +123,7 @@ export function useRelayClient(
   const [contextUsage, setContextUsage] = useState<ContextUsage | null>(null);
   const [compactBoundary, setCompactBoundary] = useState<CompactBoundaryEvent | null>(null);
   const [suggestion, setSuggestion] = useState<string | null>(null);
+  const [backgroundJobs, setBackgroundJobs] = useState<BackgroundJobSummary[]>([]);
   const clientRef = useRef<RelayClient | null>(null);
 
   const optionsRef = useRef(options);
@@ -134,6 +141,7 @@ export function useRelayClient(
     setContextUsage(null);
     setCompactBoundary(null);
     setSuggestion(null);
+    setBackgroundJobs([]);
 
     const client = new RelayClient(profile.host, profile.relayPort, sessionId, {
       onEvent: (event) => {
@@ -168,6 +176,7 @@ export function useRelayClient(
       onHistoryPage: (page) => optionsRef.current.onHistoryPage?.(page),
       onOlderHistory: (page) => optionsRef.current.onOlderHistory?.(page),
       onTurnState: (state) => optionsRef.current.onTurnState?.(state),
+      onBackgroundJobState: setBackgroundJobs,
     });
     clientRef.current = client;
     client.connect();
@@ -241,5 +250,6 @@ export function useRelayClient(
     setModel,
     clearConversation,
     loadOlderHistory,
+    backgroundJobs,
   };
 }

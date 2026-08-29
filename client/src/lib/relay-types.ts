@@ -176,7 +176,22 @@ export type RelayMessage =
    * `suggestion`, não é "estado atual": é um evento de um turno específico,
    * não reenviado numa reconexão. `null` em falha/vazio do gerador — quem
    * consome cai pro fallback (última mensagem do usuário). */
-  | { type: "notification_summary"; text: string | null };
+  | { type: "notification_summary"; text: string | null }
+  /** Jobs `ultron-bg` observados agora na sessão — estado "atual" (mesmo
+   * raciocínio de `cwd_state`/`turn_state`), mandado de novo a cada conexão
+   * nova e sempre que a lista muda (início, fim ou expiração de um job —
+   * ver relay/src/sessionManager.ts::syncBackgroundJobState, docs/32 Fase E).
+   * Array vazio (não omitido) quando não há nenhum. */
+  | { type: "background_job_state"; jobs: BackgroundJobSummary[] };
+
+/** Um job `ultron-bg` observado agora nessa sessão — docs/32, Fase E.
+ * Espelha `BackgroundJobSummary` do relay (relay/src/backgroundJobs.ts):
+ * sem caminho de arquivo nem `sessionId` (a sessão já é a da conexão WS). */
+export interface BackgroundJobSummary {
+  id: string;
+  label: string;
+  startedAt: number;
+}
 
 /** Uma sessão como o relay expõe em `GET /sessions` — `id` é estável desde a
  * criação, `title` é o que a sidebar mostra (inferido do primeiro prompt ou

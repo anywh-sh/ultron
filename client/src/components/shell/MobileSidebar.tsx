@@ -13,6 +13,7 @@ interface MobileSidebarProps {
   sessionsLoading: boolean;
   selectedSession: string | null;
   runningSessions: Set<string>;
+  backgroundJobSessions: Set<string>;
   onSelectSession: (id: string) => void;
   onRenameSession: (id: string, title: string) => void;
   onDeleteSession: (id: string) => void;
@@ -37,6 +38,7 @@ export function MobileSidebar({
   sessionsLoading,
   selectedSession,
   runningSessions,
+  backgroundJobSessions,
   onSelectSession,
   onRenameSession,
   onDeleteSession,
@@ -95,6 +97,7 @@ export function MobileSidebar({
           loading={sessionsLoading}
           selected={selectedSession}
           running={runningSessions}
+          backgroundJobSessions={backgroundJobSessions}
           onSelect={onSelectSession}
           onRename={(id, title) => setRenaming({ id, title })}
           onDelete={onDeleteSession}

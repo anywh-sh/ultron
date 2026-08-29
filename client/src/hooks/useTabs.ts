@@ -10,6 +10,10 @@ export interface Tab {
   title: string | null;
   hasUnreadCompletion: boolean;
   isRunning: boolean;
+  /** Tem job `ultron-bg` observado agora nessa sessão (docs/32, Fase E) —
+   * mesmo padrão de `isRunning`, só que pra "algo rodando sem supervisão em
+   * paralelo" em vez de "o assistente está respondendo agora". */
+  hasBackgroundJob: boolean;
   /** `true` só pra abas abertas via "nova conversa" — usado pelo ChatPanel
    * pra mostrar o estado ocioso em vez do skeleton de carregamento enquanto
    * não há nenhuma mensagem: não existe histórico pra esperar. Fica `true`
@@ -110,7 +114,7 @@ export function useTabs() {
       const exists = prev.tabs.some((tab) => tab.id === id);
       const tabs = exists
         ? prev.tabs
-        : [...prev.tabs, { id, profileId, title, hasUnreadCompletion: false, isRunning: false, isNew }];
+        : [...prev.tabs, { id, profileId, title, hasUnreadCompletion: false, isRunning: false, hasBackgroundJob: false, isNew }];
       return { tabs, activeTabId: id };
     });
   }, []);
@@ -155,6 +159,14 @@ export function useTabs() {
     });
   }, []);
 
+  const setHasBackgroundJob = useCallback((tabId: string, value: boolean) => {
+    setState((prev) => {
+      const tab = prev.tabs.find((t) => t.id === tabId);
+      if (!tab || tab.hasBackgroundJob === value) return prev;
+      return { ...prev, tabs: prev.tabs.map((t) => (t.id === tabId ? { ...t, hasBackgroundJob: value } : t)) };
+    });
+  }, []);
+
   /** Chamado quando o título de uma sessão passa a existir ou muda — tanto
    * pela inferência automática do primeiro prompt (ChatPanel, ao vivo via
    * WS) quanto por um rename manual feito na sidebar. No-op se a sessão não
@@ -191,6 +203,7 @@ export function useTabs() {
         title: persisted.title,
         hasUnreadCompletion: false,
         isRunning: false,
+        hasBackgroundJob: false,
         isNew: false,
       }));
       return { tabs, activeTabId: activeTabId ?? tabs[tabs.length - 1]?.id ?? null };
@@ -205,6 +218,7 @@ export function useTabs() {
     setActiveTab,
     setUnread,
     setRunning,
+    setHasBackgroundJob,
     setTabTitle,
     reorderTabs,
     getPersistedTabs,

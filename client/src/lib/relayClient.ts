@@ -1,6 +1,7 @@
 // Cliente do protocolo do relay próprio (não é mais o protocolo do ttyd —
 // ver docs/11-decisao-pivo-stream-json.md e docs/12-prototipo-relay.md).
 import type {
+  BackgroundJobSummary,
   ClaudeEvent,
   ContextUsage,
   HistoryPageMessage,
@@ -11,6 +12,7 @@ import type {
 } from "@/lib/relay-types";
 
 export type {
+  BackgroundJobSummary,
   ClaudeContentBlock,
   ClaudeMessage,
   ClaudeEvent,
@@ -142,6 +144,10 @@ export interface RelayClientCallbacks {
   /** Resposta a `loadOlderHistory` (Fase 2/3, docs/30) — turnos mais antigos
    * que a cauda inicial, pedidos sob demanda (Fase 5: scroll pra cima). */
   onOlderHistory?: (page: HistoryPageMessage) => void;
+  /** Jobs `ultron-bg` observados agora na sessão — mandado logo na conexão
+   * (mesmo array vazio, se não houver nenhum) e de novo sempre que a lista
+   * muda, em qualquer dispositivo (docs/32, Fase E). */
+  onBackgroundJobState?: (jobs: BackgroundJobSummary[]) => void;
 }
 
 const RECONNECT_BASE_DELAY_MS = 500;
@@ -244,6 +250,8 @@ export class RelayClient {
         this.callbacks.onHistoryPage?.(parsed);
       } else if (parsed.type === "older_history") {
         this.callbacks.onOlderHistory?.(parsed);
+      } else if (parsed.type === "background_job_state") {
+        this.callbacks.onBackgroundJobState?.(parsed.jobs);
       }
     });
   }

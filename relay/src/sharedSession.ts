@@ -7,7 +7,7 @@ import { generateSuggestion } from "./suggestionGenerator.js";
 import { readHistoryFromTranscript } from "./transcriptReader.js";
 import { INITIAL_HISTORY_TAIL_TURNS, pageHistoryBefore } from "./historyPaging.js";
 import type { ContextUsage, ModelChoice, PermissionMode } from "./sessionStore.js";
-import type { FinishedBackgroundJob } from "./backgroundJobs.js";
+import { toBackgroundJobSummary, type BackgroundJobSummary, type FinishedBackgroundJob, type WatchedJob } from "./backgroundJobs.js";
 
 /** Fase D de docs/32 — texto do turno sintético disparado quando um job
  * `ultron-bg` termina. Instrução explícita pra só reportar (não iniciar
@@ -143,6 +143,11 @@ export class SharedSession {
    * não fica em `history`: um cliente conectando (ou reconectando) pega o
    * valor de agora via `addClient`, igual `sendCwdState`. */
   private turnStartedAt: number | null = null;
+  /** Jobs `ultron-bg` observados agora nesta sessão — Fase E de docs/32.
+   * Igual `contextUsage`/`suggestion`: só em memória (não persiste a um
+   * restart do relay), o próprio `BackgroundJobTracker` é que sobrevive ou
+   * não entre reinícios, essa lista é só o espelho do que ele sabe AGORA. */
+  private backgroundJobs: BackgroundJobSummary[] = [];
 
   constructor(
     private readonly homeOverride: string | undefined,
@@ -217,6 +222,15 @@ export class SharedSession {
     return { ok: true };
   }
 
+  /** Fase E de docs/32 — chamado pelo `SessionManager` (via
+   * `BackgroundJobTracker.onChanged`) sempre que a lista de jobs `ultron-bg`
+   * observados desta sessão muda. Mesmo padrão de `setTitle`/`setPermissionMode`:
+   * atualiza o estado local e avisa quem estiver conectado agora. */
+  setBackgroundJobs(jobs: WatchedJob[]): void {
+    this.backgroundJobs = jobs.map(toBackgroundJobSummary);
+    this.broadcastBackgroundJobs();
+  }
+
   addClient(socket: WebSocket): void {
     // Primeiro que tudo — uma aba recém-aberta sabe o cwd/lock imediatamente,
     // sem esperar um turno ou o replay de histórico terminar.
@@ -227,6 +241,7 @@ export class SharedSession {
     this.sendContextUsage(socket);
     this.sendSuggestion(socket);
     this.sendTurnState(socket);
+    this.sendBackgroundJobs(socket);
 
     this.ensureHistoryLoaded();
     // Fase 2 (docs/30) — só a cauda recente (`INITIAL_HISTORY_TAIL_TURNS`
@@ -477,6 +492,18 @@ export class SharedSession {
       this.turnStartedAt = null;
       this.broadcastTurnState();
     }
+  }
+
+  /** Manda sempre, mesmo lista vazia — igual `sendCwdState`/`sendTurnState`,
+   * não tem ambiguidade "ainda não chegou" aqui pra justificar um guard
+   * (sessão sem job nenhum e sessão que nunca teve um parecem iguais pro
+   * cliente: nenhuma mostra o indicador). */
+  private sendBackgroundJobs(target: WebSocket): void {
+    target.send(JSON.stringify({ type: "background_job_state", jobs: this.backgroundJobs }));
+  }
+
+  private broadcastBackgroundJobs(): void {
+    for (const client of this.clients) this.sendBackgroundJobs(client);
   }
 
   private sendTurnState(target: WebSocket): void {

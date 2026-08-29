@@ -13,6 +13,7 @@ interface MobileShellProps {
   sessionsLoading: boolean;
   selectedSession: string | null;
   runningSessions: Set<string>;
+  backgroundJobSessions: Set<string>;
   onSelectSession: (id: string) => void;
   onRenameSession: (id: string, title: string) => void;
   onDeleteSession: (id: string) => void;
@@ -38,6 +39,7 @@ export function MobileShell({
   sessionsLoading,
   selectedSession,
   runningSessions,
+  backgroundJobSessions,
   onSelectSession,
   onRenameSession,
   onDeleteSession,
@@ -64,6 +66,7 @@ export function MobileShell({
         sessionsLoading={sessionsLoading}
         selectedSession={selectedSession}
         runningSessions={runningSessions}
+        backgroundJobSessions={backgroundJobSessions}
         onSelectSession={(id) => {
           onSelectSession(id);
           drawer.closeDrawer();

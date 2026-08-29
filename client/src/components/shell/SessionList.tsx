@@ -8,6 +8,7 @@ interface SessionListProps {
   loading: boolean;
   selected: string | null;
   running: Set<string>;
+  backgroundJobSessions: Set<string>;
   onSelect: (id: string) => void;
   onRename: (id: string, currentTitle: string) => void;
   onDelete: (id: string) => void;
@@ -22,6 +23,7 @@ export function SessionList({
   loading,
   selected,
   running,
+  backgroundJobSessions,
   onSelect,
   onRename,
   onDelete,
@@ -40,6 +42,7 @@ export function SessionList({
             session={session}
             selected={selected === session.id}
             running={running.has(session.id)}
+            hasBackgroundJob={backgroundJobSessions.has(session.id)}
             onSelect={onSelect}
             onRename={onRename}
             onDelete={onDelete}

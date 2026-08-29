@@ -300,6 +300,12 @@ export default function App() {
   const runningSessions = new Set(
     tabsState.tabs.filter((tab) => tab.profileId === activeProfile.id && tab.isRunning).map((tab) => tab.id),
   );
+  // Mesmo raciocínio de `runningSessions` — só cobre sessões abertas como
+  // aba (docs/32, Fase E): uma sessão sem aba não tem conexão WS viva pra
+  // saber se tem job rodando, mesma limitação que `isRunning` já tinha.
+  const backgroundJobSessions = new Set(
+    tabsState.tabs.filter((tab) => tab.profileId === activeProfile.id && tab.hasBackgroundJob).map((tab) => tab.id),
+  );
 
   const sidebarProps = {
     activeProfile,
@@ -308,6 +314,7 @@ export default function App() {
     sessionsLoading,
     selectedSession: activeTabId,
     runningSessions,
+    backgroundJobSessions,
     onSelectSession: handleSelectSession,
     onNewConversation: handleNewConversation,
     onRenameSession: (id: string, title: string) => handleRenameSession(activeProfile.id, id, title),
@@ -342,6 +349,7 @@ export default function App() {
         sessionId={tab.id}
         isNewConversation={tab.isNew}
         onTurnActiveChange={(active) => tabsState.setRunning(tab.id, active)}
+        onBackgroundJobsChange={(jobs) => tabsState.setHasBackgroundJob(tab.id, jobs.length > 0)}
         onTurnComplete={({ stopped, lastUserText }) => {
           const stillVisible = tab.id === tabsState.activeTabId && windowFocused;
           if (stillVisible) return;
@@ -491,6 +499,7 @@ export default function App() {
           sessionsLoading={sessionsLoading}
           selectedSession={activeTabId}
           runningSessions={runningSessions}
+          backgroundJobSessions={backgroundJobSessions}
           onSelectSession={handleSelectSession}
           onRenameSession={(id, title) => handleRenameSession(activeProfile.id, id, title)}
           onDeleteSession={(id) => handleDeleteSession(activeProfile.id, id)}

@@ -16,6 +16,7 @@ interface SidebarProps {
   sessionsLoading: boolean;
   selectedSession: string | null;
   runningSessions: Set<string>;
+  backgroundJobSessions: Set<string>;
   onSelectSession: (id: string) => void;
   onNewConversation: () => void;
   onRenameSession: (id: string, title: string) => void;
@@ -29,6 +30,7 @@ export function Sidebar({
   sessionsLoading,
   selectedSession,
   runningSessions,
+  backgroundJobSessions,
   onSelectSession,
   onNewConversation,
   onRenameSession,
@@ -58,6 +60,7 @@ export function Sidebar({
         loading={sessionsLoading}
         selected={selectedSession}
         running={runningSessions}
+        backgroundJobSessions={backgroundJobSessions}
         onSelect={onSelectSession}
         onRename={(id, title) => setRenaming({ id, title })}
         onDelete={onDeleteSession}

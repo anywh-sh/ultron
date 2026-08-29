@@ -10,6 +10,8 @@ import { TurnIndicator } from "@/components/chat/TurnIndicator";
 import { Composer, type ComposerHandle } from "@/components/chat/Composer";
 import { WorkingDirectoryButton } from "@/components/chat/WorkingDirectoryButton";
 import { TerminalToggleButton } from "@/components/chat/TerminalToggleButton";
+import { BackgroundJobIndicator } from "@/components/chat/BackgroundJobIndicator";
+import type { BackgroundJobSummary } from "@/lib/relayClient";
 import { isIOS } from "@/lib/platform";
 import { cn } from "@/lib/utils";
 import { parseSlashCommand } from "@/lib/slashCommands";
@@ -40,6 +42,11 @@ interface ChatPanelProps {
    * (SharedSession.onActivity), esse callback é só a atualização otimista
    * local, sem round-trip. */
   onActivity?: () => void;
+  /** Jobs `ultron-bg` observados agora nesta sessão, sempre que a lista muda
+   * — mesmo padrão de `onTurnActiveChange` (docs/32, Fase E): `App` usa isso
+   * pra alimentar o badge da aba/sidebar, que precisa saber mesmo com a aba
+   * fora de foco (continua montada, WS viva, docs/18). */
+  onBackgroundJobsChange?: (jobs: BackgroundJobSummary[]) => void;
   /** Sessão excluída, por este dispositivo ou outro — ver
    * sharedSession.ts::closeAllClients. */
   onDeleted?: () => void;
@@ -66,6 +73,7 @@ export function ChatPanel({
   onTurnComplete,
   onNotificationSummary,
   onTurnActiveChange,
+  onBackgroundJobsChange,
   onTitle,
   onActivity,
   onDeleted,
@@ -77,6 +85,8 @@ export function ChatPanel({
   logRef.current = log;
   const onTurnActiveChangeRef = useRef(onTurnActiveChange);
   onTurnActiveChangeRef.current = onTurnActiveChange;
+  const onBackgroundJobsChangeRef = useRef(onBackgroundJobsChange);
+  onBackgroundJobsChangeRef.current = onBackgroundJobsChange;
   const onTitleRef = useRef(onTitle);
   onTitleRef.current = onTitle;
   const onNotificationSummaryRef = useRef(onNotificationSummary);
@@ -145,6 +155,7 @@ export function ChatPanel({
     setModel,
     clearConversation,
     loadOlderHistory,
+    backgroundJobs,
   } = useRelayClient(profile, sessionId, {
     onEvent: (event) => logRef.current.handleEvent(event),
     onReconnecting: () => {
@@ -190,6 +201,14 @@ export function ChatPanel({
     onSessionTitle: (title) => onTitleRef.current?.(title),
     onSessionDeleted: () => onDeletedRef.current?.(),
   });
+
+  // Mesmo padrão de `onTurnActiveChange` acima: reporta pro Tab via ref —
+  // abas em background continuam montadas (docs/18), então isso também
+  // cobre um job terminando fora da aba/perfil visível no momento (docs/32,
+  // Fase E).
+  useEffect(() => {
+    onBackgroundJobsChangeRef.current?.(backgroundJobs);
+  }, [backgroundJobs]);
 
   const onConnectedChangeRef = useRef(onConnectedChange);
   onConnectedChangeRef.current = onConnectedChange;
@@ -280,15 +299,18 @@ export function ChatPanel({
         )}
       >
         <div className={isIOS() ? "flex items-center justify-between" : "mx-3 mt-3 flex items-center justify-between"}>
-          <WorkingDirectoryButton
-            profile={profile}
-            cwd={cwd}
-            locked={cwdLocked}
-            connected={connected}
-            isNewConversation={isNewConversation}
-            onSetCwd={setCwd}
-            onFocusComposer={() => composerRef.current?.focus()}
-          />
+          <div className="flex min-w-0 items-center gap-1.5">
+            <WorkingDirectoryButton
+              profile={profile}
+              cwd={cwd}
+              locked={cwdLocked}
+              connected={connected}
+              isNewConversation={isNewConversation}
+              onSetCwd={setCwd}
+              onFocusComposer={() => composerRef.current?.focus()}
+            />
+            <BackgroundJobIndicator jobs={backgroundJobs} />
+          </div>
           {terminal && <TerminalToggleButton cwd={cwd} open={terminal.open} onToggle={terminal.onToggle} />}
         </div>
 

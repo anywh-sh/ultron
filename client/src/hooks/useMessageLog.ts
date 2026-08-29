@@ -15,7 +15,13 @@ export type LogEntry =
       structuredPatch?: StructuredPatchHunk[];
     }
   | { kind: "error"; id: string; message: string }
-  | { kind: "stopped"; id: string };
+  | { kind: "stopped"; id: string }
+  /** Turno de follow-up automático de um job `ultron-bg` que terminou
+   * (docs/32, Fase D/E) — o prompt sintético em si nunca vira bolha de
+   * usuário (o texto é uma instrução interna, não algo que o usuário
+   * digitou); isso é só a nota indicando de onde a resposta seguinte veio,
+   * mesmo padrão de "stopped" (nota de sistema, sem bolha). */
+  | { kind: "background-job-note"; id: string; label: string };
 
 interface StreamingTextBlock {
   index: number;
@@ -105,9 +111,17 @@ function commitContentBlock(entries: LogEntry[], block: ClaudeContentBlock): voi
  * existe na reconstrução de histórico do `.jsonl` (relay/src/
  * transcriptReader.ts) ou no broadcast pro segundo dispositivo conectado ao
  * vivo (relay/src/sharedSession.ts::runTurn, docs/30 Fase 1) — o protocolo
- * nunca confunde isso com nada real. */
+ * nunca confunde isso com nada real. Um `user_prompt` marcado
+ * `synthetic: "background_job"` (relay/src/sharedSession.ts::runTurn,
+ * docs/32 Fase D) é um segundo tipo de sintético, gerado pelo follow-up
+ * automático de um job `ultron-bg` — vira uma nota de sistema, não uma
+ * bolha de usuário (ver comentário do `kind: "background-job-note"`). */
 function applyClaudeEvent(state: MessageLogState, event: ClaudeEvent): MessageLogState {
   if (event.type === "user_prompt") {
+    if (event.synthetic === "background_job") {
+      const label = typeof event.label === "string" ? event.label : "job em background";
+      return { ...state, entries: [...state.entries, { kind: "background-job-note", id: newId(), label }] };
+    }
     const block = event.message?.content?.[0];
     const text = block?.type === "text" ? block.text : undefined;
     if (typeof text !== "string") return state;

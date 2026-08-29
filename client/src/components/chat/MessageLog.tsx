@@ -136,6 +136,15 @@ function renderItem(item: RenderItem) {
           <p className="text-xs text-muted-foreground">Interrompido pelo usuário.</p>
         </LogEntryRow>
       );
+    case "background-job-note":
+      return (
+        <LogEntryRow key={entry.id} rail="none">
+          <p className="flex items-center gap-1.5 text-xs text-muted-foreground">
+            <Loader2 className="size-3 shrink-0" />
+            <span className="truncate">{entry.label} — finalizado, resumindo o resultado</span>
+          </p>
+        </LogEntryRow>
+      );
     default:
       return null;
   }

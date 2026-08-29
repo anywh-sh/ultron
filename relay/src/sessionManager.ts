@@ -19,6 +19,7 @@ export class SessionManager {
    * compartilhados do que duplicados N vezes. */
   private readonly backgroundJobs = new BackgroundJobTracker({
     onFinished: (job) => this.handleBackgroundJobFinished(job),
+    onChanged: (sessionId) => this.syncBackgroundJobState(sessionId),
   });
 
   constructor(
@@ -43,6 +44,15 @@ export class SessionManager {
       return;
     }
     session.submitBackgroundJobResult(job);
+  }
+
+  /** Fase E de docs/32 — mantém o `background_job_state` que a `SharedSession`
+   * expõe pro cliente em sincronia com o tracker sempre que a lista de jobs
+   * observados de uma sessão muda (início, fim ou expiração). Sessão sem aba
+   * aberta (`this.sessions.get` undefined) simplesmente não tem pra quem
+   * mandar — sem efeito, o tracker continua sendo a fonte de verdade. */
+  private syncBackgroundJobState(sessionId: string): void {
+    this.sessions.get(sessionId)?.setBackgroundJobs(this.backgroundJobs.listWatchedForSession(sessionId));
   }
 
   listTitled(): { id: string; title: string }[] {
