@@ -12,6 +12,7 @@ import { Composer, type ComposerHandle } from "@/components/chat/Composer";
 import { WorkingDirectoryButton } from "@/components/chat/WorkingDirectoryButton";
 import { TerminalToggleButton } from "@/components/chat/TerminalToggleButton";
 import { BackgroundJobIndicator } from "@/components/chat/BackgroundJobIndicator";
+import { KeyboardDebugOverlay } from "@/components/chat/KeyboardDebugOverlay";
 import type { BackgroundJobSummary } from "@/lib/relayClient";
 import { isIOS } from "@/lib/platform";
 import { cn } from "@/lib/utils";
@@ -326,7 +327,7 @@ export function ChatPanel({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  const keyboardInset = useKeyboardInset();
+  const keyboardInfo = useKeyboardInset();
 
   return (
     <div
@@ -352,6 +353,8 @@ export function ChatPanel({
         }
       }}
     >
+      {isIOS() && <KeyboardDebugOverlay info={keyboardInfo} />}
+
       {isDraggingOver && (
         <div className="pointer-events-none absolute inset-2 z-10 flex items-center justify-center gap-2 rounded-xl border-2 border-dashed border-primary bg-background/90 text-sm text-primary">
           <ImagePlus className="size-4" />
@@ -393,22 +396,27 @@ export function ChatPanel({
       {/* iOS (docs/24): cwd + composer flutuam por cima do log, saindo do
        * fluxo normal — o log continua rolando visível (desfocado) por baixo
        * do glass do composer, em vez de parar acima de um bloco fixo.
-       * `bottom` desloca pelo `keyboardInset` (`useKeyboardInset.ts`) em vez
-       * de ficar fixo em `bottom-0` — sem isso sobra um gap indevido entre o
-       * composer e o teclado (docs/34 item 1): o padding de
-       * `safe-area-inset-bottom` é pra área do home indicator, que deixa de
-       * existir (foi substituída pelo teclado) assim que ele abre, então
-       * também troca pra um `12px` fixo nesse estado. */}
+       * `bottom` desloca pelo `keyboardInfo.shift` (`useKeyboardInset.ts`)
+       * em vez de ficar fixo em `bottom-0` — sem isso sobra um gap indevido
+       * entre o composer e o teclado (docs/34 item 1, docs/39: reproduzido
+       * de novo no device físico mesmo com o fix validado no Simulator). O
+       * padding de `safe-area-inset-bottom` é pra área do home indicator,
+       * que deixa de existir (foi substituída pelo teclado) assim que ele
+       * abre, então troca pra um `12px` fixo nesse estado — decidido por
+       * `keyboardInfo.isOpen`, não por `shift > 0`: os dois podem divergir
+       * se o layout encolher junto com o teclado (não confirmado se
+       * acontece no device físico), caso em que `shift` corretamente vai a
+       * zero mas o teclado continua aberto. */}
       <div
         className={cn(
           isIOS()
             ? cn(
                 "absolute inset-x-0 z-20 flex flex-col gap-2 px-3.5 pt-2",
-                keyboardInset > 0 ? "pb-3" : "pb-[calc(env(safe-area-inset-bottom)+12px)]",
+                keyboardInfo.isOpen ? "pb-3" : "pb-[calc(env(safe-area-inset-bottom)+12px)]",
               )
             : "contents",
         )}
-        style={isIOS() ? { bottom: keyboardInset } : undefined}
+        style={isIOS() ? { bottom: keyboardInfo.shift } : undefined}
       >
         <div className={isIOS() ? "flex items-center justify-between" : "mx-3 mt-3 flex items-center justify-between"}>
           <div className="flex min-w-0 items-center gap-1.5">
