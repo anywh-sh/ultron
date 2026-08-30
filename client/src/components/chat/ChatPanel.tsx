@@ -12,7 +12,6 @@ import { Composer, type ComposerHandle } from "@/components/chat/Composer";
 import { WorkingDirectoryButton } from "@/components/chat/WorkingDirectoryButton";
 import { TerminalToggleButton } from "@/components/chat/TerminalToggleButton";
 import { BackgroundJobIndicator } from "@/components/chat/BackgroundJobIndicator";
-import { KeyboardDebugOverlay } from "@/components/chat/KeyboardDebugOverlay";
 import type { BackgroundJobSummary } from "@/lib/relayClient";
 import { isIOS } from "@/lib/platform";
 import { cn } from "@/lib/utils";
@@ -353,8 +352,6 @@ export function ChatPanel({
         }
       }}
     >
-      {isIOS() && <KeyboardDebugOverlay info={keyboardInfo} />}
-
       {isDraggingOver && (
         <div className="pointer-events-none absolute inset-2 z-10 flex items-center justify-center gap-2 rounded-xl border-2 border-dashed border-primary bg-background/90 text-sm text-primary">
           <ImagePlus className="size-4" />
