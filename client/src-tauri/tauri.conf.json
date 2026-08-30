@@ -16,7 +16,7 @@
         "title": "ultron",
         "width": 1000,
         "height": 700,
-        "dragDropEnabled": false,
+        "dragDropEnabled": true,
         "decorations": false
       }
     ],

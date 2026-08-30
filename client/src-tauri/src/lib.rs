@@ -10,6 +10,19 @@ fn greet(name: &str) -> String {
     format!("Hello, {}! You've been greeted from Rust!", name)
 }
 
+// Drag-and-drop nativo: o evento `onDragDropEvent` do Tauri só
+// entrega o caminho do arquivo no disco, não os bytes — o front usa esse
+// comando pra ler o arquivo e reaproveitar o mesmo pipeline de upload do
+// botão de anexar (que parte de um `File` do navegador). `ipc::Response`
+// devolve os bytes crus pro JS (ArrayBuffer), sem o overhead de serializar
+// um vídeo inteiro como array JSON de números.
+#[tauri::command]
+fn read_dropped_file(path: String) -> Result<tauri::ipc::Response, String> {
+    std::fs::read(&path)
+        .map(tauri::ipc::Response::new)
+        .map_err(|e| e.to_string())
+}
+
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     let builder = tauri::Builder::default()
@@ -37,7 +50,8 @@ pub fn run() {
             notifications::notify_turn_complete,
             voice::list_input_devices,
             voice::start_recording,
-            voice::stop_recording_and_transcribe
+            voice::stop_recording_and_transcribe,
+            read_dropped_file
         ]);
 
     #[cfg(target_os = "ios")]

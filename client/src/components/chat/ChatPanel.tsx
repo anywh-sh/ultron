@@ -1,5 +1,8 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { ImagePlus, X } from "lucide-react";
+import { getCurrentWebview } from "@tauri-apps/api/webview";
+import { invoke } from "@tauri-apps/api/core";
+import { guessMimeFromExtension } from "@/lib/mimeTypes";
 import { useRelayClient } from "@/hooks/useRelayClient";
 import { useKeyboardInset } from "@/hooks/useKeyboardInset";
 import { useMessageLog, type LogEntry } from "@/hooks/useMessageLog";
@@ -60,6 +63,12 @@ interface ChatPanelProps {
     open: boolean;
     onToggle: () => void;
   };
+  /** Só a aba ativa deve reagir ao drag-and-drop nativo do Tauri — diferente
+   * do HTML5 DnD antigo (escopado pelo próprio DOM), o evento nativo chega
+   * pra TODAS as instâncias montadas (abas em segundo plano continuam
+   * montadas, docs/18), então cada `ChatPanel` precisa saber se é a vez dele
+   * de tratar o drop. */
+  isActiveTab: boolean;
 }
 
 function buildWireMessage(text: string, attachments: PendingAttachment[]): string {
@@ -113,10 +122,13 @@ export function ChatPanel({
   onDeleted,
   onConnectedChange,
   terminal,
+  isActiveTab,
 }: ChatPanelProps) {
   const log = useMessageLog();
   const logRef = useRef(log);
   logRef.current = log;
+  const isActiveTabRef = useRef(isActiveTab);
+  isActiveTabRef.current = isActiveTab;
   const onTurnActiveChangeRef = useRef(onTurnActiveChange);
   onTurnActiveChangeRef.current = onTurnActiveChange;
   const onBackgroundJobsChangeRef = useRef(onBackgroundJobsChange);
@@ -159,11 +171,65 @@ export function ChatPanel({
   editTargetRef.current = editTarget;
   const performEditRef = useRef<(id: string, text: string) => void>(() => {});
 
-  // Contador em vez de um boolean simples: dragenter/dragleave disparam pra
-  // cada elemento filho sobrevoado, um simples enter/leave "pisca" o overlay
-  // ao passar por cima de itens do log. Só esconde quando o contador zera.
-  const dragCounterRef = useRef(0);
   const [isDraggingOver, setIsDraggingOver] = useState(false);
+
+  // Drag-and-drop nativo do Tauri (`onDragDropEvent`), não HTML5 DnD — a
+  // versão anterior (dragenter/dragover/drop do DOM + `dragDropEnabled:
+  // false`) nunca chegou a ser confirmada com um drag de verdade no macOS
+  // (só no Windows, docs/15); usuário reportou que nada acontecia lá,
+  // consistente com bugs conhecidos do WKWebView em torno dessa API do
+  // browser. O evento nativo entrega o caminho real do arquivo no disco —
+  // lido via o comando Rust `read_dropped_file` (bytes crus, sem passar
+  // pela API `File` do navegador) e embrulhado num `File` local pra
+  // reaproveitar o mesmo pipeline de upload do botão de anexar.
+  //
+  // O evento chega pra TODAS as abas montadas (background tabs continuam
+  // montadas, docs/18), não só a visível — por isso o guard em
+  // `isActiveTabRef` logo no início do handler.
+  useEffect(() => {
+    let unlisten: (() => void) | undefined;
+    let cancelled = false;
+
+    void getCurrentWebview()
+      .onDragDropEvent((event) => {
+        if (!isActiveTabRef.current) return;
+
+        if (event.payload.type === "drop") {
+          setIsDraggingOver(false);
+          const paths = event.payload.paths;
+          void (async () => {
+            const files: File[] = [];
+            for (const path of paths) {
+              try {
+                const buffer = await invoke<ArrayBuffer>("read_dropped_file", { path });
+                const name = path.split(/[\\/]/).pop() ?? "arquivo";
+                files.push(new File([buffer], name, { type: guessMimeFromExtension(name) }));
+              } catch (error) {
+                console.error("[ultron] falha ao ler arquivo arrastado:", path, error);
+              }
+            }
+            if (files.length > 0) {
+              await images.addFiles(files);
+              composerRef.current?.focus();
+            }
+          })();
+        } else if (event.payload.type === "enter" || event.payload.type === "over") {
+          setIsDraggingOver(true);
+        } else {
+          setIsDraggingOver(false);
+        }
+      })
+      .then((fn) => {
+        if (cancelled) fn();
+        else unlisten = fn;
+      });
+
+    return () => {
+      cancelled = true;
+      unlisten?.();
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   // Cobre do clique em "Enviar" até o turno terminar (sucesso ou erro) — não
   // só o tempo de resposta do modelo, também a ida/volta de rede, pra nunca
@@ -344,33 +410,11 @@ export function ChatPanel({
   const keyboardInfo = useKeyboardInset();
 
   return (
-    <div
-      className="relative flex h-full flex-col"
-      onDragEnter={(event) => {
-        event.preventDefault();
-        dragCounterRef.current += 1;
-        setIsDraggingOver(true);
-      }}
-      onDragOver={(event) => event.preventDefault()}
-      onDragLeave={(event) => {
-        event.preventDefault();
-        dragCounterRef.current = Math.max(0, dragCounterRef.current - 1);
-        if (dragCounterRef.current === 0) setIsDraggingOver(false);
-      }}
-      onDrop={(event) => {
-        event.preventDefault();
-        dragCounterRef.current = 0;
-        setIsDraggingOver(false);
-        if (event.dataTransfer.files.length > 0) {
-          void images.addFiles(event.dataTransfer.files);
-          composerRef.current?.focus();
-        }
-      }}
-    >
+    <div className="relative flex h-full flex-col">
       {isDraggingOver && (
         <div className="pointer-events-none absolute inset-2 z-10 flex items-center justify-center gap-2 rounded-xl border-2 border-dashed border-primary bg-background/90 text-sm text-primary">
           <ImagePlus className="size-4" />
-          Solte a imagem aqui
+          Solte a imagem ou o vídeo aqui
         </div>
       )}
 

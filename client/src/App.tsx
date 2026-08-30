@@ -329,6 +329,7 @@ export default function App() {
   const renderPanel = (tab: Tab) => {
     const profile = findProfile(tab.profileId) ?? PROFILES[0];
     const panel = sessionPanels.getPanel(tab.id);
+    const isTabActive = tab.id === activeTabId;
     const chatContent = (
       <ChatPanel
         // No iOS (sem TabBar/forceMount), `activeTab && renderPanel(activeTab)`
@@ -386,6 +387,7 @@ export default function App() {
             ? undefined
             : { open: panel.open, onToggle: () => sessionPanels.togglePanel(tab.id, "terminal") }
         }
+        isActiveTab={isTabActive}
       />
     );
 
@@ -409,7 +411,6 @@ export default function App() {
     // xterm.js) quem decide a largura (0 fechado, animando pra `panel.width`
     // aberto). Sem isso o conteúdo do painel só existia no DOM quando aberto
     // — não tinha o que a transição CSS animasse, aparecia/sumia de vez.
-    const isTabActive = tab.id === activeTabId;
     const chatHidden = isTabActive && panel.open && panel.maximized;
 
     // O wrapper (esta `div` + a `div` logo abaixo em volta de `chatContent`)
