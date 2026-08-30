@@ -1,6 +1,13 @@
 import type { Profile } from "@/lib/profiles";
 
-export async function uploadImage(profile: Profile, file: File): Promise<string> {
+export interface UploadResult {
+  path: string;
+  /** Só presente pra vídeo — paths dos frames extraídos no relay via
+   * ffmpeg (ver `relay/src/uploads.ts`), em ordem cronológica. */
+  frames?: string[];
+}
+
+export async function uploadAttachment(profile: Profile, file: File): Promise<UploadResult> {
   const ext = file.name.includes(".") ? (file.name.split(".").pop() ?? "png") : "png";
   const buffer = await file.arrayBuffer();
 
@@ -11,6 +18,5 @@ export async function uploadImage(profile: Profile, file: File): Promise<string>
   if (!response.ok) {
     throw new Error(`upload falhou: HTTP ${response.status}`);
   }
-  const body = (await response.json()) as { path: string };
-  return body.path;
+  return (await response.json()) as UploadResult;
 }

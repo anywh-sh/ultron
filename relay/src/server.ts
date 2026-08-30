@@ -312,10 +312,10 @@ const httpServer = createServer((req, res) => {
     const url = new URL(req.url, `http://${req.headers.host ?? "localhost"}`);
     const ext = url.searchParams.get("ext") ?? "bin";
     saveUpload(req, ext)
-      .then((path) => {
+      .then((result) => {
         res.setHeader("Content-Type", "application/json");
         res.setHeader("Access-Control-Allow-Origin", "*");
-        res.end(JSON.stringify({ path }));
+        res.end(JSON.stringify(result));
       })
       .catch((error: unknown) => {
         console.error("[relay] falha no upload:", error);

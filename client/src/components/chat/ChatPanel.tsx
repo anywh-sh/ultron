@@ -3,7 +3,7 @@ import { ImagePlus, X } from "lucide-react";
 import { useRelayClient } from "@/hooks/useRelayClient";
 import { useKeyboardInset } from "@/hooks/useKeyboardInset";
 import { useMessageLog, type LogEntry } from "@/hooks/useMessageLog";
-import { useImageUpload, type PendingImage } from "@/hooks/useImageUpload";
+import { useImageUpload, type PendingAttachment } from "@/hooks/useImageUpload";
 import { MessageLog } from "@/components/chat/MessageLog";
 import { MessageLogSkeleton } from "@/components/chat/MessageLogSkeleton";
 import { ChatIdleState } from "@/components/chat/ChatIdleState";
@@ -62,9 +62,24 @@ interface ChatPanelProps {
   };
 }
 
-function buildWireMessage(text: string, images: PendingImage[]): string {
-  const imageRefs = images.map((image) => `[imagem anexada: ${image.path}]`).join("\n");
-  return [text, imageRefs].filter(Boolean).join("\n\n");
+function buildWireMessage(text: string, attachments: PendingAttachment[]): string {
+  // O Claude só "vê" imagem via `Read` — vídeo vira uma sequência de frames
+  // extraídos no relay (ffmpeg, `uploads.ts`), referenciados em ordem
+  // cronológica, mais o path do vídeo original caso ele precise rodar
+  // ffmpeg/ffprobe nele diretamente via Bash pra algo mais específico.
+  const refs = attachments
+    .map((attachment) => {
+      if (attachment.kind !== "video") return `[imagem anexada: ${attachment.path}]`;
+      if (!attachment.frames || attachment.frames.length === 0) {
+        return `[vídeo anexado (sem preview de frames): ${attachment.path}]`;
+      }
+      const frameLines = attachment.frames
+        .map((frame, index) => `[frame ${String(index + 1)}/${String(attachment.frames!.length)}: ${frame}]`)
+        .join("\n");
+      return `[vídeo anexado, ${String(attachment.frames.length)} frames extraídos em ordem cronológica (arquivo original: ${attachment.path})]\n${frameLines}`;
+    })
+    .join("\n");
+  return [text, refs].filter(Boolean).join("\n\n");
 }
 
 /** Edição de mensagem (docs/33) — conta quantas entries `kind: "user"`

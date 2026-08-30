@@ -1,9 +1,9 @@
 import { useMemo, useReducer } from "react";
 import type { ClaudeEvent, ClaudeContentBlock, HistoryMessage, HistoryPageMessage, StructuredPatchHunk } from "@/lib/relay-types";
-import type { PendingImage } from "@/hooks/useImageUpload";
+import type { PendingAttachment } from "@/hooks/useImageUpload";
 
 export type LogEntry =
-  | { kind: "user"; id: string; text: string; images?: PendingImage[]; sentAt: number }
+  | { kind: "user"; id: string; text: string; images?: PendingAttachment[]; sentAt: number }
   | { kind: "text"; id: string; text: string; streaming: boolean }
   | { kind: "tool-use"; id: string; toolUseId?: string; name: string; input: ClaudeContentBlock["input"] }
   | {
@@ -47,7 +47,7 @@ interface MessageLogState {
 }
 
 type Action =
-  | { type: "USER_MESSAGE"; text: string; images?: PendingImage[]; sentAt: number }
+  | { type: "USER_MESSAGE"; text: string; images?: PendingAttachment[]; sentAt: number }
   /** Edição de mensagem (docs/33) — trunca `entries` até (exclusive) a
    * entry `id` (mensagem editada e tudo que veio depois, na tela deste
    * dispositivo) e empurra a nova, otimista, igual `USER_MESSAGE`. O relay
@@ -291,7 +291,7 @@ export interface UseMessageLogResult {
   historyCursor: number | null;
   /** Pedido de página mais antiga em voo — ver `beginLoadingOlderHistory`. */
   loadingOlderHistory: boolean;
-  addUserMessage: (text: string, images?: PendingImage[]) => void;
+  addUserMessage: (text: string, images?: PendingAttachment[]) => void;
   /** Edição de mensagem (docs/33) — trunca localmente (otimista) até a
    * mensagem `id` e empurra a nova em cima. O relay client é quem
    * efetivamente manda `edit_message` pro relay; isso aqui só atualiza a

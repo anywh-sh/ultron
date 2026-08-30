@@ -2,8 +2,8 @@ import { memo, useEffect, useReducer, useRef, useState } from "react";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import rehypeHighlight from "rehype-highlight";
-import { Check, Copy, Pencil } from "lucide-react";
-import type { PendingImage } from "@/hooks/useImageUpload";
+import { Check, Copy, Pencil, Video } from "lucide-react";
+import type { PendingAttachment } from "@/hooks/useImageUpload";
 import { useLongPress } from "@/hooks/useLongPress";
 import { renderTextWithLinks } from "@/lib/composerLinks";
 import { handleExternalLinkClick } from "@/lib/externalLink";
@@ -15,12 +15,12 @@ import { Button } from "@/components/ui/button";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { MarkdownCodeBlock } from "@/components/chat/MarkdownCodeBlock";
 
-const IMAGE_EDIT_DISABLED_REASON = "Editar mensagem com imagem ainda não é suportado";
+const IMAGE_EDIT_DISABLED_REASON = "Editar mensagem com anexo ainda não é suportado";
 
 interface UserBubbleProps {
   id: string;
   text: string;
-  images?: PendingImage[];
+  images?: PendingAttachment[];
   sentAt: number;
   isEditing: boolean;
   onStartEdit: (id: string, text: string) => void;
@@ -157,12 +157,20 @@ export const UserBubble = memo(function UserBubble({
             {images && images.length > 0 && (
               <div className="flex flex-wrap gap-1.5">
                 {images.map((image) => (
-                  <img
-                    key={image.path}
-                    src={image.previewUrl}
-                    alt=""
-                    className="max-h-48 max-w-full rounded-lg object-cover"
-                  />
+                  <div key={image.path} className="relative">
+                    {image.previewUrl ? (
+                      <img src={image.previewUrl} alt="" className="max-h-48 max-w-full rounded-lg object-cover" />
+                    ) : (
+                      <div className="flex size-24 items-center justify-center rounded-lg bg-border text-muted-foreground">
+                        <Video className="size-6" />
+                      </div>
+                    )}
+                    {image.kind === "video" && (
+                      <div className="pointer-events-none absolute bottom-1 left-1 flex size-5 items-center justify-center rounded-full bg-black/60 text-white">
+                        <Video className="size-3" />
+                      </div>
+                    )}
+                  </div>
                 ))}
               </div>
             )}

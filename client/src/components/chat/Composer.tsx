@@ -8,7 +8,7 @@ import {
   type CSSProperties,
   type MutableRefObject,
 } from "react";
-import { ArrowUp, Check, ChevronDown, Mic, Paperclip, Square, X } from "lucide-react";
+import { ArrowUp, Check, ChevronDown, Mic, Paperclip, Square, Video, X } from "lucide-react";
 import { Extension, type JSONContent } from "@tiptap/core";
 import { EditorContent, ReactMarkViewRenderer, ReactRenderer, useEditor } from "@tiptap/react";
 import StarterKit from "@tiptap/starter-kit";
@@ -29,7 +29,7 @@ import {
 import { cn, formatDuration } from "@/lib/utils";
 import { isIOS } from "@/lib/platform";
 import { useVoiceRecording } from "@/hooks/useVoiceRecording";
-import type { PendingImage } from "@/hooks/useImageUpload";
+import type { PendingAttachment } from "@/hooks/useImageUpload";
 import { ComposerLinkView } from "@/components/chat/ComposerLinkView";
 import { PermissionModeButton } from "@/components/chat/PermissionModeButton";
 import { ModelLabel } from "@/components/chat/ModelLabel";
@@ -42,11 +42,11 @@ import type { CompactBoundaryEvent } from "@/hooks/useRelayClient";
 import type { ContextUsage, ModelChoice, PermissionMode } from "@/lib/relayClient";
 
 interface ComposerProps {
-  onSend: (text: string, images: PendingImage[]) => void;
+  onSend: (text: string, images: PendingAttachment[]) => void;
   disabled?: boolean;
   turnInFlight: boolean;
   onStop: () => void;
-  pendingImages: PendingImage[];
+  pendingImages: PendingAttachment[];
   uploadingImage: boolean;
   onAddFiles: (files: FileList | File[]) => void;
   onRemoveImage: (path: string) => void;
@@ -573,11 +573,22 @@ export const Composer = forwardRef<ComposerHandle, ComposerProps>(function Compo
         <div className="flex flex-wrap gap-1.5 px-1">
           {pendingImages.map((image) => (
             <div key={image.path} className="group relative">
-              <img src={image.previewUrl} alt="" className="size-14 rounded-lg object-cover" />
+              {image.previewUrl ? (
+                <img src={image.previewUrl} alt="" className="size-14 rounded-lg object-cover" />
+              ) : (
+                <div className="flex size-14 items-center justify-center rounded-lg bg-border text-muted-foreground">
+                  <Video className="size-5" />
+                </div>
+              )}
+              {image.kind === "video" && (
+                <div className="pointer-events-none absolute bottom-0.5 left-0.5 flex size-4 items-center justify-center rounded-full bg-black/60 text-white">
+                  <Video className="size-2.5" />
+                </div>
+              )}
               <button
                 type="button"
                 onClick={() => onRemoveImage(image.path)}
-                aria-label="Remover imagem"
+                aria-label="Remover anexo"
                 className="absolute -top-1.5 -right-1.5 flex size-4 cursor-pointer items-center justify-center rounded-full bg-border text-foreground opacity-0 transition-opacity group-hover:opacity-100"
               >
                 <X className="size-2.5" />
@@ -595,7 +606,7 @@ export const Composer = forwardRef<ComposerHandle, ComposerProps>(function Compo
           <input
             ref={fileInputRef}
             type="file"
-            accept="image/*"
+            accept="image/*,video/*"
             multiple
             className="hidden"
             onChange={(event) => {
@@ -607,7 +618,7 @@ export const Composer = forwardRef<ComposerHandle, ComposerProps>(function Compo
           <button
             type="button"
             onClick={() => fileInputRef.current?.click()}
-            aria-label="Anexar imagem"
+            aria-label="Anexar imagem ou vídeo"
             disabled={uploadingImage}
             className="flex size-11 shrink-0 cursor-pointer items-center justify-center rounded-full text-muted-foreground transition-colors hover:bg-border disabled:cursor-not-allowed disabled:opacity-50"
           >
@@ -671,7 +682,7 @@ export const Composer = forwardRef<ComposerHandle, ComposerProps>(function Compo
               )}
               {isTranscribing && <span className="text-xs text-muted-foreground">Transcrevendo áudio…</span>}
               {uploadingImage && !isRecording && !isTranscribing && (
-                <span className="text-xs text-muted-foreground">enviando imagem…</span>
+                <span className="text-xs text-muted-foreground">enviando anexo…</span>
               )}
             </div>
 
@@ -681,7 +692,7 @@ export const Composer = forwardRef<ComposerHandle, ComposerProps>(function Compo
                   <input
                     ref={fileInputRef}
                     type="file"
-                    accept="image/*"
+                    accept="image/*,video/*"
                     multiple
                     className="hidden"
                     onChange={(event) => {
@@ -693,7 +704,7 @@ export const Composer = forwardRef<ComposerHandle, ComposerProps>(function Compo
                   <button
                     type="button"
                     onClick={() => fileInputRef.current?.click()}
-                    aria-label="Anexar imagem"
+                    aria-label="Anexar imagem ou vídeo"
                     className="flex size-7 shrink-0 cursor-pointer items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-border"
                   >
                     <Paperclip className="size-4" />
