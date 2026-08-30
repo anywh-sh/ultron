@@ -15,7 +15,7 @@ import StarterKit from "@tiptap/starter-kit";
 import { Link } from "@tiptap/extension-link";
 import { Placeholder } from "@tiptap/extension-placeholder";
 import Suggestion from "@tiptap/suggestion";
-import { Plugin, PluginKey } from "@tiptap/pm/state";
+import { Plugin, PluginKey, TextSelection } from "@tiptap/pm/state";
 import { Decoration, DecorationSet } from "@tiptap/pm/view";
 import { Button } from "@/components/ui/button";
 import {
@@ -36,7 +36,7 @@ import { ModelLabel } from "@/components/chat/ModelLabel";
 import { ContextUsageButton } from "@/components/chat/ContextUsageButton";
 import { CompactBoundaryToast } from "@/components/chat/CompactBoundaryToast";
 import { SlashCommandMenu } from "@/components/chat/SlashCommandMenu";
-import { serializeEditorContent } from "@/lib/composerLinks";
+import { HARD_BREAK_ANCHOR, serializeEditorContent } from "@/lib/composerLinks";
 import { filterSlashCommands, parseSlashCommand, type SlashCommandEntry } from "@/lib/slashCommands";
 import type { CompactBoundaryEvent } from "@/hooks/useRelayClient";
 import type { ContextUsage, ModelChoice, PermissionMode } from "@/lib/relayClient";
@@ -158,12 +158,6 @@ function createPlaceholderExtension(suggestionRef: MutableRefObject<string | nul
   return Placeholder.configure({ placeholder: () => suggestionRef.current ?? DEFAULT_PLACEHOLDER });
 }
 
-/** Caractere de largura zero usado só como "âncora" de layout pra linhas
- * vazias criadas por `hardBreak` consecutivos — ver `hardBreakAnchorPlugin`
- * abaixo. `serializeInline` (`composerLinks.tsx`) remove todas as ocorrências
- * antes de virar o texto enviado; nunca deve escapar pra fora do editor. */
-const HARD_BREAK_ANCHOR = "​";
-
 /**
  * Bug real, confirmado testando no Chromium via Playwright (não só teoria):
  * uma posição de cursor entre dois `<br>` adjacentes sem nenhum texto — uma
@@ -181,8 +175,9 @@ const HARD_BREAK_ANCHOR = "​";
  * átomo não-editável e a seleção ainda ancora no elemento container (offset
  * por índice de filho), não dentro de texto de verdade — o rect continuava
  * colapsado. A correção real precisa de texto editável genuíno ali, por isso
- * isto insere um caractere de largura zero (invisível, `HARD_BREAK_ANCHOR`)
- * como texto de verdade no documento, não só na view.
+ * isto insere um caractere de largura zero (invisível, `HARD_BREAK_ANCHOR`,
+ * ver `composerLinks.tsx` — `U+FEFF`, não `U+200B`) como texto de verdade no
+ * documento, não só na view.
  *
  * `appendTransaction` (não um comando específico do Shift+Enter) porque o
  * Enter do iOS não passa pelo comando `setHardBreak` — cai no fallback padrão
@@ -209,14 +204,42 @@ function hardBreakAnchorPlugin() {
         const needsAnchor = !nextNode || nextNode.type.name === "hardBreak";
         if (needsAnchor) insertPositions.push(after);
       });
-      if (insertPositions.length === 0) return null;
       const tr = newState.tr;
-      // De trás pra frente: inserir não desloca posições ainda não
-      // processadas (todas vêm antes, no doc original).
-      insertPositions
-        .sort((a, b) => b - a)
-        .forEach((pos) => tr.insertText(HARD_BREAK_ANCHOR, pos));
-      return tr;
+      let changed = false;
+      if (insertPositions.length > 0) {
+        // De trás pra frente: inserir não desloca posições ainda não
+        // processadas (todas vêm antes, no doc original).
+        insertPositions
+          .sort((a, b) => b - a)
+          .forEach((pos) => tr.insertText(HARD_BREAK_ANCHOR, pos));
+        changed = true;
+      }
+      // Reancora o cursor quando ele está bem entre um `hardBreak` e a âncora
+      // que existe logo depois (recém-inserida acima, ou de uma passada
+      // anterior — `applyTransaction` do ProseMirror reinicia a lista de
+      // plugins do zero sempre que algum `appendTransaction` retorna uma
+      // transação nova, então este método roda de novo com o doc já
+      // anexado, mas SEM garantia de que o mapeamento da seleção do
+      // dispatch original ainda aponte pra depois do texto certo). Checagem
+      // por conteúdo (não por mapeamento de posição) — funciona não importa
+      // em qual dessas passadas ela dispara. Sem isso, o cursor renderiza
+      // uma linha acima do esperado no WebKit/iOS mesmo com a âncora
+      // presente no documento (bug real, confirmado no Simulator, docs/34
+      // item 3) — no Chromium o navegador tolera a posição "antes" da
+      // âncora e desenha o cursor certo mesmo assim, mascarando esse mesmo
+      // problema.
+      const { $head } = tr.selection;
+      if (
+        tr.selection.empty &&
+        $head.nodeBefore?.type.name === "hardBreak" &&
+        $head.nodeAfter?.isText &&
+        $head.nodeAfter.text?.startsWith(HARD_BREAK_ANCHOR)
+      ) {
+        tr.setSelection(TextSelection.create(tr.doc, $head.pos + HARD_BREAK_ANCHOR.length));
+        tr.scrollIntoView();
+        changed = true;
+      }
+      return changed ? tr : null;
     },
   });
 }
@@ -452,10 +475,28 @@ export const Composer = forwardRef<ComposerHandle, ComposerProps>(function Compo
         // em vez de preencher o comando selecionado.
         if (event.key === "Enter" && !event.shiftKey && slashMenuActiveRef.current) return false;
         // No iOS o teclado não tem um jeito prático de "Shift+Enter" — Enter
-        // vira quebra de linha (comportamento padrão do ProseMirror, `return
-        // false`), envio fica só pelo botão (docs/33). Desktop não muda:
-        // Enter continua enviando, Shift+Enter continua sendo a única forma
-        // de quebra de linha lá.
+        // vira quebra de linha, envio fica só pelo botão (docs/33). Desktop
+        // não muda: Enter continua enviando, Shift+Enter continua sendo a
+        // única forma de quebra de linha lá.
+        if (event.key === "Enter" && !event.shiftKey && isIOS()) {
+          // Dispatch explícito (mesma técnica do comando `setHardBreak` que o
+          // Shift+Enter do desktop usa), não o fallback padrão do ProseMirror
+          // pra Enter simples (`return false`, deixando o navegador tratar
+          // nativamente via `schema.linebreakReplacement`) — bug real
+          // confirmado no Simulator iOS (docs/34, item 3): esse fallback
+          // nativo não preservava de forma confiável a âncora que o
+          // `hardBreakAnchorPlugin` insere logo em seguida via
+          // `appendTransaction`, então o cursor ficava uma linha acima do
+          // esperado depois de 2+ Enters seguidos — mesmo bug que já
+          // funcionava certinho no Chromium (onde Shift+Enter já passava por
+          // um comando explícito). Despachar a quebra nós mesmos, dentro do
+          // mesmo ciclo síncrono de dispatch, faz o `appendTransaction`
+          // rodar de forma confiável em ambas as plataformas.
+          event.preventDefault();
+          const hardBreak = view.state.schema.nodes.hardBreak.create();
+          view.dispatch(view.state.tr.replaceSelectionWith(hardBreak).scrollIntoView());
+          return true;
+        }
         if (event.key === "Enter" && !event.shiftKey && !isIOS()) {
           event.preventDefault();
           submitRef.current();

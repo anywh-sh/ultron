@@ -11,13 +11,22 @@ import { handleExternalLinkClick } from "@/lib/externalLink";
  */
 const WIRE_LINK_REGEX = /\[([^\]]+)\]\(([a-zA-Z][a-zA-Z\d+.-]*:[^\s)]+)\)/g;
 
-/** Espaço de largura zero que `Composer.tsx` (`hardBreakAnchorPlugin`) injeta
- * como texto real depois de `hardBreak`s consecutivos, só pra dar ao
+/** Caractere de largura zero que `Composer.tsx` (`hardBreakAnchorPlugin`)
+ * injeta como texto real depois de `hardBreak`s consecutivos, só pra dar ao
  * navegador uma caixa de layout válida onde ancorar o cursor (bug real,
  * confirmado via Playwright/Chromium — sem isso o cursor "sobe" uma linha em
  * telas com 2+ quebras seguidas sem texto entre elas). Puramente cosmético,
- * nunca deve sobreviver na mensagem enviada. */
-const HARD_BREAK_ANCHOR_REGEX = /​/g;
+ * nunca deve sobreviver na mensagem enviada. `U+FEFF` (zero-width no-break
+ * space, mesma escolha do Slate.js pro mesmo problema) em vez de `U+200B`
+ * (zero-width space) — não porque um funcionasse e o outro não (testado no
+ * Simulator iOS, docs/34 item 3: nenhum dos dois sozinho resolvia; a causa
+ * raiz de verdade era outra, ver `Composer.tsx`), mas por ser a opção mais
+ * testada em outros editores pra esse tipo de âncora. Exportado (não só
+ * local) porque `Composer.tsx` precisa do mesmo caractere pra inserir a
+ * âncora — duplicar o literal nos dois arquivos é como esse bug escapou
+ * despercebido da primeira vez. */
+export const HARD_BREAK_ANCHOR = "﻿";
+const HARD_BREAK_ANCHOR_REGEX = new RegExp(HARD_BREAK_ANCHOR, "g");
 
 function serializeInline(node: JSONContent): string {
   if (node.type === "hardBreak") return "\n";
