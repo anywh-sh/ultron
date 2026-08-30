@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { ImagePlus, X } from "lucide-react";
 import { useRelayClient } from "@/hooks/useRelayClient";
+import { useKeyboardInset } from "@/hooks/useKeyboardInset";
 import { useMessageLog, type LogEntry } from "@/hooks/useMessageLog";
 import { useImageUpload, type PendingImage } from "@/hooks/useImageUpload";
 import { MessageLog } from "@/components/chat/MessageLog";
@@ -325,6 +326,8 @@ export function ChatPanel({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
+  const keyboardInset = useKeyboardInset();
+
   return (
     <div
       className="relative flex h-full flex-col"
@@ -389,13 +392,23 @@ export function ChatPanel({
 
       {/* iOS (docs/24): cwd + composer flutuam por cima do log, saindo do
        * fluxo normal — o log continua rolando visível (desfocado) por baixo
-       * do glass do composer, em vez de parar acima de um bloco fixo. */}
+       * do glass do composer, em vez de parar acima de um bloco fixo.
+       * `bottom` desloca pelo `keyboardInset` (`useKeyboardInset.ts`) em vez
+       * de ficar fixo em `bottom-0` — sem isso sobra um gap indevido entre o
+       * composer e o teclado (docs/34 item 1): o padding de
+       * `safe-area-inset-bottom` é pra área do home indicator, que deixa de
+       * existir (foi substituída pelo teclado) assim que ele abre, então
+       * também troca pra um `12px` fixo nesse estado. */}
       <div
         className={cn(
           isIOS()
-            ? "absolute inset-x-0 bottom-0 z-20 flex flex-col gap-2 px-3.5 pt-2 pb-[calc(env(safe-area-inset-bottom)+12px)]"
+            ? cn(
+                "absolute inset-x-0 z-20 flex flex-col gap-2 px-3.5 pt-2",
+                keyboardInset > 0 ? "pb-3" : "pb-[calc(env(safe-area-inset-bottom)+12px)]",
+              )
             : "contents",
         )}
+        style={isIOS() ? { bottom: keyboardInset } : undefined}
       >
         <div className={isIOS() ? "flex items-center justify-between" : "mx-3 mt-3 flex items-center justify-between"}>
           <div className="flex min-w-0 items-center gap-1.5">
