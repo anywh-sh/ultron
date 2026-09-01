@@ -6,6 +6,7 @@ import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip
 import { Sidebar } from "@/components/shell/Sidebar";
 import { EmptyState } from "@/components/shell/EmptyState";
 import { SessionSearch } from "@/components/shell/SessionSearch";
+import { SettingsDialog } from "@/components/shell/SettingsDialog";
 import { TabBar } from "@/components/shell/TabBar";
 import { TitleBar } from "@/components/shell/TitleBar";
 import { MobileShell } from "@/components/shell/MobileShell";
@@ -48,6 +49,7 @@ export default function App() {
 
   const [drawerOpen, setDrawerOpen] = useState(false);
   const [searchOpen, setSearchOpen] = useState(false);
+  const [settingsOpen, setSettingsOpen] = useState(false);
   // Estado de conexão da sessão ativa — só usado pela MobileTopBar do iOS
   // (docs/24), que fica fora do ChatPanel. Alimentado pelo `onConnectedChange`
   // de `renderPanel` abaixo, guardado pelo mesmo padrão de "ainda é a aba
@@ -526,9 +528,11 @@ export default function App() {
         sidebarCollapsed={resizable.collapsed}
         onToggleSidebar={resizable.toggleCollapsed}
         onOpenSearch={() => setSearchOpen(true)}
+        onOpenSettings={() => setSettingsOpen(true)}
       />
 
       <SessionSearch open={searchOpen} onOpenChange={setSearchOpen} onSelectSession={handleSearchSelectSession} />
+      <SettingsDialog open={settingsOpen} onOpenChange={setSettingsOpen} />
 
       <div className="flex min-h-0 flex-1">
         {!isCompact && (

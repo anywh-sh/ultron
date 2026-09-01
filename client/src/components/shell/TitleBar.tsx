@@ -1,6 +1,12 @@
 import type { ReactNode } from "react";
-import { ChevronLeft, ChevronRight, Copy, Minus, PanelLeftClose, PanelLeftOpen, Search, Square, X } from "lucide-react";
+import { ChevronLeft, ChevronRight, Copy, Menu, Minus, PanelLeftClose, PanelLeftOpen, Search, Settings, Square, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 import { Tooltip, TooltipContent, TooltipShortcut, TooltipTrigger } from "@/components/ui/tooltip";
 import { useWindowControls } from "@/hooks/useWindowControls";
 import { isMacOS, shortcutLabel } from "@/lib/platform";
@@ -43,6 +49,7 @@ export function TitleBar({
   sidebarCollapsed,
   onToggleSidebar,
   onOpenSearch,
+  onOpenSettings,
 }: {
   canGoBack: boolean;
   canGoForward: boolean;
@@ -52,6 +59,7 @@ export function TitleBar({
   sidebarCollapsed: boolean;
   onToggleSidebar: () => void;
   onOpenSearch: () => void;
+  onOpenSettings: () => void;
 }) {
   // macOS mantém os semáforos nativos (modo overlay do Tauri — docs/21), então
   // não desenhamos minimizar/maximizar/fechar lá, só reservamos o espaço deles
@@ -62,6 +70,24 @@ export function TitleBar({
   return (
     <div className={cn("flex h-9 shrink-0 select-none border-b border-border-soft bg-bg-sidebar", mac && "pl-[78px]")}>
       <div className="flex h-full shrink-0 items-center gap-0.5 px-1">
+        <DropdownMenu>
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <DropdownMenuTrigger asChild>
+                <Button variant="ghost" size="icon-sm" aria-label="Menu">
+                  <Menu className="size-4" />
+                </Button>
+              </DropdownMenuTrigger>
+            </TooltipTrigger>
+            <TooltipContent side="bottom">Menu</TooltipContent>
+          </Tooltip>
+          <DropdownMenuContent align="start">
+            <DropdownMenuItem onSelect={onOpenSettings}>
+              <Settings className="size-3.5" />
+              Configurações
+            </DropdownMenuItem>
+          </DropdownMenuContent>
+        </DropdownMenu>
         <Tooltip>
           <TooltipTrigger asChild>
             <Button variant="ghost" size="icon-sm" onClick={onGoBack} disabled={!canGoBack} aria-label="Voltar">

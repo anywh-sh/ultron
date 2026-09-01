@@ -4,6 +4,7 @@ import { getCurrentWebview } from "@tauri-apps/api/webview";
 import { invoke } from "@tauri-apps/api/core";
 import { guessMimeFromExtension } from "@/lib/mimeTypes";
 import { useRelayClient } from "@/hooks/useRelayClient";
+import { getDefaultPath } from "@/hooks/useDefaultPaths";
 import { useKeyboardInset } from "@/hooks/useKeyboardInset";
 import { useMessageLog, type LogEntry } from "@/hooks/useMessageLog";
 import { useImageUpload, type PendingAttachment } from "@/hooks/useImageUpload";
@@ -251,6 +252,14 @@ export function ChatPanel({
     onTurnActiveChangeRef.current?.(turnInFlight);
   }, [turnInFlight]);
 
+  // Pasta padrão do perfil (Configurações) tentando se aplicar sozinha numa
+  // conversa nova — ver efeito logo abaixo do `useRelayClient`. Se o relay
+  // recusar (pasta apagada, sem permissão), o erro não deve virar um alert
+  // sem nenhuma ação do usuário por trás: essa flag faz `onSetCwdError`
+  // engolir só ESSA falha, mantendo o alert normal pra troca manual via
+  // `WorkingDirectoryButton`.
+  const suppressNextCwdErrorRef = useRef(false);
+
   const {
     connected,
     cwd,
@@ -321,11 +330,35 @@ export function ChatPanel({
     // (Composer.onSend) já cobre o instante entre o clique e este evento
     // chegar de volta.
     onTurnState: (state) => setTurnStartedAt(state.active ? (state.startedAt ?? Date.now()) : null),
-    onSetCwdError: (message) => window.alert(`Não foi possível trocar a pasta: ${message}`),
+    onSetCwdError: (message) => {
+      if (suppressNextCwdErrorRef.current) {
+        suppressNextCwdErrorRef.current = false;
+        return;
+      }
+      window.alert(`Não foi possível trocar a pasta: ${message}`);
+    },
     onNotificationSummary: (text) => onNotificationSummaryRef.current?.(text),
     onSessionTitle: (title) => onTitleRef.current?.(title),
     onSessionDeleted: () => onDeletedRef.current?.(),
   });
+
+  // Aplica o path padrão do perfil (Configurações) assim que a conversa nova
+  // recebe seu primeiro `cwd_state` — o relay sempre entrega o próprio
+  // default nesse momento (sessão nunca nasce travada, ver comentário em
+  // `WorkingDirectoryButton`), então isso é o mesmo que o usuário escolher a
+  // pasta na hora, só automático. Roda no máximo uma vez por aba
+  // (`appliedDefaultPathRef`): depois disso o usuário pode trocar livremente
+  // sem o efeito insistir em voltar pro default a cada re-render.
+  const appliedDefaultPathRef = useRef(false);
+  useEffect(() => {
+    if (!isNewConversation || appliedDefaultPathRef.current || cwd === null) return;
+    appliedDefaultPathRef.current = true;
+    const defaultPath = getDefaultPath(profile.id);
+    if (defaultPath && defaultPath !== cwd) {
+      suppressNextCwdErrorRef.current = true;
+      setCwd(defaultPath);
+    }
+  }, [isNewConversation, cwd, profile.id, setCwd]);
 
   // Mesmo padrão de `onTurnActiveChange` acima: reporta pro Tab via ref —
   // abas em background continuam montadas (docs/18), então isso também
