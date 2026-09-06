@@ -293,6 +293,15 @@ export class SessionStore {
     this.persist();
   }
 
+  /** `/clear` (ver `SharedSession.clearConversation`) — contraparte de
+   * `lockCwd`, senão um restart do relay voltaria a carregar a sessão como
+   * travada mesmo depois do destravamento. */
+  unlockCwd(id: string): void {
+    this.ensureEntry(id);
+    this.records[id].cwd.locked = false;
+    this.persist();
+  }
+
   getPermissionMode(id: string): PermissionMode {
     return this.records[id]?.permissionMode ?? "bypassPermissions";
   }

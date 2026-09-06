@@ -146,6 +146,7 @@ export class SessionManager {
       initialLocked: locked,
       onCwdChange: (newCwd) => this.sessionStore.setCwd(id, newCwd),
       onLockChange: () => this.sessionStore.lockCwd(id),
+      onUnlockChange: () => this.sessionStore.unlockCwd(id),
       initialPermissionMode: this.sessionStore.getPermissionMode(id),
       onPermissionModeChange: (mode) => this.sessionStore.setPermissionMode(id, mode),
       initialModel: this.sessionStore.getModel(id),

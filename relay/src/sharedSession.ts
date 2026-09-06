@@ -61,6 +61,9 @@ export interface SharedSessionOptions {
   /** Chamado uma única vez, no momento em que a sessão trava (primeiro
    * turno de verdade). */
   onLockChange?: () => void;
+  /** Chamado quando um `/clear` destrava o cwd de uma sessão que já estava
+   * travada (ver `clearConversation`) — contraparte de `onLockChange`. */
+  onUnlockChange?: () => void;
   /** Título já persistido pra essa sessão, se houver (sessão antiga migrada,
    * ou reload de uma sessão nova cujo título já tinha sido inferido antes do
    * restart do relay). */
@@ -440,9 +443,13 @@ export class SharedSession {
   /** `/clear` (docs/26) — mesma fila dos turnos de verdade (`turnQueue`),
    * pra nunca correr em paralelo com um turno em andamento e arriscar um dos
    * dois sobrescrever o `session_id`/`history` do outro fora de ordem. Não
-   * mexe em cwd, permissionMode nem model — só o CONTEÚDO da conversa reseta,
+   * mexe em permissionMode nem model — só o CONTEÚDO da conversa reseta,
    * igual o `/clear` de verdade da CLI (só que sem rodar processo nenhum:
-   * ver `ClaudeSession.resetSessionId`). */
+   * ver `ClaudeSession.resetSessionId`). O cwd É destravado, ao contrário
+   * da CLI: sem histórico nem `session_id` sobrando, não há mais nada
+   * amarrando o próximo turno à pasta antiga (ver o comentário sobre o lock
+   * em `runTurn`), então a sessão pode escolher outra de novo, igual uma
+   * sessão nova. */
   clearConversation(): void {
     this.turnQueue = this.turnQueue.then(() => {
       this.claude.resetSessionId();
@@ -450,6 +457,11 @@ export class SharedSession {
       this.historyCleared = true;
       this.contextUsage = undefined;
       this.options.onSessionIdClear?.();
+      if (this.locked) {
+        this.locked = false;
+        this.options.onUnlockChange?.();
+        this.broadcastCwdState();
+      }
       this.broadcastContextUsageReset();
       this.clearSuggestion();
       this.broadcastConversationReset();
