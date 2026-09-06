@@ -58,10 +58,7 @@ export function MobileShell({
     >
       <MobileSidebar
         activeProfile={activeProfile}
-        onProfileChange={(profileId) => {
-          onProfileChange(profileId);
-          drawer.closeDrawer();
-        }}
+        onProfileChange={onProfileChange}
         sessions={sessions}
         sessionsLoading={sessionsLoading}
         selectedSession={selectedSession}
