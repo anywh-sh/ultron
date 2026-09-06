@@ -559,6 +559,19 @@ export const Composer = forwardRef<ComposerHandle, ComposerProps>(function Compo
         }
         return false;
       },
+      // Ctrl/Cmd+V with an image on the clipboard (e.g. a screenshot tool,
+      // or "Copy image" from a browser) — reuses the same upload pipeline
+      // as the attach button and drag-and-drop instead of letting
+      // ProseMirror try to paste it as inline content.
+      handlePaste: (_view, event) => {
+        const files = Array.from(event.clipboardData?.files ?? []).filter(
+          (file) => file.type.startsWith("image/") || file.type.startsWith("video/"),
+        );
+        if (files.length === 0) return false;
+        event.preventDefault();
+        onAddFiles(files);
+        return true;
+      },
     },
   });
 
