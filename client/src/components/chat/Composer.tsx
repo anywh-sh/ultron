@@ -474,6 +474,31 @@ export const Composer = forwardRef<ComposerHandle, ComposerProps>(function Compo
         // `createSlashCommandExtension`) — sem isso o Enter sempre submeteria
         // em vez de preencher o comando selecionado.
         if (event.key === "Enter" && !event.shiftKey && slashMenuActiveRef.current) return false;
+        // Backspace logo depois de um Shift+Enter (ou entre duas quebras
+        // seguidas, linha em branco) não voltava a linha: o cursor fica bem
+        // depois da âncora invisível (`HARD_BREAK_ANCHOR`, ver
+        // `hardBreakAnchorPlugin` acima), então o Backspace padrão só apaga
+        // esse caractere de largura zero — e o `appendTransaction` do próprio
+        // plugin detecta o `hardBreak` sem nada depois e reinsere a âncora
+        // na mesma passada, desfazendo o apagar antes de qualquer re-render.
+        // Visualmente nada acontece. Aqui a checagem intercepta esse caso
+        // específico (nó de texto imediatamente antes do cursor é só a
+        // âncora, sem nada digitado) e apaga a âncora e o `hardBreak` juntos
+        // como uma unidade só, deixando o `appendTransaction` reancorar
+        // normalmente na linha anterior se for preciso.
+        if (event.key === "Backspace" && !event.shiftKey && !event.ctrlKey && !event.metaKey && !event.altKey) {
+          const { $head, empty } = view.state.selection;
+          const nodeBefore = empty ? $head.nodeBefore : null;
+          if (nodeBefore?.isText && nodeBefore.text === HARD_BREAK_ANCHOR) {
+            const anchorStart = $head.pos - nodeBefore.nodeSize;
+            const hardBreak = view.state.doc.resolve(anchorStart).nodeBefore;
+            if (hardBreak?.type.name === "hardBreak") {
+              event.preventDefault();
+              view.dispatch(view.state.tr.delete(anchorStart - hardBreak.nodeSize, $head.pos).scrollIntoView());
+              return true;
+            }
+          }
+        }
         // No iOS o teclado não tem um jeito prático de "Shift+Enter" — Enter
         // vira quebra de linha, envio fica só pelo botão (docs/33). Desktop
         // não muda: Enter continua enviando, Shift+Enter continua sendo a
