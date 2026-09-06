@@ -1,4 +1,7 @@
 mod notifications;
+// Windows-only fix for the blurry taskbar/Alt+Tab icon — see the module docs.
+#[cfg(windows)]
+mod window_icon;
 // Voice (local dictation) out of scope for the iOS MVP (docs/22) —
 // cpal/whisper-rs don't link on the iOS target without extra work. See
 // Cargo.toml.
@@ -71,6 +74,21 @@ pub fn run() {
             if let Some(window) = tauri::Manager::get_webview_window(app, "main") {
                 let _ = window.set_title("ultron");
             }
+
+            #[cfg(windows)]
+            if let Some(window) = tauri::Manager::get_webview_window(app, "main") {
+                window_icon::apply(&window);
+
+                // The icons are sized in physical pixels, so moving the window to a
+                // monitor with another scale factor needs new ones.
+                let scaled = window.clone();
+                window.on_window_event(move |event| {
+                    if matches!(event, tauri::WindowEvent::ScaleFactorChanged { .. }) {
+                        window_icon::apply(&scaled);
+                    }
+                });
+            }
+
             Ok(())
         })
         .run(tauri::generate_context!())

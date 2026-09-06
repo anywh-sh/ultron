@@ -552,6 +552,7 @@ dependencies = [
  "tauri-plugin-os",
  "tauri-winrt-notification",
  "whisper-rs",
+ "windows 0.61.3",
 ]
 
 [[package]]
