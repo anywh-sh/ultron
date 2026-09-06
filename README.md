@@ -40,6 +40,8 @@ npm start               # or `npm run dev` during development
 
 By default it listens on `127.0.0.1:8765` (`RELAY_HOST`/`RELAY_PORT` in `.env.example`). It needs the `claude` CLI already installed and logged in on the same machine.
 
+**Advanced: running it as a systemd service** (survives reboots/crashes unattended) is documented in [`infra/systemd/README.md`](./infra/systemd/README.md). For access from outside your LAN, see [`docs/43-acesso-remoto-manual.md`](./docs/43-acesso-remoto-manual.md).
+
 ### Client
 
 Requires the [Tauri prerequisites](https://v2.tauri.app/start/prerequisites/) for your OS (Rust toolchain + platform-specific system deps).
