@@ -10,11 +10,20 @@ O backlog do desktop ([`docs/20-backlog.md`](./docs/20-backlog.md) — instalado
 
 Toda a documentação (histórico de decisão completo) vive em [`/docs`](./docs), em ordem numérica, começando por [`docs/00-premissa.md`](./docs/00-premissa.md).
 
+## Idioma
+
+O projeto está indo pra open-source, então tudo que não for texto de UI precisa estar em inglês, mesmo quando a conversa com o agente for em português:
+
+- **Sempre em inglês**: comentário de código (`//`, `/* */`, doc comments), mensagem de commit (título + corpo), `console.log`/`console.error`/logs de servidor, e qualquer string que exista só pro desenvolvedor (nunca chega a ser renderizada pro usuário final).
+- **Continua em português por enquanto**: qualquer string que é de fato mostrada na UI (texto JSX, `placeholder`/`title`/`aria-label`, `window.alert`/`window.confirm`, toast, mensagem de erro que chega até o usuário). Isso é intencional — o projeto não tem sistema de i18n ainda, então traduzir texto de UI hoje só criaria uma mistura pior. Antes de decidir se uma string é "UI" ou "não-UI", rastreia onde ela é consumida (ex.: um erro que sobe até um `alert`/toast é UI; um `console.error` não é) — não decide só por "parece uma frase".
+- `/docs` e este `CLAUDE.md` continuam em português por ora — são o histórico de decisão do projeto, e traduzir isso é escopo de uma reorganização futura combinada com o usuário, não uma tradução solta.
+- Contexto: o projeto foi construído em conversas em português sem essa diretriz explícita, e acumulou texto em PT em código e commits. Corrigido retroativamente em 2026-09 (histórico de commit reescrito via `git filter-repo`, comentários/logs traduzidos) — esta seção existe pra isso não voltar a acontecer.
+
 ## Workflow de contribuição
 
 Detalhes/justificativa em [`docs/24-preferencias-contribuicao.md`](./docs/24-preferencias-contribuicao.md).
 
 - Commits separados por responsabilidade (atômicos) — nunca misturar mudanças de propósitos diferentes num único commit, mesmo que tenham sido feitas na mesma sessão. Se o working tree acumulou mais de uma feature/fix, separa em commits distintos (stage seletivo por arquivo/hunk) em vez de um commit único.
 - Sempre seguir [Conventional Commits](https://www.conventionalcommits.org/) (`feat:`, `fix:`, `refactor:`, `style:`, `docs:` etc., com escopo quando fizer sentido, ex. `feat(client): ...`).
-- **Texto do commit (título + corpo) sempre em inglês**, mesmo com o resto da conversa em português.
+- **Texto do commit (título + corpo) sempre em inglês**, mesmo com o resto da conversa em português — ver seção "Idioma" acima.
 - Ao terminar um trabalho (bug corrigido, feature implementada, o que foi pedido na sessão), o passo de conclusão inclui commitar (nos moldes acima) e dar `git push` pro repo remoto — isso faz parte de "terminar a tarefa", não é uma ação extra que precisa ser pedida à parte toda vez.
