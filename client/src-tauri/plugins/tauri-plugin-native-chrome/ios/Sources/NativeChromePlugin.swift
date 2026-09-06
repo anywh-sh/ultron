@@ -52,6 +52,23 @@ class NativeChromePlugin: Plugin, UIEditMenuInteractionDelegate, @unchecked Send
       let interaction = UIEditMenuInteraction(delegate: self)
       webview.addInteraction(interaction)
       self.editMenuInteraction = interaction
+
+      // WKWebView's own outer `UIScrollView` (distinct from the DOM — every
+      // `overflow: auto` div gets its own internal scroller under WebKit's
+      // async scrolling, unaffected by this) auto-scrolls the whole page to
+      // bring a focused input above the keyboard. `body { position: fixed }`
+      // (index.css) only stops the DOM's own scroll machinery, not this
+      // native one — so it never covered the case reported here: opening the
+      // keyboard on a screen with no scrollable content at all (a fresh "new
+      // conversation" tab) still panned the page, hiding the fixed/absolute
+      // header (MobileTopBar) since it's positioned against the layout
+      // viewport, not wherever this native scroll happened to land it. The
+      // app never relies on this outer scroll view for anything real — every
+      // actual scroll surface (MessageLog, the composer's ProseMirror) is an
+      // inner DOM scroller — so disabling it outright removes the
+      // auto-scroll-into-view behavior without losing any real scrolling.
+      webview.scrollView.isScrollEnabled = false
+      webview.scrollView.bounces = false
     }
   }
 
