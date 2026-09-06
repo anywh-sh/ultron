@@ -162,15 +162,15 @@ test("setCwd/lockCwd/getCwdState round-trip and persist to disk", () => {
   withStoreFile(undefined, (filePath) => {
     const store = new SessionStore(filePath, DEFAULT_CWD);
     store.recordId("s1");
-    store.setCwd("s1", "/home/user/mode/widgets");
-    assert.deepEqual(store.getCwdState("s1"), { cwd: "/home/user/mode/widgets", locked: false });
+    store.setCwd("s1", "/home/user/projects/demo");
+    assert.deepEqual(store.getCwdState("s1"), { cwd: "/home/user/projects/demo", locked: false });
 
     store.lockCwd("s1");
-    assert.deepEqual(store.getCwdState("s1"), { cwd: "/home/user/mode/widgets", locked: true });
+    assert.deepEqual(store.getCwdState("s1"), { cwd: "/home/user/projects/demo", locked: true });
 
     // Reopening the file reflects what was persisted.
     const reopened = new SessionStore(filePath, DEFAULT_CWD);
-    assert.deepEqual(reopened.getCwdState("s1"), { cwd: "/home/user/mode/widgets", locked: true });
+    assert.deepEqual(reopened.getCwdState("s1"), { cwd: "/home/user/projects/demo", locked: true });
   });
 });
 

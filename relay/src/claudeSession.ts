@@ -1,5 +1,6 @@
 import { spawn, type ChildProcessWithoutNullStreams } from "node:child_process";
 import { createInterface } from "node:readline";
+import { CLAUDE_BIN, EXTRA_PATH_DIRS } from "./claudeCliConfig.js";
 import type { ContextUsage, ModelChoice, PermissionMode } from "./sessionStore.js";
 
 // A turn = a `claude -p` process. Continuity across turns comes from
@@ -9,21 +10,6 @@ import type { ContextUsage, ModelChoice, PermissionMode } from "./sessionStore.j
 // ANTHROPIC_API_KEY is always removed from the child process's environment:
 // it's the project's golden rule (docs/00) — if that env var leaks, Claude
 // Code starts billing via API instead of using the plan.
-//
-// Absolute path and explicit PATH: running via systemd the process doesn't
-// have the user's interactive shell PATH (doesn't source .bashrc/.profile),
-// so neither the binary nor tools it invokes internally (node, git...) would
-// be found by name alone — same bug class we already fixed for tmux in
-// docs/08.
-const CLAUDE_BIN = process.env.CLAUDE_BIN ?? "/home/user/.local/bin/claude";
-// `relay/scripts` (not `dist/` nor `src/`) — the helper is a standalone bash
-// script, doesn't need a build, and stays on PATH so the turn finds
-// `ultron-bg` by name alone (see docs/32).
-const EXTRA_PATH_DIRS = [
-  "/home/user/.local/bin",
-  "/home/user/.nvm/versions/node/v20.19.0/bin",
-  "/home/user/personal/ultron/relay/scripts",
-];
 
 /** Appended to every turn, regardless of the active project's CLAUDE.md — it's
  * a preference of the ultron CLIENT, not of a specific project. Without

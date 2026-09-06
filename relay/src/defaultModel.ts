@@ -1,9 +1,5 @@
 import { spawn } from "node:child_process";
-
-// Same binary/PATH as the real turn (claudeSession.ts) — identical reason:
-// systemd doesn't source the user's interactive shell.
-const CLAUDE_BIN = process.env.CLAUDE_BIN ?? "/home/user/.local/bin/claude";
-const EXTRA_PATH_DIRS = ["/home/user/.local/bin", "/home/user/.nvm/versions/node/v20.19.0/bin"];
+import { CLAUDE_BIN, EXTRA_PATH_DIRS } from "./claudeCliConfig.js";
 
 // Extracts just the model family — "Current model: `Sonnet 5 (default)`" ->
 // "Sonnet", "Current model: `Opus 5 (1M context) (default)`" -> "Opus". The

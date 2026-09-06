@@ -1,9 +1,5 @@
 import { spawn } from "node:child_process";
-
-// Same binary/PATH as the real turn (claudeSession.ts) — identical reason:
-// systemd doesn't source the user's interactive shell.
-const CLAUDE_BIN = process.env.CLAUDE_BIN ?? "/home/user/.local/bin/claude";
-const EXTRA_PATH_DIRS = ["/home/user/.local/bin", "/home/user/.nvm/versions/node/v20.19.0/bin"];
+import { CLAUDE_BIN, EXTRA_PATH_DIRS } from "./claudeCliConfig.js";
 
 const SYSTEM_PROMPT =
   "You are a short title generator for a chat session list, like a browser tab title. The user's " +
