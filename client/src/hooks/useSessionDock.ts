@@ -1,0 +1,154 @@
+import { useCallback, useEffect, useState } from "react";
+
+/** Right-side dock, one per chat session (tab) — replaces `useSessionPanels.ts`
+ * (see docs/41 for why): terminal and the work dir file viewer aren't
+ * mutually exclusive content of a single slot, they're independent panes
+ * that stack in the same column. `panes` is the stack, top to bottom;
+ * pushing a kind that's already there is a no-op from the caller's
+ * perspective (use `togglePane`, which removes it instead).
+ */
+export type DockPaneKind = "terminal" | "files";
+
+export interface DockState {
+  /** Visual order, top to bottom. Empty = dock closed. */
+  panes: DockPaneKind[];
+  /** Column width — shared by every pane, not per pane. */
+  width: number;
+  /** Fraction of the column height the first pane in `panes` gets, when
+   * there are two. Clamped to [0.2, 0.8] so neither pane can be dragged
+   * down to nothing. */
+  splitRatio: number;
+  /** Which pane is expanded to fill the whole column (hiding the chat and
+   * the other pane), `null` for the normal split layout. */
+  maximized: DockPaneKind | null;
+}
+
+const MIN_WIDTH = 320;
+// The file pane is a tree + content side by side — below this the two
+// become unusable, unlike the terminal alone which tolerates the narrower
+// default.
+const MIN_WIDTH_WITH_FILES = 420;
+const MAX_WIDTH = 900;
+const DEFAULT_WIDTH = 480;
+const MIN_SPLIT_RATIO = 0.2;
+const MAX_SPLIT_RATIO = 0.8;
+
+const STORAGE_KEY = "ultron:session-dock";
+// Old single-slot shape (`{ open, kind, width, maximized }`) this hook
+// replaces — not migrated, see docs/41 ("o que se perde é só 'esse painel
+// estava aberto, com essa largura', irrelevante").
+const OLD_STORAGE_KEY = "ultron:session-panels";
+
+type DockMap = Record<string, DockState>;
+
+function clampWidth(width: number, panes: DockPaneKind[]): number {
+  const min = panes.includes("files") ? MIN_WIDTH_WITH_FILES : MIN_WIDTH;
+  return Math.min(MAX_WIDTH, Math.max(min, width));
+}
+
+function clampSplitRatio(ratio: number): number {
+  return Math.min(MAX_SPLIT_RATIO, Math.max(MIN_SPLIT_RATIO, ratio));
+}
+
+function loadPersisted(): DockMap {
+  try {
+    const raw = localStorage.getItem(STORAGE_KEY);
+    if (!raw) return {};
+    return JSON.parse(raw) as DockMap;
+  } catch {
+    return {};
+  }
+}
+
+const EMPTY_DOCK: DockState = { panes: [], width: DEFAULT_WIDTH, splitRatio: 0.5, maximized: null };
+
+function withoutPane(dock: DockState, kind: DockPaneKind): DockState {
+  if (!dock.panes.includes(kind)) return dock;
+  return {
+    ...dock,
+    panes: dock.panes.filter((pane) => pane !== kind),
+    maximized: dock.maximized === kind ? null : dock.maximized,
+  };
+}
+
+/**
+ * State of all the app's right-side docks, one per session tab — same
+ * pattern as `useTabs.ts` (a map instead of separate instances), persisted
+ * in `localStorage` to survive an app restart. Purely UI state
+ * (panes/width/split/maximized): what exists *inside* each pane (e.g. which
+ * terminal tabs, which files are open) is another hook's responsibility
+ * (`useTerminalTabs`, `useFileTabs`), this one only knows about the shell.
+ */
+export function useSessionDock() {
+  const [docks, setDocks] = useState<DockMap>(loadPersisted);
+
+  useEffect(() => {
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(docks));
+  }, [docks]);
+
+  useEffect(() => {
+    localStorage.removeItem(OLD_STORAGE_KEY);
+  }, []);
+
+  const getDock = useCallback((tabId: string): DockState => docks[tabId] ?? EMPTY_DOCK, [docks]);
+
+  /** If `kind` is already open, closes it; otherwise pushes it to the end of
+   * the stack — with the terminal already open, files lands below it, and
+   * vice versa. */
+  const togglePane = useCallback((tabId: string, kind: DockPaneKind) => {
+    setDocks((prev) => {
+      const existing = prev[tabId] ?? EMPTY_DOCK;
+      if (existing.panes.includes(kind)) {
+        return { ...prev, [tabId]: withoutPane(existing, kind) };
+      }
+      return { ...prev, [tabId]: { ...existing, panes: [...existing.panes, kind] } };
+    });
+  }, []);
+
+  const closePane = useCallback((tabId: string, kind: DockPaneKind) => {
+    setDocks((prev) => {
+      const existing = prev[tabId];
+      if (!existing) return prev;
+      return { ...prev, [tabId]: withoutPane(existing, kind) };
+    });
+  }, []);
+
+  const setWidth = useCallback((tabId: string, width: number) => {
+    setDocks((prev) => {
+      const existing = prev[tabId];
+      if (!existing) return prev;
+      return { ...prev, [tabId]: { ...existing, width: clampWidth(width, existing.panes) } };
+    });
+  }, []);
+
+  const setSplitRatio = useCallback((tabId: string, ratio: number) => {
+    setDocks((prev) => {
+      const existing = prev[tabId];
+      if (!existing) return prev;
+      return { ...prev, [tabId]: { ...existing, splitRatio: clampSplitRatio(ratio) } };
+    });
+  }, []);
+
+  /** Expanding doesn't touch `panes`/`splitRatio` — restoring means going
+   * back to whatever layout was there before, for free. */
+  const toggleMaximized = useCallback((tabId: string, kind: DockPaneKind) => {
+    setDocks((prev) => {
+      const existing = prev[tabId];
+      if (!existing) return prev;
+      return { ...prev, [tabId]: { ...existing, maximized: existing.maximized === kind ? null : kind } };
+    });
+  }, []);
+
+  /** Called when the chat tab is closed/deleted — without this the map keeps
+   * growing forever with entries for sessions that no longer exist. */
+  const removeSession = useCallback((tabId: string) => {
+    setDocks((prev) => {
+      if (!(tabId in prev)) return prev;
+      const next = { ...prev };
+      delete next[tabId];
+      return next;
+    });
+  }, []);
+
+  return { getDock, togglePane, closePane, setWidth, setSplitRatio, toggleMaximized, removeSession };
+}

@@ -1,0 +1,112 @@
+import { useEffect, useState } from "react";
+import type { ChangeSignal } from "@/components/files/FilesPanel";
+import { readFile, rawFileUrl, type FileReadResult } from "@/lib/filesClient";
+import type { Profile } from "@/lib/profiles";
+import { CodeFileView } from "@/components/files/CodeFileView";
+import { MarkdownFileView } from "@/components/files/MarkdownFileView";
+
+interface FileViewerProps {
+  profile: Profile;
+  sessionId: string;
+  path: string;
+  /** Watch (docs/41 phase 5) reported a change to this exact path — silently
+   * refetches in place (no "loading…" flash) rather than the initial fetch
+   * below; the scroll position is preserved since nothing unmounts. */
+  changedFile: ChangeSignal | null;
+}
+
+function formatBytes(bytes: number): string {
+  if (bytes < 1024) return `${String(bytes)} B`;
+  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
+  return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
+}
+
+/**
+ * Fetches and routes a single open file to the right renderer, by `kind`
+ * (docs/41): image and binary are simple placeholders, `.md` gets the
+ * formatted/raw toggle (`MarkdownFileView`), anything else is plain code
+ * (`CodeFileView`). One instance per active tab — `key={path}` at the call
+ * site (`FilesPanel`) resets all local state (including the markdown
+ * toggle) when switching files, instead of carrying it over.
+ */
+export function FileViewer({ profile, sessionId, path, changedFile }: FileViewerProps) {
+  const [result, setResult] = useState<FileReadResult | "loading" | "error">("loading");
+
+  useEffect(() => {
+    let cancelled = false;
+    setResult("loading");
+    readFile(profile, sessionId, path)
+      .then((value) => {
+        if (!cancelled) setResult(value);
+      })
+      .catch(() => {
+        if (!cancelled) setResult("error");
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [profile, sessionId, path]);
+
+  useEffect(() => {
+    if (!changedFile || changedFile.path !== path) return;
+    let cancelled = false;
+    readFile(profile, sessionId, path)
+      .then((value) => {
+        if (!cancelled) setResult(value);
+      })
+      .catch(() => {
+        // The agent deleted the file while its tab was still open — reflect
+        // that instead of silently keeping the stale content on screen.
+        if (!cancelled) setResult("error");
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [changedFile, path, profile, sessionId]);
+
+  if (result === "loading") {
+    return <div className="flex h-full items-center justify-center text-xs text-muted-foreground">Carregando…</div>;
+  }
+  if (result === "error") {
+    return <div className="flex h-full items-center justify-center text-xs text-destructive">Não foi possível abrir o arquivo.</div>;
+  }
+
+  if (result.kind === "image") {
+    return (
+      <div className="flex h-full flex-col items-center justify-center gap-2 overflow-auto p-4">
+        <img
+          src={rawFileUrl(profile, sessionId, result.path, result.mtimeMs)}
+          alt={path}
+          className="max-h-full max-w-full object-contain"
+        />
+        <span className="text-xs text-muted-foreground">{formatBytes(result.size)}</span>
+      </div>
+    );
+  }
+
+  if (result.kind === "binary") {
+    return (
+      <div className="flex h-full flex-col items-center justify-center gap-1 text-xs text-muted-foreground">
+        <span>Arquivo binário, não visualizável</span>
+        <span>{formatBytes(result.size)}</span>
+      </div>
+    );
+  }
+
+  if (path.toLowerCase().endsWith(".md")) {
+    return <MarkdownFileView path={result.path} content={result.content} truncated={result.truncated} />;
+  }
+
+  return (
+    <div className="flex h-full flex-col">
+      {result.truncated && (
+        <div className="shrink-0 border-b border-border-soft bg-bg-elevated px-3 py-1 text-xs text-muted-foreground">
+          Arquivo grande — mostrando só o início.
+        </div>
+      )}
+      <div className="min-h-0 flex-1">
+        <CodeFileView path={result.path} content={result.content} />
+      </div>
+    </div>
+  );
+}

@@ -11,6 +11,8 @@ import { TabBar } from "@/components/shell/TabBar";
 import { TitleBar } from "@/components/shell/TitleBar";
 import { MobileShell } from "@/components/shell/MobileShell";
 import { ChatPanel } from "@/components/chat/ChatPanel";
+import { SessionDock } from "@/components/shell/SessionDock";
+import { FilesPanelSlot } from "@/components/files/FilesPanelSlot";
 import { TerminalPanelSlot } from "@/components/terminal/TerminalPanelSlot";
 import { useActiveProfile } from "@/hooks/useActiveProfile";
 import { useNavigationHistory } from "@/hooks/useNavigationHistory";
@@ -18,8 +20,9 @@ import { useSessionNames } from "@/hooks/useSessionNames";
 import { useResizableSidebar } from "@/hooks/useResizableSidebar";
 import { useIsCompactViewport } from "@/hooks/useIsCompactViewport";
 import { useTabs, type Tab } from "@/hooks/useTabs";
-import { useSessionPanels } from "@/hooks/useSessionPanels";
+import { useSessionDock } from "@/hooks/useSessionDock";
 import { useTerminalTabs } from "@/hooks/useTerminalTabs";
+import { useFileTabs } from "@/hooks/useFileTabs";
 import { useWindowFocus } from "@/hooks/useWindowFocus";
 import { useNotificationClick } from "@/hooks/useNotificationClick";
 import { PROFILES, findProfile } from "@/lib/profiles";
@@ -42,8 +45,9 @@ export default function App() {
   const isCompact = useIsCompactViewport();
   const resizable = useResizableSidebar();
   const tabsState = useTabs();
-  const sessionPanels = useSessionPanels();
+  const sessionDock = useSessionDock();
   const terminalTabs = useTerminalTabs();
+  const fileTabs = useFileTabs();
   const nav = useNavigationHistory();
   const windowFocused = useWindowFocus();
 
@@ -192,8 +196,9 @@ export default function App() {
     deleteSession(profile.host, profile.relayPort, id)
       .then(() => {
         tabsState.closeTab(id);
-        sessionPanels.removePanel(id);
+        sessionDock.removeSession(id);
         terminalTabs.removeSession(id);
+        fileTabs.removeSession(id);
         if (profileId === activeProfile.id) removeSession(id);
       })
       .catch((error: unknown) => {
@@ -220,7 +225,13 @@ export default function App() {
   // already use — docs/23).
   function handleToggleTerminalPanel(): void {
     if (isCompact || isIOS() || !activeTabId) return;
-    sessionPanels.togglePanel(activeTabId, "terminal");
+    sessionDock.togglePane(activeTabId, "terminal");
+  }
+
+  // Work dir file panel (docs/41) — same desktop-only gate as the terminal.
+  function handleToggleFilesPanel(): void {
+    if (isCompact || isIOS() || !activeTabId) return;
+    sessionDock.togglePane(activeTabId, "files");
   }
 
   // Ctrl+Tab / Ctrl+Shift+Tab, like a browser — intentionally only `ctrlKey`,
@@ -257,6 +268,13 @@ export default function App() {
         handleToggleTerminalPanel();
         return;
       }
+      // `Ctrl+Shift+E` — VS Code's own Explorer shortcut, literal Ctrl even
+      // on macOS, same reasoning as `Ctrl+\`` right above.
+      if (event.ctrlKey && event.shiftKey && event.key.toLowerCase() === "e") {
+        event.preventDefault();
+        handleToggleFilesPanel();
+        return;
+      }
       if (!(event.metaKey || event.ctrlKey)) return;
       switch (event.key.toLowerCase()) {
         case "n":
@@ -278,7 +296,7 @@ export default function App() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [
     activeProfile.id,
-    sessionPanels.togglePanel,
+    sessionDock.togglePane,
     activeTabId,
     isCompact,
     tabsState.closeTab,
@@ -323,7 +341,7 @@ export default function App() {
   // selected in the sidebar.
   const renderPanel = (tab: Tab) => {
     const profile = findProfile(tab.profileId) ?? PROFILES[0];
-    const panel = sessionPanels.getPanel(tab.id);
+    const dock = sessionDock.getDock(tab.id);
     const isTabActive = tab.id === activeTabId;
     const chatContent = (
       <ChatPanel
@@ -361,8 +379,9 @@ export default function App() {
         }}
         onDeleted={() => {
           tabsState.closeTab(tab.id);
-          sessionPanels.removePanel(tab.id);
+          sessionDock.removeSession(tab.id);
           terminalTabs.removeSession(tab.id);
+          fileTabs.removeSession(tab.id);
           if (tab.profileId === activeProfile.id) removeSession(tab.id);
         }}
         onConnectedChange={(connected) => {
@@ -371,7 +390,12 @@ export default function App() {
         terminal={
           isCompact || isIOS()
             ? undefined
-            : { open: panel.open, onToggle: () => sessionPanels.togglePanel(tab.id, "terminal") }
+            : { open: dock.panes.includes("terminal"), onToggle: () => sessionDock.togglePane(tab.id, "terminal") }
+        }
+        files={
+          isCompact || isIOS()
+            ? undefined
+            : { open: dock.panes.includes("files"), onToggle: () => sessionDock.togglePane(tab.id, "files") }
         }
         isActiveTab={isTabActive}
       />
@@ -379,57 +403,73 @@ export default function App() {
 
     if (isCompact || isIOS()) return chatContent;
 
-    // Embedded terminal (docs/30), desktop only. `isTabActive` is what
-    // implements "switching sessions closes the panel on its own, coming back
-    // reopens it the way it was": `TabBar` keeps ALL tabs mounted in the
-    // background (forceMount, to keep the chat WS alive — see comment
-    // further below), so without this gate the terminal panel would stay
-    // connected for out-of-focus sessions too. Only the active tab actually
-    // mounts `TerminalPanelSlot`; the others don't even exist in the DOM, so
-    // they don't open any terminal WS either — the cost of several chat tabs
-    // open at once (multiple profiles, multiple contexts) stays limited to a
-    // single live terminal panel at a time, not one per session.
+    // Embedded terminal (docs/30) and files pane (docs/41), desktop only.
+    // `isTabActive` is what implements "switching sessions closes the dock on
+    // its own, coming back reopens it the way it was": `TabBar` keeps ALL
+    // tabs mounted in the background (forceMount, to keep the chat WS alive
+    // — see comment further below), so without this gate the dock's panes
+    // would stay connected for out-of-focus sessions too. Only the active
+    // tab actually mounts `SessionDock`; the others don't even exist in the
+    // DOM, so they don't open any terminal/watch WS either — the cost of
+    // several chat tabs open at once (multiple profiles, multiple contexts)
+    // stays limited to a single live dock at a time, not one per session.
     //
-    // Unlike before, the gate here no longer includes `panel.open` — that's
-    // how the open/close animation (same as the left sidebar's,
-    // useResizableSidebar) works: `TerminalPanelSlot` stays mounted the whole
-    // time the tab is active, and IT (internally, lightweight, no xterm.js)
-    // is what decides the width (0 closed, animating to `panel.width` when
-    // open). Without this the panel content only existed in the DOM while
-    // open — there was nothing for the CSS transition to animate, it just
-    // popped in/out.
-    const chatHidden = isTabActive && panel.open && panel.maximized;
+    // The gate here doesn't include `dock.panes.length === 0` — that's how
+    // the open/close animation (same as the left sidebar's,
+    // useResizableSidebar) works: `SessionDock` stays mounted the whole time
+    // the tab is active, and IT (internally, lightweight) is what decides the
+    // width (0 closed, animating to `dock.width` when open). Without this the
+    // dock's content only existed in the DOM while open — there was nothing
+    // for the CSS transition to animate, it just popped in/out.
+    const chatHidden = isTabActive && dock.maximized !== null;
 
     // The wrapper (this `div` + the `div` right below wrapping
     // `chatContent`) is rendered unconditionally, with the SAME shape
-    // always — only the presence of `TerminalPanelSlot` as a sibling toggles
-    // (along with the tab becoming active/inactive). Before this it was
-    // conditional (`if (!showTerminal) return chatContent` with no wrapper
-    // at all), and opening/closing/switching the terminal tab changed the
-    // type of the child at that position in the tree (from `ChatPanel`
-    // directly to `div`) — React saw that as a different element and
-    // unmounted the whole `ChatPanel` (losing `ready`, closing the WS,
-    // reconnecting), which is exactly the skeleton flash reported when
-    // opening/expanding/closing the panel. Keeping the shape stable avoids
-    // that remount.
+    // always — only the presence of `SessionDock` as a sibling toggles (along
+    // with the tab becoming active/inactive). Before this it was conditional
+    // (`if (!showTerminal) return chatContent` with no wrapper at all), and
+    // opening/closing/switching the terminal tab changed the type of the
+    // child at that position in the tree (from `ChatPanel` directly to
+    // `div`) — React saw that as a different element and unmounted the whole
+    // `ChatPanel` (losing `ready`, closing the WS, reconnecting), which is
+    // exactly the skeleton flash reported when opening/expanding/closing the
+    // panel. Keeping the shape stable avoids that remount.
     return (
       <div className="relative flex h-full min-w-0">
         {/* `invisible absolute inset-0` instead of shrinking to 0 — same
          * trick (and same reason) as `TabBar.tsx`'s `forceMount`: `MessageLog`
          * uses `@tanstack/react-virtual`, whose `ResizeObserver` corrupts the
          * height cache if the container measures size 0 even briefly (which
-         * is exactly what would happen when maximizing the terminal if the
-         * chat were hidden via `display:none`/zero width). */}
+         * is exactly what would happen when maximizing a pane if the chat
+         * were hidden via `display:none`/zero width). */}
         <div className={cn("min-w-0 flex-1", chatHidden && "invisible absolute inset-0")}>{chatContent}</div>
         {isTabActive && (
-          <TerminalPanelSlot
-            profile={profile}
-            chatSessionId={tab.id}
-            panel={panel}
-            terminalTabs={terminalTabs}
-            onWidthChange={(width) => sessionPanels.setWidth(tab.id, width)}
-            onToggleMaximized={() => sessionPanels.toggleMaximized(tab.id)}
-            onClose={() => sessionPanels.closePanel(tab.id)}
+          <SessionDock
+            dock={dock}
+            onWidthChange={(width) => sessionDock.setWidth(tab.id, width)}
+            onSplitRatioChange={(ratio) => sessionDock.setSplitRatio(tab.id, ratio)}
+            panes={{
+              terminal: dock.panes.includes("terminal") ? (
+                <TerminalPanelSlot
+                  profile={profile}
+                  chatSessionId={tab.id}
+                  maximized={dock.maximized === "terminal"}
+                  terminalTabs={terminalTabs}
+                  onToggleMaximized={() => sessionDock.toggleMaximized(tab.id, "terminal")}
+                  onClose={() => sessionDock.closePane(tab.id, "terminal")}
+                />
+              ) : undefined,
+              files: dock.panes.includes("files") ? (
+                <FilesPanelSlot
+                  profile={profile}
+                  chatSessionId={tab.id}
+                  maximized={dock.maximized === "files"}
+                  fileTabs={fileTabs}
+                  onToggleMaximized={() => sessionDock.toggleMaximized(tab.id, "files")}
+                  onClose={() => sessionDock.closePane(tab.id, "files")}
+                />
+              ) : undefined,
+            }}
           />
         )}
       </div>

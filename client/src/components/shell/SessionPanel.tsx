@@ -5,38 +5,33 @@ import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip
 
 interface SessionPanelProps {
   maximized: boolean;
-  onStartDrag: (event: React.PointerEvent) => void;
   onToggleMaximized: () => void;
   onClose: () => void;
-  /** Content specific to the panel's `kind`, in the header — e.g. the
+  /** Content specific to the pane's kind, in the header — e.g. the
    * terminal's tab strip. The shell doesn't know what it is. */
   headerExtra: ReactNode;
   children: ReactNode;
 }
 
 /**
- * Generic shell for the right-side panel — resize/maximize/close, without
- * knowing anything about the content it hosts. Terminal is the first
- * consumer (`TerminalPanelContent`); the work dir file viewer (planned)
- * reuses this same shell later, just swapping `headerExtra` and `children`
- * (see useSessionPanels.ts for why panel and content are separate things).
- * Width/open-close animation aren't this shell's responsibility —
- * `TerminalPanelSlot` already delivers a space of the right size (see
- * comment there); this shell just fills 100% of it.
+ * Generic shell for one pane of the right-side dock — maximize/close,
+ * without knowing anything about the content it hosts. Terminal is the
+ * first consumer (`TerminalPanel`); the work dir file viewer reuses this
+ * same shell, just swapping `headerExtra` and `children` (see
+ * useSessionDock.ts for why the dock and each pane's content are separate
+ * things). Width/split/open-close animation aren't this shell's
+ * responsibility — `SessionDock` already delivers a space of the right size
+ * (see comment there); this shell just fills 100% of it, including the
+ * resize handle on the column's left edge and the divider between two
+ * panes, both owned by `SessionDock` since they act on the column, not on
+ * an individual pane.
  */
-export function SessionPanel({ maximized, onStartDrag, onToggleMaximized, onClose, headerExtra, children }: SessionPanelProps) {
+export function SessionPanel({ maximized, onToggleMaximized, onClose, headerExtra, children }: SessionPanelProps) {
   return (
-    <div className="relative flex h-full w-full min-w-0 flex-col border-l border-border-soft bg-bg-sidebar">
-      {!maximized && (
-        <div
-          onPointerDown={onStartDrag}
-          className="absolute top-0 left-0 z-10 h-full w-1 cursor-col-resize hover:bg-border"
-        />
-      )}
-
+    <div className="relative flex h-full w-full min-w-0 flex-col bg-bg-sidebar">
       <div className="flex shrink-0 items-center justify-between border-b border-border-soft">
         <div className="min-w-0 flex-1">{headerExtra}</div>
-        {/* `py-1` same as the tab strip wrapper (TerminalTabStrip) — without
+        {/* `py-1` same as the tab strip wrapper (PaneTabStrip) — without
          * this the row's height was dictated by the button itself
          * (`icon-sm`, bigger than the tabs' `icon-xs`), so its hover
          * touched the top/bottom edges directly, with no gap at all.

@@ -15,6 +15,7 @@ import { ChatIdleState } from "@/components/chat/ChatIdleState";
 import { TurnIndicator } from "@/components/chat/TurnIndicator";
 import { Composer, type ComposerHandle } from "@/components/chat/Composer";
 import { WorkingDirectoryButton } from "@/components/chat/WorkingDirectoryButton";
+import { FilesToggleButton } from "@/components/chat/FilesToggleButton";
 import { TerminalToggleButton } from "@/components/chat/TerminalToggleButton";
 import { BackgroundJobIndicator } from "@/components/chat/BackgroundJobIndicator";
 import type { BackgroundJobSummary } from "@/lib/relayClient";
@@ -59,6 +60,11 @@ interface ChatPanelProps {
    * iOS/compact viewport and the button doesn't even appear (see
    * renderPanel). */
   terminal?: {
+    open: boolean;
+    onToggle: () => void;
+  };
+  /** Work dir file panel (docs/41) — same desktop-only gating as `terminal`. */
+  files?: {
     open: boolean;
     onToggle: () => void;
   };
@@ -119,6 +125,7 @@ export function ChatPanel({
   onDeleted,
   onConnectedChange,
   terminal,
+  files,
   isActiveTab,
 }: ChatPanelProps) {
   const log = useMessageLog();
@@ -547,7 +554,10 @@ export function ChatPanel({
             />
             <BackgroundJobIndicator jobs={backgroundJobs} onCancel={cancelBackgroundJob} />
           </div>
-          {terminal && <TerminalToggleButton cwd={cwd} open={terminal.open} onToggle={terminal.onToggle} />}
+          <div className="flex shrink-0 items-center gap-1">
+            {files && <FilesToggleButton cwd={cwd} open={files.open} onToggle={files.onToggle} />}
+            {terminal && <TerminalToggleButton cwd={cwd} open={terminal.open} onToggle={terminal.onToggle} />}
+          </div>
         </div>
 
         {/* iOS (docs/33): editing doesn't turn into an inline `<textarea>`

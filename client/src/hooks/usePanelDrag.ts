@@ -4,7 +4,7 @@ import { useCallback, useRef, useState } from "react";
  * just mirrored: the draggable edge sits on the panel's left, so moving the
  * mouse left should *increase* the width (inverted sign relative to the
  * left sidebar). The width itself doesn't live here — it comes from
- * outside (`useSessionPanels`, per-session state), this hook just
+ * outside (`useSessionDock`, per-session state), this hook just
  * translates pointer events into `onChange` calls.
  */
 export function usePanelDrag(width: number, onChange: (width: number) => void) {

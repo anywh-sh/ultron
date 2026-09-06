@@ -32,7 +32,7 @@ function loadPersisted(): TerminalTabsMap {
 
 /**
  * List of terminal tabs per chat session — content specific to the panel's
- * `kind: "terminal"` (see useSessionPanels.ts), deliberately separated from it:
+ * `kind: "terminal"` (see useSessionDock.ts), deliberately separated from it:
  * the panel shell doesn't need to know that the terminal has multiple
  * internal tabs, that's just a detail of the content it hosts.
  */
@@ -85,7 +85,7 @@ export function useTerminalTabs() {
   }, []);
 
   /** Called when the chat tab is closed/deleted — same cleanup as
-   * `useSessionPanels.removePanel`. Doesn't kill the tmux processes (that's the
+   * `useSessionDock.removeSession`. Doesn't kill the tmux processes (that's the
    * relay's responsibility, notified separately via `/sessions/delete`
    * or `/terminals/close`); here it's just the UI forgetting the local list. */
   const removeSession = useCallback((tabId: string) => {

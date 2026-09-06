@@ -1,8 +1,7 @@
 import { useEffect, useRef } from "react";
+import { PaneTabStrip } from "@/components/shell/PaneTabStrip";
 import { SessionPanel } from "@/components/shell/SessionPanel";
-import { TerminalTabStrip } from "@/components/terminal/TerminalTabStrip";
 import { TerminalView } from "@/components/terminal/TerminalView";
-import type { SessionPanelState } from "@/hooks/useSessionPanels";
 import type { useTerminalTabs } from "@/hooks/useTerminalTabs";
 import { closeTerminal } from "@/lib/relayClient";
 import type { Profile } from "@/lib/profiles";
@@ -10,13 +9,8 @@ import type { Profile } from "@/lib/profiles";
 interface TerminalPanelProps {
   profile: Profile;
   chatSessionId: string;
-  panel: SessionPanelState;
+  maximized: boolean;
   terminalTabs: ReturnType<typeof useTerminalTabs>;
-  /** Drag handler — the width state itself (`isDragging` included) now
-   * lives in `TerminalPanelSlot`, not here: it needs to stay visible to the
-   * animated wrapper that stays mounted even with the panel closed (see
-   * TerminalPanelSlot.tsx). */
-  onStartDrag: (event: React.PointerEvent) => void;
   onToggleMaximized: () => void;
   onClose: () => void;
 }
@@ -43,9 +37,8 @@ interface TerminalPanelProps {
 export function TerminalPanel({
   profile,
   chatSessionId,
-  panel,
+  maximized,
   terminalTabs,
-  onStartDrag,
   onToggleMaximized,
   onClose,
 }: TerminalPanelProps) {
@@ -94,17 +87,17 @@ export function TerminalPanel({
 
   return (
     <SessionPanel
-      maximized={panel.maximized}
-      onStartDrag={onStartDrag}
+      maximized={maximized}
       onToggleMaximized={onToggleMaximized}
       onClose={onClose}
       headerExtra={
-        <TerminalTabStrip
+        <PaneTabStrip
           tabs={tabs}
-          activeTerminalId={activeTerminalId}
+          activeId={activeTerminalId}
           onSelect={(id) => terminalTabs.setActiveTerminal(chatSessionId, id)}
           onClose={handleCloseTerminal}
           onAdd={() => terminalTabs.addTerminal(chatSessionId)}
+          addLabel="Novo terminal"
         />
       }
     >

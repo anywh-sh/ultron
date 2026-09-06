@@ -1,19 +1,15 @@
 import { memo, useEffect, useReducer, useRef, useState } from "react";
-import ReactMarkdown from "react-markdown";
-import remarkGfm from "remark-gfm";
-import rehypeHighlight from "rehype-highlight";
 import { Check, Copy, Pencil, Video } from "lucide-react";
 import type { PendingAttachment } from "@/hooks/useImageUpload";
 import { useLongPress } from "@/hooks/useLongPress";
 import { renderTextWithLinks } from "@/lib/composerLinks";
-import { handleExternalLinkClick } from "@/lib/externalLink";
 import { isIOS } from "@/lib/platform";
 import { showNativeContextMenu } from "@/lib/nativeContextMenu";
 import { formatAbsoluteTime, formatRelativeTime } from "@/lib/relativeTime";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
-import { MarkdownCodeBlock } from "@/components/chat/MarkdownCodeBlock";
+import { MarkdownContent } from "@/components/chat/MarkdownContent";
 
 const IMAGE_EDIT_DISABLED_REASON = "Editar mensagem com anexo ainda não é suportado";
 
@@ -243,25 +239,14 @@ export const UserBubble = memo(function UserBubble({
   );
 });
 
-/** Memoized — see comment on `UserBubble`. `ReactMarkdown` +
- * `rehype-highlight` re-parse markdown and re-run syntax highlighting in
- * full on every render; without `memo`, this would run again for every old
- * message on every new token streamed in ANY message in the conversation. */
+/** Memoized — see comment on `UserBubble`. `MarkdownContent` re-parses
+ * markdown and re-runs syntax highlighting in full on every render; without
+ * `memo`, this would run again for every old message on every new token
+ * streamed in ANY message in the conversation. */
 export const AssistantText = memo(function AssistantText({ text }: { text: string }) {
   return (
     <div className="prose-chat text-sm text-foreground">
-      <ReactMarkdown
-        remarkPlugins={[remarkGfm]}
-        rehypePlugins={[rehypeHighlight]}
-        components={{
-          a: ({ href, ...props }) => (
-            <a {...props} href={href} rel="noopener noreferrer" onClick={(event) => href && handleExternalLinkClick(event, href)} />
-          ),
-          pre: MarkdownCodeBlock,
-        }}
-      >
-        {text}
-      </ReactMarkdown>
+      <MarkdownContent text={text} />
     </div>
   );
 });
