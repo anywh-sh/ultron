@@ -1,6 +1,6 @@
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import { cn } from "@/lib/utils";
-import { highlightCode } from "@/lib/highlightCode";
+import { highlightLines } from "@/lib/highlightCode";
 
 export interface CodeLine {
   text: string;
@@ -32,6 +32,14 @@ export function CodeLines({ language, lines }: CodeLinesProps) {
   const visible = expanded ? lines : lines.slice(0, PREVIEW_LINE_COUNT);
   const hiddenCount = lines.length - visible.length;
 
+  // Highlighted as a single block (not one call per line) so the tokenizer's
+  // state — e.g. "still inside a /* */ block comment" — carries across line
+  // breaks; see `highlightLines`.
+  const highlighted = useMemo(
+    () => highlightLines(language, visible.map((line) => line.text)),
+    [language, visible],
+  );
+
   return (
     <div className="overflow-x-auto rounded-md border border-border bg-card font-mono text-xs">
       {visible.map((line, index) =>
@@ -58,7 +66,7 @@ export function CodeLines({ language, lines }: CodeLinesProps) {
             >
               {MARKER_BY_KIND[line.kind]}
             </span>
-            <span>{highlightCode(language, line.text)}</span>
+            <span>{highlighted[index]}</span>
           </div>
         ),
       )}
