@@ -5,11 +5,14 @@ import { spawn } from "node:child_process";
 const CLAUDE_BIN = process.env.CLAUDE_BIN ?? "/home/user/.local/bin/claude";
 const EXTRA_PATH_DIRS = ["/home/user/.local/bin", "/home/user/.nvm/versions/node/v20.19.0/bin"];
 
-// Extracts just the model family — "Sonnet 5 (default)" -> "Sonnet", "Opus 5
-// (1M context) (default)" -> "Opus". Same vocabulary as MODEL_LABELS on the
-// client (docs/26), so the text already arrives ready to display without
-// remapping it there.
-const MODEL_NAME_RE = /^Current model:\s*(Sonnet|Opus|Haiku|Fable)\b/i;
+// Extracts just the model family — "Current model: `Sonnet 5 (default)`" ->
+// "Sonnet", "Current model: `Opus 5 (1M context) (default)`" -> "Opus". The
+// backtick is optional: found by testing that a newer CLI version started
+// wrapping the value in markdown backticks, silently breaking this probe
+// (it always returned `undefined` until this was noticed). Same vocabulary
+// as MODEL_LABELS on the client (docs/26), so the text already arrives
+// ready to display without remapping it there.
+const MODEL_NAME_RE = /^Current model:\s*`?(Sonnet|Opus|Haiku|Fable)\b/i;
 
 /**
  * Runs once at relay boot (server.ts) to find out this profile account's
