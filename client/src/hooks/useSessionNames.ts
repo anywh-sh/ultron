@@ -4,8 +4,8 @@ import type { SessionSummary } from "@/lib/relay-types";
 import type { Profile } from "@/lib/profiles";
 
 /**
- * O relay já lista as sessões ordenadas por última interação (mais recente
- * primeiro — `SessionStore.listTitled`), então não precisa reordenar aqui.
+ * The relay already lists sessions ordered by last interaction (most recent
+ * first — `SessionStore.listTitled`), so there's no need to reorder here.
  */
 export function useSessionNames(profile: Profile): {
   sessions: SessionSummary[];
@@ -25,7 +25,7 @@ export function useSessionNames(profile: Profile): {
         if (!cancelled) setSessions(list);
       })
       .catch((error: unknown) => {
-        console.error("[ultron] falha ao listar sessões", error);
+        console.error("[ultron] failed to list sessions", error);
         if (!cancelled) setSessions([]);
       })
       .finally(() => {
@@ -36,12 +36,12 @@ export function useSessionNames(profile: Profile): {
     };
   }, [profile.id, profile.host, profile.relayPort]);
 
-  // Atualização otimista: uma sessão só existe de fato na lista do relay
-  // quando ganha título (primeiro prompt processado, ou rename manual) — sem
-  // isso, ela só apareceria na sidebar depois de um refetch (troca de
-  // perfil ou reload). Cobre os dois casos: título inferido pela primeira
-  // vez (insere no topo — é sempre a interação mais recente) e rename de uma
-  // sessão já listada (atualiza no lugar, sem mexer na posição).
+  // Optimistic update: a session only actually exists in the relay's list
+  // once it gets a title (first prompt processed, or manual rename) — without
+  // this, it would only show up in the sidebar after a refetch (profile
+  // switch or reload). Covers both cases: title inferred for the first
+  // time (inserts at the top — it's always the most recent interaction) and rename of an
+  // already-listed session (updates in place, without touching its position).
   const upsertTitle = useCallback((id: string, title: string) => {
     setSessions((prev) => {
       const index = prev.findIndex((session) => session.id === id);
@@ -56,10 +56,10 @@ export function useSessionNames(profile: Profile): {
     setSessions((prev) => prev.filter((session) => session.id !== id));
   }, []);
 
-  // Sobe uma sessão pro topo ao interagir com ela de novo (mandar mensagem
-  // numa sessão antiga) — espelha `SessionStore.touch` do lado do relay,
-  // mas otimista/local, pra não esperar um refetch. No-op se a sessão não
-  // estiver na lista ainda (ex: turno inicial de uma sessão sem título).
+  // Moves a session to the top when interacting with it again (sending a message
+  // in an old session) — mirrors `SessionStore.touch` on the relay side,
+  // but optimistic/local, to avoid waiting for a refetch. No-op if the session isn't
+  // in the list yet (e.g. initial turn of a session with no title).
   const touch = useCallback((id: string) => {
     setSessions((prev) => {
       const index = prev.findIndex((session) => session.id === id);

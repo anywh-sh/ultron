@@ -17,19 +17,19 @@ interface SessionDeleteMenuProps {
   menu: ContextMenuState;
   title: string;
   onDelete: () => void;
-  /** Opcional: só a TabBar passa isso hoje (a SessionList já tem um botão
-   * de lápis dedicado pro rename, não precisa duplicar no menu). */
+  /** Optional: only TabBar passes this today (SessionList already has a
+   * dedicated pencil button for rename, no need to duplicate it in the menu). */
   onRename?: () => void;
 }
 
-/** Trigger invisível ancorado no cursor (ver useContextMenu). Reaproveitado
- * pela SessionList (painel esquerdo) e pela TabBar (aba), os dois lugares
- * onde o botão direito abre esse menu.
+/** Invisible trigger anchored to the cursor (see useContextMenu). Reused by
+ * SessionList (left panel) and TabBar (tab), the two places where a
+ * right-click opens this menu.
  *
- * A confirmação usa um AlertDialog do design system em vez de
- * `window.confirm` — o diálogo nativo do WebView não é confiável em todas as
- * plataformas (mesma classe de problema documentada no backlog pra
- * alert/confirm no macOS), então a exclusão silenciosamente não acontecia. */
+ * The confirmation uses a design-system AlertDialog instead of
+ * `window.confirm` — the WebView's native dialog isn't reliable across all
+ * platforms (same class of problem documented in the backlog for
+ * alert/confirm on macOS), so deletion would silently not happen. */
 export function SessionDeleteMenu({ menu, title, onDelete, onRename }: SessionDeleteMenuProps) {
   const [confirmOpen, setConfirmOpen] = useState(false);
 

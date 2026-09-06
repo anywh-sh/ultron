@@ -9,12 +9,13 @@ interface ContextUsageRingProps {
 const STROKE_WIDTH = 2.5;
 
 /**
- * Anel de progresso da janela de contexto, na mesma linha do
- * `PermissionModeButton`. `usage` é `null` até o primeiro turno da sessão
- * terminar (ver useRelayClient/sharedSession.ts) — nesse caso o componente
- * some da toolbar em vez de mostrar um "0%" enganoso numa sessão sem
- * histórico ainda. Cor vem de `contextUsageColor` (color-mix sobre variáveis
- * CSS, nunca hex fixo — ver lib/contextUsage.ts).
+ * Progress ring for the context window, same idea as
+ * `PermissionModeButton`. `usage` is `null` until the session's first turn
+ * finishes (see useRelayClient/sharedSession.ts) — in that case the
+ * component disappears from the toolbar instead of showing a misleading
+ * "0%" on a session with no history yet. Color comes from
+ * `contextUsageColor` (color-mix over CSS variables, never a fixed hex —
+ * see lib/contextUsage.ts).
  */
 export function ContextUsageRing({ usage, size = 18 }: ContextUsageRingProps) {
   if (!usage) return null;
@@ -30,10 +31,10 @@ export function ContextUsageRing({ usage, size = 18 }: ContextUsageRingProps) {
       height={size}
       viewBox={`0 0 ${String(size)} ${String(size)}`}
       className="-rotate-90 shrink-0"
-      // Decorativo: quando usado sozinho o nome acessível vem do `aria-label`
-      // aqui embaixo, mas o uso real (ContextUsageButton) o envolve num
-      // `<button>` que já declara o label — duplicar os dois juntos faria
-      // leitor de tela anunciar a mesma informação duas vezes.
+      // Decorative: when used alone the accessible name would come from the
+      // `aria-label` below, but the real usage (ContextUsageButton) wraps it
+      // in a `<button>` that already declares the label — having both would
+      // make a screen reader announce the same information twice.
       aria-hidden="true"
     >
       <circle cx={size / 2} cy={size / 2} r={radius} fill="none" stroke="var(--border)" strokeWidth={STROKE_WIDTH} />

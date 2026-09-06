@@ -1,12 +1,13 @@
-// Gera a miniatura do chip de anexo de vídeo (composer + bolha enviada) na
-// hora, no cliente, sem esperar o round-trip do upload/extração de frames no
-// relay — igual ao `URL.createObjectURL(file)` que já existia pra imagem,
-// só que precisa decodificar o vídeo primeiro pra tirar um frame.
+// Generates the video attachment chip's thumbnail (composer + sent bubble)
+// right away, on the client, without waiting for the relay's upload/frame
+// extraction round trip — same idea as the `URL.createObjectURL(file)` that
+// already existed for images, just needs to decode the video first to grab
+// a frame.
 //
-// O elemento `<video>` precisa estar de verdade no DOM (não só criado em
-// memória) pra `loadeddata`/`seeked` dispararem de forma confiável no
-// WKWebView (Safari tem esse requisito, diferente do Chromium) — por isso
-// fica fora da tela em vez de nunca ser anexado.
+// The `<video>` element needs to genuinely be in the DOM (not just created
+// in memory) for `loadeddata`/`seeked` to fire reliably on WKWebView (Safari
+// has this requirement, unlike Chromium) — that's why it sits off-screen
+// instead of never being attached.
 export function captureVideoFrame(file: File): Promise<string> {
   return new Promise((resolve, reject) => {
     const video = document.createElement("video");

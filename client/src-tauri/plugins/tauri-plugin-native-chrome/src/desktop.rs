@@ -10,8 +10,9 @@ pub fn init<R: Runtime, C: DeserializeOwned>(
   Ok(NativeChrome(app.clone()))
 }
 
-/// Sem chrome nativo fora de iOS — no-op, o app real nunca depende deste
-/// crate em desktop (Cargo.toml do app só inclui em cfg(target_os = "ios")).
+/// No native chrome outside iOS — no-op, the real app never depends on
+/// this crate on desktop (the app's Cargo.toml only includes it under
+/// cfg(target_os = "ios")).
 pub struct NativeChrome<R: Runtime>(AppHandle<R>);
 
 impl<R: Runtime> NativeChrome<R> {
@@ -19,11 +20,11 @@ impl<R: Runtime> NativeChrome<R> {
     Ok(())
   }
 
-  /// Sem menu nativo fora de iOS — mesmo raciocínio de `set_connection_indicator`
-  /// acima. `selected_id: None` (equivalente a "usuário descartou o menu") em
-  /// vez de erro: o app real nunca chama isso fora de `isIOS()` (docs/33), mas
-  /// devolver um resultado inofensivo é mais seguro que um erro genérico caso
-  /// isso mude no futuro.
+  /// No native menu outside iOS — same reasoning as `set_connection_indicator`
+  /// above. `selected_id: None` (equivalent to "user dismissed the menu")
+  /// instead of an error: the real app never calls this outside of
+  /// `isIOS()` (docs/33), but returning a harmless result is safer than a
+  /// generic error in case that changes in the future.
   pub fn show_context_menu(&self, _payload: ShowContextMenuRequest) -> crate::Result<ShowContextMenuResponse> {
     Ok(ShowContextMenuResponse { selected_id: None })
   }

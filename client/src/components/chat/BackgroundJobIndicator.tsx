@@ -22,10 +22,10 @@ import type { BackgroundJobSummary } from "@/lib/relayClient";
 
 interface BackgroundJobIndicatorProps {
   jobs: BackgroundJobSummary[];
-  /** Docs/32, Fase F — pede pro relay matar o job. Chamado só depois da
-   * confirmação (`AlertDialog` abaixo, não `window.confirm`: o diálogo
-   * nativo do WebView não é confiável em todas as plataformas — mesma
-   * classe de problema documentada em `SessionDeleteMenu`). */
+  /** Docs/32, Phase F — asks the relay to kill the job. Only called after
+   * confirmation (`AlertDialog` below, not `window.confirm`: the WebView's
+   * native dialog isn't reliable across all platforms — same class of
+   * problem documented in `SessionDeleteMenu`). */
   onCancel: (id: string) => void;
 }
 
@@ -43,16 +43,16 @@ function ElapsedTime({ startedAt }: { startedAt: number }) {
 }
 
 /**
- * Chip discreto acima do composer, ao lado do `WorkingDirectoryButton` —
- * mostra jobs `ultron-bg` observados agora nesta sessão (docs/32, Fase E) e
- * deixa cancelar (Fase F). Deliberadamente NÃO reaproveita o visual do
- * `TurnIndicator` (pontinhos + "Pensando…"): aquilo comunica "o assistente
- * está ocupado agora", mas um job em background é o oposto — o assistente
- * está ocioso, o composer continua liberado, só tem algo rodando sem
- * supervisão em paralelo. Confundir os dois sugeriria erradamente que não dá
- * pra mandar outra mensagem. Mesmo padrão de dropdown de
+ * Discreet chip above the composer, next to `WorkingDirectoryButton` — shows
+ * `ultron-bg` jobs currently observed in this session (docs/32, Phase E) and
+ * lets you cancel them (Phase F). Deliberately does NOT reuse
+ * `TurnIndicator`'s look (dots + "Thinking…"): that communicates "the
+ * assistant is busy right now", but a background job is the opposite — the
+ * assistant is idle, the composer stays free, there's just something running
+ * unsupervised in parallel. Conflating the two would wrongly suggest you
+ * can't send another message. Same dropdown pattern as
  * `WorkingDirectoryButton`/`ContextUsageButton`: `modal={false}` (WKWebView
- * no macOS, docs/24) + blur do trigger ao fechar.
+ * on macOS, docs/24) + blur the trigger on close.
  */
 export function BackgroundJobIndicator({ jobs, onCancel }: BackgroundJobIndicatorProps) {
   const triggerRef = useRef<HTMLButtonElement>(null);

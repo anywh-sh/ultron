@@ -8,10 +8,10 @@ export interface TerminalTab {
 interface TerminalTabsState {
   tabs: TerminalTab[];
   activeTerminalId: string | null;
-  /** Nunca reaproveitado — fechar "Terminal 1" e abrir outro dá "Terminal 2",
-   * não "Terminal 1" de novo (mais simples de raciocinar que o esquema de
-   * reaproveitar número do VS Code, e evita duas abas fantasmas com o mesmo
-   * nome coexistindo brevemente durante uma troca rápida). */
+  /** Never reused — closing "Terminal 1" and opening another one gives "Terminal 2",
+   * not "Terminal 1" again (simpler to reason about than VS Code's scheme of
+   * reusing numbers, and avoids two ghost tabs with the same
+   * name briefly coexisting during a quick swap). */
   nextNumber: number;
 }
 
@@ -31,10 +31,10 @@ function loadPersisted(): TerminalTabsMap {
 }
 
 /**
- * Lista de abas de terminal por sessão de chat — conteúdo específico do
- * `kind: "terminal"` do painel (ver useSessionPanels.ts), separado dele de
- * propósito: a casca do painel não precisa saber que terminal tem múltiplas
- * abas internas, isso é só um detalhe do conteúdo que ela hospeda.
+ * List of terminal tabs per chat session — content specific to the panel's
+ * `kind: "terminal"` (see useSessionPanels.ts), deliberately separated from it:
+ * the panel shell doesn't need to know that the terminal has multiple
+ * internal tabs, that's just a detail of the content it hosts.
  */
 export function useTerminalTabs() {
   const [state, setState] = useState<TerminalTabsMap>(loadPersisted);
@@ -45,9 +45,9 @@ export function useTerminalTabs() {
 
   const getTabs = useCallback((tabId: string): TerminalTabsState => state[tabId] ?? EMPTY_STATE, [state]);
 
-  /** Devolve o id gerado na hora (não espera o próximo render) — quem chama
-   * (o botão de terminal ou o "+" da tira de abas) precisa dele de imediato
-   * pra marcar a aba nova como ativa. */
+  /** Returns the id generated right away (doesn't wait for the next render) — the caller
+   * (the terminal button or the tab strip's "+") needs it immediately
+   * to mark the new tab as active. */
   const addTerminal = useCallback((tabId: string): string => {
     const id = crypto.randomUUID();
     setState((prev) => {
@@ -84,10 +84,10 @@ export function useTerminalTabs() {
     });
   }, []);
 
-  /** Chamado quando a aba de chat é fechada/excluída — mesma limpeza de
-   * `useSessionPanels.removePanel`. Não mata os processos tmux (isso é
-   * responsabilidade do relay, avisado separadamente via `/sessions/delete`
-   * ou `/terminals/close`); aqui é só a UI esquecendo a lista local. */
+  /** Called when the chat tab is closed/deleted — same cleanup as
+   * `useSessionPanels.removePanel`. Doesn't kill the tmux processes (that's the
+   * relay's responsibility, notified separately via `/sessions/delete`
+   * or `/terminals/close`); here it's just the UI forgetting the local list. */
   const removeSession = useCallback((tabId: string) => {
     setState((prev) => {
       if (!(tabId in prev)) return prev;

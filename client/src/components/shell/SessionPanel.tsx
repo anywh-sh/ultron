@@ -8,21 +8,21 @@ interface SessionPanelProps {
   onStartDrag: (event: React.PointerEvent) => void;
   onToggleMaximized: () => void;
   onClose: () => void;
-  /** Conteúdo específico do `kind` do painel, no cabeçalho — ex: a tira de
-   * abas do terminal. A casca não sabe o que é. */
+  /** Content specific to the panel's `kind`, in the header — e.g. the
+   * terminal's tab strip. The shell doesn't know what it is. */
   headerExtra: ReactNode;
   children: ReactNode;
 }
 
 /**
- * Casca genérica do painel lateral direito — resize/maximizar/fechar, sem
- * saber nada do conteúdo que hospeda. Terminal é o primeiro consumidor
- * (`TerminalPanelContent`); o visualizador de arquivos do work dir
- * (planejado) reaproveita esta mesma casca depois, só trocando `headerExtra`
- * e `children` (ver useSessionPanels.ts pro porquê de painel e conteúdo
- * serem coisas separadas). Largura/animação de abrir-fechar não são
- * responsabilidade daqui — `TerminalPanelSlot` já entrega um espaço do
- * tamanho certo (ver comentário lá); esta casca só preenche 100% dele.
+ * Generic shell for the right-side panel — resize/maximize/close, without
+ * knowing anything about the content it hosts. Terminal is the first
+ * consumer (`TerminalPanelContent`); the work dir file viewer (planned)
+ * reuses this same shell later, just swapping `headerExtra` and `children`
+ * (see useSessionPanels.ts for why panel and content are separate things).
+ * Width/open-close animation aren't this shell's responsibility —
+ * `TerminalPanelSlot` already delivers a space of the right size (see
+ * comment there); this shell just fills 100% of it.
  */
 export function SessionPanel({ maximized, onStartDrag, onToggleMaximized, onClose, headerExtra, children }: SessionPanelProps) {
   return (
@@ -36,11 +36,12 @@ export function SessionPanel({ maximized, onStartDrag, onToggleMaximized, onClos
 
       <div className="flex shrink-0 items-center justify-between border-b border-border-soft">
         <div className="min-w-0 flex-1">{headerExtra}</div>
-        {/* `py-1` igual ao wrapper da tira de abas (TerminalTabStrip) — sem
-         * isso a altura da linha era ditada pelo próprio botão (`icon-sm`,
-         * maior que os `icon-xs` das abas), então o hover dele encostava
-         * direto nas bordas de cima/baixo, sem gap nenhum. `icon-xs` aqui
-         * também deixa maximizar/fechar do mesmo tamanho do "+" da tira. */}
+        {/* `py-1` same as the tab strip wrapper (TerminalTabStrip) — without
+         * this the row's height was dictated by the button itself
+         * (`icon-sm`, bigger than the tabs' `icon-xs`), so its hover
+         * touched the top/bottom edges directly, with no gap at all.
+         * `icon-xs` here also makes maximize/close the same size as the
+         * strip's "+". */}
         <div className="flex shrink-0 items-center gap-0.5 px-1 py-1">
           <Tooltip>
             <TooltipTrigger asChild>

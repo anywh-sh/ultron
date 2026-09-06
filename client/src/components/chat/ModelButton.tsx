@@ -9,12 +9,12 @@ import {
 import type { ModelChoice } from "@/lib/relayClient";
 import { cn } from "@/lib/utils";
 
-/** Inclui "default" só pro label existir se `model` chegar assim (sessão
- * antiga, ou `/model default` digitado) — não é mais uma opção clicável no
- * dropdown (ver `MODELS` abaixo): a pré-seleção de conversa nova agora vem de
- * Configurações (`useModelPreference`), então "Padrão" parou de fazer
- * sentido como escolha manual. Exportado pra `SettingsDialog` reusar os
- * mesmos rótulos no seletor de modelo fixo. */
+/** Includes "default" just so the label exists if `model` arrives that way
+ * (old session, or `/model default` typed) — it's no longer a clickable
+ * option in the dropdown (see `MODELS` below): the new-conversation
+ * preselection now comes from Settings (`useModelPreference`), so "Padrão"
+ * stopped making sense as a manual choice. Exported for `SettingsDialog` to
+ * reuse the same labels in the fixed model selector. */
 export const MODEL_LABELS: Record<ModelChoice, string> = {
   default: "Padrão",
   sonnet: "Sonnet",
@@ -32,17 +32,17 @@ const MODELS: { value: ModelChoice; label: string }[] = [
 
 interface ModelButtonProps {
   model: ModelChoice | null;
-  /** Modelo padrão de verdade da conta desse perfil (docs/28), usado como
-   * label quando `model` é `null` (nenhuma troca explícita ainda) — os
-   * defaults são DIFERENTES entre perfis (pessoal veio Sonnet, trabalho veio
-   * Opus), por isso não dá pra só fixar um nome aqui sem sondar de verdade. */
+  /** This profile's account's actual default model (docs/28), used as the
+   * label when `model` is `null` (no explicit switch yet) — the defaults
+   * are DIFFERENT between profiles (personal came up Sonnet, work came up
+   * Opus), so we can't just hardcode a name here without really probing it. */
   defaultModel: string | null;
   onChange: (model: ModelChoice) => void;
-  /** `true` antes do primeiro `permission_mode_state`/`model_state` chegar
-   * (nada pra mostrar ainda) OU depois que a conversa já teve seu primeiro
-   * turno: trocar o modelo no meio da conversa exigiria reler todo o
-   * histórico pra reconstruir o contexto no modelo novo, então a troca só
-   * vale antes do primeiro turno (mesmo raciocínio do `cwdLocked` /
+  /** `true` before the first `permission_mode_state`/`model_state` arrives
+   * (nothing to show yet) OR after the conversation already had its first
+   * turn: switching the model mid-conversation would require rereading the
+   * whole history to rebuild context under the new model, so the switch is
+   * only valid before the first turn (same reasoning as `cwdLocked` /
    * `WorkingDirectoryButton`). */
   disabled: boolean;
 }
@@ -53,12 +53,12 @@ function labelFor(model: ModelChoice | null, defaultModel: string | null): strin
 }
 
 /**
- * Label + dropdown na mesma linha do `PermissionModeButton`, ao lado dele —
- * mesmo pill de botão, mesmo `modal={false}` (Radix trava foco/pointer-events
- * no body enquanto um dropdown modal está aberto, e a restauração falha no
- * WKWebView do Tauri no macOS). Antes disso o modelo era só texto
- * (`ModelLabel`); virou dropdown pra não depender de digitar `/model` no
- * composer.
+ * Label + dropdown in the same row as `PermissionModeButton`, next to it —
+ * same button pill, same `modal={false}` (Radix traps focus/pointer-events
+ * on the body while a modal dropdown is open, and restoration fails on
+ * Tauri's WKWebView on macOS). Before this the model was just text
+ * (`ModelLabel`); it became a dropdown so it doesn't depend on typing
+ * `/model` in the composer.
  */
 export function ModelButton({ model, defaultModel, onChange, disabled }: ModelButtonProps) {
   const triggerRef = useRef<HTMLButtonElement>(null);
@@ -69,14 +69,15 @@ export function ModelButton({ model, defaultModel, onChange, disabled }: ModelBu
   return (
     <DropdownMenu
       modal={false}
-      // Controlado (não só `onOpenChange`) de propósito: passar `disabled` só
-      // pro `<button>` filho via `asChild` não bastava — o `Trigger` do Radix
-      // lê seu PRÓPRIO prop `disabled` (default `false`, já que a gente só
-      // dava `asChild`) pra decidir se ignora pointerdown/keydown, então o
-      // menu abria mesmo com o botão cinza/travado em pelo menos uma WebView
-      // (mesma classe de quirk que motivou `modal={false}` acima). Barrar a
-      // abertura aqui, no estado, funciona não importa qual evento de baixo
-      // nível o WebView decidiu disparar num `<button disabled>`.
+      // Controlled (not just `onOpenChange`) on purpose: passing `disabled`
+      // only to the child `<button>` via `asChild` wasn't enough — Radix's
+      // `Trigger` reads its OWN `disabled` prop (default `false`, since we
+      // only gave it `asChild`) to decide whether to ignore
+      // pointerdown/keydown, so the menu would open even with the button
+      // greyed out/locked on at least one WebView (same class of quirk that
+      // motivated `modal={false}` above). Blocking the opening here, in
+      // state, works no matter which low-level event the WebView decided to
+      // fire on a `<button disabled>`.
       open={open}
       onOpenChange={(next) => {
         if (next && isDisabled) return;

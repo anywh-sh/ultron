@@ -1,6 +1,7 @@
 mod notifications;
-// Voz (ditado local) fora do escopo do MVP iOS (docs/22) — cpal/whisper-rs
-// não linkam no target iOS sem trabalho adicional. Ver Cargo.toml.
+// Voice (local dictation) out of scope for the iOS MVP (docs/22) —
+// cpal/whisper-rs don't link on the iOS target without extra work. See
+// Cargo.toml.
 #[cfg(not(target_os = "ios"))]
 mod voice;
 
@@ -10,12 +11,12 @@ fn greet(name: &str) -> String {
     format!("Hello, {}! You've been greeted from Rust!", name)
 }
 
-// Drag-and-drop nativo: o evento `onDragDropEvent` do Tauri só
-// entrega o caminho do arquivo no disco, não os bytes — o front usa esse
-// comando pra ler o arquivo e reaproveitar o mesmo pipeline de upload do
-// botão de anexar (que parte de um `File` do navegador). `ipc::Response`
-// devolve os bytes crus pro JS (ArrayBuffer), sem o overhead de serializar
-// um vídeo inteiro como array JSON de números.
+// Native drag-and-drop: Tauri's `onDragDropEvent` only delivers the file's
+// path on disk, not the bytes — the frontend uses this command to read the
+// file and reuse the same upload pipeline as the attach button (which
+// starts from a browser `File`). `ipc::Response` returns the raw bytes to
+// JS (ArrayBuffer), without the overhead of serializing an entire video as
+// a JSON array of numbers.
 #[tauri::command]
 fn read_dropped_file(path: String) -> Result<tauri::ipc::Response, String> {
     std::fs::read(&path)
@@ -30,15 +31,16 @@ pub fn run() {
         .plugin(tauri_plugin_notification::init())
         .plugin(tauri_plugin_os::init());
 
-    // cpal acessa o CoreAudio direto (sem passar pela AVFoundation), o que na
-    // prática não dispara o diálogo de permissão do macOS — o app captura só
-    // silêncio, sem erro nenhum (whisper então "alucina" tipo "[Música]").
-    // Esse plugin chama AVCaptureDevice.requestAccess de verdade, que é o
-    // caminho que o TCC do macOS reconhece.
+    // cpal accesses CoreAudio directly (without going through AVFoundation),
+    // which in practice doesn't trigger macOS's permission dialog — the app
+    // captures only silence, with no error at all (whisper then
+    // "hallucinates" something like "[Música]"). This plugin actually calls
+    // AVCaptureDevice.requestAccess, which is the path macOS's TCC
+    // recognizes.
     #[cfg(target_os = "macos")]
     let builder = builder.plugin(tauri_plugin_macos_permissions::init());
 
-    // Camada de chrome nativo (SwiftUI/Liquid Glass) — docs/23, Fase E.
+    // Native chrome layer (SwiftUI/Liquid Glass) — docs/23, Phase E.
     #[cfg(target_os = "ios")]
     let builder = builder.plugin(tauri_plugin_native_chrome::init());
 
@@ -62,9 +64,9 @@ pub fn run() {
 
     builder
         .setup(|app| {
-            // No macOS, com hiddenTitle habilitado (docs/21), o título configurado em
-            // tauri.conf.json às vezes não chega no NSWindow real — o menu do Dock cai
-            // pro fallback interno do Tauri ("Tauri App"). Reforça o título explicitamente.
+            // On macOS, with hiddenTitle enabled (docs/21), the title configured in
+            // tauri.conf.json sometimes doesn't reach the real NSWindow — the Dock menu
+            // falls back to Tauri's internal default ("Tauri App"). Force the title explicitly.
             #[cfg(target_os = "macos")]
             if let Some(window) = tauri::Manager::get_webview_window(app, "main") {
                 let _ = window.set_title("ultron");

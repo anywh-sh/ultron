@@ -12,9 +12,9 @@ interface TerminalPanelProps {
   chatSessionId: string;
   panel: SessionPanelState;
   terminalTabs: ReturnType<typeof useTerminalTabs>;
-  /** Handler de arraste — o estado de largura em si (`isDragging` incluso)
-   * mora em `TerminalPanelSlot` agora, não aqui: precisa ficar visível pro
-   * wrapper animado que fica montado mesmo com o painel fechado (ver
+  /** Drag handler — the width state itself (`isDragging` included) now
+   * lives in `TerminalPanelSlot`, not here: it needs to stay visible to the
+   * animated wrapper that stays mounted even with the panel closed (see
    * TerminalPanelSlot.tsx). */
   onStartDrag: (event: React.PointerEvent) => void;
   onToggleMaximized: () => void;
@@ -22,23 +22,23 @@ interface TerminalPanelProps {
 }
 
 /**
- * Conteúdo específico de terminal, plugado na casca genérica `SessionPanel`.
- * Só monta enquanto a aba de chat dona dele está ativa E o painel está
- * marcado como aberto (decidido por quem chama, ver App.tsx) — é essa
- * montagem/desmontagem condicional que implementa "trocar de sessão fecha o
- * painel sozinho, voltar reabre do jeito que estava": desmontar fecha a WS
- * de cada aba de terminal (o relay só detacha do tmux, nunca mata a sessão
- * por causa disso — ver terminalSession.ts), remontar reconecta e o tmux
- * redesenha a tela sozinho.
+ * Terminal-specific content, plugged into the generic `SessionPanel` shell.
+ * Only mounts while the chat tab that owns it is active AND the panel is
+ * marked open (decided by the caller, see App.tsx) — this conditional
+ * mount/unmount is what implements "switching sessions closes the panel on
+ * its own, coming back reopens it the way it was": unmounting closes each
+ * terminal tab's WS (the relay only detaches from tmux, never kills the
+ * session because of it — see terminalSession.ts), remounting reconnects
+ * and tmux redraws the screen on its own.
  *
- * Todas as abas de terminal do painel ficam montadas ao mesmo tempo
- * (`forceMount`, mesmo truque de `TabBar.tsx`) — só o painel inteiro
- * conecta/desconecta ao entrar/sair de foco, trocar entre abas de terminal
- * dentro de um painel já aberto é instantâneo, sem reconectar. O número de
- * abas por painel tende a ser pequeno (poucas unidades), então o custo de
- * mantê-las todas vivas é baixo — bem diferente de manter viva a de
- * *todas* as sessões de chat, que é justamente o que a montagem
- * condicional acima evita.
+ * All of the panel's terminal tabs stay mounted at the same time
+ * (`forceMount`, same trick as `TabBar.tsx`) — only the whole panel
+ * connects/disconnects on entering/leaving focus, switching between
+ * terminal tabs inside an already-open panel is instant, no reconnecting.
+ * The number of tabs per panel tends to be small (a handful), so the cost
+ * of keeping them all alive is low — quite different from keeping *every*
+ * chat session's terminal alive, which is exactly what the conditional
+ * mounting above avoids.
  */
 export function TerminalPanel({
   profile,
@@ -51,16 +51,16 @@ export function TerminalPanel({
 }: TerminalPanelProps) {
   const { tabs, activeTerminalId } = terminalTabs.getTabs(chatSessionId);
   const { addTerminal } = terminalTabs;
-  /** `true` assim que a lista já teve pelo menos uma aba — é o que distingue
-   * "painel recém-aberto, ainda vazio" (semeia "Terminal 1") de "tinha aba,
-   * usuário fechou a última" (fecha o painel). Um único efeito, não dois:
-   * a primeira versão disparava os dois em sequência na mesma passada —
-   * `addTerminal` já marca uma flag síncrona antes do estado novo (`tabs`)
-   * ter re-renderizado, então um efeito de "fechar se vazio" separado lia
-   * `tabs.length` ainda como 0 e fechava o painel um instante depois de
-   * abrir (achado testando de verdade: abrir sempre voltava a fechar
-   * sozinho). Um efeito só, guiado pela transição real de `tabs.length`
-   * entre renders, evita a corrida. */
+  /** `true` as soon as the list has had at least one tab — this is what
+   * distinguishes "panel just opened, still empty" (seeds "Terminal 1")
+   * from "had a tab, user closed the last one" (closes the panel). A single
+   * effect, not two: the first version fired both in sequence in the same
+   * pass — `addTerminal` already sets a synchronous flag before the new
+   * state (`tabs`) has re-rendered, so a separate "close if empty" effect
+   * would read `tabs.length` still as 0 and close the panel an instant
+   * after opening (found while actually testing: opening always ended up
+   * closing itself again). A single effect, driven by the real transition
+   * of `tabs.length` between renders, avoids the race. */
   const hasHadTabsRef = useRef(false);
   useEffect(() => {
     if (tabs.length > 0) {
@@ -77,7 +77,7 @@ export function TerminalPanel({
   function handleCloseTerminal(terminalId: string): void {
     terminalTabs.closeTerminal(chatSessionId, terminalId);
     closeTerminal(profile.host, profile.relayPort, chatSessionId, terminalId).catch((error: unknown) => {
-      console.error("[ultron] falha ao fechar terminal:", error);
+      console.error("[ultron] failed to close terminal:", error);
     });
   }
 

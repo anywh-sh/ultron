@@ -19,25 +19,28 @@ interface WorkingDirectoryButtonProps {
   cwd: string | null;
   locked: boolean;
   connected: boolean;
-  /** Aba aberta via "nova conversa" — a pasta é sempre escolhível de
-   * imediato aqui (a sessão nunca nasce travada), então o botão não espera
-   * a conexão WS abrir nem o primeiro `cwd_state` chegar: listar pastas é
-   * uma chamada REST própria (`GET /fs/list`, sem `path` resolve pro padrão
-   * do perfil) e a escolha em si fica pendurada no RelayClient até a
-   * conexão abrir (ver relayClient.ts). Sessão existente continua exigindo
-   * conexão — errar pro lado seguro evita destravar uma pasta que na
-   * verdade já está travada, só ainda não confirmamos isso. */
+  /** Tab opened via "new conversation" — the folder is always immediately
+   * choosable here (the session never starts locked), so the button
+   * doesn't wait for the WS connection to open nor for the first
+   * `cwd_state` to arrive: listing folders is its own REST call
+   * (`GET /fs/list`, no `path` resolves to the profile's default) and the
+   * actual selection stays queued in RelayClient until the connection opens
+   * (see relayClient.ts). An existing session still requires a connection —
+   * erring on the safe side avoids unlocking a folder that's actually
+   * already locked, we just haven't confirmed it yet. */
   isNewConversation?: boolean;
   onSetCwd: (path: string) => void;
-  /** Devolve o foco pro composer quando o dropdown ou o `FolderPickerDialog`
-   * fecham — sem isso o Radix restaura o foco pro trigger deste botão por
-   * padrão (`onCloseAutoFocus`), então escolher uma pasta deixava o usuário
-   * sem poder digitar de cara, tendo que clicar no campo de novo. */
+  /** Returns focus to the composer when the dropdown or the
+   * `FolderPickerDialog` close — without this Radix restores focus to this
+   * button's trigger by default (`onCloseAutoFocus`), so picking a folder
+   * would leave the user unable to type right away, having to click the
+   * field again. */
   onFocusComposer: () => void;
 }
 
-/** Nome só da última pasta do path, pro botão/lista não ficarem gigantes — o
- * path completo aparece no tooltip e no dropdown "Working directory". */
+/** Just the last folder's name from the path, so the button/list don't get
+ * huge — the full path appears in the tooltip and the "Working directory"
+ * dropdown. */
 function folderName(path: string): string {
   const trimmed = path.replace(/\/+$/, "");
   const lastSegment = trimmed.split("/").pop();
@@ -45,12 +48,12 @@ function folderName(path: string): string {
 }
 
 /**
- * Botão sempre visível acima do `Composer`, mostrando (e deixando trocar) o
- * working directory da sessão atual. Antes do primeiro turno, o dropdown
- * lista "Recente" (por perfil, `useRecentFolders`) + "Escolher pasta...".
- * Depois do primeiro turno o relay trava a pasta (ver `SharedSession.runTurn`
- * — session_id do Claude Code fica amarrado ao cwd usado no spawn), então o
- * dropdown vira só visualização + "Copy path".
+ * Always-visible button above the `Composer`, showing (and letting you
+ * change) the current session's working directory. Before the first turn,
+ * the dropdown lists "Recent" (per profile, `useRecentFolders`) + "Choose
+ * folder...". After the first turn the relay locks the folder (see
+ * `SharedSession.runTurn` — Claude Code's session_id gets tied to the cwd
+ * used at spawn), so the dropdown becomes view-only + "Copy path".
  */
 export function WorkingDirectoryButton({
   profile,
@@ -82,18 +85,19 @@ export function WorkingDirectoryButton({
   return (
     <>
       <DropdownMenu
-        // Radix trava foco + `pointer-events: none` no body enquanto o menu
-        // modal está aberto, e restaura os dois ao fechar — no WKWebView
-        // (Tauri no macOS) essa restauração falha justo quando a lista
-        // "Recente" reordena entre uma abertura e outra (item escolhido sobe
-        // pro topo, muda as keys de posição): a próxima abertura perde a
-        // seção inteira, sobrando só "Escolher pasta...". `modal={false}`
-        // tira esse mecanismo do caminho (não precisamos de focus trap aqui).
+        // Radix traps focus + `pointer-events: none` on the body while the
+        // modal menu is open, and restores both on close — on WKWebView
+        // (Tauri on macOS) that restoration fails right when the "Recent"
+        // list reorders between one opening and the next (chosen item moves
+        // to the top, position keys change): the next opening loses the
+        // whole section, leaving only "Choose folder...". `modal={false}`
+        // takes that mechanism out of the way (we don't need a focus trap here).
         modal={false}
         onOpenChange={(open) => {
-          // Sem isso o foco fica no trigger depois do menu fechar, e como o
-          // Tooltip também abre por foco (não só hover), ele fica "preso"
-          // aberto até o mouse sair e voltar — mesmo já longe do botão.
+          // Without this the focus stays on the trigger after the menu
+          // closes, and since the Tooltip also opens on focus (not just
+          // hover), it gets "stuck" open until the mouse leaves and comes
+          // back — even while already far from the button.
           if (!open) triggerRef.current?.blur();
         }}
       >

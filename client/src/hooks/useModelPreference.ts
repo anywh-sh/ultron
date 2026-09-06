@@ -6,9 +6,9 @@ const LAST_MODEL_STORAGE_KEY = "ultron:last-model";
 
 export type ModelPreferenceMode = "lastUsed" | "fixed";
 
-/** Nunca "default" de propósito — o modelo fixo tem que ser um modelo de
- * verdade, não um sinônimo de "não escolher nada" (ver remoção da opção
- * "Padrão" do `ModelButton`). */
+/** Never "default" on purpose — the fixed model has to be a real model, not
+ * a synonym for "don't choose anything" (see removal of the "Padrão"
+ * option from `ModelButton`). */
 export type FixedModelChoice = Exclude<ModelChoice, "default">;
 
 export interface ModelPreference {
@@ -17,8 +17,8 @@ export interface ModelPreference {
 }
 
 const VALID_MODES: ModelPreferenceMode[] = ["lastUsed", "fixed"];
-/** Mesmas 4 opções do `ModelButton` (sem "default", ver `FixedModelChoice`) —
- * exportado pra `SettingsDialog` montar o seletor de modelo fixo. */
+/** Same 4 options as `ModelButton` (no "default", see `FixedModelChoice`) —
+ * exported for `SettingsDialog` to build the fixed model selector. */
 export const FIXED_MODEL_CHOICES: FixedModelChoice[] = ["sonnet", "opus", "haiku", "fable"];
 const VALID_MODELS: ModelChoice[] = ["default", ...FIXED_MODEL_CHOICES];
 
@@ -69,11 +69,11 @@ function readLastModels(): LastModelMap {
 }
 
 /**
- * Modelo que uma conversa nova de um perfil deve pré-selecionar, resolvido a
- * partir da preferência configurada em Configurações — leitura avulsa (fora
- * de componente React), mesmo raciocínio de `getDefaultPath`. `undefined` =
- * nada pra aplicar (modo "último usado" sem nenhum histórico ainda pra esse
- * perfil), deixa a CLI cair no próprio default da conta.
+ * Model that a new conversation for a profile should preselect, resolved
+ * from the preference configured in Settings — standalone read (outside a
+ * React component), same reasoning as `getDefaultPath`. `undefined` =
+ * nothing to apply ("last used" mode with no history yet for that
+ * profile), lets the CLI fall back to the account's own default.
  */
 export function getPreferredModel(profileId: string): ModelChoice | undefined {
   const preference = readPreferences()[profileId] ?? DEFAULT_MODEL_PREFERENCE;
@@ -82,11 +82,11 @@ export function getPreferredModel(profileId: string): ModelChoice | undefined {
 }
 
 /**
- * Grava o último modelo usado por um perfil — chamado sempre que o `model`
- * de uma sessão muda pra um valor concreto (`ChatPanel`), independente de ter
- * sido a própria pré-seleção, o `ModelButton` ou `/model` digitado. Só
- * consumido pelo modo "lastUsed", mas grava sempre: trocar o modo de volta
- * pra "lastUsed" depois não deve perder o que já rodou nesse meio tempo.
+ * Records the last model used by a profile — called whenever a session's
+ * `model` changes to a concrete value (`ChatPanel`), regardless of whether
+ * it was the preselection itself, `ModelButton`, or a typed `/model`. Only
+ * consumed by "lastUsed" mode, but always recorded: switching the mode back
+ * to "lastUsed" later shouldn't lose what already ran in the meantime.
  */
 export function setLastModel(profileId: string, model: ModelChoice): void {
   const current = readLastModels();
@@ -94,9 +94,9 @@ export function setLastModel(profileId: string, model: ModelChoice): void {
   localStorage.setItem(LAST_MODEL_STORAGE_KEY, JSON.stringify({ ...current, [profileId]: model }));
 }
 
-/** Preferência de pré-seleção de modelo por perfil, configurada em
- * Configurações — mesmo padrão de `useDefaultPaths` (chave única com todos os
- * perfis juntos, a tela de Configurações sempre edita a lista inteira). */
+/** Per-profile model preselection preference, configured in Settings —
+ * same pattern as `useDefaultPaths` (single key with all profiles
+ * together, the Settings screen always edits the whole list). */
 export function useModelPreference() {
   const [preferences, setPreferences] = useState<PreferenceMap>(() => readPreferences());
 

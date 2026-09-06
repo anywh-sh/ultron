@@ -1,9 +1,9 @@
 import type { ContextUsage } from "@/lib/relayClient";
 
-// Limiares emprestados da convenção oficial do statusline do Claude Code
-// (verde <70%, amarelo 70–89%, vermelho >=90% — code.claude.com/docs/en/statusline)
-// mas usados aqui como pontos de transição contínua (color-mix), não bandas
-// sólidas — ver ContextUsageRing.
+// Thresholds borrowed from Claude Code's official statusline convention
+// (green <70%, yellow 70–89%, red >=90% — code.claude.com/docs/en/statusline)
+// but used here as continuous transition points (color-mix), not solid
+// bands — see ContextUsageRing.
 const WARN_THRESHOLD = 70;
 const CRITICAL_THRESHOLD = 90;
 
@@ -13,11 +13,12 @@ export function contextUsagePercent(usage: ContextUsage): number {
 }
 
 /**
- * Cor do anel/barra pra uma % de uso, sempre derivada de variáveis CSS via
- * `color-mix()` — nunca um hex fixo. 0–70%: `--primary` -> `--context-ring-warn`.
- * 70–100%: `--context-ring-warn` -> `--destructive`. Pedido explícito: se
- * `--primary` mudar no futuro, o início do gradiente muda sozinho, sem tocar
- * aqui (ver index.css pro comentário do token `--context-ring-warn`).
+ * Ring/bar color for a usage %, always derived from CSS variables via
+ * `color-mix()` — never a fixed hex. 0–70%: `--primary` -> `--context-ring-warn`.
+ * 70–100%: `--context-ring-warn` -> `--destructive`. Explicit request: if
+ * `--primary` changes in the future, the gradient's start changes on its
+ * own, without touching this (see index.css for the `--context-ring-warn`
+ * token's comment).
  */
 export function contextUsageColor(pct: number): string {
   if (pct <= WARN_THRESHOLD) {
@@ -28,9 +29,9 @@ export function contextUsageColor(pct: number): string {
   return `color-mix(in oklch, var(--destructive) ${String(t * 100)}%, var(--context-ring-warn))`;
 }
 
-/** Formata contagem de tokens de forma compacta pro popover (ex: 163_000 ->
- * "163k", 1_000_000 -> "1M"). Só usado em exibição — os números crus vêm
- * direto de `ContextUsage`. */
+/** Formats token counts compactly for the popover (e.g. 163_000 -> "163k",
+ * 1_000_000 -> "1M"). Only used for display — the raw numbers come directly
+ * from `ContextUsage`. */
 export function formatTokenCount(n: number): string {
   if (n >= 1_000_000) {
     const millions = n / 1_000_000;

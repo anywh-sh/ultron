@@ -35,11 +35,12 @@ interface SortableTabProps {
 }
 
 /**
- * Só espalha `listeners`/`setNodeRef` do dnd-kit, não `attributes` — evita
- * `role`/`tabIndex` genéricos colidindo com o `role="tab"` que o Radix já
- * expõe corretamente no `TabsTrigger` (RovingFocusGroup, WAI-ARIA Tabs).
- * Sem `KeyboardSensor` no `DndContext` pelo mesmo motivo: ArrowLeft/Right já
- * move o foco entre abas via Radix, colidiria com "mover item arrastado".
+ * Only spreads dnd-kit's `listeners`/`setNodeRef`, not `attributes` — avoids
+ * generic `role`/`tabIndex` colliding with the `role="tab"` Radix already
+ * correctly exposes on `TabsTrigger` (RovingFocusGroup, WAI-ARIA Tabs). No
+ * `KeyboardSensor` on the `DndContext` for the same reason: ArrowLeft/Right
+ * already moves focus between tabs via Radix, would collide with "move
+ * dragged item".
  */
 function SortableTab({ tab, onClose, onRename, onDelete }: SortableTabProps) {
   const { setNodeRef, listeners, transform, transition, isDragging } = useSortable({ id: tab.id });
@@ -98,19 +99,19 @@ function SortableTab({ tab, onClose, onRename, onDelete }: SortableTabProps) {
 }
 
 /**
- * `forceMount` em vez de render condicional: é isso que mantém a conexão WS
- * de abas em background viva (docs/18). A aba inativa é escondida com
- * `invisible` (`visibility:hidden`), não `hidden`/`display:none` — o
- * `MessageLog` de cada aba usa `@tanstack/react-virtual`, cujo
- * `ResizeObserver` (tanto do container quanto de cada item medido) dispara
- * com tamanho 0 assim que um ancestral vira `display:none`. Isso corrompe o
- * cache de alturas e ainda aciona o ajuste automático de `scrollTop` que o
- * virtualizador faz pra manter o fim colado quando um item muda de tamanho
- * de verdade — resultado: reabrir a aba jogava o scroll pra outro lugar,
- * mesmo que estivesse no fim. `visibility:hidden` não colapsa a caixa (o
- * `ResizeObserver` nunca vê 0), só empilhamos as abas com `absolute inset-0`
- * dentro do wrapper `relative` pra ocuparem o mesmo espaço sem depender do
- * fluxo flex.
+ * `forceMount` instead of conditional rendering: this is what keeps
+ * background tabs' WS connection alive (docs/18). The inactive tab is
+ * hidden with `invisible` (`visibility:hidden`), not `hidden`/`display:none`
+ * — each tab's `MessageLog` uses `@tanstack/react-virtual`, whose
+ * `ResizeObserver` (both the container's and each measured item's) fires
+ * with size 0 as soon as an ancestor becomes `display:none`. That corrupts
+ * the height cache and also triggers the automatic `scrollTop` adjustment
+ * the virtualizer does to keep the end pinned when an item really changes
+ * size — result: reopening the tab would throw the scroll somewhere else,
+ * even if it was at the end. `visibility:hidden` doesn't collapse the box
+ * (the `ResizeObserver` never sees 0), we just stack the tabs with
+ * `absolute inset-0` inside the `relative` wrapper so they occupy the same
+ * space without depending on flex flow.
  */
 export function TabBar({
   tabs,

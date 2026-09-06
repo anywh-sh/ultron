@@ -5,7 +5,7 @@ export function cn(...inputs: ClassValue[]) {
   return twMerge(clsx(inputs));
 }
 
-/** `mm:ss` — usado pelo timer de gravação de voz (Composer). */
+/** `mm:ss` — used by the voice recording timer (Composer). */
 export function formatDuration(seconds: number): string {
   const m = Math.floor(seconds / 60)
     .toString()
@@ -14,13 +14,13 @@ export function formatDuration(seconds: number): string {
   return `${m}:${s}`;
 }
 
-/** `[Hh] [Mm] Ss` — cronômetro do turno em andamento (TurnIndicator),
- * separado de `formatDuration` porque o formato `mm:ss` lá é convenção de
- * timer de gravação, não de "há quanto tempo o agente está pensando". Nunca
- * preenche com zero à esquerda em nenhuma unidade (`1h 1m 5s`, não
- * `1h 01m 05s`) — um segundo dígito só aparece quando o valor passa de 9 de
- * verdade. Unidades zeradas à esquerda somem: sem hora nenhuma sem passar de
- * 1h, sem minuto nenhum sem passar de 1m. */
+/** `[Hh] [Mm] Ss` — timer for the turn in progress (TurnIndicator), separate
+ * from `formatDuration` because the `mm:ss` format there is a recording
+ * timer convention, not "how long has the agent been thinking". Never
+ * zero-pads any unit (`1h 1m 5s`, not `1h 01m 05s`) — a second digit only
+ * shows up when the value genuinely goes past 9. Leading zeroed units
+ * disappear: no hour at all without passing 1h, no minute at all without
+ * passing 1m. */
 export function formatDurationLong(totalSeconds: number): string {
   const hours = Math.floor(totalSeconds / 3600);
   const minutes = Math.floor((totalSeconds % 3600) / 60);

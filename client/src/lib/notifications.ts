@@ -5,9 +5,9 @@ import type { Profile } from "@/lib/profiles";
 
 let permissionGranted: boolean | null = null;
 
-/** Chamar uma vez no início do app — pede a permissão de notificação do SO
- * se ainda não foi decidida. Resultado fica em cache pro resto da sessão do
- * app; se o usuário negar, as funções abaixo viram no-op silencioso. */
+/** Call once at app startup — asks for the OS notification permission if it
+ * hasn't been decided yet. Result stays cached for the rest of the app's
+ * session; if the user denies it, the functions below become silent no-ops. */
 export async function ensureNotificationPermission(): Promise<void> {
   if (!inTauri()) return;
   if (await isPermissionGranted()) {
@@ -17,10 +17,10 @@ export async function ensureNotificationPermission(): Promise<void> {
   permissionGranted = (await requestPermission()) === "granted";
 }
 
-/** Tempo máximo esperando o resumo gerado por IA (relay, `notificationSummaryGenerator.ts`)
- * antes de disparar a notificação com o corpo de fallback — cobre tanto o
- * gerador falhando quanto uma lentidão incomum, sem travar a notificação
- * indefinidamente. */
+/** Maximum time waiting for the AI-generated summary (relay,
+ * `notificationSummaryGenerator.ts`) before firing the notification with the
+ * fallback body — covers both the generator failing and unusual slowness,
+ * without stalling the notification indefinitely. */
 const NOTIFICATION_SUMMARY_TIMEOUT_MS = 4000;
 
 const FALLBACK_BODY = "Resposta pronta";
@@ -31,16 +31,16 @@ interface PendingNotification {
   timer: ReturnType<typeof setTimeout>;
   profile: Profile;
   sessionTitle: string;
-  /** Corpo a usar se o resumo do relay não chegar a tempo — a última
-   * mensagem do usuário (mais informativa que um texto genérico), ou
-   * `FALLBACK_BODY` se essa mensagem não existir por algum motivo. */
+  /** Body to use if the relay's summary doesn't arrive in time — the last
+   * user message (more informative than generic text), or `FALLBACK_BODY`
+   * if that message doesn't exist for some reason. */
   fallbackBody: string;
   isStillHidden: () => boolean;
 }
 
-/** Uma entrada por aba com notificação agendada — chaveado por `tabId`
- * (== sessionId do relay) pra `resolveNotificationSummary` conseguir casar o
- * resumo assíncrono que chega depois com o turno que o originou. */
+/** One entry per tab with a scheduled notification — keyed by `tabId`
+ * (== the relay's sessionId) so `resolveNotificationSummary` can match the
+ * async summary that arrives later with the turn that triggered it. */
 const pending = new Map<string, PendingNotification>();
 
 function cleanBody(text: string): string {
@@ -48,34 +48,35 @@ function cleanBody(text: string): string {
   return collapsed.length > MAX_BODY_CHARS ? `${collapsed.slice(0, MAX_BODY_CHARS)}…` : collapsed;
 }
 
-/** Vai direto pro comando Rust `notify_turn_complete` em vez de
- * `sendNotification` do plugin: no Windows o plugin usa o ícone do
- * PowerShell fora de um build instalado e não repassa o clique no toast pro
- * JS, então o ícone e o clique (foco de janela + troca de aba) são
- * implementados nativamente do lado Rust (ver src-tauri/src/notifications.rs
- * e hooks/useNotificationClick.ts). `sessionId`/`profileId` viajam junto só
- * pra esse roteamento do clique — título e corpo já vêm prontos daqui.
+/** Goes straight to the Rust `notify_turn_complete` command instead of the
+ * plugin's `sendNotification`: on Windows the plugin uses PowerShell's icon
+ * outside of an installed build and doesn't forward the toast click to JS,
+ * so the icon and the click (window focus + tab switch) are implemented
+ * natively on the Rust side (see src-tauri/src/notifications.rs and
+ * hooks/useNotificationClick.ts). `sessionId`/`profileId` travel along just
+ * for that click routing — title and body already arrive ready from here.
  *
- * Título é só o nome da conversa (sem prefixo de perfil — testado com
- * "[Perfil] resumo" e não ficou bom, o perfil só importa pro roteamento do
- * clique, não precisa ocupar espaço do título); o corpo é o resumo do que
- * o assistente fez ou, se ficou esperando alguma decisão do usuário, o que
- * está pendente — ver o system prompt em notificationSummaryGenerator.ts. */
+ * Title is just the conversation's name (no profile prefix — tested with
+ * "[Profile] summary" and it didn't look good, the profile only matters for
+ * click routing, doesn't need to take up space in the title); the body is
+ * the summary of what the assistant did or, if it ended up waiting on some
+ * user decision, what's pending — see the system prompt in
+ * notificationSummaryGenerator.ts. */
 function fire(tabId: string, profile: Profile, sessionTitle: string, body: string): void {
   if (!inTauri() || !permissionGranted) return;
   void invoke("notify_turn_complete", { title: sessionTitle, body: cleanBody(body), sessionId: tabId, profileId: profile.id });
 }
 
-/** Chamado (via `App.tsx`) quando um turno termina fora do foco — agenda a
- * notificação do SO. Turnos interrompidos (`stopped`) notificam na hora, sem
- * resumo pra esperar (não há resposta coerente pra resumir). Turnos
- * concluídos de verdade esperam o resumo assíncrono chegar via
- * `resolveNotificationSummary`, com o timeout acima como rede de segurança e
- * a última mensagem do usuário como corpo alternativo (mais útil que um texto
- * genérico). `isStillHidden` é reconferido no disparo de verdade (aqui só no
- * timeout; `resolveNotificationSummary` reconfere de novo na chegada do
- * resumo) — evita notificar um turno cuja aba o usuário já voltou a olhar
- * enquanto o resumo ainda gerava. */
+/** Called (via `App.tsx`) when a turn ends out of focus — schedules the OS
+ * notification. Interrupted turns (`stopped`) notify right away, with no
+ * summary to wait for (there's no coherent response to summarize). Genuinely
+ * completed turns wait for the async summary to arrive via
+ * `resolveNotificationSummary`, with the timeout above as a safety net and
+ * the last user message as an alternative body (more useful than generic
+ * text). `isStillHidden` is rechecked at the actual firing moment (here only
+ * on timeout; `resolveNotificationSummary` rechecks again when the summary
+ * arrives) — avoids notifying about a turn whose tab the user has already
+ * gone back to looking at while the summary was still generating. */
 export function scheduleTurnCompleteNotification(
   tabId: string,
   profile: Profile,
@@ -98,10 +99,10 @@ export function scheduleTurnCompleteNotification(
   pending.set(tabId, { timer, profile, sessionTitle, fallbackBody, isStillHidden });
 }
 
-/** Chamado (via `App.tsx`) quando o `notification_summary` daquele turno
- * chega do relay. Sem entrada pendente pra esse `tabId` — turno que já
- * disparou o fallback do timeout, foi `stopped`, ou a aba nunca saiu de
- * foco pra começo de conversa — é no-op silencioso. */
+/** Called (via `App.tsx`) when that turn's `notification_summary` arrives
+ * from the relay. With no pending entry for that `tabId` — a turn that
+ * already fired the timeout fallback, was `stopped`, or the tab never lost
+ * focus to begin with — it's a silent no-op. */
 export function resolveNotificationSummary(tabId: string, summary: string | null): void {
   const entry = pending.get(tabId);
   if (!entry) return;

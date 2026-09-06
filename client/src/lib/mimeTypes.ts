@@ -1,7 +1,8 @@
-// Só usado pro drag-and-drop nativo (ChatPanel.tsx): arquivos que chegam via
-// `onDragDropEvent` do Tauri são lidos do disco como bytes crus (comando
-// `read_dropped_file`), sem o MIME real que o navegador daria a um `File`
-// vindo de um `<input type="file">` — precisa ser inferido pela extensão.
+// Only used for native drag-and-drop (ChatPanel.tsx): files arriving via
+// Tauri's `onDragDropEvent` are read from disk as raw bytes (`read_dropped_
+// file` command), without the real MIME type the browser would give a
+// `File` coming from an `<input type="file">` — needs to be inferred from
+// the extension.
 const EXTENSION_MIME_MAP: Record<string, string> = {
   png: "image/png",
   jpg: "image/jpeg",

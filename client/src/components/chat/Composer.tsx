@@ -52,54 +52,54 @@ interface ComposerProps {
   onRemoveImage: (path: string) => void;
   permissionMode: PermissionMode | null;
   onChangePermissionMode: (mode: PermissionMode) => void;
-  /** `null` até a primeira troca explícita da sessão (docs/26, agora via
-   * `ModelButton` além do `/model` digitado) — nesse caso `ModelButton` cai
-   * pro `defaultModel` (docs/28). */
+  /** `null` until the session's first explicit switch (docs/26, now via
+   * `ModelButton` in addition to typing `/model`) — in that case
+   * `ModelButton` falls back to `defaultModel` (docs/28). */
   model: ModelChoice | null;
-  /** Modelo padrão de verdade da conta desse perfil (docs/28) — fallback do
-   * `ModelButton` quando `model` é `null`. */
+  /** This profile's actual default account model (docs/28) — `ModelButton`'s
+   * fallback when `model` is `null`. */
   defaultModel: string | null;
   onChangeModel: (model: ModelChoice) => void;
-  /** Mesmo sinal do `cwdLocked` (`WorkingDirectoryButton`) — true assim que a
-   * conversa já teve seu primeiro turno. Trocar o modelo nesse ponto exigiria
-   * reler todo o histórico pra CLI reconstruir contexto no modelo novo, então
-   * o `ModelButton` trava junto com a pasta. */
+  /** Same signal as `cwdLocked` (`WorkingDirectoryButton`) — true as soon as
+   * the conversation has had its first turn. Switching the model at that
+   * point would require rereading the whole history for the CLI to rebuild
+   * context in the new model, so `ModelButton` locks along with the folder. */
   modelLocked: boolean;
-  /** Desktop-only por ora — o layout iOS (linha única attach/texto/enviar,
-   * ver isIOS() abaixo) não tem a toolbar onde isso entraria. */
+  /** Desktop-only for now — the iOS layout (single attach/text/send line,
+   * see isIOS() below) has no toolbar for this to go into. */
   contextUsage: ContextUsage | null;
   compactBoundary: CompactBoundaryEvent | null;
-  /** Sugestão de próxima mensagem (relay-types.ts) — mostrada como
-   * placeholder do composer enquanto o campo está vazio; `Tab` a preenche
-   * (ver `editorProps.handleKeyDown` abaixo). `null` some pro placeholder
-   * genérico de sempre. */
+  /** Next-message suggestion (relay-types.ts) — shown as the composer's
+   * placeholder while the field is empty; `Tab` fills it in (see
+   * `editorProps.handleKeyDown` below). `null` falls back to the usual
+   * generic placeholder. */
   suggestion: string | null;
 }
 
 export interface ComposerHandle {
   focus: () => void;
-  /** Edição de mensagem via composer (docs/33, iOS) — substitui o conteúdo
-   * pelo texto original da mensagem editada (ou limpa, com `""`, ao
-   * cancelar). Texto puro, sem markdown/HTML: mesma forma que `onSend`
-   * entrega pra fora, só que no sentido contrário. */
+  /** Message editing via composer (docs/33, iOS) — replaces the content with
+   * the original text of the edited message (or clears it, with `""`, on
+   * cancel). Plain text, no markdown/HTML: the same shape `onSend` delivers
+   * outward, just in the opposite direction. */
   setContent: (text: string) => void;
 }
 
 const WAVEFORM_BARS = [0, 1, 2, 3, 4];
 
 /**
- * Link renderizado como `<a>` nativo puro (sem `addMarkView`/`contentDOM`
- * próprio) — o hover card + editar interativos vivem fora da marca, em
- * `ComposerLinkHoverCard` (uma instância só por `Composer`, não por link).
- * Motivo, não só preferência: um Tiptap MarkView React aqui quebra de forma
- * reproduzida o mapeamento posição-doc↔DOM do ProseMirror sempre que existe
- * no documento — ver o comentário grande em `ComposerLinkHoverCard.tsx`
- * pros três bugs reais que isso causava (cursor não ia pro fim depois de
- * colar um link, colar sobre seleção tinha o mesmo problema, apagar um link
- * selecionado sumia com o cursor). Resto do schema (bold, itálico, listas,
- * heading etc) continua desativado — o composer é uma caixa de texto
- * simples, o pedido era só suportar link via paste-to-link, não virar um
- * editor rich-text completo.
+ * Link rendered as a plain native `<a>` (no `addMarkView`/own `contentDOM`)
+ * — the interactive hover card + edit live outside the mark, in
+ * `ComposerLinkHoverCard` (a single instance per `Composer`, not per link).
+ * A reason, not just a preference: a React Tiptap MarkView here reproducibly
+ * breaks ProseMirror's doc-position↔DOM mapping whenever it exists in the
+ * document — see the big comment in `ComposerLinkHoverCard.tsx` for the
+ * three real bugs this caused (cursor didn't go to the end after pasting a
+ * link, pasting over a selection had the same problem, deleting a selected
+ * link made the cursor disappear). The rest of the schema (bold, italic,
+ * lists, heading etc) stays disabled — the composer is a simple text box,
+ * the request was only to support links via paste-to-link, not to become a
+ * full rich-text editor.
  */
 const ComposerLink = Link.configure({
   autolink: false,
@@ -108,11 +108,11 @@ const ComposerLink = Link.configure({
   HTMLAttributes: { class: "composer-link", rel: "noopener noreferrer nofollow" },
 });
 
-/** Wrapper de extensão pro plugin de ancoragem de cursor (ver
- * `hardBreakAnchorPlugin` abaixo, definição depois por causa da ordem
- * de leitura do arquivo — chamada aqui só acontece quando o Tiptap monta o
- * editor, bem depois do module load, então a function declaration hoisted
- * já existe nesse ponto). */
+/** Extension wrapper for the cursor-anchoring plugin (see
+ * `hardBreakAnchorPlugin` below, defined later due to the file's reading
+ * order — the call here only happens when Tiptap mounts the editor, well
+ * after module load, so the hoisted function declaration already exists at
+ * that point). */
 const HardBreakCaretAnchor = Extension.create({
   name: "hardBreakCaretAnchor",
   addProseMirrorPlugins() {
@@ -143,13 +143,13 @@ const EXTENSIONS = [
 
 const DEFAULT_PLACEHOLDER = "Escreva uma mensagem…";
 
-/** Reconstrói o doc do Tiptap a partir de texto plano (docs/33, edição via
- * composer no iOS) — via JSON, não uma string HTML interpolada: o texto
- * pode ter `<`/`&`/etc que quebrariam um parse HTML ingênuo. Um parágrafo
- * só com `hardBreak` entre linhas: o schema do composer nunca produz mais
- * de um parágrafo de qualquer jeito (Enter sem shift sempre envia, nunca
- * `splitBlock` — ver `handleKeyDown` abaixo), então não tem "parágrafo
- * original" pra restaurar, só a mesma sequência de quebras de linha. */
+/** Rebuilds the Tiptap doc from plain text (docs/33, editing via composer on
+ * iOS) — via JSON, not an interpolated HTML string: the text may have
+ * `<`/`&`/etc that would break a naive HTML parse. A single paragraph with
+ * `hardBreak` between lines: the composer's schema never produces more than
+ * one paragraph anyway (Enter without shift always sends, never
+ * `splitBlock` — see `handleKeyDown` below), so there's no "original
+ * paragraph" to restore, just the same sequence of line breaks. */
 function buildComposerDoc(text: string): JSONContent {
   const content: JSONContent[] = [];
   text.split("\n").forEach((line, index) => {
@@ -159,45 +159,47 @@ function buildComposerDoc(text: string): JSONContent {
   return { type: "doc", content: [{ type: "paragraph", content }] };
 }
 
-/** Placeholder dinâmico: mostra a sugestão de próxima mensagem enquanto ela
- * existir, senão cai no texto genérico de sempre. Precisa ser criado por
- * instância de `Composer` (não um extension module-level, como o resto de
- * `EXTENSIONS`) — cada aba tem sua própria sugestão, e `useEditor` não
- * recria o editor a cada mudança de prop, então o valor tem que vir de uma
- * ref atualizada a cada render (mesmo padrão de `submitRef` abaixo). */
+/** Dynamic placeholder: shows the next-message suggestion while it exists,
+ * otherwise falls back to the usual generic text. Needs to be created per
+ * `Composer` instance (not a module-level extension, like the rest of
+ * `EXTENSIONS`) — each tab has its own suggestion, and `useEditor` doesn't
+ * recreate the editor on every prop change, so the value has to come from a
+ * ref updated on every render (same pattern as `submitRef` below). */
 function createPlaceholderExtension(suggestionRef: MutableRefObject<string | null>) {
   return Placeholder.configure({ placeholder: () => suggestionRef.current ?? DEFAULT_PLACEHOLDER });
 }
 
 /**
- * Bug real, confirmado testando no Chromium via Playwright (não só teoria):
- * uma posição de cursor entre dois `<br>` adjacentes sem nenhum texto — uma
- * linha vazia de verdade, criada por 2+ `hardBreak` seguidos (Shift+Enter no
- * desktop, Enter no iOS — ver `handleKeyDown` abaixo) sem digitar nada entre
- * eles — não tem caixa de layout própria: `Range.getClientRects()`/
- * `getBoundingClientRect()` voltam `(0,0,0,0)` nessa posição, e o navegador
- * cai de volta pra desenhar o cursor na linha anterior. É exatamente o bug
- * relatado: "cursor fica uma linha acima" depois de duas (ou mais) quebras.
+ * Real bug, confirmed by testing on Chromium via Playwright (not just
+ * theory): a cursor position between two adjacent `<br>`s with no text at
+ * all — a genuinely empty line, created by 2+ consecutive `hardBreak`s
+ * (Shift+Enter on desktop, Enter on iOS — see `handleKeyDown` below) without
+ * typing anything between them — has no layout box of its own:
+ * `Range.getClientRects()`/`getBoundingClientRect()` return `(0,0,0,0)` at
+ * that position, and the browser falls back to drawing the cursor on the
+ * previous line. It's exactly the reported bug: "cursor ends up one line
+ * above" after two (or more) breaks.
  *
- * Uma primeira tentativa via widget decoration (DOM puro, fora do modelo do
- * documento — a mesma técnica que o próprio ProseMirror já usa pro
- * `<br class="ProseMirror-trailingBreak">`) não resolveu: o ProseMirror marca
- * todo widget como `contenteditable=false`, então o navegador trata como um
- * átomo não-editável e a seleção ainda ancora no elemento container (offset
- * por índice de filho), não dentro de texto de verdade — o rect continuava
- * colapsado. A correção real precisa de texto editável genuíno ali, por isso
- * isto insere um caractere de largura zero (invisível, `HARD_BREAK_ANCHOR`,
- * ver `composerLinks.tsx` — `U+FEFF`, não `U+200B`) como texto de verdade no
- * documento, não só na view.
+ * A first attempt via widget decoration (plain DOM, outside the document
+ * model — the same technique ProseMirror itself already uses for
+ * `<br class="ProseMirror-trailingBreak">`) didn't fix it: ProseMirror marks
+ * every widget as `contenteditable=false`, so the browser treats it as a
+ * non-editable atom and the selection still anchors on the container element
+ * (offset by child index), not inside real text — the rect stayed collapsed.
+ * The real fix needs genuinely editable text there, so this inserts a
+ * zero-width character (invisible, `HARD_BREAK_ANCHOR`, see
+ * `composerLinks.tsx` — `U+FEFF`, not `U+200B`) as real text in the
+ * document, not just in the view.
  *
- * `appendTransaction` (não um comando específico do Shift+Enter) porque o
- * Enter do iOS não passa pelo comando `setHardBreak` — cai no fallback padrão
- * do ProseMirror pra `schema.linebreakReplacement` quando o schema do doc não
- * permite um segundo parágrafo (ver comentário de `buildComposerDoc`). Rodar
- * numa normalização pós-transação cobre os dois caminhos (e paste, undo/redo,
- * `setContent` da edição via composer) com uma lógica só. Sem loop infinito:
- * a própria inserção do âncora faz a condição "próximo nó não é texto real"
- * parar de bater na passada seguinte. */
+ * `appendTransaction` (not a Shift+Enter-specific command) because iOS's
+ * Enter doesn't go through the `setHardBreak` command — it falls into
+ * ProseMirror's default fallback for `schema.linebreakReplacement` when the
+ * doc's schema doesn't allow a second paragraph (see `buildComposerDoc`'s
+ * comment). Running this as a post-transaction normalization covers both
+ * paths (plus paste, undo/redo, `setContent` from composer editing) with a
+ * single piece of logic. No infinite loop: inserting the anchor itself makes
+ * the "next node isn't real text" condition stop matching on the next
+ * pass. */
 function hardBreakAnchorPlugin() {
   return new Plugin({
     key: new PluginKey("hardBreakAnchor"),
@@ -208,37 +210,36 @@ function hardBreakAnchorPlugin() {
         if (node.type.name !== "hardBreak") return;
         const after = pos + node.nodeSize;
         const nextNode = newState.doc.resolve(after).nodeAfter;
-        // Precisa de âncora quando não há nada depois (fim do parágrafo) ou
-        // o próximo nó também é uma quebra (linha vazia de verdade) — texto
-        // real (mesmo começando pelo próprio âncora de uma passada anterior)
-        // já basta como caixa de layout, não duplica.
+        // Needs an anchor when there's nothing after (end of paragraph) or
+        // the next node is also a break (genuinely empty line) — real text
+        // (even starting with the anchor itself from a previous pass) is
+        // already enough as a layout box, doesn't duplicate.
         const needsAnchor = !nextNode || nextNode.type.name === "hardBreak";
         if (needsAnchor) insertPositions.push(after);
       });
       const tr = newState.tr;
       let changed = false;
       if (insertPositions.length > 0) {
-        // De trás pra frente: inserir não desloca posições ainda não
-        // processadas (todas vêm antes, no doc original).
+        // Back to front: inserting doesn't shift positions not yet
+        // processed (they all come before, in the original doc).
         insertPositions
           .sort((a, b) => b - a)
           .forEach((pos) => tr.insertText(HARD_BREAK_ANCHOR, pos));
         changed = true;
       }
-      // Reancora o cursor quando ele está bem entre um `hardBreak` e a âncora
-      // que existe logo depois (recém-inserida acima, ou de uma passada
-      // anterior — `applyTransaction` do ProseMirror reinicia a lista de
-      // plugins do zero sempre que algum `appendTransaction` retorna uma
-      // transação nova, então este método roda de novo com o doc já
-      // anexado, mas SEM garantia de que o mapeamento da seleção do
-      // dispatch original ainda aponte pra depois do texto certo). Checagem
-      // por conteúdo (não por mapeamento de posição) — funciona não importa
-      // em qual dessas passadas ela dispara. Sem isso, o cursor renderiza
-      // uma linha acima do esperado no WebKit/iOS mesmo com a âncora
-      // presente no documento (bug real, confirmado no Simulator, docs/34
-      // item 3) — no Chromium o navegador tolera a posição "antes" da
-      // âncora e desenha o cursor certo mesmo assim, mascarando esse mesmo
-      // problema.
+      // Re-anchors the cursor when it's right between a `hardBreak` and the
+      // anchor that exists right after it (just inserted above, or from a
+      // previous pass — ProseMirror's `applyTransaction` restarts the plugin
+      // list from scratch whenever some `appendTransaction` returns a new
+      // transaction, so this method runs again with the doc already
+      // appended, but with NO guarantee that the original dispatch's
+      // selection mapping still points after the right text). Content-based
+      // check (not position mapping) — works no matter which of these passes
+      // triggers it. Without this, the cursor renders one line above where
+      // expected on WebKit/iOS even with the anchor present in the document
+      // (real bug, confirmed in the Simulator, docs/34 item 3) — on Chromium
+      // the browser tolerates the "before" position of the anchor and draws
+      // the cursor correctly anyway, masking this same problem.
       const { $head } = tr.selection;
       if (
         tr.selection.empty &&
@@ -255,14 +256,14 @@ function hardBreakAnchorPlugin() {
   });
 }
 
-/** Colore `/model haiku` etc digitado no composer, só quando é um comando
- * reconhecido de verdade (mesma checagem de `parseSlashCommand` — um
- * `/model gpt4` inválido fica sem cor nenhuma, já que vai virar mensagem
- * normal). Barra com opacidade reduzida + cor primária, nome do comando com
- * cor primária cheia, parâmetro (se houver) sem estilo nenhum — pedido
- * explícito do usuário (docs/27). Decoração pura (`Decoration.inline`), não
- * mexe no documento — o texto que vai pro `onSend` continua o texto puro de
- * sempre. */
+/** Colors `/model haiku` etc typed in the composer, only when it's a
+ * genuinely recognized command (same check as `parseSlashCommand` — an
+ * invalid `/model gpt4` gets no color at all, since it'll become a normal
+ * message). Slash with reduced opacity + primary color, command name with
+ * full primary color, parameter (if any) with no styling at all — explicit
+ * user request (docs/27). Pure decoration (`Decoration.inline`), doesn't
+ * touch the document — the text that goes to `onSend` remains the usual
+ * plain text. */
 function slashCommandDecorationPlugin() {
   return new Plugin({
     key: new PluginKey("slashCommandDecoration"),
@@ -272,8 +273,8 @@ function slashCommandDecorationPlugin() {
         if (!parseSlashCommand(text)) return DecorationSet.empty;
         const match = /^(\/\S+)(\s+\S+)?$/.exec(text);
         if (!match) return DecorationSet.empty;
-        // Início do texto do primeiro (único) parágrafo — ver schema do
-        // composer acima, nunca tem outro nó de bloco antes.
+        // Start of the first (only) paragraph's text — see the composer's
+        // schema above, there's never another block node before it.
         const from = 1;
         const commandEnd = from + match[1].length;
         return DecorationSet.create(state.doc, [
@@ -286,20 +287,20 @@ function slashCommandDecorationPlugin() {
 }
 
 /**
- * `/` como primeiro caractere do composer (vazio até então, `startOfLine` +
- * `allowSpaces` do Suggestion garantem isso — ver docs/27) abre um popup de
- * autocompletar dos comandos disponíveis. Menu renderizado via `ReactRenderer`
- * + `props.mount()` (posicionamento gerenciado pelo próprio pacote via
- * Floating UI, ancorado no cursor) — sem estado React aqui: os callbacks do
- * Tiptap vivem fora do ciclo de render, então a seleção atual e os itens
- * filtrados ficam em variáveis fechadas no closure de `addProseMirrorPlugins`,
- * atualizadas via `component.updateProps`.
+ * `/` as the composer's first character (empty until then, Suggestion's
+ * `startOfLine` + `allowSpaces` guarantee this — see docs/27) opens an
+ * autocomplete popup of available commands. Menu rendered via
+ * `ReactRenderer` + `props.mount()` (positioning managed by the package
+ * itself via Floating UI, anchored to the cursor) — no React state here:
+ * Tiptap's callbacks live outside the render cycle, so the current selection
+ * and filtered items sit in variables closed over in
+ * `addProseMirrorPlugins`'s closure, updated via `component.updateProps`.
  *
- * `activeRef` é o único canal de volta pro componente React: o
- * `handleKeyDown` de nível de editor (configurado em `useEditor` abaixo) já
- * roda ANTES dos plugins do ProseMirror (inclusive o do Suggestion) — sem
- * essa checagem, Enter sempre submeteria a mensagem em vez de deixar o
- * Suggestion escolher o item selecionado no menu.
+ * `activeRef` is the only channel back to the React component: the
+ * editor-level `handleKeyDown` (configured in `useEditor` below) already
+ * runs BEFORE ProseMirror's plugins (including Suggestion's) — without this
+ * check, Enter would always submit the message instead of letting
+ * Suggestion pick the selected item in the menu.
  */
 function createSlashCommandExtension(activeRef: MutableRefObject<boolean>) {
   return Extension.create({
@@ -335,12 +336,12 @@ function createSlashCommandExtension(activeRef: MutableRefObject<boolean>) {
           char: "/",
           startOfLine: true,
           allowSpaces: true,
-          // Sem isso, escolher um item reabre o menu na hora: o texto
-          // resultante ("/model fable") ainda bate com "/" no início da
-          // linha, então o Suggestion tentava começar uma sessão nova só
-          // com ele mesmo como opção. Só mostra enquanto o texto ainda não é
-          // um comando completo e válido — mesma checagem de `onSend`
-          // (ChatPanel) e da decoração visual acima.
+          // Without this, picking an item reopens the menu right away: the
+          // resulting text ("/model fable") still matches "/" at the start
+          // of the line, so Suggestion would try to start a new session with
+          // just itself as the option. Only shows while the text isn't yet a
+          // complete, valid command — same check as `onSend` (ChatPanel) and
+          // the visual decoration above.
           shouldShow: ({ text }) => parseSlashCommand(text) === null,
           items: ({ query }) => filterSlashCommands(query),
           command: ({ editor, range, props }) => {
@@ -393,14 +394,15 @@ function createSlashCommandExtension(activeRef: MutableRefObject<boolean>) {
   });
 }
 
-/** Foco de teclado destaca o container inteiro (textarea + toolbar), não só
- * a textarea isolada — docs/17. Fluxo de voz: gravar → waveform+timer →
- * cancelar ou parar → transcrever → texto cai aqui pra revisão (não envia
- * sozinho) — docs/17 + docs/18 (waveform é animação genérica, não áudio real).
- * Campo de texto é um editor Tiptap (não `<textarea>`): precisa suportar
- * hyperlink inline (cor própria, hover com editar) criado via paste-to-link
- * — colar uma URL sobre um texto selecionado vira link, sem seleção a URL
- * colada já entra como link (comportamento nativo do `Link` do Tiptap). */
+/** Keyboard focus highlights the whole container (textarea + toolbar), not
+ * just the isolated textarea — docs/17. Voice flow: record → waveform+timer
+ * → cancel or stop → transcribe → text lands here for review (doesn't send
+ * on its own) — docs/17 + docs/18 (the waveform is a generic animation, not
+ * real audio). The text field is a Tiptap editor (not a `<textarea>`): needs
+ * to support an inline hyperlink (own color, hover with edit) created via
+ * paste-to-link — pasting a URL over selected text becomes a link, with no
+ * selection the pasted URL already goes in as a link (Tiptap's `Link`
+ * native behavior). */
 export const Composer = forwardRef<ComposerHandle, ComposerProps>(function Composer(
   {
     onSend,
@@ -425,27 +427,29 @@ export const Composer = forwardRef<ComposerHandle, ComposerProps>(function Compo
 ) {
   const [focused, setFocused] = useState(false);
   const [isEmpty, setIsEmpty] = useState(true);
-  // Só usado no iOS (docs/24) — o container morfa de pílula (uma linha) pra
-  // retângulo arredondado (várias linhas), igual ao protótipo. Medido pela
-  // altura real do editor em vez de contar quebras de linha do texto: uma
-  // linha pode ocupar duas visuais por wrap sem nenhum "\n".
+  // Only used on iOS (docs/24) — the container morphs from a pill (one line)
+  // into a rounded rectangle (several lines), like the prototype. Measured
+  // by the editor's real height instead of counting text line breaks: one
+  // line can occupy two visual ones from wrapping with no "\n" at all.
   const [isMultiline, setIsMultiline] = useState(false);
-  // Limite máximo do campo de texto quando o conteúdo excede o que cabe numa
-  // tela (`.composer-editor .ProseMirror` no CSS) — no iOS um valor fixo em
-  // px estoura a área visível assim que o teclado abre, porque `vh`/`dvh` não
-  // encolhem com o teclado (só com chrome de navegador). `visualViewport.height`
-  // é a única fonte que reflete o espaço realmente disponível acima do
-  // teclado, e dispara `resize` quando ele abre/fecha — por isso o cap é
-  // recalculado nesse evento, não fixo. `null` (desktop, ou iOS antes do
-  // primeiro layout) cai no fallback fixo do CSS.
+  // Maximum cap for the text field when content exceeds what fits on a
+  // screen (`.composer-editor .ProseMirror` in the CSS) — on iOS a fixed px
+  // value overflows the visible area as soon as the keyboard opens, because
+  // `vh`/`dvh` don't shrink with the keyboard (only with browser chrome).
+  // `visualViewport.height` is the only source that reflects the space
+  // actually available above the keyboard, and fires `resize` when it
+  // opens/closes — that's why the cap is recalculated on that event, not
+  // fixed. `null` (desktop, or iOS before the first layout) falls back to
+  // the fixed CSS value.
   const [composerMaxHeight, setComposerMaxHeight] = useState<number | null>(null);
   useEffect(() => {
     const vv = window.visualViewport;
     if (!isIOS() || !vv) return;
-    // Reserva pro que fica acima do composer dentro da área visível (top bar
-    // com safe-area-inset-top, ver `ChatPanel.tsx`) e pro padding/altura da
-    // própria pílula (linha de attach/enviar + paddings) — sem essa margem o
-    // texto cresce até encostar no topo da tela em vez de parar antes dele.
+    // Reserved for what sits above the composer within the visible area (top
+    // bar with safe-area-inset-top, see `ChatPanel.tsx`) and for the pill's
+    // own padding/height (attach/send line + paddings) — without this margin
+    // the text grows until it touches the top of the screen instead of
+    // stopping before it.
     const RESERVED_PX = 180;
     const MIN_PX = 72;
     function update() {
@@ -457,13 +461,13 @@ export const Composer = forwardRef<ComposerHandle, ComposerProps>(function Compo
   }, []);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const submitRef = useRef<() => void>(() => {});
-  // Único canal de volta do Suggestion (fora do React) pro editorProps abaixo
-  // — ver o comentário de `createSlashCommandExtension`.
+  // Suggestion's only channel back (outside React) to the editorProps below
+  // — see the comment on `createSlashCommandExtension`.
   const slashMenuActiveRef = useRef(false);
   const [slashCommandExtension] = useState(() => createSlashCommandExtension(slashMenuActiveRef));
-  // Canal de volta pro placeholder dinâmico (ver `createPlaceholderExtension`)
-  // e pro handler de `Tab` abaixo — os dois vivem fora do ciclo de render do
-  // Tiptap, então não veem a prop `suggestion` atualizar sozinhos.
+  // Channel back to the dynamic placeholder (see `createPlaceholderExtension`)
+  // and to the `Tab` handler below — both live outside Tiptap's render
+  // cycle, so they don't see the `suggestion` prop update on their own.
   const suggestionRef = useRef<string | null>(suggestion);
   suggestionRef.current = suggestion;
   const [placeholderExtension] = useState(() => createPlaceholderExtension(suggestionRef));
@@ -483,22 +487,23 @@ export const Composer = forwardRef<ComposerHandle, ComposerProps>(function Compo
     editorProps: {
       attributes: { class: "composer-prosemirror", "aria-label": "Escreva uma mensagem…" },
       handleKeyDown: (view, event) => {
-        // Menu de comandos aberto: deixa o Suggestion tratar Enter/setas (ver
-        // `createSlashCommandExtension`) — sem isso o Enter sempre submeteria
-        // em vez de preencher o comando selecionado.
+        // Command menu open: let Suggestion handle Enter/arrows (see
+        // `createSlashCommandExtension`) — without this Enter would always
+        // submit instead of filling in the selected command.
         if (event.key === "Enter" && !event.shiftKey && slashMenuActiveRef.current) return false;
-        // Backspace logo depois de um Shift+Enter (ou entre duas quebras
-        // seguidas, linha em branco) não voltava a linha: o cursor fica bem
-        // depois da âncora invisível (`HARD_BREAK_ANCHOR`, ver
-        // `hardBreakAnchorPlugin` acima), então o Backspace padrão só apaga
-        // esse caractere de largura zero — e o `appendTransaction` do próprio
-        // plugin detecta o `hardBreak` sem nada depois e reinsere a âncora
-        // na mesma passada, desfazendo o apagar antes de qualquer re-render.
-        // Visualmente nada acontece. Aqui a checagem intercepta esse caso
-        // específico (nó de texto imediatamente antes do cursor é só a
-        // âncora, sem nada digitado) e apaga a âncora e o `hardBreak` juntos
-        // como uma unidade só, deixando o `appendTransaction` reancorar
-        // normalmente na linha anterior se for preciso.
+        // Backspace right after a Shift+Enter (or between two consecutive
+        // breaks, a blank line) didn't undo the line: the cursor sits right
+        // after the invisible anchor (`HARD_BREAK_ANCHOR`, see
+        // `hardBreakAnchorPlugin` above), so the default Backspace only
+        // deletes that zero-width character — and the plugin's own
+        // `appendTransaction` detects the `hardBreak` with nothing after it
+        // and reinserts the anchor in the same pass, undoing the deletion
+        // before any re-render. Visually nothing happens. Here the check
+        // intercepts this specific case (the text node right before the
+        // cursor is just the anchor, nothing typed) and deletes the anchor
+        // and the `hardBreak` together as a single unit, letting
+        // `appendTransaction` re-anchor normally on the previous line if
+        // needed.
         if (event.key === "Backspace" && !event.shiftKey && !event.ctrlKey && !event.metaKey && !event.altKey) {
           const { $head, empty } = view.state.selection;
           const nodeBefore = empty ? $head.nodeBefore : null;
@@ -512,24 +517,24 @@ export const Composer = forwardRef<ComposerHandle, ComposerProps>(function Compo
             }
           }
         }
-        // No iOS o teclado não tem um jeito prático de "Shift+Enter" — Enter
-        // vira quebra de linha, envio fica só pelo botão (docs/33). Desktop
-        // não muda: Enter continua enviando, Shift+Enter continua sendo a
-        // única forma de quebra de linha lá.
+        // On iOS the keyboard has no practical way to do "Shift+Enter" —
+        // Enter becomes a line break, sending is only via the button
+        // (docs/33). Desktop doesn't change: Enter still sends, Shift+Enter
+        // is still the only way to break a line there.
         if (event.key === "Enter" && !event.shiftKey && isIOS()) {
-          // Dispatch explícito (mesma técnica do comando `setHardBreak` que o
-          // Shift+Enter do desktop usa), não o fallback padrão do ProseMirror
-          // pra Enter simples (`return false`, deixando o navegador tratar
-          // nativamente via `schema.linebreakReplacement`) — bug real
-          // confirmado no Simulator iOS (docs/34, item 3): esse fallback
-          // nativo não preservava de forma confiável a âncora que o
-          // `hardBreakAnchorPlugin` insere logo em seguida via
-          // `appendTransaction`, então o cursor ficava uma linha acima do
-          // esperado depois de 2+ Enters seguidos — mesmo bug que já
-          // funcionava certinho no Chromium (onde Shift+Enter já passava por
-          // um comando explícito). Despachar a quebra nós mesmos, dentro do
-          // mesmo ciclo síncrono de dispatch, faz o `appendTransaction`
-          // rodar de forma confiável em ambas as plataformas.
+          // Explicit dispatch (same technique as the `setHardBreak` command
+          // desktop's Shift+Enter uses), not ProseMirror's default fallback
+          // for a plain Enter (`return false`, letting the browser handle it
+          // natively via `schema.linebreakReplacement`) — real bug confirmed
+          // in the iOS Simulator (docs/34, item 3): that native fallback
+          // didn't reliably preserve the anchor that
+          // `hardBreakAnchorPlugin` inserts right after via
+          // `appendTransaction`, so the cursor ended up one line above where
+          // expected after 2+ consecutive Enters — the same bug that already
+          // worked fine on Chromium (where Shift+Enter already went through
+          // an explicit command). Dispatching the break ourselves, within
+          // the same synchronous dispatch cycle, makes `appendTransaction`
+          // run reliably on both platforms.
           event.preventDefault();
           const hardBreak = view.state.schema.nodes.hardBreak.create();
           view.dispatch(view.state.tr.replaceSelectionWith(hardBreak).scrollIntoView());
@@ -540,10 +545,10 @@ export const Composer = forwardRef<ComposerHandle, ComposerProps>(function Compo
           submitRef.current();
           return true;
         }
-        // Campo vazio com uma sugestão mostrada como placeholder (ver
-        // `createPlaceholderExtension`) — `Tab` preenche o texto em vez de
-        // sair do campo (comportamento padrão do navegador), só nesse caso;
-        // fora dele `Tab` segue normal (não intercepta à toa).
+        // Empty field with a suggestion shown as a placeholder (see
+        // `createPlaceholderExtension`) — `Tab` fills in the text instead of
+        // leaving the field (default browser behavior), only in that case;
+        // outside it `Tab` behaves normally (doesn't intercept needlessly).
         if (event.key === "Tab" && !event.shiftKey && view.state.doc.textContent.length === 0 && suggestionRef.current) {
           event.preventDefault();
           view.dispatch(view.state.tr.insertText(suggestionRef.current));
@@ -594,11 +599,11 @@ export const Composer = forwardRef<ComposerHandle, ComposerProps>(function Compo
         "flex flex-col gap-1.5 border p-2 transition-colors",
         isIOS()
           ? [
-              // Mesma intensidade de blur da MobileTopBar (docs/24) — no
-              // device físico o blur em si estava imperceptível (possível
-              // limitação do WKWebView com backdrop-filter), então a
-              // opacidade caiu bem mais (45%) pra garantir contraste
-              // visível por trás mesmo se o blur não renderizar.
+              // Same blur intensity as MobileTopBar (docs/24) — on the
+              // physical device the blur itself was imperceptible (possible
+              // WKWebView limitation with backdrop-filter), so opacity
+              // dropped a lot more (45%) to guarantee visible contrast
+              // behind it even if the blur doesn't render.
               "bg-bg-elevated/45 shadow-lg backdrop-blur-lg backdrop-saturate-150",
               "transition-[border-radius,border-color] duration-150",
               isMultiline ? "rounded-[26px]" : "rounded-full",
@@ -639,9 +644,9 @@ export const Composer = forwardRef<ComposerHandle, ComposerProps>(function Compo
       )}
 
       {isIOS() ? (
-        // Uma linha só (attach | texto | enviar), como no protótipo — não o
-        // texto-em-cima/botões-embaixo do desktop, que deixava o composer
-        // alto/desalinhado em vez da pílula compacta aprovada (docs/24).
+        // A single line (attach | text | send), like the prototype — not
+        // desktop's text-on-top/buttons-below, which left the composer
+        // tall/misaligned instead of the approved compact pill (docs/24).
         <div className={cn("flex gap-1", isMultiline ? "items-end" : "items-center")}>
           <input
             ref={fileInputRef}

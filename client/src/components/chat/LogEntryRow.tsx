@@ -2,9 +2,9 @@ import { memo, type ReactNode } from "react";
 import { cn } from "@/lib/utils";
 
 interface LogEntryRowProps {
-  /** "none" = sem rail, texto flush-left (resposta do assistente — feedback
-   * do usuário: sem marcação lateral aqui, igual ao Claude Desktop). Tool
-   * call e erro mantêm a rail. */
+  /** "none" = no rail, flush-left text (assistant response — user feedback:
+   * no side marker here, same as Claude Desktop). Tool call and error keep
+   * the rail. */
   rail: "neutral" | "error" | "none";
   children: ReactNode;
   className?: string;
@@ -15,9 +15,9 @@ const RAIL_COLOR: Record<Exclude<LogEntryRowProps["rail"], "none">, string> = {
   error: "bg-destructive",
 };
 
-/** Memoizado — ver comentário em `Message.tsx::UserBubble`. Sem isso, o
- * wrapper reconciliava (e o filho memoizado dentro dele bail-outava tarde
- * demais) a cada render do `MessageLog`, mesmo com `children` inalterado. */
+/** Memoized — see comment on `Message.tsx::UserBubble`. Without this, the
+ * wrapper would reconcile (and the memoized child inside it would bail out
+ * too late) on every `MessageLog` render, even with `children` unchanged. */
 export const LogEntryRow = memo(function LogEntryRow({ rail, children, className }: LogEntryRowProps) {
   if (rail === "none") {
     return <div className={cn("py-1.5", className)}>{children}</div>;

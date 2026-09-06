@@ -40,11 +40,12 @@ function TooltipContent({
         data-slot="tooltip-content"
         sideOffset={sideOffset}
         className={cn(
-          // `bg-sidebar` (não `bg-popover`, igual dropdown/popover) de propósito
-          // — um tooltip precisa se destacar de qualquer coisa atrás dele,
-          // inclusive de outro elemento que já use `bg-popover`/`bg-elevated`
-          // do lado (achado real: o tooltip do menu de slash commands ficava
-          // quase invisível ao lado da própria listagem, mesma cor).
+          // `bg-sidebar` (not `bg-popover`, like dropdown/popover) on purpose
+          // — a tooltip needs to stand out from anything behind it,
+          // including another element right next to it that already uses
+          // `bg-popover`/`bg-elevated` (real finding: the slash commands
+          // menu's tooltip was almost invisible next to the listing itself,
+          // same color).
           "z-50 w-fit origin-(--radix-tooltip-content-transform-origin) animate-in rounded-md border border-border bg-sidebar px-3 py-1.5 text-xs text-balance text-popover-foreground shadow-md fade-in-0 zoom-in-95 data-[side=bottom]:slide-in-from-top-2 data-[side=left]:slide-in-from-right-2 data-[side=right]:slide-in-from-left-2 data-[side=top]:slide-in-from-bottom-2 data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=closed]:zoom-out-95",
           className
         )}

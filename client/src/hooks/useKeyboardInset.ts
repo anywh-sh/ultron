@@ -2,25 +2,26 @@ import { useEffect, useRef, useState } from "react";
 import { isIOS } from "@/lib/platform";
 
 export interface KeyboardInsetInfo {
-  /** Deslocamento (px) pra aplicar via `bottom` no composer flutuante — 0
-   * quando o teclado está fechado, ou quando o próprio layout (`window.innerHeight`)
-   * já encolheu sozinho pra acomodar o teclado (nesse caso o deslocamento
-   * manual seria dobrado). */
+  /** Offset (px) to apply via `bottom` on the floating composer — 0 when
+   * the keyboard is closed, or when the layout itself
+   * (`window.innerHeight`) has already shrunk on its own to accommodate
+   * the keyboard (in that case the manual offset would be doubled). */
   shift: number;
-  /** Teclado aberto ou não — calculado de um jeito **independente** de
-   * `shift`, comparando a altura atual do `visualViewport` contra a maior
-   * altura já observada nesta sessão (a "altura de repouso", sem teclado).
-   * Existe separado de `shift > 0` porque, se o layout encolhe junto com o
-   * teclado (não confirmado se acontece no device físico — só validado no
-   * Simulator, onde não encolhe), `shift` corretamente vai a zero (sem isso
-   * dobraria o deslocamento), mas isso não pode significar "teclado
-   * fechado" pra quem decide o padding-bottom (`ChatPanel.tsx`): nesse
-   * cenário ainda precisa trocar o padding de safe-area-inset-bottom (pensado
-   * pro home indicator, que deixa de existir com o teclado aberto) por um
-   * valor fixo, senão sobra gap mesmo com `shift` zerado corretamente. */
+  /** Whether the keyboard is open or not — calculated **independently** of
+   * `shift`, comparing the current `visualViewport` height against the
+   * largest height observed so far in this session (the "resting height",
+   * no keyboard). Exists separately from `shift > 0` because, if the
+   * layout shrinks along with the keyboard (not confirmed whether this
+   * happens on the physical device — only validated on the Simulator,
+   * where it doesn't shrink), `shift` correctly goes to zero (without this
+   * it would double the offset), but that can't mean "keyboard closed" for
+   * whoever decides the padding-bottom (`ChatPanel.tsx`): in that scenario
+   * it still needs to swap the safe-area-inset-bottom padding (meant for
+   * the home indicator, which stops existing with the keyboard open) for a
+   * fixed value, otherwise a gap remains even with `shift` correctly zeroed. */
   isOpen: boolean;
-  /** Valores brutos só pra diagnóstico visual temporário
-   * (`KeyboardDebugOverlay.tsx`) — remover junto quando o overlay sair. */
+  /** Raw values just for temporary visual diagnostics
+   * (`KeyboardDebugOverlay.tsx`) — remove together when the overlay goes away. */
   debug: { vvHeight: number; winHeight: number; offsetTop: number; restingVvHeight: number };
 }
 
@@ -31,10 +32,11 @@ const EMPTY: KeyboardInsetInfo = {
 };
 
 /**
- * Info de teclado do iOS calculada via `visualViewport` — ver `docs/34` item
- * 1 (gap indevido entre composer e teclado) e `docs/39` (device físico
- * reproduziu o bug mesmo depois do fix validado só no Simulator — hipótese
- * de que o comportamento de `visualViewport`/layout difere entre os dois).
+ * iOS keyboard info calculated via `visualViewport` — see `docs/34` item 1
+ * (unwanted gap between composer and keyboard) and `docs/39` (physical
+ * device reproduced the bug even after the fix validated only on the
+ * Simulator — hypothesis that `visualViewport`/layout behavior differs
+ * between the two).
  */
 export function useKeyboardInset(): KeyboardInsetInfo {
   const [info, setInfo] = useState<KeyboardInsetInfo>(EMPTY);
@@ -53,8 +55,8 @@ export function useKeyboardInset(): KeyboardInsetInfo {
       const restingVvHeight = restingVvHeightRef.current;
 
       const shift = Math.max(0, Math.round(winHeight - vvHeight - offsetTop));
-      // Margem de 50px: reagir só a uma redução real (teclado), não a
-      // pequenas variações (barra de endereço, rotação, etc.).
+      // 50px margin: react only to a real reduction (keyboard), not small
+      // variations (address bar, rotation, etc.).
       const isOpen = restingVvHeight - vvHeight > 50;
 
       setInfo({ shift, isOpen, debug: { vvHeight, winHeight, offsetTop, restingVvHeight } });

@@ -16,17 +16,17 @@ interface FolderPickerDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   profile: Profile;
-  /** Pasta de onde o breadcrumb começa quando o modal abre — o cwd atual da
-   * sessão (que já é "o padrão do app" quando o usuário nunca escolheu nada,
-   * resolvido pelo relay — ver relay/src/paths.ts). */
+  /** Folder from which the breadcrumb starts when the modal opens — the
+   * session's current cwd (which is already "the app's default" when the
+   * user never chose anything, resolved by the relay — see relay/src/paths.ts). */
   initialPath: string;
-  /** Se a sessão travou entre o modal ter sido aberto e agora (corrida entre
-   * dois dispositivos), fecha sozinho — ver efeito abaixo. */
+  /** If the session locked between the modal being opened and now (race
+   * between two devices), closes itself — see effect below. */
   locked: boolean;
   onSelect: (path: string) => void;
-  /** Ver comentário em `WorkingDirectoryButtonProps.onFocusComposer` — mesmo
-   * motivo, mesmo remédio, dessa vez no `onCloseAutoFocus` do `Dialog`
-   * (que por padrão devolveria o foco pro trigger que abriu o modal). */
+  /** See comment on `WorkingDirectoryButtonProps.onFocusComposer` — same
+   * reason, same fix, this time on the `Dialog`'s `onCloseAutoFocus`
+   * (which by default would return focus to the trigger that opened the modal). */
   onFocusComposer: () => void;
 }
 
@@ -35,8 +35,8 @@ interface Crumb {
   path: string;
 }
 
-/** `/home/user/mode/widgets` -> home > wil > mode > widgets, cada um com o path
- * acumulado até ali. Raiz vira um crumb estático "/". */
+/** `/home/user/mode/widgets` -> home > wil > mode > widgets, each with the path
+ * accumulated up to that point. Root becomes a static "/" crumb. */
 function breadcrumbsFor(path: string): Crumb[] {
   const segments = path.split("/").filter(Boolean);
   if (segments.length === 0) return [{ label: "/", path: "/" }];
@@ -54,13 +54,13 @@ function parentOf(path: string): string {
 }
 
 /**
- * Modal de escolha de working directory — campo de path + breadcrumb
- * navegável + listagem de subpastas (nunca arquivos) via `GET /fs/list` no
- * relay (a máquina onde o agente roda, não o dispositivo do cliente).
- * Modelado no `Dialog` controlado de `EditLinkDialog.tsx`; ao contrário
- * daquele, este não vive dentro do `<form>` do Composer (é renderizado a
- * partir de `WorkingDirectoryButton`, irmão do Composer em `ChatPanel`),
- * então o cuidado de `stopPropagation` de lá não se aplica aqui.
+ * Working directory picker modal — path field + navigable breadcrumb +
+ * subfolder listing (never files) via `GET /fs/list` on the relay (the
+ * machine where the agent runs, not the client device). Modeled on the
+ * controlled `Dialog` from `EditLinkDialog.tsx`; unlike that one, this one
+ * doesn't live inside the Composer's `<form>` (it's rendered from
+ * `WorkingDirectoryButton`, a sibling of the Composer in `ChatPanel`), so
+ * the `stopPropagation` care from there doesn't apply here.
  */
 export function FolderPickerDialog({
   open,
@@ -89,9 +89,9 @@ export function FolderPickerDialog({
       setInitialLoadDone(true);
       return true;
     } catch (err) {
-      // Não mexe em `browsePath`/`entries` — se foi o campo de path que
-      // falhou, o texto digitado continua visível pro usuário corrigir; se
-      // foi um clique (breadcrumb/pasta/"..") o path clicável nem muda.
+      // Doesn't touch `browsePath`/`entries` — if it was the path field that
+      // failed, the typed text stays visible for the user to fix; if it was
+      // a click (breadcrumb/folder/"..") the clickable path doesn't even change.
       setError(err instanceof Error ? err.message : String(err));
       return false;
     } finally {
@@ -103,9 +103,9 @@ export function FolderPickerDialog({
     if (!open) return;
     setInitialLoadDone(false);
     void (async () => {
-      // Pasta salva pode ter sido apagada/ficado sem permissão desde a
-      // última vez — se a navegação inicial falhar, tenta de novo pro
-      // padrão do app em vez de deixar o modal sem nada navegável.
+      // Saved folder may have been deleted/lost permission since last time —
+      // if the initial navigation fails, tries again with the app's default
+      // instead of leaving the modal with nothing navigable.
       const ok = await navigate(initialPath);
       if (!ok) void navigate(undefined);
     })();

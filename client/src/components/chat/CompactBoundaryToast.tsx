@@ -8,13 +8,13 @@ interface CompactBoundaryToastProps {
 }
 
 /**
- * Aviso transitório quando o Claude Code compacta a conversa (automático ao
- * se aproximar do limite, ou `/compact` manual) — o anel de contexto já
- * reflete o novo total sozinho a partir do próximo `result` (usage vem
- * naturalmente menor depois da compactação), isso aqui é só pra não passar
- * batido. `event.receivedAt` (ver useRelayClient) muda a cada ocorrência,
- * mesmo `trigger`/`preTokens` repetidos — o `useEffect` sempre reabre o
- * timer em vez de ficar preso no primeiro aviso.
+ * Transient notice when Claude Code compacts the conversation (automatic
+ * when approaching the limit, or manual `/compact`) — the context ring
+ * already reflects the new total on its own from the next `result` (usage
+ * comes out naturally smaller after compaction), this is just so it doesn't
+ * go unnoticed. `event.receivedAt` (see useRelayClient) changes on every
+ * occurrence, even with the same `trigger`/`preTokens` — the `useEffect`
+ * always reopens the timer instead of getting stuck on the first notice.
  */
 export function CompactBoundaryToast({ event }: CompactBoundaryToastProps) {
   const [visible, setVisible] = useState(false);

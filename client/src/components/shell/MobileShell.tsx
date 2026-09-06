@@ -25,12 +25,12 @@ interface MobileShellProps {
 }
 
 /**
- * Shell do app no iOS (docs/24) — substitui o chrome do desktop (TitleBar +
- * Sidebar resizable/Sheet) por: sidebar de sessões sempre montada atrás
- * (`MobileSidebar`), e um "canvas" na frente que carrega a barra superior
- * consolidada (`MobileTopBar`) + o conteúdo do chat (`children`, o mesmo
- * `PROFILES.map` que o `App` já monta pro desktop). O canvas desliza pra
- * revelar a sidebar em vez de um overlay com scrim — ver `useRevealDrawer`.
+ * The app's shell on iOS (docs/24) — replaces the desktop chrome (TitleBar +
+ * resizable Sidebar/Sheet) with: a session sidebar always mounted behind
+ * (`MobileSidebar`), and a "canvas" in front that carries the consolidated
+ * top bar (`MobileTopBar`) + the chat content (`children`, the same
+ * `PROFILES.map` `App` already mounts for desktop). The canvas slides to
+ * reveal the sidebar instead of an overlay with a scrim — see `useRevealDrawer`.
  */
 export function MobileShell({
   activeProfile,
@@ -84,12 +84,12 @@ export function MobileShell({
         onPointerDown={drawer.onCanvasPointerDown}
         className={cn("mobile-canvas absolute inset-0 z-10 overflow-hidden bg-background", drawer.open && "pushed")}
       >
-        {/* `display:contents` — só existe pra carregar `inert`, sem afetar o
-         * posicionamento absoluto da MobileTopBar por baixo. Com o drawer
-         * aberto, a tela principal inteira (barra + chat) fica de verdade
-         * fora de alcance — sem scroll, sem foco, sem clique — até o toque
-         * no bloqueador abaixo devolver o foco (equivalente a arrastar de
-         * volta pra esquerda). */}
+        {/* `display:contents` — exists only to carry `inert`, without
+         * affecting MobileTopBar's absolute positioning underneath. With
+         * the drawer open, the whole main screen (bar + chat) is truly out
+         * of reach — no scroll, no focus, no click — until a tap on the
+         * blocker below returns focus (equivalent to dragging back to the
+         * left). */}
         <div inert={drawer.open} className="contents">
           <MobileTopBar
             title={title}
@@ -98,13 +98,14 @@ export function MobileShell({
             onNewConversation={onNewConversation}
           />
 
-          {/* Sem padding-top aqui de propósito: o log de mensagens precisa
-           * poder rolar por baixo da zona de blur da MobileTopBar (fica
-           * visível-só-que-desfocado, docs/24) — o respiro pro conteúdo não
-           * ficar colado embaixo dos botões vem de dentro do MessageLog
-           * (ChatPanel passa `pt-[...]` só pro log), não empurrando a coluna
-           * inteira pra baixo. `relative` é o fix do bug de backdrop-filter
-           * do WebKit (ver comentário em MessageLog.tsx) — não remover. */}
+          {/* No padding-top here on purpose: the message log needs to be
+           * able to scroll underneath MobileTopBar's blur zone (stays
+           * visible-but-blurred, docs/24) — the breathing room so content
+           * doesn't end up stuck under the buttons comes from inside
+           * MessageLog (ChatPanel passes `pt-[...]` only to the log), not
+           * by pushing the whole column down. `relative` is the fix for
+           * WebKit's backdrop-filter bug (see comment in MessageLog.tsx) —
+           * do not remove. */}
           <div className="relative flex h-full flex-col">{children}</div>
         </div>
 

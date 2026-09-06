@@ -12,8 +12,8 @@ import { useWindowControls } from "@/hooks/useWindowControls";
 import { isMacOS, shortcutLabel } from "@/lib/platform";
 import { cn } from "@/lib/utils";
 
-/** Sem tooltip de propósito — são os 3 controles nativos de janela (convenção
- * Fluent do Windows), universalmente reconhecíveis sem rótulo. */
+/** No tooltip on purpose — these are the 3 native window controls (Windows
+ * Fluent convention), universally recognizable without a label. */
 function WindowControlButton({
   label,
   onClick,
@@ -61,9 +61,9 @@ export function TitleBar({
   onOpenSearch: () => void;
   onOpenSettings: () => void;
 }) {
-  // macOS mantém os semáforos nativos (modo overlay do Tauri — docs/21), então
-  // não desenhamos minimizar/maximizar/fechar lá, só reservamos o espaço deles
-  // à esquerda pra nada ficar embaixo.
+  // macOS keeps the native traffic lights (Tauri's overlay mode — docs/21),
+  // so we don't draw minimize/maximize/close there, we just reserve their
+  // space on the left so nothing ends up underneath them.
   const mac = isMacOS();
   const { isMaximized, minimize, toggleMaximize, close } = useWindowControls();
 

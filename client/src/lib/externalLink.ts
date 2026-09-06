@@ -2,9 +2,9 @@ import type { MouseEvent } from "react";
 import { openUrl } from "@tauri-apps/plugin-opener";
 
 /**
- * Handler pro click em link dentro do app: por padrão o Tauri navega a
- * própria webview pro href (substitui o app inteiro), em vez de abrir no
- * navegador do sistema — sempre intercepta e delega pro opener plugin.
+ * Handler for clicks on links inside the app: by default Tauri navigates the
+ * webview itself to the href (replacing the whole app), instead of opening in the
+ * system browser — always intercepts and delegates to the opener plugin.
  */
 export function handleExternalLinkClick(event: MouseEvent<HTMLAnchorElement>, href: string): void {
   event.preventDefault();

@@ -16,11 +16,11 @@ export type LogEntry =
     }
   | { kind: "error"; id: string; message: string }
   | { kind: "stopped"; id: string }
-  /** Turno de follow-up automático de um job `ultron-bg` que terminou
-   * (docs/32, Fase D/E) — o prompt sintético em si nunca vira bolha de
-   * usuário (o texto é uma instrução interna, não algo que o usuário
-   * digitou); isso é só a nota indicando de onde a resposta seguinte veio,
-   * mesmo padrão de "stopped" (nota de sistema, sem bolha). */
+  /** Automatic follow-up turn from an `ultron-bg` job that finished
+   * (docs/32, Phase D/E) — the synthetic prompt itself never becomes a
+   * user bubble (the text is an internal instruction, not something the
+   * user typed); this is just the note indicating where the following
+   * response came from, same pattern as "stopped" (system note, no bubble). */
   | { kind: "background-job-note"; id: string; label: string };
 
 interface StreamingTextBlock {
@@ -31,41 +31,41 @@ interface StreamingTextBlock {
 interface MessageLogState {
   entries: LogEntry[];
   streamingText: StreamingTextBlock[];
-  /** Se existem turnos mais antigos que `historyCursor` pra buscar via
-   * `load_older_history` (Fase 2-4, docs/30). `false` até a cauda inicial
-   * chegar (`HYDRATE`) — mesmo valor default de antes dessa feature existir
-   * (sessão sem histórico nenhum pra paginar). */
+  /** Whether there are turns older than `historyCursor` to fetch via
+   * `load_older_history` (Phase 2-4, docs/30). `false` until the initial
+   * tail arrives (`HYDRATE`) — same default value as before this feature
+   * existed (session with no history at all to paginate). */
   hasMoreHistory: boolean;
-  /** Posição (no `history` do relay) da página mais antiga já carregada —
-   * `null` até `HYDRATE`. É o que se manda de volta como `beforeCursor` pra
-   * pedir a próxima página, mais antiga. */
+  /** Position (in the relay's `history`) of the oldest page already loaded
+   * — `null` until `HYDRATE`. This is what gets sent back as `beforeCursor`
+   * to request the next, older page. */
   historyCursor: number | null;
-  /** Pedido de página mais antiga em voo — guarda contra pedido duplicado
-   * (Fase 5, UI: scroll pra cima dispara `beginLoadingOlderHistory` antes de
-   * chamar `loadOlderHistory` no relay). */
+  /** Older-page request in flight — guards against a duplicate request
+   * (Phase 5, UI: scrolling up triggers `beginLoadingOlderHistory` before
+   * calling `loadOlderHistory` on the relay). */
   loadingOlderHistory: boolean;
 }
 
 type Action =
   | { type: "USER_MESSAGE"; text: string; images?: PendingAttachment[]; sentAt: number }
-  /** Edição de mensagem (docs/33) — trunca `entries` até (exclusive) a
-   * entry `id` (mensagem editada e tudo que veio depois, na tela deste
-   * dispositivo) e empurra a nova, otimista, igual `USER_MESSAGE`. O relay
-   * faz o corte de verdade (transcript real + `history` em memória) de
-   * forma assíncrona; isso aqui só antecipa a UI local, mesmo espírito do
-   * resto do reducer. */
+  /** Message editing (docs/33) — truncates `entries` up to (exclusive) the
+   * entry `id` (edited message and everything that came after, on this
+   * device's screen) and pushes the new one, optimistically, same as
+   * `USER_MESSAGE`. The relay does the real cut (actual transcript +
+   * in-memory `history`) asynchronously; this here just gets ahead of the
+   * local UI, same spirit as the rest of the reducer. */
   | { type: "EDIT_USER_MESSAGE"; id: string; text: string; sentAt: number }
   | { type: "CLAUDE_EVENT"; event: ClaudeEvent }
   | { type: "TURN_ERROR"; message: string }
   | { type: "TURN_COMPLETE"; stopped?: boolean }
   | { type: "RESET" }
-  /** Cauda inicial recebida via `history_page` (Fase 2/3, docs/30) — troca o
-   * replay antigo (um dispatch por evento, O(n²) de cópia de `entries`) por
-   * um dispatch só que já entrega o estado final. */
+  /** Initial tail received via `history_page` (Phase 2/3, docs/30) — swaps
+   * the old replay (one dispatch per event, O(n²) `entries` copying) for a
+   * single dispatch that already delivers the final state. */
   | { type: "HYDRATE"; messages: HistoryMessage[]; cursor: number; hasMore: boolean }
   | { type: "REQUEST_OLDER_HISTORY" }
-  /** Resposta a `load_older_history` (Fase 5, docs/30) — turnos mais antigos
-   * que `historyCursor`, inseridos no início do log. */
+  /** Response to `load_older_history` (Phase 5, docs/30) — turns older
+   * than `historyCursor`, inserted at the start of the log. */
   | { type: "PREPEND_HISTORY"; messages: HistoryMessage[]; cursor: number; hasMore: boolean };
 
 const initialState: MessageLogState = {
@@ -82,11 +82,11 @@ function newId(): string {
 
 function commitContentBlock(entries: LogEntry[], block: ClaudeContentBlock): void {
   if (block.type === "text" && typeof block.text === "string") {
-    // Marcador sintético que a própria CLI insere na transcrição ao ser
-    // interrompida (`[Request interrupted by user]`, `[...for tool use]`,
-    // `[...by a plugin for tool use]`) — não é conteúdo real do assistente.
-    // O `stopped` de TURN_COMPLETE já cobre esse aviso ("Interrompido pelo
-    // usuário."), então comitar isso também duplicava a mensagem na tela.
+    // Synthetic marker the CLI itself inserts into the transcript when
+    // interrupted (`[Request interrupted by user]`, `[...for tool use]`,
+    // `[...by a plugin for tool use]`) — not real assistant content.
+    // TURN_COMPLETE's `stopped` already covers this notice ("Interrompido
+    // pelo usuário."), so committing this too would have duplicated the message on screen.
     if (block.text.startsWith("[Request interrupted")) return;
     entries.push({ kind: "text", id: newId(), text: block.text, streaming: false });
   } else if (block.type === "tool_use") {
@@ -106,23 +106,23 @@ function commitContentBlock(entries: LogEntry[], block: ClaudeContentBlock): voi
       isError: block.is_error === true,
     });
   }
-  // "thinking" (o texto quase sempre vem vazio nos eventos reais — ver
-  // docs/18) e outros tipos de bloco não têm representação visual no log;
-  // o indicador de turno em andamento (acima do composer) cobre esse tempo.
+  // "thinking" (the text almost always comes in empty in real events — see
+  // docs/18) and other block types have no visual representation in the
+  // log; the turn-in-progress indicator (above the composer) covers that time.
 }
 
-/** Aplica um único `ClaudeEvent` — extraído do antigo `case "CLAUDE_EVENT"`
- * pra ser reaproveitado tanto pelo dispatch ao vivo (`handleEvent`, um de
- * cada vez) quanto pela hidratação em lote (`applyHistoryMessage`, dobrando
- * uma página inteira nessa mesma função). `user_prompt` é sintético: só
- * existe na reconstrução de histórico do `.jsonl` (relay/src/
- * transcriptReader.ts) ou no broadcast pro segundo dispositivo conectado ao
- * vivo (relay/src/sharedSession.ts::runTurn, docs/30 Fase 1) — o protocolo
- * nunca confunde isso com nada real. Um `user_prompt` marcado
- * `synthetic: "background_job"` (relay/src/sharedSession.ts::runTurn,
- * docs/32 Fase D) é um segundo tipo de sintético, gerado pelo follow-up
- * automático de um job `ultron-bg` — vira uma nota de sistema, não uma
- * bolha de usuário (ver comentário do `kind: "background-job-note"`). */
+/** Applies a single `ClaudeEvent` — extracted from the old
+ * `case "CLAUDE_EVENT"` to be reused both by live dispatch (`handleEvent`,
+ * one at a time) and by batch hydration (`applyHistoryMessage`, folding a
+ * whole page through this same function). `user_prompt` is synthetic: it
+ * only exists when rebuilding history from the `.jsonl`
+ * (relay/src/transcriptReader.ts) or in the broadcast to a second device
+ * connected live (relay/src/sharedSession.ts::runTurn, docs/30 Phase 1) —
+ * the protocol never confuses this with anything real. A `user_prompt`
+ * marked `synthetic: "background_job"` (relay/src/sharedSession.ts::runTurn,
+ * docs/32 Phase D) is a second kind of synthetic, generated by an
+ * `ultron-bg` job's automatic follow-up — it becomes a system note, not a
+ * user bubble (see comment on `kind: "background-job-note"`). */
 function applyClaudeEvent(state: MessageLogState, event: ClaudeEvent): MessageLogState {
   if (event.type === "user_prompt") {
     if (event.synthetic === "background_job") {
@@ -132,11 +132,12 @@ function applyClaudeEvent(state: MessageLogState, event: ClaudeEvent): MessageLo
     const block = event.message?.content?.[0];
     const text = block?.type === "text" ? block.text : undefined;
     if (typeof text !== "string") return state;
-    // `event.timestamp` só vem preenchido em replay/histórico ou no
-    // broadcast pros OUTROS dispositivos (docs/33) — quem mandou a mensagem
-    // já commitou ela via `USER_MESSAGE` com a hora local do clique, nunca
-    // passa por aqui pra ela mesma. `Date.now()` de fallback só cobriria um
-    // formato de evento inesperado, não deveria acontecer na prática.
+    // `event.timestamp` only comes filled in during replay/history or in
+    // the broadcast to OTHER devices (docs/33) — whoever sent the message
+    // already committed it via `USER_MESSAGE` with the local click time,
+    // it never goes through here for its own message. The `Date.now()`
+    // fallback would only cover an unexpected event format, shouldn't
+    // happen in practice.
     const sentAt = event.timestamp ? Date.parse(event.timestamp) : Date.now();
     return { ...state, entries: [...state.entries, { kind: "user", id: newId(), text, sentAt }] };
   }
@@ -167,8 +168,9 @@ function applyClaudeEvent(state: MessageLogState, event: ClaudeEvent): MessageLo
     const entries = [...state.entries];
     for (const block of event.message?.content ?? []) {
       commitContentBlock(entries, block);
-      // Enriquece o tool-result mais recente com o structuredPatch, se vier
-      // (achado do pré-passo: o relay já entrega o diff pronto do Edit).
+      // Enriches the most recent tool-result with structuredPatch, if it
+      // comes (found in an earlier pass: the relay already delivers Edit's
+      // diff ready-made).
       if (block.type === "tool_result" && event.tool_use_result?.structuredPatch) {
         const last = entries[entries.length - 1];
         if (last && last.kind === "tool-result") last.structuredPatch = event.tool_use_result.structuredPatch;
@@ -180,13 +182,13 @@ function applyClaudeEvent(state: MessageLogState, event: ClaudeEvent): MessageLo
   return state;
 }
 
-/** Aplica uma entrada de `history_page`/`older_history` (`HistoryMessage`,
- * mesmo formato de `relay/src/sharedSession.ts::BroadcastMessage`) — a
- * mesma máquina de estados de `applyClaudeEvent`, só que também cobre
- * `turn_complete`/`turn_error`, que fecham um turno (ver comentário original
- * em `TURN_COMPLETE` sobre texto parcial interrompido). Reaproveitada por
- * `HYDRATE` (dobra uma página inteira a partir do zero) e `PREPEND_HISTORY`
- * (idem, resultado inserido antes do que já existe). */
+/** Applies a `history_page`/`older_history` entry (`HistoryMessage`, same
+ * format as `relay/src/sharedSession.ts::BroadcastMessage`) — the same
+ * state machine as `applyClaudeEvent`, except it also covers
+ * `turn_complete`/`turn_error`, which close a turn (see the original
+ * comment on `TURN_COMPLETE` about interrupted partial text). Reused by
+ * `HYDRATE` (folds a whole page from scratch) and `PREPEND_HISTORY` (same,
+ * result inserted before what already exists). */
 function applyHistoryMessage(state: MessageLogState, message: HistoryMessage): MessageLogState {
   if (message.type === "claude_event") return applyClaudeEvent(state, message.event);
 
@@ -198,10 +200,11 @@ function applyHistoryMessage(state: MessageLogState, message: HistoryMessage): M
     };
   }
 
-  // turn_complete — parar no meio do streaming corta antes do evento
-  // `assistant` final que normalmente comita o texto em `entries`; sem isso
-  // o texto parcial (que só existia em `streamingText`, preview ao vivo)
-  // simplesmente sumiria da tela ao marcar o turno como concluído.
+  // turn_complete — stopping mid-stream cuts off before the final
+  // `assistant` event that normally commits the text into `entries`;
+  // without this the partial text (which only existed in `streamingText`,
+  // a live preview) would simply vanish from the screen when marking the
+  // turn complete.
   const entries = [...state.entries];
   for (const block of state.streamingText) {
     if (block.text.length > 0) entries.push({ kind: "text", id: newId(), text: block.text, streaming: false });
@@ -220,11 +223,11 @@ function reducer(state: MessageLogState, action: Action): MessageLogState {
 
     case "EDIT_USER_MESSAGE": {
       const index = state.entries.findIndex((entry) => entry.id === action.id);
-      // Não deveria acontecer (o id vem de uma entry renderizada agora
-      // mesmo), mas se o log mudou debaixo do usuário por algum motivo,
-      // trata como um envio normal em vez de arriscar truncar no lugar
-      // errado — mais seguro que silenciosamente cortar tudo (`index: -1`
-      // fatiaria o array inteiro).
+      // Shouldn't happen (the id comes from an entry rendered right now),
+      // but if the log changed under the user for some reason, treat it as
+      // a normal send instead of risking truncating in the wrong place —
+      // safer than silently cutting everything (`index: -1` would slice
+      // the whole array).
       const base = index === -1 ? state.entries : state.entries.slice(0, index);
       return {
         ...state,
@@ -242,10 +245,10 @@ function reducer(state: MessageLogState, action: Action): MessageLogState {
     case "TURN_COMPLETE":
       return applyHistoryMessage(state, { type: "turn_complete", stopped: action.stopped });
 
-    // Reconexão (docs/23, Fase D1) — o relay reenvia a cauda do histórico a
-    // cada conexão nova, então o log precisa voltar vazio (inclusive o
-    // cursor/hasMore de paginação) pra receber a hidratação sem duplicar o
-    // que já estava na tela.
+    // Reconnection (docs/23, Phase D1) — the relay resends the history
+    // tail on every new connection, so the log needs to go back to empty
+    // (including the pagination cursor/hasMore) to receive the hydration
+    // without duplicating what was already on screen.
     case "RESET":
       return initialState;
 
@@ -259,11 +262,12 @@ function reducer(state: MessageLogState, action: Action): MessageLogState {
       return { ...state, loadingOlderHistory: true };
 
     case "PREPEND_HISTORY": {
-      // Calculado a partir do zero (não de `state`): é uma página estritamente
-      // anterior ao que já está na tela, processá-la em cima do `state` atual
-      // misturaria o `streamingText` de agora (turno ao vivo em andamento,
-      // se houver) com conteúdo do passado — o `entries` resultante entra
-      // antes do que já existe, o `streamingText` de agora fica intocado.
+      // Calculated from scratch (not from `state`): it's a page strictly
+      // older than what's already on screen, processing it on top of the
+      // current `state` would mix now's `streamingText` (live turn in
+      // progress, if any) with content from the past — the resulting
+      // `entries` goes in before what already exists, now's
+      // `streamingText` stays untouched.
       let prefix: MessageLogState = initialState;
       for (const message of action.messages) prefix = applyHistoryMessage(prefix, message);
       return {
@@ -283,44 +287,45 @@ function reducer(state: MessageLogState, action: Action): MessageLogState {
 export interface UseMessageLogResult {
   entries: LogEntry[];
   streamingEntries: LogEntry[];
-  /** Se existem turnos mais antigos que `historyCursor` pra buscar (Fase 5,
-   * docs/30) — UI usa isso pra saber se ainda reage a rolar pro topo. */
+  /** Whether there are turns older than `historyCursor` to fetch (Phase 5,
+   * docs/30) — UI uses this to know whether it still reacts to scrolling
+   * to the top. */
   hasMoreHistory: boolean;
-  /** `null` até a cauda inicial chegar (`hydrate`) — depois disso, é o que
-   * se manda pro relay via `loadOlderHistory(historyCursor)`. */
+  /** `null` until the initial tail arrives (`hydrate`) — after that, it's
+   * what gets sent to the relay via `loadOlderHistory(historyCursor)`. */
   historyCursor: number | null;
-  /** Pedido de página mais antiga em voo — ver `beginLoadingOlderHistory`. */
+  /** Older-page request in flight — see `beginLoadingOlderHistory`. */
   loadingOlderHistory: boolean;
   addUserMessage: (text: string, images?: PendingAttachment[]) => void;
-  /** Edição de mensagem (docs/33) — trunca localmente (otimista) até a
-   * mensagem `id` e empurra a nova em cima. O relay client é quem
-   * efetivamente manda `edit_message` pro relay; isso aqui só atualiza a
-   * tela deste dispositivo, mesmo padrão de `addUserMessage`/`sendMessage`
-   * em `ChatPanel.onSend`. */
+  /** Message editing (docs/33) — truncates locally (optimistically) up to
+   * message `id` and pushes the new one on top. The relay client is the
+   * one that actually sends `edit_message` to the relay; this here only
+   * updates this device's screen, same pattern as
+   * `addUserMessage`/`sendMessage` in `ChatPanel.onSend`. */
   editUserMessage: (id: string, text: string) => void;
   handleEvent: (event: ClaudeEvent) => void;
   handleTurnError: (message: string) => void;
   handleTurnComplete: (stopped?: boolean) => void;
   reset: () => void;
-  /** Hidrata o log com a cauda inicial recebida via `history_page` (Fase
-   * 2-4, docs/30) — chamado uma vez por conexão, no lugar do replay
-   * evento-a-evento antigo. */
+  /** Hydrates the log with the initial tail received via `history_page`
+   * (Phase 2-4, docs/30) — called once per connection, in place of the old
+   * event-by-event replay. */
   hydrate: (page: HistoryPageMessage) => void;
-  /** Marca que um pedido de turnos mais antigos está em voo — chamar antes
-   * de disparar `loadOlderHistory` no relay (Fase 5, UI), evita pedido
-   * duplicado enquanto a resposta não chega. */
+  /** Marks that a request for older turns is in flight — call before
+   * firing `loadOlderHistory` on the relay (Phase 5, UI), avoids a
+   * duplicate request while the response hasn't arrived yet. */
   beginLoadingOlderHistory: () => void;
-  /** Insere no início do log a resposta de um `load_older_history` (Fase 5,
-   * docs/30). */
+  /** Inserts a `load_older_history` response at the start of the log
+   * (Phase 5, docs/30). */
   prependHistory: (page: HistoryPageMessage) => void;
 }
 
 export function useMessageLog(): UseMessageLogResult {
   const [state, dispatch] = useReducer(reducer, initialState);
 
-  // Memoizado por `state.streamingText`: sem isso, cada render do consumidor
-  // (ex: o `turnInFlight` do ChatPanel mudando) recriava esse array com
-  // objetos novos, quebrando o bail-out do `React.memo` nos itens do log.
+  // Memoized on `state.streamingText`: without this, every render of the
+  // consumer (e.g. ChatPanel's `turnInFlight` changing) would recreate this
+  // array with new objects, breaking `React.memo`'s bail-out on log items.
   const streamingEntries: LogEntry[] = useMemo(
     () =>
       state.streamingText

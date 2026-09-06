@@ -13,11 +13,11 @@ interface TerminalViewProps {
 
 const RECONNECT_BASE_DELAY_MS = 500;
 const RECONNECT_MAX_DELAY_MS = 30_000;
-/** Debounce do `resize` mandado pro relay (não do `fit()` local, que
- * continua imediato pra não travar visualmente) — arrastar a borda do
- * painel dispara o ResizeObserver a cada pixel, e cada resize de verdade no
- * pty força o tmux a redesenhar a tela inteira; sem isso, arrastar a borda
- * vira uma enxurrada de redesenhos completos, visivelmente lento. */
+/** Debounce for the `resize` sent to the relay (not for the local `fit()`,
+ * which stays immediate so it doesn't visually stutter) — dragging the
+ * panel's edge fires the ResizeObserver on every pixel, and every real
+ * resize on the pty forces tmux to redraw the whole screen; without this,
+ * dragging the edge turns into a flood of full redraws, visibly slow. */
 const RESIZE_SEND_DEBOUNCE_MS = 100;
 
 function isTerminalMessage(value: unknown): value is { type: "data"; data: string } | { type: "exit"; code: number | null } {
@@ -25,18 +25,17 @@ function isTerminalMessage(value: unknown): value is { type: "data"; data: strin
 }
 
 /**
- * Um xterm.js + uma conexão WS por aba de terminal. Efeito único que possui
- * o ciclo de vida inteiro (instância do xterm, socket, observers) — padrão
- * recomendado pra integrar uma lib imperativa baseada em canvas/DOM próprio
- * com React, mesmo espírito de `ChatPanel`+`useRelayClient`, só que aqui não
- * dá pra separar conexão de exibição: o xterm precisa de um nó DOM real pra
- * se anexar.
+ * One xterm.js + one WS connection per terminal tab. Single effect that
+ * owns the whole lifecycle (xterm instance, socket, observers) — the
+ * recommended pattern for integrating an imperative canvas/own-DOM-based
+ * library with React, same spirit as `ChatPanel`+`useRelayClient`, except
+ * here connection can't be separated from display: xterm needs a real DOM
+ * node to attach to.
  *
- * Desmonta (troca de sessão de chat, aba de terminal fechada, painel
- * fechado) fecha a conexão — o relay só detacha do tmux (ver
- * terminalSession.ts), então remontar reconecta e a tela reaparece do jeito
- * que estava, sem precisar de nenhum buffer de scrollback do lado do
- * cliente.
+ * Unmounting (chat session switch, terminal tab closed, panel closed)
+ * closes the connection — the relay only detaches from tmux (see
+ * terminalSession.ts), so remounting reconnects and the screen reappears
+ * the way it was, with no need for any client-side scrollback buffer.
  */
 export function TerminalView({ profile, chatSessionId, terminalId }: TerminalViewProps) {
   const containerRef = useRef<HTMLDivElement>(null);
@@ -46,16 +45,16 @@ export function TerminalView({ profile, chatSessionId, terminalId }: TerminalVie
     const container = containerRef.current;
     if (!container) return;
 
-    // Tentativa anterior usava `theme.background: "transparent"` +
-    // `allowTransparency` pro canvas deixar o fundo do painel (`SessionPanel`,
-    // `--bg-sidebar`) aparecer por trás — na prática ainda sobrava um
-    // retângulo escuro visivelmente diferente (testado no app real). Mais
-    // simples e mais robusto: em vez de perseguir transparência de verdade
-    // através de canvas 2D + addon WebGL + CSS do próprio pacote, pinta o
-    // terminal com a MESMA cor sólida do painel — lida direto de
-    // `--bg-sidebar` (não hardcoded aqui) pra nunca desencontrar se o tema
-    // mudar. Bônus: sem `allowTransparency`, os canvases voltam a não
-    // precisar de canal alpha, um pouco mais barato de compositar.
+    // A previous attempt used `theme.background: "transparent"` +
+    // `allowTransparency` to let the panel's background (`SessionPanel`,
+    // `--bg-sidebar`) show through behind the canvas — in practice a
+    // visibly different dark rectangle still remained (tested in the real
+    // app). Simpler and more robust: instead of chasing real transparency
+    // through 2D canvas + WebGL addon + the package's own CSS, paint the
+    // terminal with the SAME solid color as the panel — read straight from
+    // `--bg-sidebar` (not hardcoded here) so it never drifts out of sync if
+    // the theme changes. Bonus: without `allowTransparency`, the canvases
+    // go back to not needing an alpha channel, slightly cheaper to composite.
     const bgSidebar = getComputedStyle(document.documentElement).getPropertyValue("--bg-sidebar").trim() || "#1f1e1c";
 
     const term = new XTerm({
@@ -63,9 +62,10 @@ export function TerminalView({ profile, chatSessionId, terminalId }: TerminalVie
       fontSize: 13,
       lineHeight: 1.35,
       cursorBlink: true,
-      // Limitado (não "infinito") de propósito — uso diário com várias abas
-      // de terminal em várias sessões não pode acumular memória sem limite
-      // por causa de um `npm run dev` esquecido rodando havia horas.
+      // Limited (not "infinite") on purpose — daily use with several
+      // terminal tabs across several sessions can't accumulate memory
+      // without bound just because of a forgotten `npm run dev` that's been
+      // running for hours.
       scrollback: 5000,
       allowProposedApi: true,
       theme: {
@@ -96,14 +96,14 @@ export function TerminalView({ profile, chatSessionId, terminalId }: TerminalVie
     const fitAddon = new FitAddon();
     term.loadAddon(fitAddon);
     term.open(container);
-    // Ctrl+V puro: por padrão o xterm trata Ctrl+<letra> como caractere de
-    // controle pro shell (aqui, 0x16 — "quoted insert" do readline/vim) e
-    // cancela o keydown nativo — no Chromium/WebView2 isso suprime a ação
-    // padrão de colar, então o evento `paste` nunca chega a disparar
-    // (Ctrl+Shift+V já funciona, não passa por esse caminho; Cmd+V no
-    // macOS também não, usa `metaKey`, não `ctrlKey`). Devolver `false`
-    // aqui faz o xterm ignorar esse keydown específico e deixar o colar
-    // nativo do navegador acontecer normalmente.
+    // Plain Ctrl+V: by default xterm treats Ctrl+<letter> as a control
+    // character for the shell (here, 0x16 — readline/vim's "quoted insert")
+    // and cancels the native keydown — on Chromium/WebView2 this suppresses
+    // the default paste action, so the `paste` event never fires
+    // (Ctrl+Shift+V already works, doesn't go through this path; Cmd+V on
+    // macOS doesn't either, it uses `metaKey`, not `ctrlKey`). Returning
+    // `false` here makes xterm ignore this specific keydown and let the
+    // browser's native paste happen normally.
     term.attachCustomKeyEventHandler((event) => {
       if (event.type === "keydown" && event.ctrlKey && !event.shiftKey && !event.altKey && !event.metaKey && event.key.toLowerCase() === "v") {
         return false;
@@ -111,14 +111,14 @@ export function TerminalView({ profile, chatSessionId, terminalId }: TerminalVie
       return true;
     });
     try {
-      // Renderer WebGL custa bem menos CPU que o canvas padrão pra output
-      // pesado (ex: `npm install`, `cat` de arquivo grande) — importante com
-      // várias abas de terminal abertas ao mesmo tempo. Cai pro renderer
-      // padrão de graça (`loadAddon` só não é chamado) se o WebView não
-      // suportar WebGL2, sem quebrar o terminal.
+      // WebGL renderer costs much less CPU than the default canvas one for
+      // heavy output (e.g. `npm install`, `cat` of a big file) — important
+      // with several terminal tabs open at the same time. Falls back to the
+      // default renderer for free (`loadAddon` simply isn't called) if the
+      // WebView doesn't support WebGL2, without breaking the terminal.
       term.loadAddon(new WebglAddon());
     } catch (error) {
-      console.warn("[ultron] WebGL indisponível pro terminal, usando renderer padrão:", error);
+      console.warn("[ultron] WebGL unavailable for terminal, falling back to default renderer:", error);
     }
     fitAddon.fit();
 

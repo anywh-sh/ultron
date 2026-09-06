@@ -1,11 +1,11 @@
 import { useCallback, useRef, useState } from "react";
 
-/** Arraste de redimensionamento do painel direito — mesma mecânica de
- * `useResizableSidebar.ts`, só que espelhada: a borda arrastável fica na
- * esquerda do painel, então mover o mouse pra esquerda deve *aumentar* a
- * largura (sinal invertido em relação à sidebar esquerda). A largura em si
- * não mora aqui — vem de fora (`useSessionPanels`, é estado por sessão),
- * este hook só traduz eventos de ponteiro em chamadas de `onChange`.
+/** Right panel resize drag — same mechanics as `useResizableSidebar.ts`,
+ * just mirrored: the draggable edge sits on the panel's left, so moving the
+ * mouse left should *increase* the width (inverted sign relative to the
+ * left sidebar). The width itself doesn't live here — it comes from
+ * outside (`useSessionPanels`, per-session state), this hook just
+ * translates pointer events into `onChange` calls.
  */
 export function usePanelDrag(width: number, onChange: (width: number) => void) {
   const [isDragging, setIsDragging] = useState(false);

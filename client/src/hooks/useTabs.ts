@@ -5,20 +5,20 @@ import { PROFILES } from "@/lib/profiles";
 export interface Tab {
   id: string;
   profileId: string;
-  /** `null` até o título ser inferido do primeiro prompt — a aba mostra um
-   * placeholder genérico nesse meio-tempo (ver TabBar). */
+  /** `null` until the title is inferred from the first prompt — the tab shows a
+   * generic placeholder in the meantime (see TabBar). */
   title: string | null;
   hasUnreadCompletion: boolean;
   isRunning: boolean;
-  /** Tem job `ultron-bg` observado agora nessa sessão (docs/32, Fase E) —
-   * mesmo padrão de `isRunning`, só que pra "algo rodando sem supervisão em
-   * paralelo" em vez de "o assistente está respondendo agora". */
+  /** Has an `ultron-bg` job currently observed in this session (docs/32, Phase E) —
+   * same pattern as `isRunning`, but for "something running unsupervised in
+   * parallel" instead of "the assistant is responding right now". */
   hasBackgroundJob: boolean;
-  /** `true` só pra abas abertas via "nova conversa" — usado pelo ChatPanel
-   * pra mostrar o estado ocioso em vez do skeleton de carregamento enquanto
-   * não há nenhuma mensagem: não existe histórico pra esperar. Fica `true`
-   * pelo resto da vida da aba, mas só é consultado enquanto o log está
-   * vazio, então perde efeito sozinho após a primeira mensagem. */
+  /** `true` only for tabs opened via "new conversation" — used by ChatPanel
+   * to show the idle state instead of the loading skeleton while
+   * there's no message yet: there's no history to wait for. Stays `true`
+   * for the rest of the tab's life, but is only consulted while the log is
+   * empty, so it loses effect on its own after the first message. */
   isNew: boolean;
 }
 
@@ -41,9 +41,9 @@ interface PersistedTabs {
 const TABS_KEY = "ultron:tabs";
 const ACTIVE_TAB_KEY = "ultron:active-tab";
 
-/** Chaves de quando abas eram separadas por perfil (docs/28 e antes) — usadas
- * só como fallback de migração pra quem já tinha abas salvas de antes da
- * fusão numa aba só (docs/29). */
+/** Keys from when tabs were separated by profile (docs/28 and earlier) — used
+ * only as a migration fallback for whoever already had tabs saved from before the
+ * merge into a single tab strip (docs/29). */
 function legacyTabsKey(profileId: string): string {
   return `ultron:tabs:${profileId}`;
 }
@@ -51,15 +51,15 @@ function legacyLastSessionKey(profileId: string): string {
   return `ultron:last-session:${profileId}`;
 }
 
-/** Formato salvo antes da separação id/título: array de strings, onde a
- * string era ao mesmo tempo o id e o título exibido. */
+/** Format saved before the id/title split: array of strings, where the
+ * string was both the id and the displayed title. */
 function isLegacyPersistedTabs(value: unknown): value is string[] {
   return Array.isArray(value) && value.every((entry) => typeof entry === "string");
 }
 
-/** Lê o formato antigo (uma lista de abas por perfil) e devolve tudo já
- * combinado numa lista só, cada aba tagueada com o `profileId` de onde veio.
- * Só roda quando a chave nova (`TABS_KEY`) ainda não existe. */
+/** Reads the old format (one tab list per profile) and returns everything already
+ * combined into a single list, each tab tagged with the `profileId` it came from.
+ * Only runs when the new key (`TABS_KEY`) doesn't exist yet. */
 function migrateLegacyTabs(): PersistedTabs | null {
   const allTabs: PersistedTab[] = [];
   let activeTabId: string | null = null;
@@ -78,7 +78,7 @@ function migrateLegacyTabs(): PersistedTabs | null {
         activeTabId = lastSession;
       }
     } catch {
-      // ignora blob corrompido de um perfil, continua com os outros
+      // ignores a corrupted blob for one profile, continues with the others
     }
   }
 
@@ -86,19 +86,19 @@ function migrateLegacyTabs(): PersistedTabs | null {
 }
 
 /**
- * Estado de abas do app inteiro (docs/29) — sem separação por perfil: cada
- * aba carrega seu próprio `profileId`, então abas de perfis diferentes
- * convivem na mesma tira, com uma única aba ativa global. Todas ficam
- * montadas o tempo todo (conexão WS viva mesmo em segundo plano), igual já
- * acontecia antes por perfil.
+ * State of the whole app's tabs (docs/29) — no separation by profile: each
+ * tab carries its own `profileId`, so tabs from different profiles
+ * coexist in the same strip, with a single global active tab. All stay
+ * mounted at all times (WS connection alive even in the background), same as
+ * used to happen before, per profile.
  */
 export function useTabs() {
   const [state, setState] = useState<TabsState>({ tabs: [], activeTabId: null });
-  // Vira `true` assim que a lista deixa de ser o placeholder inicial do
-  // mount (via restauração ou primeira aba aberta) — evita que o efeito de
-  // persistência abaixo grave `[]` por cima do que já estava salvo antes de
-  // `App` rodar o efeito de restauração (que roda depois deste, ver ordem
-  // dos hooks).
+  // Becomes `true` as soon as the list stops being the initial mount
+  // placeholder (via restoration or first tab opened) — prevents the persistence
+  // effect below from writing `[]` over what was already saved before
+  // `App` runs the restoration effect (which runs after this one, see hook
+  // ordering).
   const hydratedRef = useRef(false);
 
   useEffect(() => {
@@ -143,9 +143,9 @@ export function useTabs() {
   const setUnread = useCallback((tabId: string, value: boolean) => {
     setState((prev) => {
       const tab = prev.tabs.find((t) => t.id === tabId);
-      // Sem mudança real: devolve a MESMA referência de `prev` — React pula o
-      // re-render (bailout), evitando loop com o efeito que limpa o badge
-      // toda vez que a aba ativa muda.
+      // No real change: returns the SAME `prev` reference — React skips the
+      // re-render (bailout), avoiding a loop with the effect that clears the badge
+      // every time the active tab changes.
       if (!tab || tab.hasUnreadCompletion === value) return prev;
       return { ...prev, tabs: prev.tabs.map((t) => (t.id === tabId ? { ...t, hasUnreadCompletion: value } : t)) };
     });
@@ -167,11 +167,11 @@ export function useTabs() {
     });
   }, []);
 
-  /** Chamado quando o título de uma sessão passa a existir ou muda — tanto
-   * pela inferência automática do primeiro prompt (ChatPanel, ao vivo via
-   * WS) quanto por um rename manual feito na sidebar. No-op se a sessão não
-   * estiver aberta como aba agora (ex: rename de uma sessão fechada) — o
-   * próprio bailout de `setUnread`/`setRunning` acima. */
+  /** Called when a session's title comes into existence or changes — either
+   * from automatic inference of the first prompt (ChatPanel, live via
+   * WS) or from a manual rename done in the sidebar. No-op if the session isn't
+   * open as a tab right now (e.g. rename of a closed session) — the
+   * same bailout as `setUnread`/`setRunning` above. */
   const setTabTitle = useCallback((tabId: string, title: string) => {
     setState((prev) => {
       const tab = prev.tabs.find((t) => t.id === tabId);

@@ -6,11 +6,11 @@ pub struct ConnectionIndicatorRequest {
   pub connected: bool,
 }
 
-/// Item de menu de contexto nativo (docs/33) — `system_icon` é o nome de um
-/// SF Symbol (ex: `"doc.on.doc"`, `"pencil"`), resolvido no lado Swift.
-/// `disabled_reason` vira a `subtitle` da `UIAction` quando `disabled` —
-/// usado pelo item de editar mensagem com imagem anexada (fora de escopo da
-/// v1, ver docs/20-backlog.md).
+/// Native context menu item (docs/33) — `system_icon` is the name of an
+/// SF Symbol (e.g. `"doc.on.doc"`, `"pencil"`), resolved on the Swift side.
+/// `disabled_reason` becomes the `UIAction`'s `subtitle` when `disabled` —
+/// used by the "edit message with attached image" item (out of scope for
+/// v1, see docs/20-backlog.md).
 #[derive(Debug, Clone, Deserialize, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct ContextMenuItem {
@@ -24,9 +24,10 @@ pub struct ContextMenuItem {
   pub disabled_reason: Option<String>,
 }
 
-/// Coordenadas do toque que disparou o long-press (docs/33) — espaço da
-/// própria WKWebView (pontos, não pixels de device), mesmo referencial que
-/// `TouchEvent.clientX/clientY` já usa no lado JS.
+/// Coordinates of the touch that triggered the long-press (docs/33) — the
+/// WKWebView's own coordinate space (points, not device pixels), the same
+/// frame of reference `TouchEvent.clientX/clientY` already uses on the JS
+/// side.
 #[derive(Debug, Deserialize, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct ContextMenuPoint {
@@ -41,8 +42,8 @@ pub struct ShowContextMenuRequest {
   pub point: ContextMenuPoint,
 }
 
-/// `None` quando o usuário descarta o menu sem escolher nada (toque fora,
-/// ou o próprio sistema fecha o menu).
+/// `None` when the user dismisses the menu without picking anything (tap
+/// outside, or the system itself closes the menu).
 #[derive(Debug, Deserialize, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct ShowContextMenuResponse {

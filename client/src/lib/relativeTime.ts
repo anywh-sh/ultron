@@ -1,6 +1,7 @@
-/** "agora", "há 3 min", "há 2h", "há 5d" — depois de uma semana cai pra data
- * absoluta (`formatAbsoluteTime`), igual referências do tipo Claude.ai:
- * relativo só faz sentido enquanto a ordem de grandeza é óbvia de cabeça.
+/** "now", "3 min ago", "2h ago", "5d ago" — after a week falls back to the
+ * absolute date (`formatAbsoluteTime`), like Claude.ai-style references:
+ * relative only makes sense while the order of magnitude is obvious at a
+ * glance.
  */
 export function formatRelativeTime(epochMs: number): string {
   const diffSeconds = Math.max(0, Math.floor((Date.now() - epochMs) / 1000));
@@ -15,9 +16,9 @@ export function formatRelativeTime(epochMs: number): string {
   return formatAbsoluteTime(epochMs);
 }
 
-/** Data + hora completas, pt-BR — usado no tooltip do timestamp relativo
- * (hover revela a hora exata) e como fallback de `formatRelativeTime` depois
- * de uma semana. */
+/** Full date + time, pt-BR — used in the relative timestamp's tooltip
+ * (hover reveals the exact time) and as `formatRelativeTime`'s fallback
+ * after a week. */
 export function formatAbsoluteTime(epochMs: number): string {
   return new Intl.DateTimeFormat("pt-BR", { dateStyle: "medium", timeStyle: "short" }).format(new Date(epochMs));
 }

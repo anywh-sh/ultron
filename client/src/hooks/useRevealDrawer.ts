@@ -1,19 +1,19 @@
 import { useCallback, useRef, useState, type PointerEvent as ReactPointerEvent, type RefObject } from "react";
 
-/** Quanto o "canvas" (tela do agente inteira) desliza pra direita quando o
- * drawer de sessões abre — a mesma fração (~72% de um iPhone de 375pt) do
- * protótipo validado com o usuário (docs/24). A sidebar por trás usa este
- * mesmo valor como largura própria, não a tela inteira — ver `MobileShell`. */
+/** How much the "canvas" (the whole agent screen) slides right when the
+ * sessions drawer opens — the same fraction (~72% of a 375pt iPhone) from
+ * the prototype validated with the user (docs/24). The sidebar behind it
+ * uses this same value as its own width, not the full screen — see `MobileShell`. */
 export const REVEAL_PUSH_PX = 268;
 
-/** Deslocamento mínimo, em px, pra um arraste ainda-fechado "comprometer"
- * com o gesto de abrir o drawer. Assimétrico de propósito (ver
- * `OPEN_ABANDON_RATIO`): fácil desistir (favorece scroll), difícil
- * comprometer (evita abrir sozinho durante um scroll vertical/diagonal). */
+/** Minimum offset, in px, for a still-closed drag to "commit" to the
+ * gesture of opening the drawer. Asymmetric on purpose (see
+ * `OPEN_ABANDON_RATIO`): easy to abandon (favors scroll), hard to commit
+ * (avoids opening on its own during a vertical/diagonal scroll). */
 const OPEN_COMMIT_THRESHOLD = 24;
-const OPEN_COMMIT_RATIO = 2; // dx precisa ser 2x maior que dy pra abrir
+const OPEN_COMMIT_RATIO = 2; // dx needs to be 2x bigger than dy to open
 const OPEN_ABANDON_THRESHOLD = 10;
-const OPEN_ABANDON_RATIO = 1; // dy só precisa igualar dx pra desistir
+const OPEN_ABANDON_RATIO = 1; // dy only needs to match dx to abandon
 
 export interface RevealDrawerHandle {
   open: boolean;
@@ -21,34 +21,34 @@ export interface RevealDrawerHandle {
   openDrawer: () => void;
   closeDrawer: () => void;
   toggleDrawer: () => void;
-  /** No canvas fechado, começa a observar qualquer arraste (não só perto da
-   * borda) — só passa a mexer no canvas de verdade depois que o movimento
-   * comprovar ser majoritariamente horizontal pra direita (ver
-   * `OPEN_COMMIT_THRESHOLD`), pra não brigar com o scroll vertical do log. */
+  /** On the closed canvas, starts observing any drag (not just near the
+   * edge) — only actually starts moving the canvas after the movement
+   * proves to be mostly horizontal to the right (see
+   * `OPEN_COMMIT_THRESHOLD`), so it doesn't fight the log's vertical scroll. */
   onCanvasPointerDown: (event: ReactPointerEvent) => void;
-  /** No bloqueador (visível só quando o drawer está aberto), qualquer ponto
-   * inicia o arraste — cobre tanto "arrastar pra fechar" quanto "tocar pra
-   * fechar" (um toque sem movimento conta como fechar). */
+  /** On the blocker (visible only when the drawer is open), any point
+   * starts the drag — covers both "drag to close" and "tap to close" (a
+   * tap with no movement counts as closing). */
   onBlockerPointerDown: (event: ReactPointerEvent) => void;
 }
 
 /**
- * Mecanismo de "reveal" do drawer de sessões no iOS (docs/24, inspirado no
- * app Claude): em vez de um overlay com scrim por cima do conteúdo, a tela
- * inteira do agente desliza pra direita — ganhando borda sutil, cantos
- * arredondados e perdendo opacidade gradualmente conforme desliza — e a
- * sidebar aparece atrás. O arraste ao vivo manipula o DOM direto via ref
- * (sem re-render a cada pixel); só o estado `open` liga/desliga a classe
- * `.pushed` do CSS, que anima pra o estado assentado.
+ * "Reveal" mechanism for the sessions drawer on iOS (docs/24, inspired by
+ * the Claude app): instead of an overlay with a scrim over the content, the whole
+ * agent screen slides to the right — gaining a subtle border, rounded
+ * corners, and gradually losing opacity as it slides — and the
+ * sidebar appears behind it. The live drag manipulates the DOM directly via ref
+ * (no re-render per pixel); only the `open` state toggles the CSS's
+ * `.pushed` class, which animates to the settled state.
  *
- * Achado real testando no device físico: um arraste que começa dentro de
- * área com scroll próprio (log vertical, bloco de código horizontal) pode
- * ser "roubado" pelo scroll nativo do WebKit no meio do gesto — quando
- * isso acontece, o navegador dispara `pointercancel`, não `pointerup`. Sem
- * tratar isso à parte, os listeners nunca eram removidos e o canvas ficava
- * preso num estado intermediário (só um toque, via `onBlockerPointerDown`,
- * conseguia "destravar"). Todo `pointerup` abaixo tem um `pointercancel`
- * irmão que faz a mesma limpeza.
+ * Real finding from testing on a physical device: a drag that starts inside an
+ * area with its own scroll (vertical log, horizontal code block) can
+ * get "stolen" by WebKit's native scroll mid-gesture — when
+ * that happens, the browser fires `pointercancel`, not `pointerup`. Without
+ * handling this separately, the listeners were never removed and the canvas got
+ * stuck in an intermediate state (only a tap, via `onBlockerPointerDown`,
+ * could "unstick" it). Every `pointerup` below has a sibling `pointercancel`
+ * that does the same cleanup.
  */
 export function useRevealDrawer(): RevealDrawerHandle {
   const [open, setOpen] = useState(false);
@@ -79,9 +79,9 @@ export function useRevealDrawer(): RevealDrawerHandle {
   const closeDrawer = useCallback(() => setOpen(false), []);
   const toggleDrawer = useCallback(() => setOpen((value) => !value), []);
 
-  /** Arraste "comprometido" — usado tanto pra fechar (a partir do
-   * bloqueador, sempre ativo de cara) quanto, depois do threshold, pra
-   * abrir. */
+  /** "Committed" drag — used both to close (from the
+   * blocker, always active right away) and, after the threshold, to
+   * open. */
   const beginDrag = useCallback(
     (startEvent: { clientX: number; clientY: number }, base: number) => {
       const startX = startEvent.clientX;
@@ -122,9 +122,9 @@ export function useRevealDrawer(): RevealDrawerHandle {
         }
       }
 
-      /** O gesto foi "roubado" pelo scroll nativo (WebKit manda cancel, não
-       * up) — não dá pra saber a intenção do usuário nesse caso, então só
-       * volta pro estado assentado atual (não decide abrir/fechar). */
+      /** The gesture got "stolen" by native scroll (WebKit sends cancel, not
+       * up) — there's no way to know the user's intent in this case, so it just
+       * goes back to the current settled state (doesn't decide open/close). */
       function handleCancel(): void {
         if (settled) return;
         settled = true;
@@ -139,12 +139,12 @@ export function useRevealDrawer(): RevealDrawerHandle {
     [applyProgress, clearInlineStyle, openDrawer, closeDrawer],
   );
 
-  /** Fechado: observa qualquer arraste na tela principal, sem interferir
-   * (sem preventDefault, sem tocar no canvas) até o movimento provar ser
-   * majoritariamente horizontal pra direita — só aí "comprometemos" com o
-   * gesto de abrir via `beginDrag`. Até lá, scroll vertical do log e toques
-   * em botões continuam funcionando normalmente. Limiar de comprometer é
-   * mais alto/estrito que o de desistir de propósito — favorece scroll. */
+  /** Closed: observes any drag on the main screen, without interfering
+   * (no preventDefault, no touching the canvas) until the movement proves to be
+   * mostly horizontal to the right — only then do we "commit" to the
+   * gesture of opening via `beginDrag`. Until then, vertical log scroll and taps
+   * on buttons keep working normally. The commit threshold is
+   * intentionally higher/stricter than the abandon one — favors scroll. */
   const onCanvasPointerDown = useCallback(
     (startEvent: ReactPointerEvent) => {
       if (open) return;
@@ -165,12 +165,12 @@ export function useRevealDrawer(): RevealDrawerHandle {
         if (dx > OPEN_COMMIT_THRESHOLD && dx > Math.abs(dy) * OPEN_COMMIT_RATIO) {
           done = true;
           stop();
-          // Recomeça o arraste "de verdade" a partir daqui, já comprometido
-          // — o pequeno delta percorrido até o threshold é imperceptível.
+          // Restarts the "real" drag from here, already committed
+          // — the small delta traveled up to the threshold is imperceptible.
           beginDrag(event, 0);
         } else if (Math.abs(dy) > OPEN_ABANDON_THRESHOLD && Math.abs(dy) > dx * OPEN_ABANDON_RATIO) {
-          // Movimento majoritariamente vertical — é scroll do log, não o
-          // gesto de abrir. Desiste sem nunca ter interferido.
+          // Mostly vertical movement — it's log scroll, not the
+          // opening gesture. Bails out without ever having interfered.
           done = true;
           stop();
         }

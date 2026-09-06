@@ -1,24 +1,26 @@
-// No Windows, o tauri-plugin-notification derruba o handle do toast depois
-// de mostrá-lo, então o clique nunca chega no lado JS — por isso essa
-// notificação é implementada direto sobre tauri-winrt-notification lá,
-// passando um ícone fixo (via `.icon()`, que não depende de AUMID
-// registrado) e um `.on_activated()` que foca a janela. O app_id ainda segue
-// o mesmo teste dev-vs-instalado que o plugin original fazia — ver
-// `windows_toast::resolve_app_id` — porque criar o notifier com um AUMID não
-// registrado (rodando via `tauri dev`) faz a notificação inteira sumir, não
-// só o ícone. Nas outras plataformas seguimos usando o plugin normalmente.
+// On Windows, tauri-plugin-notification drops the toast handle right after
+// showing it, so the click never reaches the JS side — that's why this
+// notification is implemented directly on top of tauri-winrt-notification
+// there, passing a fixed icon (via `.icon()`, which doesn't depend on a
+// registered AUMID) and an `.on_activated()` that focuses the window. The
+// app_id still follows the same dev-vs-installed check the original plugin
+// did — see `windows_toast::resolve_app_id` — because creating the notifier
+// with an unregistered AUMID (running via `tauri dev`) makes the whole
+// notification disappear, not just the icon. On the other platforms we keep
+// using the plugin normally.
 //
-// `session_id`/`profile_id` viajam junto só pra rotear o clique de volta pra
-// aba certa (client/src/hooks/useNotificationClick.ts tem o detalhe de como
-// cada plataforma entrega isso, e a limitação conhecida de reabertura a
-// frio — app totalmente fechado quando o clique acontece).
-// `rename_all` é essencial aqui: diferente dos args de `#[tauri::command]` (o
-// macro já converte pra camelCase sozinho na ponte JS), `app.emit` serializa
-// esse payload com `serde::Serialize` puro — sem o rename, ia sair
-// `session_id`/`profile_id` (snake_case) no JSON, e o listener em
-// useNotificationClick.ts (que espera `sessionId`/`profileId`) recebia
-// `undefined` nos dois campos, roteando pra uma aba nova em branco em vez da
-// sessão certa (bug real, encontrado em teste no Windows).
+// `session_id`/`profile_id` travel along just to route the click back to
+// the right tab (client/src/hooks/useNotificationClick.ts has the detail of
+// how each platform delivers that, and the known cold-reopen limitation —
+// app fully closed when the click happens).
+// `rename_all` is essential here: unlike `#[tauri::command]` args (the
+// macro already converts to camelCase on its own on the JS bridge),
+// `app.emit` serializes this payload with plain `serde::Serialize` — without
+// the rename, `session_id`/`profile_id` (snake_case) would come out in the
+// JSON, and the listener in useNotificationClick.ts (which expects
+// `sessionId`/`profileId`) would get `undefined` for both fields, routing to
+// a blank new tab instead of the right session (a real bug, found while
+// testing on Windows).
 #[cfg(target_os = "windows")]
 #[derive(Clone, serde::Serialize)]
 #[serde(rename_all = "camelCase")]
@@ -35,11 +37,11 @@ pub fn notify_turn_complete(app: tauri::AppHandle, title: String, body: String, 
     #[cfg(not(target_os = "windows"))]
     {
         use tauri_plugin_notification::NotificationExt;
-        // `extra` é o que o `onAction` do lado JS lê pra saber qual sessão
-        // rotear — só chega lá de fato no iOS (handler nativo do plugin); no
-        // macOS/Linux desktop esse crate não tem hook de clique nenhum (ver
-        // useNotificationClick.ts), então isso fica sem efeito prático aí,
-        // mas não custa nada mandar mesmo assim.
+        // `extra` is what `onAction` on the JS side reads to know which
+        // session to route to — it only actually arrives there on iOS (the
+        // plugin's native handler); on macOS/Linux desktop this crate has no
+        // click hook at all (see useNotificationClick.ts), so this has no
+        // practical effect there, but it doesn't hurt to send it anyway.
         let _ = app
             .notification()
             .builder()
@@ -57,18 +59,19 @@ mod windows_toast {
     use tauri::{path::BaseDirectory, AppHandle, Emitter, Manager};
     use tauri_winrt_notification::{IconCrop, Toast};
 
-    /// Mesmo teste que o tauri-plugin-notification original fazia (ver
-    /// comentário no topo do arquivo), estendido pro `.exe` portátil (sem
-    /// instalador): o AUMID de verdade do app só existe registrado (atalho no
-    /// Start Menu, criado pelo instalador NSIS) numa instalação de verdade —
-    /// `target/debug`|`target/release` (dev) e o `.exe` portátil rodando de
-    /// qualquer outro lugar (não tem instalador, não tem atalho) caem no
-    /// mesmo caso. Criar o notifier com um app_id não registrado faz `show()`
-    /// falhar calado — não é só o ícone errado, a notificação inteira some.
-    /// `POWERSHELL_APP_ID` é garantidamente registrado em qualquer Windows,
-    /// então funciona em todos esses casos; o ícone customizado (`.icon()`
-    /// abaixo) e o clique (`.on_activated()`) não dependem do app_id estar
-    /// registrado — só o ícone *padrão* (sem override) depende.
+    /// Same check the original tauri-plugin-notification did (see the
+    /// comment at the top of the file), extended to the portable `.exe`
+    /// (no installer): the app's real AUMID only exists registered (Start
+    /// Menu shortcut, created by the NSIS installer) in a real install —
+    /// `target/debug`|`target/release` (dev) and the portable `.exe` running
+    /// from anywhere else (no installer, no shortcut) fall into the same
+    /// case. Creating the notifier with an unregistered app_id makes
+    /// `show()` fail silently — it's not just the wrong icon, the whole
+    /// notification disappears. `POWERSHELL_APP_ID` is guaranteed to be
+    /// registered on any Windows install, so it works in all these cases;
+    /// the custom icon (`.icon()` below) and the click (`.on_activated()`)
+    /// don't depend on the app_id being registered — only the *default*
+    /// icon (no override) does.
     fn resolve_app_id(identifier: &str) -> String {
         let running_unpacked = tauri::utils::platform::current_exe()
             .ok()
@@ -81,11 +84,12 @@ mod windows_toast {
         }
     }
 
-    /// `installMode: "currentUser"` (ver `tauri.conf.json`) sempre instala em
-    /// `%LOCALAPPDATA%\ultron`; `perMachine` cairia em `%ProgramFiles%\ultron`
-    /// — checar os dois cobre se algum dia o modo mudar. Só esses diretórios
-    /// têm o atalho do Menu Iniciar com o AppUserModelID registrado de
-    /// verdade (é o instalador NSIS quem cria).
+    /// `installMode: "currentUser"` (see `tauri.conf.json`) always installs
+    /// into `%LOCALAPPDATA%\ultron`; `perMachine` would land in
+    /// `%ProgramFiles%\ultron` — checking both covers the case where the
+    /// mode ever changes. Only these directories have the Start Menu
+    /// shortcut with the AppUserModelID actually registered (it's the NSIS
+    /// installer that creates it).
     fn is_nsis_install_dir(dir: &std::path::Path) -> bool {
         if dir.file_name().and_then(|n| n.to_str()) != Some("ultron") {
             return false;
@@ -108,8 +112,8 @@ mod windows_toast {
             .filter(|path| path.exists());
         let app_id = resolve_app_id(&app.config().identifier);
 
-        // notify e wait_for_action/on_activated bloqueiam a thread, então
-        // isso não pode rodar na main thread do Tauri.
+        // notify and wait_for_action/on_activated block the thread, so this
+        // can't run on Tauri's main thread.
         std::thread::spawn(move || {
             let mut toast = Toast::new(&app_id).title(&title).text1(&body);
             if let Some(icon_path) = &icon {
@@ -121,9 +125,9 @@ mod windows_toast {
                     let _ = window.show();
                     let _ = window.set_focus();
                 }
-                // Sem entrada no listener ainda (app reaberto do zero pelo
-                // clique, não só desminimizado) — evento se perde, ver a
-                // limitação de reabertura a frio documentada em
+                // No listener registered yet (app reopened from scratch by
+                // the click, not just unminimized) — the event gets lost,
+                // see the cold-reopen limitation documented in
                 // useNotificationClick.ts.
                 let _ = app.emit(
                     "notification-clicked",

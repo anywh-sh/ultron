@@ -21,8 +21,9 @@ interface SettingsDialogProps {
   onOpenChange: (open: boolean) => void;
 }
 
-/** Nenhuma navegação real ainda (só existe "Geral") — a lista já existe pra
- * não precisar mudar a estrutura do dialog quando a segunda seção aparecer. */
+/** No real navigation yet (only "Geral" exists) — the list already exists
+ * so the dialog's structure won't need to change when the second section
+ * shows up. */
 type Section = "geral";
 
 function ProfilePathRow({
@@ -120,10 +121,10 @@ function ProfileModelRow({
 }
 
 /**
- * Dialog de configurações do app — aberto pelo menu na `TitleBar`. Layout de
- * dois painéis (padrão comum em apps desktop de configuração): nav escura à
- * esquerda, conteúdo mais claro à direita, separados por borda — só "Geral"
- * por enquanto, com o path inicial de cada perfil (`useDefaultPaths`).
+ * App settings dialog — opened from the `TitleBar` menu. Two-panel layout
+ * (common pattern in desktop settings apps): dark nav on the left, lighter
+ * content on the right, separated by a border — only "Geral" for now, with
+ * each profile's initial path (`useDefaultPaths`).
  */
 export function SettingsDialog({ open, onOpenChange }: SettingsDialogProps) {
   const [section, setSection] = useState<Section>("geral");

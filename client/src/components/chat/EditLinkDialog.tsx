@@ -20,9 +20,9 @@ interface EditLinkDialogProps {
 const FIELD_CLASS =
   "rounded-md border border-border bg-transparent px-2.5 py-1.5 text-sm outline-none focus:border-ring";
 
-/** Campos "texto" e "link" pra editar um hyperlink criado no composer via
- * paste-to-link. Não reaproveita `EmptyState`'s input pattern via
- * componente, só o mesmo estilo visual — cada um vive isolado no seu form. */
+/** "text" and "link" fields to edit a hyperlink created in the composer via
+ * paste-to-link. Doesn't reuse `EmptyState`'s input pattern as a component,
+ * just the same visual style — each one lives isolated in its own form. */
 export function EditLinkDialog({ open, onOpenChange, initialText, initialHref, onSave }: EditLinkDialogProps) {
   const [text, setText] = useState(initialText);
   const [href, setHref] = useState(initialHref);
@@ -34,11 +34,11 @@ export function EditLinkDialog({ open, onOpenChange, initialText, initialHref, o
   }, [open, initialText, initialHref]);
 
   function handleSubmit(event: FormEvent): void {
-    // Precisa de `stopPropagation` além de `preventDefault`: o Dialog é
-    // portalizado pro `document.body` no DOM, mas o React ainda propaga o
-    // evento sintético pela árvore de COMPONENTES — sem isso, o submit
-    // deste form "borbulha" até o <form> do Composer e envia a mensagem
-    // (bug real, achado testando: editar um link disparava o envio).
+    // Needs `stopPropagation` in addition to `preventDefault`: the Dialog is
+    // portaled to `document.body` in the DOM, but React still propagates the
+    // synthetic event through the COMPONENT tree — without this, this form's
+    // submit "bubbles" up to the Composer's <form> and sends the message
+    // (real bug, found while testing: editing a link would trigger a send).
     event.preventDefault();
     event.stopPropagation();
     const trimmedText = text.trim();

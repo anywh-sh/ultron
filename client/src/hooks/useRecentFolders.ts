@@ -18,18 +18,18 @@ function readRecents(profileId: string): string[] {
 }
 
 /**
- * MRU de pastas escolhidas no picker de working directory, até 5, isolada
- * por perfil (docs da feature) — mesma convenção de localStorage por perfil
- * que `useTabs.ts` já usava antes de virar uma lista geral (docs/29). Mais
- * simples que aquele hook porque quem chama (`WorkingDirectoryButton`) sempre
- * tem um `profileId` concreto e estável no mount.
+ * MRU of folders picked in the working directory picker, up to 5, isolated
+ * per profile (feature docs) — same per-profile localStorage convention
+ * `useTabs.ts` already used before it became a general list (docs/29).
+ * Simpler than that hook because the caller (`WorkingDirectoryButton`)
+ * always has a concrete, stable `profileId` at mount.
  */
 export function useRecentFolders(profileId: string) {
   const [recents, setRecents] = useState<string[]>(() => readRecents(profileId));
 
-  // Perfil pode trocar (aba de outro perfil montando este mesmo componente
-  // por identidade de posição) — recarrega do storage certo quando isso
-  // acontece, em vez de manter a lista do perfil anterior.
+  // Profile can change (a tab from another profile mounting this same
+  // component by positional identity) — reloads from the right storage
+  // when that happens, instead of keeping the previous profile's list.
   useEffect(() => {
     setRecents(readRecents(profileId));
   }, [profileId]);

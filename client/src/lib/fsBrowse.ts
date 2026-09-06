@@ -10,9 +10,10 @@ export interface FsListResult {
   entries: FsEntry[];
 }
 
-/** Lista subpastas de `path` no relay (máquina onde o agente roda, não no
- * dispositivo do cliente) — ver relay/src/fsBrowse.ts pro contrato completo.
- * Sem `path`, o relay resolve pro padrão do app (perfil). */
+/** Lists subfolders of `path` on the relay (the machine where the agent
+ * runs, not the client device) — see relay/src/fsBrowse.ts for the full
+ * contract. Without `path`, the relay resolves to the app's (profile's)
+ * default. */
 export async function listDirectories(profile: Profile, path?: string): Promise<FsListResult> {
   const qs = path ? `?path=${encodeURIComponent(path)}` : "";
   const response = await fetch(`http://${profile.host}:${profile.relayPort}/fs/list${qs}`);

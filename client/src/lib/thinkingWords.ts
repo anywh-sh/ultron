@@ -1,8 +1,9 @@
-/** Verbos aleatórios pro indicador de turno em andamento (TurnIndicator) —
- * mesma ideia do spinner do Claude Code CLI, que troca "Thinking…" por um
- * verbo aleatório (~200 opções, entre técnico/pseudo-sério e brincalhão) a
- * cada operação. Um só é sorteado por turno (não fica trocando a cada
- * segundo) — replica o comportamento real da CLI, não uma cyclagem nossa. */
+/** Random verbs for the turn-in-progress indicator (TurnIndicator) — same
+ * idea as the Claude Code CLI's spinner, which swaps "Thinking…" for a
+ * random verb (~200 options, ranging from technical/mock-serious to playful)
+ * on every operation. Only one is picked per turn (doesn't keep changing
+ * every second) — replicates the CLI's real behavior, not a cycling scheme
+ * of our own. */
 const THINKING_WORDS = [
   "Pensando",
   "Cogitando",

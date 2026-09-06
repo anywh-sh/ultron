@@ -5,16 +5,17 @@ import type { Profile } from "@/lib/profiles";
 
 export interface PendingAttachment {
   kind: "image" | "video";
-  /** Imagem: caminho da própria imagem. Vídeo: caminho do vídeo original —
-   * fica referenciado na mensagem além dos frames, caso o Claude precise
-   * rodar ffmpeg/ffprobe nele via Bash pra algo mais específico. */
+  /** Image: path of the image itself. Video: path of the original video —
+   * stays referenced in the message alongside the frames, in case Claude
+   * needs to run ffmpeg/ffprobe on it via Bash for something more specific. */
   path: string;
-  /** Ausente só quando a prévia falha (ex.: vídeo com codec que o
-   * `<video>` do navegador não decodifica) — UI cai pra um ícone genérico. */
+  /** Absent only when the preview fails (e.g. video with a codec the
+   * browser's `<video>` can't decode) — UI falls back to a generic icon. */
   previewUrl?: string;
-  /** Só vídeo: paths dos frames extraídos no relay, em ordem cronológica —
-   * é isso (não o vídeo em si) que vira `[imagem anexada]` na mensagem, já
-   * que o Claude só "vê" imagem via `Read`, não vídeo. */
+  /** Video only: paths of the frames extracted on the relay, in
+   * chronological order — this (not the video itself) is what becomes
+   * `[imagem anexada]` in the message, since Claude only "sees" images via
+   * `Read`, not video. */
   frames?: string[];
 }
 
@@ -23,8 +24,9 @@ export interface UseImageUploadResult {
   uploading: boolean;
   addFiles: (files: FileList | File[]) => Promise<void>;
   remove: (path: string) => void;
-  /** Esvazia a lista sem revogar os object URLs — usado ao enviar, já que a
-   * mensagem no log passa a ser dona dessas prévias. */
+  /** Empties the list without revoking the object URLs — used when
+   * sending, since the message in the log becomes the owner of those
+   * previews. */
   clearWithoutRevoke: () => void;
 }
 
@@ -46,9 +48,9 @@ export function useImageUpload(profile: Profile, onError: (message: string) => v
           try {
             let previewUrl: string | undefined;
             if (isVideo) {
-              // Best-effort: se o navegador não decodificar o codec, a
-              // prévia falha mas o upload/extração de frames no relay (que
-              // usa ffmpeg, com suporte bem mais amplo) segue normalmente.
+              // Best-effort: if the browser can't decode the codec, the
+              // preview fails but the upload/frame extraction on the relay
+              // (which uses ffmpeg, with much broader support) proceeds normally.
               try {
                 previewUrl = await captureVideoFrame(file);
               } catch {

@@ -1,5 +1,5 @@
-// Cliente do protocolo do relay próprio (não é mais o protocolo do ttyd —
-// ver docs/11-decisao-pivo-stream-json.md e docs/12-prototipo-relay.md).
+// Client for our own relay protocol (no longer the ttyd protocol —
+// see docs/11-decisao-pivo-stream-json.md and docs/12-prototipo-relay.md).
 import type {
   BackgroundJobSummary,
   ClaudeEvent,
@@ -34,8 +34,8 @@ export async function fetchSessions(host: string, port: number): Promise<Session
   return body.sessions ?? [];
 }
 
-/** Rename manual (dialog na sidebar) — funciona mesmo pra uma sessão sem
- * aba aberta agora (o relay só precisa do id, não de uma conexão WS viva). */
+/** Manual rename (sidebar dialog) — works even for a session with no
+ * tab open right now (the relay only needs the id, not a live WS connection). */
 export async function renameSession(host: string, port: number, id: string, title: string): Promise<void> {
   const response = await fetch(`http://${host}:${port}/sessions/rename`, {
     method: "POST",
@@ -44,13 +44,13 @@ export async function renameSession(host: string, port: number, id: string, titl
   });
   if (!response.ok) {
     const body = (await response.json().catch(() => ({}))) as { error?: string };
-    throw new Error(body.error ?? `falha ao renomear sessão (${String(response.status)})`);
+    throw new Error(body.error ?? `failed to rename session (${String(response.status)})`);
   }
 }
 
-/** Só tira a sessão do controle do ultron (sidebar, abas) — não apaga o
- * transcript que o Claude Code já mantém sozinho. Funciona mesmo pra uma
- * sessão sem aba aberta agora. */
+/** Only removes the session from ultron's control (sidebar, tabs) — doesn't delete the
+ * transcript that Claude Code already keeps on its own. Works even for a
+ * session with no tab open right now. */
 export async function deleteSession(host: string, port: number, id: string): Promise<void> {
   const response = await fetch(`http://${host}:${port}/sessions/delete`, {
     method: "POST",
@@ -59,15 +59,15 @@ export async function deleteSession(host: string, port: number, id: string): Pro
   });
   if (!response.ok) {
     const body = (await response.json().catch(() => ({}))) as { error?: string };
-    throw new Error(body.error ?? `falha ao excluir sessão (${String(response.status)})`);
+    throw new Error(body.error ?? `failed to delete session (${String(response.status)})`);
   }
 }
 
-/** Fecha uma aba de terminal de verdade (mata a sessão tmux, não só
- * detacha) — chamado ao clicar no X de uma aba de terminal. Ver
- * terminalSession.ts pro porquê disso ser uma chamada HTTP separada em vez
- * de uma mensagem na própria WS do terminal (a WS já pode estar fechada
- * nesse ponto, ex: fechando uma aba que não é a ativa no momento). */
+/** Actually closes a terminal tab (kills the tmux session, not just
+ * detaches) — called when clicking the X on a terminal tab. See
+ * terminalSession.ts for why this is a separate HTTP call instead
+ * of a message on the terminal's own WS (the WS might already be closed
+ * at this point, e.g. closing a tab that isn't the currently active one). */
 export async function closeTerminal(host: string, port: number, session: string, term: string): Promise<void> {
   const response = await fetch(`http://${host}:${port}/terminals/close`, {
     method: "POST",
@@ -76,7 +76,7 @@ export async function closeTerminal(host: string, port: number, session: string,
   });
   if (!response.ok) {
     const body = (await response.json().catch(() => ({}))) as { error?: string };
-    throw new Error(body.error ?? `falha ao fechar terminal (${String(response.status)})`);
+    throw new Error(body.error ?? `failed to close terminal (${String(response.status)})`);
   }
 }
 
@@ -84,77 +84,77 @@ export interface RelayClientCallbacks {
   onEvent: (event: ClaudeEvent) => void;
   onTurnComplete: (stopped: boolean) => void;
   onTurnError: (message: string) => void;
-  /** Fim do replay do histórico dessa sessão — turnos concluídos recebidos
-   * depois disso são de verdade novos, não reconstrução (ver sharedSession.ts). */
+  /** End of this session's history replay — completed turns received
+   * after this are truly new, not reconstruction (see sharedSession.ts). */
   onCaughtUp: () => void;
-  /** Mandado logo na conexão (antes do replay de histórico) e de novo toda
-   * vez que o working directory muda ou trava — ver sharedSession.ts. */
+  /** Sent right on connection (before history replay) and again every
+   * time the working directory changes or locks — see sharedSession.ts. */
   onCwdState: (cwd: string, locked: boolean) => void;
   onSetCwdError?: (message: string) => void;
-  /** Mandado logo na conexão (antes do replay) e de novo toda vez que o modo
-   * muda — ver sharedSession.ts::setPermissionMode. */
+  /** Sent right on connection (before the replay) and again every time the mode
+   * changes — see sharedSession.ts::setPermissionMode. */
   onPermissionModeState: (mode: PermissionMode) => void;
-  /** Mandado logo na conexão e de novo toda vez que o modelo muda — ver
-   * sharedSession.ts::setModel. `null` é um estado final válido ("nunca
-   * escolhido via /model, usa o padrão do CLI"), não "ainda carregando". */
+  /** Sent right on connection and again every time the model changes — see
+   * sharedSession.ts::setModel. `null` is a valid final state ("never
+   * chosen via /model, uses the CLI default"), not "still loading". */
   onModelState: (model: ModelChoice | null) => void;
-  /** Modelo padrão de verdade da conta desse perfil (docs/28) — mandado
-   * assim que o relay termina de sondar no boot (pode chegar antes ou depois
-   * da conexão abrir), não muda depois disso na vida do processo. */
+  /** This profile's account's actual default model (docs/28) — sent
+   * as soon as the relay finishes probing at boot (may arrive before or after
+   * the connection opens), doesn't change after that for the life of the process. */
   onDefaultModelState?: (label: string) => void;
-  /** Mandado logo na conexão (se já houver algum turno concluído nessa
-   * sessão) e de novo ao fim de todo turno que produziu uso de contexto —
-   * ver sharedSession.ts::broadcastContextUsage. `null` depois de um
-   * `/clear` (ver onConversationReset). */
+  /** Sent right on connection (if there's already a completed turn in this
+   * session) and again at the end of every turn that produced context usage —
+   * see sharedSession.ts::broadcastContextUsage. `null` after a
+   * `/clear` (see onConversationReset). */
   onContextUsageState?: (usage: ContextUsage | null) => void;
-  /** Turno em andamento na sessão (não só de quem mandou) — mandado logo na
-   * conexão e de novo toda vez que um turno começa/termina, em qualquer
-   * dispositivo (docs/30). Ver relay-types.ts::RelayMessage["turn_state"]. */
+  /** Turn in progress on the session (not just from whoever sent it) — sent right on
+   * connection and again every time a turn starts/ends, from any
+   * device (docs/30). See relay-types.ts::RelayMessage["turn_state"]. */
   onTurnState?: (state: { active: boolean; startedAt?: number }) => void;
-  /** Sugestão de próxima mensagem chegando (ao vivo ou logo na conexão) —
-   * ver relay-types.ts::RelayMessage["suggestion"]. `null` limpa qualquer
-   * sugestão mostrada. */
+  /** Suggested next message arriving (live or right on connection) —
+   * see relay-types.ts::RelayMessage["suggestion"]. `null` clears any
+   * suggestion shown. */
   onSuggestion?: (text: string | null) => void;
-  /** Resumo pro corpo da notificação chegando (ao vivo) — ver
-   * relay-types.ts::RelayMessage["notification_summary"]. Ao contrário de
-   * `onSuggestion`, não é reenviado numa reconexão (não é "estado atual"). */
+  /** Summary for the notification body arriving (live) — see
+   * relay-types.ts::RelayMessage["notification_summary"]. Unlike
+   * `onSuggestion`, it isn't resent on a reconnection (it isn't "current state"). */
   onNotificationSummary?: (text: string | null) => void;
-  /** `/clear` (docs/26) — a conversa dessa sessão foi resetada (por este
-   * dispositivo ou outro); quem consome isso deve esvaziar o log de
-   * mensagens local, mesma ideia do `reset()` já usado em `onReconnecting`. */
+  /** `/clear` (docs/26) — this session's conversation was reset (by this
+   * device or another); whoever consumes this should clear the local
+   * message log, same idea as the `reset()` already used in `onReconnecting`. */
   onConversationReset?: () => void;
   onConnectionChange?: (connected: boolean) => void;
-  /** Título inferido do primeiro prompt (ou de um rename manual feito em
-   * outro dispositivo) chegando ao vivo — ver sharedSession.ts::setTitle. */
+  /** Title inferred from the first prompt (or from a manual rename done on
+   * another device) arriving live — see sharedSession.ts::setTitle. */
   onSessionTitle?: (title: string) => void;
-  /** Sessão excluída (por este dispositivo ou outro) — ver
-   * sharedSession.ts::closeAllClients. O socket já fecha logo em seguida. */
+  /** Session deleted (by this device or another) — see
+   * sharedSession.ts::closeAllClients. The socket closes shortly after. */
   onSessionDeleted?: () => void;
-  /** Disparado logo antes de reabrir a conexão (backoff automático ou
-   * `forceReconnect`) — nunca na primeira conexão. O relay reenvia o
-   * histórico inteiro a cada conexão nova (`SharedSession.addClient`), então
-   * quem consome isso deve resetar o log de mensagens aqui, senão o replay
-   * duplica tudo em cima do que já estava na tela (docs/23, Fase D1). */
+  /** Fired right before reopening the connection (automatic backoff or
+   * `forceReconnect`) — never on the first connection. The relay resends the
+   * entire history on every new connection (`SharedSession.addClient`), so
+   * whoever consumes this should reset the message log here, otherwise the replay
+   * duplicates everything on top of what was already on screen (docs/23, Phase D1). */
   onReconnecting?: () => void;
-  /** Cauda recente do histórico dessa sessão — mandada uma vez por conexão,
-   * logo antes de `onCaughtUp` (Fase 2/3, docs/30). Opcional só durante a
-   * migração: quem ainda não hidrata o log em lote (Fase 4) simplesmente
-   * ignora e continua vendo o log vazio até essa fase existir. */
+  /** Recent tail of this session's history — sent once per connection,
+   * right before `onCaughtUp` (Phase 2/3, docs/30). Optional only during the
+   * migration: whoever doesn't yet hydrate the log in bulk (Phase 4) simply
+   * ignores it and keeps seeing an empty log until that phase exists. */
   onHistoryPage?: (page: HistoryPageMessage) => void;
-  /** Resposta a `loadOlderHistory` (Fase 2/3, docs/30) — turnos mais antigos
-   * que a cauda inicial, pedidos sob demanda (Fase 5: scroll pra cima). */
+  /** Response to `loadOlderHistory` (Phase 2/3, docs/30) — turns older
+   * than the initial tail, requested on demand (Phase 5: scroll up). */
   onOlderHistory?: (page: HistoryPageMessage) => void;
-  /** Jobs `ultron-bg` observados agora na sessão — mandado logo na conexão
-   * (mesmo array vazio, se não houver nenhum) e de novo sempre que a lista
-   * muda, em qualquer dispositivo (docs/32, Fase E). */
+  /** `ultron-bg` jobs currently observed in the session — sent right on connection
+   * (even an empty array, if there are none) and again whenever the list
+   * changes, from any device (docs/32, Phase E). */
   onBackgroundJobState?: (jobs: BackgroundJobSummary[]) => void;
-  /** Edição de mensagem (docs/33) — chega só nos OUTROS dispositivos
-   * conectados na sessão, sincronizando o ponto de corte antes do turno
-   * editado começar a transmitir. Mesmo tratamento de `onReconnecting` +
-   * `onHistoryPage`: quem consome reseta o log e hidrata com esta página. */
+  /** Message edit (docs/33) — arrives only on the OTHER devices
+   * connected to the session, syncing the cut point before the
+   * edited turn starts streaming. Same handling as `onReconnecting` +
+   * `onHistoryPage`: whoever consumes this resets the log and hydrates with this page. */
   onHistoryTruncated?: (page: HistoryPageMessage) => void;
-  /** `edit_message` inválido ou que falhou ao truncar o transcript real —
-   * só chega em quem pediu a edição. */
+  /** `edit_message` that was invalid or failed to truncate the real transcript —
+   * arrives only for whoever requested the edit. */
   onEditMessageError?: (message: string) => void;
 }
 
@@ -163,21 +163,21 @@ const RECONNECT_MAX_DELAY_MS = 30_000;
 
 export class RelayClient {
   private socket?: WebSocket;
-  /** Pasta escolhida (ex: pelo `WorkingDirectoryButton` de uma conversa nova)
-   * antes do socket abrir — não existe fila de saída, só a última escolha
-   * importa. Mandada assim que a conexão abre; ver `connect`. */
+  /** Folder chosen (e.g. via `WorkingDirectoryButton` on a new conversation)
+   * before the socket opens — there's no outgoing queue, only the last choice
+   * matters. Sent as soon as the connection opens; see `connect`. */
   private pendingCwd: string | null = null;
-  /** Mesma lógica do `pendingCwd` — só a última escolha antes do socket
-   * abrir importa. */
+  /** Same logic as `pendingCwd` — only the last choice before the socket
+   * opens matters. */
   private pendingPermissionMode: PermissionMode | null = null;
-  /** `false` só depois de `disconnect()` deliberado (troca de aba/sessão) —
-   * enquanto `true`, todo `close` inesperado agenda uma nova tentativa. */
+  /** `false` only after a deliberate `disconnect()` (tab/session switch) —
+   * while `true`, every unexpected `close` schedules a new attempt. */
   private shouldReconnect = true;
   private reconnectTimer: number | undefined;
   private reconnectAttempt = 0;
-  /** Conta toda chamada de `connect()`, incluindo a primeira — usado só pra
-   * saber se uma reconexão está em curso (`> 1`), pra não disparar
-   * `onReconnecting` na conexão inicial. */
+  /** Counts every `connect()` call, including the first — used only to
+   * know whether a reconnection is in progress (`> 1`), so as not to fire
+   * `onReconnecting` on the initial connection. */
   private connectCount = 0;
 
   constructor(
@@ -211,9 +211,9 @@ export class RelayClient {
       }
     });
     socket.addEventListener("close", () => {
-      // Evento tardio de um socket que `forceReconnect`/reconexão automática
-      // já substituiu — ignora, senão sinaliza desconectado por cima de uma
-      // conexão nova que já pode estar aberta.
+      // Late event from a socket that `forceReconnect`/automatic reconnection
+      // already replaced — ignore it, otherwise it signals disconnected over a
+      // new connection that may already be open.
       if (this.socket !== socket) return;
       this.callbacks.onConnectionChange?.(false);
       this.scheduleReconnect();
@@ -278,12 +278,12 @@ export class RelayClient {
     this.socket.send(JSON.stringify({ type: "stop_turn" }));
   }
 
-  /** Edição de mensagem (docs/33) — `fromEnd` conta a partir do fim (`1` = a
-   * última mensagem do usuário). O relay para o turno atual (se houver),
-   * corta o transcript real no ponto certo e roda um turno novo com `text`.
-   * Sem fila de pendência (mesmo raciocínio de `setModel`): só faz sentido
-   * chamar depois que já existe pelo menos uma mensagem renderizada, o que
-   * significa que o socket já está aberto. */
+  /** Message edit (docs/33) — `fromEnd` counts from the end (`1` = the
+   * user's last message). The relay stops the current turn (if any),
+   * cuts the real transcript at the right point, and runs a new turn with `text`.
+   * No pending queue (same reasoning as `setModel`): it only makes sense to
+   * call this after at least one message has already been rendered, which
+   * means the socket is already open. */
   editMessage(fromEnd: number, text: string): void {
     if (this.socket?.readyState !== WebSocket.OPEN) return;
     this.socket.send(JSON.stringify({ type: "edit_message", fromEnd, text }));
@@ -291,9 +291,9 @@ export class RelayClient {
 
   setCwd(path: string): void {
     if (this.socket?.readyState !== WebSocket.OPEN) {
-      // Aba de conversa nova deixa escolher a pasta antes da conexão abrir
-      // (ver WorkingDirectoryButton) — guarda e manda assim que abrir, em
-      // vez de simplesmente descartar a escolha do usuário.
+      // A new conversation tab allows choosing the folder before the connection opens
+      // (see WorkingDirectoryButton) — stores it and sends it as soon as it opens, instead
+      // of simply discarding the user's choice.
       this.pendingCwd = path;
       return;
     }
@@ -308,37 +308,37 @@ export class RelayClient {
     this.socket.send(JSON.stringify({ type: "set_permission_mode", mode }));
   }
 
-  /** Sem fila de "pendente antes de conectar" (diferente de `setCwd`/
-   * `setPermissionMode`): só é acionado via `/model` digitado no composer,
-   * que já fica desabilitado enquanto `!connected` — nunca dá pra chamar
-   * isso antes do socket abrir. */
+  /** No "pending before connecting" queue (unlike `setCwd`/
+   * `setPermissionMode`): only triggered via `/model` typed in the composer,
+   * which is already disabled while `!connected` — there's never a way to call
+   * this before the socket opens. */
   setModel(model: ModelChoice): void {
     if (this.socket?.readyState !== WebSocket.OPEN) return;
     this.socket.send(JSON.stringify({ type: "set_model", model }));
   }
 
-  /** `/clear` (docs/26) — mesmo raciocínio de `setModel` sobre não precisar
-   * de fila de pendência. */
+  /** `/clear` (docs/26) — same reasoning as `setModel` about not needing
+   * a pending queue. */
   clearConversation(): void {
     if (this.socket?.readyState !== WebSocket.OPEN) return;
     this.socket.send(JSON.stringify({ type: "clear_conversation" }));
   }
 
-  /** Busca turnos mais antigos que `beforeCursor` (Fase 2/3, docs/30) —
-   * disparado pelo usuário rolando pra cima na UI (Fase 5). Mesmo raciocínio
-   * de `setModel` sobre não precisar de fila de pendência: só faz sentido
-   * chamar depois que a cauda inicial já chegou (`onHistoryPage`), então o
-   * socket sempre já está aberto nesse ponto. */
+  /** Fetches turns older than `beforeCursor` (Phase 2/3, docs/30) —
+   * triggered by the user scrolling up in the UI (Phase 5). Same reasoning
+   * as `setModel` about not needing a pending queue: it only makes sense to
+   * call this after the initial tail has already arrived (`onHistoryPage`), so the
+   * socket is always already open at this point. */
   loadOlderHistory(beforeCursor: number): void {
     if (this.socket?.readyState !== WebSocket.OPEN) return;
     this.socket.send(JSON.stringify({ type: "load_older_history", beforeCursor }));
   }
 
-  /** Cancela um job `ultron-bg` pela UI (docs/32, Fase F) — mesmo raciocínio
-   * de `setModel`/`clearConversation` sobre não precisar de fila de
-   * pendência: o chip que expõe isso só aparece quando já existe um job na
-   * lista, o que significa que `background_job_state` já chegou, o que
-   * significa que o socket já está aberto. */
+  /** Cancels an `ultron-bg` job from the UI (docs/32, Phase F) — same reasoning
+   * as `setModel`/`clearConversation` about not needing a pending
+   * queue: the chip that exposes this only appears when a job already exists in the
+   * list, which means `background_job_state` has already arrived, which
+   * means the socket is already open. */
   cancelBackgroundJob(id: string): void {
     if (this.socket?.readyState !== WebSocket.OPEN) return;
     this.socket.send(JSON.stringify({ type: "cancel_background_job", id }));
@@ -350,12 +350,12 @@ export class RelayClient {
     this.socket?.close();
   }
 
-  /** Chamado ao voltar de background/foreground (docs/23, Fase D1) — não
-   * confia no timing do `close` nativo, que pode nunca disparar num socket
-   * "zumbi" (`readyState` ainda `OPEN` mas a conexão de rede já morreu de
-   * verdade). Só reconecta se o socket não estiver genuinamente utilizável;
-   * uma conexão saudável fica intocada (spike 3 mostrou que sockets
-   * costumam sobreviver a background curto sem intervenção nenhuma). */
+  /** Called when returning from background/foreground (docs/23, Phase D1) — doesn't
+   * trust the native `close` timing, which may never fire on a
+   * "zombie" socket (`readyState` still `OPEN` but the network connection has really
+   * already died). Only reconnects if the socket isn't genuinely usable;
+   * a healthy connection is left untouched (spike 3 showed that sockets
+   * usually survive a short background period with no intervention at all). */
   forceReconnect(): void {
     const state = this.socket?.readyState;
     if (state === WebSocket.OPEN || state === WebSocket.CONNECTING) return;

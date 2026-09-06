@@ -10,12 +10,12 @@ interface TerminalToggleButtonProps {
 }
 
 /**
- * Botão de terminal embutido (docs/30) — ao lado do `WorkingDirectoryButton`
- * na mesma linha, alinhado à extrema direita (`ChatPanel` cuida do
- * `justify-between` entre os dois). Desabilitado até a sessão ter uma pasta
- * (o terminal nasce nela — ver terminalSession.ts), mesma lógica de gate
- * que `WorkingDirectoryButton` já usa pra "sessão sem pasta ainda não dá
- * pra fazer nada que dependa dela".
+ * Embedded terminal button (docs/30) — next to `WorkingDirectoryButton` in
+ * the same row, aligned to the far right (`ChatPanel` handles the
+ * `justify-between` between the two). Disabled until the session has a
+ * folder (the terminal is born in it — see terminalSession.ts), same gating
+ * logic `WorkingDirectoryButton` already uses for "a session without a
+ * folder yet can't do anything that depends on one".
  */
 export function TerminalToggleButton({ cwd, open, onToggle }: TerminalToggleButtonProps) {
   return (
@@ -34,10 +34,10 @@ export function TerminalToggleButton({ cwd, open, onToggle }: TerminalToggleButt
       </TooltipTrigger>
       <TooltipContent side="top">
         {open ? "Fechar terminal" : "Abrir terminal"}
-        {/* Ctrl literal mesmo no macOS — convenção do próprio VS Code, cujo
-         * atalho de terminal integrado usa Control em qualquer SO porque
-         * Cmd+` já é reservado pelo macOS (trocar entre janelas do mesmo
-         * app), mesmo raciocínio do Ctrl+Tab em App.tsx. */}
+        {/* Literal Ctrl even on macOS — VS Code's own convention, whose
+         * integrated terminal shortcut uses Control on any OS because
+         * Cmd+` is already reserved by macOS (switching between windows of
+         * the same app), same reasoning as Ctrl+Tab in App.tsx. */}
         <TooltipShortcut>Ctrl+`</TooltipShortcut>
       </TooltipContent>
     </Tooltip>

@@ -14,10 +14,10 @@ interface PermissionModeButtonProps {
   onChange: (mode: PermissionMode) => void;
 }
 
-// 4 dos 6 valores que `claude --permission-mode` aceita — `auto` e `dontAsk`
-// ficaram de fora de propósito (ver docs/25). Ordem alinhada ao ciclo
-// Shift+Tab da CLI (default -> acceptEdits -> plan), bypass por último por
-// ser o mais arriscado.
+// 4 of the 6 values `claude --permission-mode` accepts — `auto` and
+// `dontAsk` were left out on purpose (see docs/25). Order aligned with the
+// CLI's Shift+Tab cycle (default -> acceptEdits -> plan), bypass last since
+// it's the riskiest.
 const MODES: { value: PermissionMode; label: string }[] = [
   { value: "default", label: "Manual" },
   { value: "acceptEdits", label: "Accept edits" },
@@ -30,11 +30,11 @@ function labelFor(mode: PermissionMode | null): string {
 }
 
 /**
- * Label + dropdown na mesma linha do anexar arquivo/áudio do `Composer`,
- * espelhando o `WorkingDirectoryButton` (mesmo pill de botão, mesmo
- * `modal={false}` — Radix trava foco/pointer-events no body enquanto um
- * dropdown modal está aberto, e a restauração falha no WKWebView do Tauri
- * no macOS).
+ * Label + dropdown in the same row as the `Composer`'s file/audio
+ * attachment, mirroring `WorkingDirectoryButton` (same button pill, same
+ * `modal={false}` — Radix traps focus/pointer-events on the body while a
+ * modal dropdown is open, and restoration fails on Tauri's WKWebView on
+ * macOS).
  */
 export function PermissionModeButton({ mode, onChange }: PermissionModeButtonProps) {
   const triggerRef = useRef<HTMLButtonElement>(null);

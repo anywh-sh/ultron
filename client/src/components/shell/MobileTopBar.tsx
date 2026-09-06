@@ -9,16 +9,16 @@ interface MobileTopBarProps {
 }
 
 /**
- * Barra superior consolidada do iOS (docs/24) — menu, título/status da
- * sessão ativa e "+ nova conversa" numa peça só, substituindo a cápsula de
- * conexão solta (Fase E) que não tinha nenhum contexto de sessão.
+ * iOS's consolidated top bar (docs/24) — menu, active session title/status,
+ * and "+ new conversation" in a single piece, replacing the standalone
+ * connection capsule (Phase E) that had no session context at all.
  *
- * Uma v2 trocou isso por círculos separados + zona de blur — mal-entendido
- * do print de referência (o ponto era só "isso é CSS, não o glass nativo
- * de verdade", não pedir um layout diferente). Essa forma unificada (pílula
- * só) é a aprovada; o que muda de fato é a intensidade do blur (estava
- * forte demais) e, eventualmente, trocar o material CSS por glass nativo
- * Swift de verdade — ver `tauri-plugin-native-chrome`.
+ * A v2 swapped this for separate circles + a blur zone — a misunderstanding
+ * of the reference screenshot (the point was just "this is CSS, not real
+ * native glass", not a request for a different layout). This unified shape
+ * (single pill) is the approved one; what actually changes is the blur
+ * intensity (it was too strong) and, eventually, swapping the CSS material
+ * for real native Swift glass — see `tauri-plugin-native-chrome`.
  */
 export function MobileTopBar({ title, connected, onOpenDrawer, onNewConversation }: MobileTopBarProps) {
   return (

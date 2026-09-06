@@ -19,14 +19,14 @@ const MARKER_BY_KIND: Record<CodeLine["kind"], string> = {
   gap: "",
 };
 
-// Só a primeira fatia aparece de cara — o resto fica atrás de "mostrar
-// mais", igual ao preview truncado do Claude Code no terminal, em vez de
-// despejar o arquivo/diff inteiro dentro do card.
+// Only the first slice shows up right away — the rest sits behind "show
+// more", like the Claude Code CLI's truncated preview in the terminal,
+// instead of dumping the whole file/diff into the card.
 const PREVIEW_LINE_COUNT = 14;
 
-/** Lista de linhas de código coloridas por linguagem (Edit/Write no
- * `ToolCallCard`) — reaproveitada tanto pro diff do Edit (`DiffView`) quanto
- * pro conteúdo novo do Write (tratado como "tudo adicionado"). */
+/** List of code lines colored by language (Edit/Write in `ToolCallCard`) —
+ * reused both for the Edit diff (`DiffView`) and for Write's new content
+ * (treated as "everything added"). */
 export function CodeLines({ language, lines }: CodeLinesProps) {
   const [expanded, setExpanded] = useState(false);
   const visible = expanded ? lines : lines.slice(0, PREVIEW_LINE_COUNT);

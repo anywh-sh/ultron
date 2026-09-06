@@ -3,28 +3,29 @@ import type { JSONContent } from "@tiptap/core";
 import { handleExternalLinkClick } from "@/lib/externalLink";
 
 /**
- * Formato de fio (wire) pros links criados via paste-to-link no composer:
- * sintaxe `[texto](url)` — não é markdown genérico, só o que
- * `serializeEditorContent` emite. `renderTextWithLinks` só reconhece esse
- * padrão específico, nunca interpreta markdown arbitrário que o usuário
- * tenha digitado (itálico, cabeçalho, lista etc. continuam texto puro).
+ * Wire format for links created via paste-to-link in the composer:
+ * `[text](url)` syntax — not generic markdown, just what
+ * `serializeEditorContent` emits. `renderTextWithLinks` only recognizes this
+ * specific pattern, never interprets arbitrary markdown the user may have
+ * typed (italic, heading, list etc. remain plain text).
  */
 const WIRE_LINK_REGEX = /\[([^\]]+)\]\(([a-zA-Z][a-zA-Z\d+.-]*:[^\s)]+)\)/g;
 
-/** Caractere de largura zero que `Composer.tsx` (`hardBreakAnchorPlugin`)
- * injeta como texto real depois de `hardBreak`s consecutivos, só pra dar ao
- * navegador uma caixa de layout válida onde ancorar o cursor (bug real,
- * confirmado via Playwright/Chromium — sem isso o cursor "sobe" uma linha em
- * telas com 2+ quebras seguidas sem texto entre elas). Puramente cosmético,
- * nunca deve sobreviver na mensagem enviada. `U+FEFF` (zero-width no-break
- * space, mesma escolha do Slate.js pro mesmo problema) em vez de `U+200B`
- * (zero-width space) — não porque um funcionasse e o outro não (testado no
- * Simulator iOS, docs/34 item 3: nenhum dos dois sozinho resolvia; a causa
- * raiz de verdade era outra, ver `Composer.tsx`), mas por ser a opção mais
- * testada em outros editores pra esse tipo de âncora. Exportado (não só
- * local) porque `Composer.tsx` precisa do mesmo caractere pra inserir a
- * âncora — duplicar o literal nos dois arquivos é como esse bug escapou
- * despercebido da primeira vez. */
+/** Zero-width character that `Composer.tsx` (`hardBreakAnchorPlugin`)
+ * injects as real text after consecutive `hardBreak`s, just to give the
+ * browser a valid layout box to anchor the cursor to (real bug, confirmed
+ * via Playwright/Chromium — without this the cursor "jumps up" a line on
+ * screens with 2+ consecutive breaks with no text between them). Purely
+ * cosmetic, should never survive into the sent message. `U+FEFF`
+ * (zero-width no-break space, the same choice Slate.js made for the same
+ * problem) instead of `U+200B` (zero-width space) — not because one worked
+ * and the other didn't (tested in the iOS Simulator, docs/34 item 3: neither
+ * one alone fixed it; the real root cause was something else, see
+ * `Composer.tsx`), but because it's the more battle-tested option in other
+ * editors for this kind of anchor. Exported (not just local) because
+ * `Composer.tsx` needs the same character to insert the anchor — duplicating
+ * the literal across both files is how this bug went unnoticed the first
+ * time. */
 export const HARD_BREAK_ANCHOR = "﻿";
 const HARD_BREAK_ANCHOR_REGEX = new RegExp(HARD_BREAK_ANCHOR, "g");
 
@@ -42,16 +43,17 @@ function serializeBlock(node: JSONContent): string {
   return node.content.map(serializeInline).join("");
 }
 
-/** Serializa o doc do Tiptap (só parágrafo(s) com texto/hardBreak/link,
- * dado o schema restrito do composer) pro texto plano enviado no wire. */
+/** Serializes the Tiptap doc (only paragraph(s) with text/hardBreak/link,
+ * given the composer's restricted schema) into the plain text sent over the
+ * wire. */
 export function serializeEditorContent(doc: JSONContent): string {
   return (doc.content ?? []).map(serializeBlock).join("\n\n");
 }
 
-/** Reconstrói os links a partir do texto plano recebido, pra exibir na
- * bolha da mensagem enviada — mesma classe visual `composer-link` do
- * editor, sem depender de um parser markdown completo (evita reinterpretar
- * markdown que o usuário tenha digitado por acaso como texto normal). */
+/** Rebuilds links from the received plain text, to display in the sent
+ * message's bubble — same `composer-link` visual class as the editor,
+ * without depending on a full markdown parser (avoids reinterpreting
+ * markdown the user may have happened to type as normal text). */
 export function renderTextWithLinks(text: string): ReactNode[] {
   const nodes: ReactNode[] = [];
   const regex = new RegExp(WIRE_LINK_REGEX);

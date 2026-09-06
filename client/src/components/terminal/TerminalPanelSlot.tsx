@@ -5,11 +5,11 @@ import type { useTerminalTabs } from "@/hooks/useTerminalTabs";
 import type { Profile } from "@/lib/profiles";
 import { cn } from "@/lib/utils";
 
-// xterm.js (+ addons) só entra no bundle se/quando o usuário de fato abrir um
-// terminal — o `lazy` mora aqui, não no conteúdo pesado em si nem em App.tsx,
-// porque o wrapper abaixo (`TerminalPanelSlot`) precisa existir e animar
-// ANTES do chunk pesado ter carregado (o fallback do Suspense também vive
-// dentro do espaço já animado).
+// xterm.js (+ addons) only enters the bundle if/when the user actually opens
+// a terminal — the `lazy` lives here, not in the heavy content itself nor in
+// App.tsx, because the wrapper below (`TerminalPanelSlot`) needs to exist
+// and animate BEFORE the heavy chunk has loaded (the Suspense fallback also
+// lives inside the already-animated space).
 const TerminalPanel = lazy(() =>
   import("@/components/terminal/TerminalPanel").then((mod) => ({ default: mod.TerminalPanel })),
 );
@@ -25,16 +25,17 @@ interface TerminalPanelSlotProps {
 }
 
 /**
- * Wrapper leve (sem import de xterm.js) montado o tempo todo enquanto a aba
- * de chat está ativa — mesmo com o painel fechado. É isso que dá a mesma
- * animação de abrir/fechar que a sidebar esquerda já tem
- * (`useResizableSidebar`/App.tsx): lá o wrapper nunca desmonta, só a largura
- * muda (0 colapsado, `width` aberto) com transição CSS; aqui era diferente
- * antes — o conteúdo do painel só existia no DOM quando aberto, então não
- * tinha o que a transição animasse (aparecia/sumia de uma vez). Agora o
- * conteúdo pesado (`TerminalPanel`, lazy) só monta quando `panel.open`, mas
- * a largura de quem o hospeda já está animando desde antes — code splitting
- * continua intacto, xterm.js só carrega no primeiro open de verdade.
+ * Lightweight wrapper (no xterm.js import) mounted the whole time the chat
+ * tab is active — even with the panel closed. This is what gives it the
+ * same open/close animation the left sidebar already has
+ * (`useResizableSidebar`/App.tsx): there, the wrapper never unmounts, only
+ * the width changes (0 collapsed, `width` open) via CSS transition; here it
+ * used to be different — the panel's content only existed in the DOM when
+ * open, so there was nothing for the transition to animate (it
+ * appeared/disappeared instantly). Now the heavy content (`TerminalPanel`,
+ * lazy) only mounts when `panel.open`, but the width of whoever hosts it is
+ * already animating from before — code splitting stays intact, xterm.js
+ * only loads on the first real open.
  */
 export function TerminalPanelSlot({
   profile,

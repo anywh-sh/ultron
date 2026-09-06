@@ -9,14 +9,14 @@ interface ContextUsageButtonProps {
 }
 
 /**
- * Anel + popover de detalhe da janela de contexto, mesmo padrão de
- * `PermissionModeButton`/`WorkingDirectoryButton`: `DropdownMenu` com
- * `modal={false}` (Radix trava foco/pointer-events no body enquanto um
- * dropdown modal está aberto, e a restauração falha no WKWebView do Tauri
- * no macOS — docs/24) e blur do trigger ao fechar (senão o Tooltip de
- * botões vizinhos ficaria "preso" aberto por herdar o foco). `usage` nulo
- * (sessão sem turno ainda) esconde o botão inteiro, igual o anel sozinho já
- * fazia.
+ * Ring + detail popover for the context window, same pattern as
+ * `PermissionModeButton`/`WorkingDirectoryButton`: `DropdownMenu` with
+ * `modal={false}` (Radix traps focus/pointer-events on the body while a
+ * modal dropdown is open, and restoration fails on Tauri's WKWebView on
+ * macOS — docs/24) and blurs the trigger on close (otherwise a neighboring
+ * button's Tooltip would get "stuck" open by inheriting the focus). `usage`
+ * null (session with no turn yet) hides the whole button, same as the ring
+ * alone already did.
  */
 export function ContextUsageButton({ usage }: ContextUsageButtonProps) {
   const triggerRef = useRef<HTMLButtonElement>(null);
@@ -49,8 +49,8 @@ export function ContextUsageButton({ usage }: ContextUsageButtonProps) {
             <span>Janela de contexto</span>
             <span className="font-mono text-xs">{Math.round(pct)}%</span>
           </div>
-          {/* Mesma função de cor do anel (contextUsageColor) — a barra aqui
-           * dentro é só a versão linear do mesmo dado, nunca diverge. */}
+          {/* Same color function as the ring (contextUsageColor) — the bar
+           * inside here is just the linear version of the same data, never diverges. */}
           <div className="h-1.5 w-full overflow-hidden rounded-full bg-border">
             <div
               className="h-full rounded-full transition-[width] duration-300 ease-out"

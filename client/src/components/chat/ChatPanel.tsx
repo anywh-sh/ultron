@@ -26,58 +26,60 @@ import type { Profile } from "@/lib/profiles";
 interface ChatPanelProps {
   profile: Profile;
   sessionId: string;
-  /** Aba aberta via "nova conversa" — mostra o estado ocioso em vez do
-   * skeleton de carregamento enquanto o log ainda está vazio. */
+  /** Tab opened via "new conversation" — shows the idle state instead of the
+   * loading skeleton while the log is still empty. */
   isNewConversation?: boolean;
-  /** `lastUserText` é a última mensagem que o usuário mandou nesse turno
-   * (extraída sincronamente do log, sem round-trip) — `App` usa isso como
-   * corpo de fallback da notificação do SO, se o resumo abaixo não chegar
-   * a tempo. */
+  /** `lastUserText` is the last message the user sent in this turn
+   * (extracted synchronously from the log, no round-trip) — `App` uses this
+   * as the OS notification's fallback body, if the summary below doesn't
+   * arrive in time. */
   onTurnComplete?: (result: { stopped: boolean; lastUserText: string | null }) => void;
-  /** Resumo do que a resposta fez (ou deixou pendente), gerado de forma
-   * assíncrona depois de `onTurnComplete` (ver relay-types.ts::notification_summary)
-   * — `App` usa isso como corpo da notificação, com o `lastUserText` acima
-   * como fallback se não chegar a tempo. */
+  /** Summary of what the response did (or left pending), generated
+   * asynchronously after `onTurnComplete` (see
+   * relay-types.ts::notification_summary) — `App` uses this as the
+   * notification body, with `lastUserText` above as a fallback if it doesn't
+   * arrive in time. */
   onNotificationSummary?: (text: string | null) => void;
   onTurnActiveChange?: (active: boolean) => void;
-  /** Título inferido do primeiro prompt (ou de um rename ao vivo em outro
-   * dispositivo) chegando pela WS dessa sessão — ver sharedSession.ts. */
+  /** Title inferred from the first prompt (or from a live rename on another
+   * device) arriving over this session's WS — see sharedSession.ts. */
   onTitle?: (title: string) => void;
-  /** Mensagem enviada — usado só pra subir a sessão pro topo da sidebar
-   * (ordenação por última interação); o relay já persiste isso sozinho
-   * (SharedSession.onActivity), esse callback é só a atualização otimista
-   * local, sem round-trip. */
+  /** Message sent — only used to bump the session to the top of the sidebar
+   * (ordering by last interaction); the relay already persists this on its
+   * own (SharedSession.onActivity), this callback is just the local
+   * optimistic update, no round-trip. */
   onActivity?: () => void;
-  /** Jobs `ultron-bg` observados agora nesta sessão, sempre que a lista muda
-   * — mesmo padrão de `onTurnActiveChange` (docs/32, Fase E): `App` usa isso
-   * pra alimentar o badge da aba/sidebar, que precisa saber mesmo com a aba
-   * fora de foco (continua montada, WS viva, docs/18). */
+  /** `ultron-bg` jobs currently observed in this session, whenever the list
+   * changes — same pattern as `onTurnActiveChange` (docs/32, Phase E): `App`
+   * uses this to feed the tab/sidebar badge, which needs to know even with
+   * the tab out of focus (it stays mounted, WS alive, docs/18). */
   onBackgroundJobsChange?: (jobs: BackgroundJobSummary[]) => void;
-  /** Sessão excluída, por este dispositivo ou outro — ver
+  /** Session deleted, by this device or another one — see
    * sharedSession.ts::closeAllClients. */
   onDeleted?: () => void;
-  /** Estado de conexão desta sessão — `App` usa isso pra alimentar a barra
-   * superior consolidada do iOS (docs/24), que vive fora do ChatPanel. */
+  /** This session's connection state — `App` uses this to feed iOS's
+   * consolidated top bar (docs/24), which lives outside ChatPanel. */
   onConnectedChange?: (connected: boolean) => void;
-  /** Terminal embutido (docs/30) — desktop only, `App` passa `undefined` no
-   * iOS/viewport compacto e o botão nem aparece (ver renderPanel). */
+  /** Embedded terminal (docs/30) — desktop only, `App` passes `undefined` on
+   * iOS/compact viewport and the button doesn't even appear (see
+   * renderPanel). */
   terminal?: {
     open: boolean;
     onToggle: () => void;
   };
-  /** Só a aba ativa deve reagir ao drag-and-drop nativo do Tauri — diferente
-   * do HTML5 DnD antigo (escopado pelo próprio DOM), o evento nativo chega
-   * pra TODAS as instâncias montadas (abas em segundo plano continuam
-   * montadas, docs/18), então cada `ChatPanel` precisa saber se é a vez dele
-   * de tratar o drop. */
+  /** Only the active tab should react to Tauri's native drag-and-drop —
+   * unlike the old HTML5 DnD (scoped by the DOM itself), the native event
+   * reaches ALL mounted instances (background tabs stay mounted, docs/18),
+   * so each `ChatPanel` needs to know whether it's its turn to handle the
+   * drop. */
   isActiveTab: boolean;
 }
 
 function buildWireMessage(text: string, attachments: PendingAttachment[]): string {
-  // O Claude só "vê" imagem via `Read` — vídeo vira uma sequência de frames
-  // extraídos no relay (ffmpeg, `uploads.ts`), referenciados em ordem
-  // cronológica, mais o path do vídeo original caso ele precise rodar
-  // ffmpeg/ffprobe nele diretamente via Bash pra algo mais específico.
+  // Claude only "sees" an image via `Read` — video becomes a sequence of
+  // frames extracted on the relay (ffmpeg, `uploads.ts`), referenced in
+  // chronological order, plus the original video's path in case it needs to
+  // run ffmpeg/ffprobe on it directly via Bash for something more specific.
   const refs = attachments
     .map((attachment) => {
       if (attachment.kind !== "video") return `[imagem anexada: ${attachment.path}]`;
@@ -93,13 +95,12 @@ function buildWireMessage(text: string, attachments: PendingAttachment[]): strin
   return [text, refs].filter(Boolean).join("\n\n");
 }
 
-/** Edição de mensagem (docs/33) — conta quantas entries `kind: "user"`
- * existem entre `id` e o fim de `entries` (inclusive), contando do fim (`1`
- * = a última). É sempre calculável a partir do que já está carregado: a
- * paginação do histórico carrega de trás pra frente, então tudo que vem
- * DEPOIS de uma mensagem já renderizada também já está carregado. `null` se
- * `id` não for encontrado (não deveria acontecer — o id vem de uma entry
- * renderizada agora mesmo). */
+/** Message editing (docs/33) — counts how many `kind: "user"` entries exist
+ * between `id` and the end of `entries` (inclusive), counting from the end
+ * (`1` = the last one). Always computable from what's already loaded: history
+ * pagination loads back-to-front, so anything AFTER an already-rendered
+ * message is also already loaded. `null` if `id` isn't found (shouldn't
+ * happen — the id comes from an entry rendered right now). */
 function computeFromEnd(entries: LogEntry[], id: string): number | null {
   let count = 0;
   for (let i = entries.length - 1; i >= 0; i--) {
@@ -142,32 +143,32 @@ export function ChatPanel({
   const onDeletedRef = useRef(onDeleted);
   onDeletedRef.current = onDeleted;
 
-  // O relay reenvia o histórico inteiro da sessão a cada conexão nova
-  // (`SharedSession.addClient`), inclusive `turn_complete` de turnos
-  // antigos — necessário pra reconstruir o log de mensagens ao reabrir uma
-  // aba, mas não deve contar como "turno concluído" pra badge/notificação.
-  // `caughtUpRef` fica `true` só depois do marcador `caught_up`, que o relay
-  // manda logo após o replay — daí em diante os eventos são mesmo ao vivo.
+  // The relay resends the whole session history on every new connection
+  // (`SharedSession.addClient`), including `turn_complete` from old turns —
+  // necessary to rebuild the message log when reopening a tab, but shouldn't
+  // count as "turn complete" for the badge/notification. `caughtUpRef` only
+  // becomes `true` after the `caught_up` marker, which the relay sends right
+  // after the replay — from then on events are truly live.
   const caughtUpRef = useRef(false);
-  // Mesmo sinal, mas em state — dispara o re-render que troca o skeleton
-  // pelo log de verdade. Volta a `false` numa reconexão de verdade
-  // (`onReconnecting`, docs/23 Fase D1) — o replay vai chegar de novo do
-  // zero, então o skeleton reaparece brevemente em vez de mostrar o log
-  // esvaziado sem indicação nenhuma.
+  // Same signal, but in state — triggers the re-render that swaps the
+  // skeleton for the real log. Goes back to `false` on a real reconnection
+  // (`onReconnecting`, docs/23 Phase D1) — the replay will arrive again from
+  // scratch, so the skeleton briefly reappears instead of showing the
+  // emptied log with no indication at all.
   const [ready, setReady] = useState(false);
 
   const images = useImageUpload(profile, (message) => window.alert(message));
   const composerRef = useRef<ComposerHandle>(null);
 
-  // Edição de mensagem (docs/33). `fromEnd` é calculado uma vez, no momento
-  // do clique em "editar" (`computeFromEnd`), e guardado aqui em vez de
-  // recalculado no momento de salvar — evita depender do log não ter mudado
-  // no meio do caminho. `editTargetRef`/`performEditRef` existem pra
-  // `onStartEdit`/`onSaveEdit`/`onSend` lerem sempre o valor mais recente
-  // sem entrar como dependência de `useCallback` nenhum — é o que mantém a
-  // identidade desses callbacks estável entre renders (ver comentário do
-  // `memo` em `Message.tsx`: sem isso, TODAS as bolhas perderiam o bail-out
-  // do memo a cada render do `ChatPanel`, não só a que está sendo editada).
+  // Message editing (docs/33). `fromEnd` is computed once, at the moment of
+  // clicking "edit" (`computeFromEnd`), and stored here instead of
+  // recomputed at save time — avoids depending on the log not having changed
+  // in between. `editTargetRef`/`performEditRef` exist so
+  // `onStartEdit`/`onSaveEdit`/`onSend` always read the latest value without
+  // entering as a dependency of any `useCallback` — that's what keeps those
+  // callbacks' identity stable across renders (see the `memo` comment in
+  // `Message.tsx`: without this, ALL bubbles would lose the memo bail-out on
+  // every `ChatPanel` render, not just the one being edited).
   const [editTarget, setEditTarget] = useState<{ id: string; fromEnd: number } | null>(null);
   const editTargetRef = useRef(editTarget);
   editTargetRef.current = editTarget;
@@ -175,19 +176,19 @@ export function ChatPanel({
 
   const [isDraggingOver, setIsDraggingOver] = useState(false);
 
-  // Drag-and-drop nativo do Tauri (`onDragDropEvent`), não HTML5 DnD — a
-  // versão anterior (dragenter/dragover/drop do DOM + `dragDropEnabled:
-  // false`) nunca chegou a ser confirmada com um drag de verdade no macOS
-  // (só no Windows, docs/15); usuário reportou que nada acontecia lá,
-  // consistente com bugs conhecidos do WKWebView em torno dessa API do
-  // browser. O evento nativo entrega o caminho real do arquivo no disco —
-  // lido via o comando Rust `read_dropped_file` (bytes crus, sem passar
-  // pela API `File` do navegador) e embrulhado num `File` local pra
-  // reaproveitar o mesmo pipeline de upload do botão de anexar.
+  // Tauri's native drag-and-drop (`onDragDropEvent`), not HTML5 DnD — the
+  // previous version (DOM dragenter/dragover/drop + `dragDropEnabled:
+  // false`) was never actually confirmed with a real drag on macOS (only on
+  // Windows, docs/15); the user reported nothing happened there, consistent
+  // with known WKWebView bugs around this browser API. The native event
+  // delivers the file's real path on disk — read via the Rust command
+  // `read_dropped_file` (raw bytes, without going through the browser's
+  // `File` API) and wrapped in a local `File` to reuse the same upload
+  // pipeline as the attach button.
   //
-  // O evento chega pra TODAS as abas montadas (background tabs continuam
-  // montadas, docs/18), não só a visível — por isso o guard em
-  // `isActiveTabRef` logo no início do handler.
+  // The event reaches ALL mounted tabs (background tabs stay mounted,
+  // docs/18), not just the visible one — hence the `isActiveTabRef` guard
+  // right at the start of the handler.
   useEffect(() => {
     let unlisten: (() => void) | undefined;
     let cancelled = false;
@@ -207,7 +208,7 @@ export function ChatPanel({
                 const name = path.split(/[\\/]/).pop() ?? "arquivo";
                 files.push(new File([buffer], name, { type: guessMimeFromExtension(name) }));
               } catch (error) {
-                console.error("[ultron] falha ao ler arquivo arrastado:", path, error);
+                console.error("[ultron] failed to read dropped file:", path, error);
               }
             }
             if (files.length > 0) {
@@ -233,32 +234,32 @@ export function ChatPanel({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  // Cobre do clique em "Enviar" até o turno terminar (sucesso ou erro) — não
-  // só o tempo de resposta do modelo, também a ida/volta de rede, pra nunca
-  // dar sensação de travado (feedback do usuário). Guarda o instante de
-  // início (não só um booleano) pro `TurnIndicator` cronometrar a partir do
-  // início real do turno, não de quando este componente soube — importante
-  // pro dispositivo que NÃO mandou a mensagem (ver `onTurnState` abaixo,
-  // achado testando multi-dispositivo: sem isso só quem mandou via o
-  // indicador de "pensando"). Otimista aqui (`Date.now()` no clique de
-  // enviar, antes do round-trip com o relay), corrigido pelo `startedAt` de
-  // verdade assim que `onTurnState` chegar.
+  // Covers from clicking "Send" until the turn ends (success or error) — not
+  // just the model's response time, also the network round trip, to never
+  // give a stuck feeling (user feedback). Stores the start instant (not just
+  // a boolean) so `TurnIndicator` can time from the turn's real start, not
+  // from when this component found out — important for the device that
+  // DIDN'T send the message (see `onTurnState` below, a finding from testing
+  // multi-device: without this only the sender saw the "thinking"
+  // indicator). Optimistic here (`Date.now()` on the send click, before the
+  // round trip with the relay), corrected by the real `startedAt` as soon as
+  // `onTurnState` arrives.
   const [turnStartedAt, setTurnStartedAt] = useState<number | null>(null);
   const turnInFlight = turnStartedAt !== null;
 
-  // Reporta o estado pro Tab (`isRunning`) via ref — abas em background
-  // continuam montadas (docs/18), então isso também cobre turnos rodando
-  // fora da aba/perfil visível no momento.
+  // Reports the state to the Tab (`isRunning`) via ref — background tabs
+  // stay mounted (docs/18), so this also covers turns running outside the
+  // currently visible tab/profile.
   useEffect(() => {
     onTurnActiveChangeRef.current?.(turnInFlight);
   }, [turnInFlight]);
 
-  // Pasta padrão do perfil (Configurações) tentando se aplicar sozinha numa
-  // conversa nova — ver efeito logo abaixo do `useRelayClient`. Se o relay
-  // recusar (pasta apagada, sem permissão), o erro não deve virar um alert
-  // sem nenhuma ação do usuário por trás: essa flag faz `onSetCwdError`
-  // engolir só ESSA falha, mantendo o alert normal pra troca manual via
-  // `WorkingDirectoryButton`.
+  // Profile's default folder (Settings) trying to apply itself on a new
+  // conversation — see the effect right below `useRelayClient`. If the relay
+  // refuses (deleted folder, no permission), the error shouldn't turn into
+  // an alert with no user action behind it: this flag makes `onSetCwdError`
+  // swallow only THIS failure, keeping the normal alert for a manual switch
+  // via `WorkingDirectoryButton`.
   const suppressNextCwdErrorRef = useRef(false);
 
   const {
@@ -289,20 +290,20 @@ export function ChatPanel({
       caughtUpRef.current = false;
       setReady(false);
     },
-    // `/clear` (docs/26) — mesma limpeza de log que uma reconexão de verdade
-    // já faz, só que sem passar por `ready`/skeleton (a conversa continua
-    // "pronta", só ficou vazia).
+    // `/clear` (docs/26) — same log clearing a real reconnection already
+    // does, just without going through `ready`/skeleton (the conversation
+    // stays "ready", it just became empty).
     onConversationReset: () => logRef.current.reset(),
-    // Cauda inicial do histórico (Fase 2-4, docs/30) — chega antes de
-    // `onCaughtUp`, hidrata o log com um dispatch só em vez do replay antigo
-    // evento-a-evento.
+    // Initial history tail (Phase 2-4, docs/30) — arrives before
+    // `onCaughtUp`, hydrates the log with a single dispatch instead of the
+    // old event-by-event replay.
     onHistoryPage: (page) => logRef.current.hydrate(page),
-    // Turnos mais antigos pedidos via scroll pra cima (Fase 5, docs/30).
+    // Older turns requested via scrolling up (Phase 5, docs/30).
     onOlderHistory: (page) => logRef.current.prependHistory(page),
-    // Edição de mensagem em OUTRO dispositivo conectado nesta sessão
-    // (docs/33) — mesmo tratamento de reset+hydrate de `onReconnecting`/
-    // `onHistoryPage`, só que sem tocar em `ready`/`caughtUpRef`: este
-    // dispositivo já está em dia, não é uma reconexão de verdade.
+    // Message edited on ANOTHER device connected to this session (docs/33) —
+    // same reset+hydrate handling as `onReconnecting`/`onHistoryPage`, just
+    // without touching `ready`/`caughtUpRef`: this device is already caught
+    // up, it's not a real reconnection.
     onHistoryTruncated: (page) => {
       logRef.current.reset();
       logRef.current.hydrate(page);
@@ -323,13 +324,13 @@ export function ChatPanel({
       logRef.current.handleTurnError(message);
       setTurnStartedAt(null);
     },
-    // Turno em andamento é estado da SESSÃO, não de quem mandou — sem isso,
-    // um dispositivo que não iniciou o turno (ou que conecta no meio dele)
-    // nunca via o indicador de "pensando"/cronômetro (achado real testando
-    // multi-dispositivo). `startedAt` do relay corrige o cronômetro pro
-    // início de verdade; o `setTurnStartedAt(Date.now())` otimista do envio
-    // (Composer.onSend) já cobre o instante entre o clique e este evento
-    // chegar de volta.
+    // A turn in progress is SESSION state, not sender state — without this,
+    // a device that didn't start the turn (or that connects mid-turn) would
+    // never see the "thinking" indicator/timer (a real finding from testing
+    // multi-device). The relay's `startedAt` corrects the timer to the real
+    // start; the send's optimistic `setTurnStartedAt(Date.now())`
+    // (Composer.onSend) already covers the instant between the click and
+    // this event coming back.
     onTurnState: (state) => setTurnStartedAt(state.active ? (state.startedAt ?? Date.now()) : null),
     onSetCwdError: (message) => {
       if (suppressNextCwdErrorRef.current) {
@@ -343,13 +344,13 @@ export function ChatPanel({
     onSessionDeleted: () => onDeletedRef.current?.(),
   });
 
-  // Aplica o path padrão do perfil (Configurações) assim que a conversa nova
-  // recebe seu primeiro `cwd_state` — o relay sempre entrega o próprio
-  // default nesse momento (sessão nunca nasce travada, ver comentário em
-  // `WorkingDirectoryButton`), então isso é o mesmo que o usuário escolher a
-  // pasta na hora, só automático. Roda no máximo uma vez por aba
-  // (`appliedDefaultPathRef`): depois disso o usuário pode trocar livremente
-  // sem o efeito insistir em voltar pro default a cada re-render.
+  // Applies the profile's default path (Settings) as soon as the new
+  // conversation receives its first `cwd_state` — the relay always delivers
+  // its own default at this moment (a session never starts locked, see
+  // comment in `WorkingDirectoryButton`), so this is the same as the user
+  // picking the folder right away, just automatic. Runs at most once per tab
+  // (`appliedDefaultPathRef`): after that the user can switch freely without
+  // the effect insisting on going back to the default on every re-render.
   const appliedDefaultPathRef = useRef(false);
   useEffect(() => {
     if (!isNewConversation || appliedDefaultPathRef.current || cwd === null) return;
@@ -361,13 +362,13 @@ export function ChatPanel({
     }
   }, [isNewConversation, cwd, profile.id, setCwd]);
 
-  // Aplica a preferência de modelo do perfil (Configurações) numa conversa
-  // nova — mesmo raciocínio do efeito de pasta padrão acima, mas gatilhado em
-  // `ready` (pós `caught_up`) em vez de `cwd !== null`: o `model_state`
-  // inicial do relay pode chegar como `null` de verdade (sessão nunca teve
-  // `/model`), o que o tornaria indistinguível de "ainda não chegou" — `ready`
-  // já garante que aquele primeiro `model_state` (sempre mandado antes do
-  // `caught_up`, ver `SharedSession.addClient`) já foi processado.
+  // Applies the profile's model preference (Settings) on a new conversation
+  // — same reasoning as the default-folder effect above, but triggered on
+  // `ready` (post `caught_up`) instead of `cwd !== null`: the relay's
+  // initial `model_state` can genuinely arrive as `null` (session never had
+  // `/model`), which would make it indistinguishable from "hasn't arrived
+  // yet" — `ready` already guarantees that first `model_state` (always sent
+  // before `caught_up`, see `SharedSession.addClient`) has been processed.
   const appliedModelPreferenceRef = useRef(false);
   useEffect(() => {
     if (!isNewConversation || appliedModelPreferenceRef.current || !ready) return;
@@ -376,19 +377,18 @@ export function ChatPanel({
     if (preferredModel && preferredModel !== model) setModel(preferredModel);
   }, [isNewConversation, ready, model, profile.id, setModel]);
 
-  // Grava o modelo em uso como "último usado" do perfil (docs/26) sempre que
-  // ele muda pra um valor concreto — cobre a troca manual (`ModelButton`,
-  // `/model`) e a própria pré-seleção acima, de propósito: religar o modo
-  // "lastUsed" mais tarde não deve perder o que rodou enquanto "fixed"
-  // estava ativo.
+  // Records the model in use as the profile's "last used" (docs/26) whenever
+  // it changes to a concrete value — covers manual switching (`ModelButton`,
+  // `/model`) and the pre-selection above itself, on purpose: turning
+  // "lastUsed" mode back on later shouldn't lose what ran while "fixed" was
+  // active.
   useEffect(() => {
     if (model) setLastModel(profile.id, model);
   }, [model, profile.id]);
 
-  // Mesmo padrão de `onTurnActiveChange` acima: reporta pro Tab via ref —
-  // abas em background continuam montadas (docs/18), então isso também
-  // cobre um job terminando fora da aba/perfil visível no momento (docs/32,
-  // Fase E).
+  // Same pattern as `onTurnActiveChange` above: reports to the Tab via ref —
+  // background tabs stay mounted (docs/18), so this also covers a job
+  // finishing outside the currently visible tab/profile (docs/32, Phase E).
   useEffect(() => {
     onBackgroundJobsChangeRef.current?.(backgroundJobs);
   }, [backgroundJobs]);
@@ -399,11 +399,12 @@ export function ChatPanel({
     onConnectedChangeRef.current?.(connected);
   }, [connected]);
 
-  // Edição de mensagem (docs/33): trunca localmente (otimista, igual a um
-  // envio normal) e manda `edit_message` — o relay para o turno atual (se
-  // houver), corta o transcript real no ponto certo e roda um turno novo. Se
-  // `target.id` não bater mais com o `id` pedido (ex: outra edição já rodou
-  // no meio do caminho), ignora em vez de truncar no lugar errado.
+  // Message editing (docs/33): truncates locally (optimistic, like a normal
+  // send) and sends `edit_message` — the relay stops the current turn (if
+  // any), cuts the real transcript at the right point and runs a new turn.
+  // If `target.id` no longer matches the requested `id` (e.g. another edit
+  // already ran in between), ignores instead of truncating in the wrong
+  // spot.
   performEditRef.current = (id, newText) => {
     const target = editTargetRef.current;
     if (!target || target.id !== id) return;
@@ -415,17 +416,18 @@ export function ChatPanel({
     onActivity?.();
   };
 
-  // Identidade estável (refs por dentro, sem depender de state/props no array
-  // de deps) — ver comentário no topo do componente sobre por que isso
-  // importa pro `memo` de `UserBubble`/`MessageLog`.
+  // Stable identity (refs inside, not depending on state/props in the deps
+  // array) — see the comment at the top of the component about why this
+  // matters for `UserBubble`/`MessageLog`'s `memo`.
   const onStartEdit = useCallback((id: string, text: string) => {
     const fromEnd = computeFromEnd(logRef.current.entries, id);
     if (fromEnd === null) return;
     setEditTarget({ id, fromEnd });
-    // No iOS a edição acontece via composer (docs/33: balão não vira input
-    // lá) — preenche com o texto original e mostra o aviso (ver JSX abaixo).
-    // No desktop isso não faz nada: `editingMessageId` já basta pro
-    // `UserBubble` virar `<textarea>` sozinho.
+    // On iOS editing happens via the composer (docs/33: the bubble doesn't
+    // turn into an input there) — fills it with the original text and shows
+    // the warning (see JSX below). On desktop this does nothing:
+    // `editingMessageId` is already enough for `UserBubble` to turn into a
+    // `<textarea>` on its own.
     if (isIOS()) {
       composerRef.current?.setContent(text);
       composerRef.current?.focus();
@@ -447,9 +449,10 @@ export function ChatPanel({
     });
   }, []);
 
-  // Disparado pelo `MessageLog` ao rolar perto do topo (Fase 5, docs/30) — o
-  // guard mora aqui (não só no `MessageLog`) porque `logRef` é a fonte de
-  // verdade mais atual do estado de paginação, sem depender de re-render.
+  // Fired by `MessageLog` when scrolling near the top (Phase 5, docs/30) —
+  // the guard lives here (not just in `MessageLog`) because `logRef` is the
+  // most up-to-date source of truth for pagination state, without depending
+  // on a re-render.
   const handleLoadOlderHistory = useCallback(() => {
     const current = logRef.current;
     if (current.loadingOlderHistory || !current.hasMoreHistory || current.historyCursor === null) return;
@@ -457,9 +460,9 @@ export function ChatPanel({
     loadOlderHistory(current.historyCursor);
   }, [loadOlderHistory]);
 
-  // Foca o composer assim que a aba de uma conversa nova monta — permite
-  // digitar de cara sem precisar clicar no campo (ex.: Ctrl/Cmd+N e já
-  // começar a escrever).
+  // Focuses the composer as soon as a new conversation's tab mounts — lets
+  // you type right away without clicking the field (e.g. Ctrl/Cmd+N and
+  // start typing immediately).
   useEffect(() => {
     if (isNewConversation) composerRef.current?.focus();
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -477,12 +480,13 @@ export function ChatPanel({
       )}
 
       {(isNewConversation || ready) && log.entries.length === 0 && log.streamingEntries.length === 0 ? (
-        // `isNewConversation` cobre a aba recém-aberta (mostra ocioso na hora,
-        // sem esperar `ready` — não tem nada mesmo pra carregar). `ready`
-        // cobre uma sessão existente que ficou vazia de verdade — depois de
-        // um `/clear` (docs/26), por exemplo — sem essa segunda condição a
-        // tela ficava só em branco (nem ocioso nem skeleton) até o próximo
-        // turno, porque `isNewConversation` já era `false` há muito tempo.
+        // `isNewConversation` covers the freshly opened tab (shows idle right
+        // away, without waiting for `ready` — there's really nothing to load
+        // anyway). `ready` covers an existing session that genuinely became
+        // empty — after a `/clear` (docs/26), for example — without this
+        // second condition the screen would just be blank (neither idle nor
+        // skeleton) until the next turn, because `isNewConversation` had
+        // already been `false` for a long time.
         <ChatIdleState />
       ) : ready ? (
         <MessageLog
@@ -492,9 +496,9 @@ export function ChatPanel({
           loadingOlderHistory={log.loadingOlderHistory}
           onLoadOlderHistory={handleLoadOlderHistory}
           className={isIOS() ? "pt-[calc(env(safe-area-inset-top)+64px)] pb-32" : undefined}
-          // No iOS a edição nunca vira `<textarea>` inline (docs/33) — o
-          // `ChatPanel` nunca passa um id daqui pra lá nessa plataforma,
-          // mesmo com `editTarget` setado (ver aviso no composer abaixo).
+          // On iOS editing never turns into an inline `<textarea>` (docs/33)
+          // — `ChatPanel` never passes an id along on that platform, even
+          // with `editTarget` set (see warning in the composer below).
           editingMessageId={isIOS() ? null : (editTarget?.id ?? null)}
           onStartEdit={onStartEdit}
           onCancelEdit={onCancelEdit}
@@ -507,20 +511,20 @@ export function ChatPanel({
 
       {!isIOS() && turnStartedAt !== null && <TurnIndicator startedAt={turnStartedAt} />}
 
-      {/* iOS (docs/24): cwd + composer flutuam por cima do log, saindo do
-       * fluxo normal — o log continua rolando visível (desfocado) por baixo
-       * do glass do composer, em vez de parar acima de um bloco fixo.
-       * `bottom` desloca pelo `keyboardInfo.shift` (`useKeyboardInset.ts`)
-       * em vez de ficar fixo em `bottom-0` — sem isso sobra um gap indevido
-       * entre o composer e o teclado (docs/34 item 1, docs/39: reproduzido
-       * de novo no device físico mesmo com o fix validado no Simulator). O
-       * padding de `safe-area-inset-bottom` é pra área do home indicator,
-       * que deixa de existir (foi substituída pelo teclado) assim que ele
-       * abre, então troca pra um `12px` fixo nesse estado — decidido por
-       * `keyboardInfo.isOpen`, não por `shift > 0`: os dois podem divergir
-       * se o layout encolher junto com o teclado (não confirmado se
-       * acontece no device físico), caso em que `shift` corretamente vai a
-       * zero mas o teclado continua aberto. */}
+      {/* iOS (docs/24): cwd + composer float above the log, out of normal
+       * flow — the log keeps scrolling, visible (blurred) beneath the
+       * composer's glass, instead of stopping above a fixed block. `bottom`
+       * shifts by `keyboardInfo.shift` (`useKeyboardInset.ts`) instead of
+       * staying fixed at `bottom-0` — without this an unwanted gap remains
+       * between the composer and the keyboard (docs/34 item 1, docs/39:
+       * reproduced again on the physical device even with the fix validated
+       * in the Simulator). The `safe-area-inset-bottom` padding is for the
+       * home indicator area, which stops existing (replaced by the keyboard)
+       * as soon as it opens, so it switches to a fixed `12px` in that state —
+       * decided by `keyboardInfo.isOpen`, not by `shift > 0`: the two can
+       * diverge if the layout shrinks along with the keyboard (not confirmed
+       * whether this happens on the physical device), in which case `shift`
+       * correctly goes to zero but the keyboard stays open. */}
       <div
         className={cn(
           isIOS()
@@ -548,10 +552,11 @@ export function ChatPanel({
           {terminal && <TerminalToggleButton cwd={cwd} open={terminal.open} onToggle={terminal.onToggle} />}
         </div>
 
-        {/* iOS (docs/33): edição não vira `<textarea>` inline no balão (ver
-         * `editingMessageId` acima) — preenche o composer normal com o texto
-         * original e mostra este aviso, já que enviar a partir daqui vai
-         * descartar a resposta original e tudo que veio depois dela. */}
+        {/* iOS (docs/33): editing doesn't turn into an inline `<textarea>`
+         * in the bubble (see `editingMessageId` above) — fills the normal
+         * composer with the original text and shows this warning, since
+         * sending from here will discard the original response and
+         * everything that came after it. */}
         {isIOS() && editTarget && (
           <div className="flex items-center justify-between gap-2 rounded-xl bg-bg-elevated/80 px-3 py-2 text-xs text-muted-foreground backdrop-blur-lg">
             <span>Editando essa mensagem vai recomeçar a conversa a partir desse ponto.</span>
@@ -566,11 +571,11 @@ export function ChatPanel({
           </div>
         )}
 
-        {/* No iOS o indicador de turno mora aqui dentro (não em document flow
-         * normal, como no desktop) — este bloco inteiro é `absolute
-         * bottom-0` (ver comentário acima), então um elemento fora dele
-         * vazava pra fora da área flutuante e acabava renderizando abaixo do
-         * composer (perto do teclado) em vez de acima. */}
+        {/* On iOS the turn indicator lives in here (not in normal document
+         * flow, like on desktop) — this whole block is `absolute bottom-0`
+         * (see comment above), so an element outside it would leak out of
+         * the floating area and end up rendering below the composer (near
+         * the keyboard) instead of above it. */}
         {isIOS() && turnStartedAt !== null && <TurnIndicator startedAt={turnStartedAt} />}
 
         <Composer
@@ -592,20 +597,21 @@ export function ChatPanel({
           compactBoundary={compactBoundary}
           suggestion={suggestion}
           onSend={(text, sentImages) => {
-            // Edição via composer (docs/33, iOS) — o envio normal (comandos
-            // de barra, `addUserMessage`+`sendMessage`) não se aplica aqui:
-            // o texto vai pro `edit_message`, não pro `user_message`.
-            // Imagens anexadas nesse estado são ignoradas de propósito
-            // (editar mensagem com imagem é fora de escopo da v1).
+            // Editing via composer (docs/33, iOS) — the normal send (slash
+            // commands, `addUserMessage`+`sendMessage`) doesn't apply here:
+            // the text goes to `edit_message`, not `user_message`. Images
+            // attached in this state are ignored on purpose (editing a
+            // message with an image is out of scope for v1).
             if (editTargetRef.current) {
               performEditRef.current(editTargetRef.current.id, text);
               return;
             }
-            // `/model`/`/clear` (docs/26): reconhecidos aqui, antes de virar
-            // turno — nenhum dos dois passa como texto pro `claude -p` (ver
-            // slashCommands.ts pro motivo de cada um). Comando com argumento
-            // não curado (`/model gpt4`) cai no `else`, vira mensagem normal
-            // e a própria CLI responde com o erro dela.
+            // `/model`/`/clear` (docs/26): recognized here, before becoming
+            // a turn — neither one gets passed as text to `claude -p` (see
+            // slashCommands.ts for the reason behind each). A command with
+            // an uncurated argument (`/model gpt4`) falls into the `else`,
+            // becomes a normal message and the CLI itself responds with its
+            // own error.
             const command = parseSlashCommand(text);
             if (command?.name === "clear") {
               clearConversation();

@@ -1,10 +1,10 @@
-// Voz: gravação de áudio nativa (cpal) + transcrição local (whisper-rs) —
-// decisão registrada em docs/07-voz-whisper-local.md. Sem envio de áudio
-// pra nenhum serviço externo, sem custo de API.
+// Voice: native audio recording (cpal) + local transcription (whisper-rs) —
+// decision recorded in docs/07-voz-whisper-local.md. No audio is sent to
+// any external service, no API cost.
 //
-// Modelo Whisper não é baixado automaticamente aqui ainda (evita puxar uma
-// dependência HTTP só pra isso nesta fase de validação funcional) — o
-// usuário baixa uma vez e a gente só checa se o arquivo existe.
+// The Whisper model isn't downloaded automatically here yet (avoids pulling
+// in an HTTP dependency just for that at this functional-validation stage)
+// — the user downloads it once and we just check whether the file exists.
 
 use cpal::traits::{DeviceTrait, HostTrait, StreamTrait};
 use rubato::{Resampler, SincFixedIn, SincInterpolationParameters, SincInterpolationType, WindowFunction};
@@ -14,10 +14,10 @@ use std::sync::{Arc, Mutex};
 use tauri::Manager;
 use whisper_rs::{FullParams, SamplingStrategy, WhisperContext, WhisperContextParameters};
 
-// "small" em vez de "base": no teste real do usuário, "base" errou uma
-// frase curta com uma palavra em inglês misturada ("digite echo teste" ->
-// "de gite, ecotece") — "small" é notavelmente mais preciso nesse tipo de
-// caso, e o hardware do cliente aguenta tranquilo (docs/14).
+// "small" instead of "base": in the user's real-world test, "base" got a
+// short phrase wrong with an English word mixed in ("digite echo teste" ->
+// "de gite, ecotece") — "small" is noticeably more accurate in that kind of
+// case, and the client's hardware handles it fine (docs/14).
 const MODEL_FILENAME: &str = "whisper-ggml-small.bin";
 const MODEL_DOWNLOAD_URL: &str = "https://huggingface.co/ggerganov/whisper.cpp/resolve/main/ggml-small.bin";
 const WHISPER_SAMPLE_RATE: u32 = 16_000;
@@ -68,9 +68,9 @@ pub fn start_recording(
     let channels_out = Arc::clone(&state.input_channels);
     let active_device_name_out = Arc::clone(&state.active_device_name);
 
-    // cpal::Stream não é Send em todas as plataformas, então ela precisa
-    // nascer, viver e morrer inteiramente dentro dessa thread dedicada —
-    // não dá pra devolver o Stream pro chamador.
+    // cpal::Stream isn't Send on every platform, so it needs to be born,
+    // live, and die entirely inside this dedicated thread — it can't be
+    // returned to the caller.
     let handle = std::thread::spawn(move || {
         let host = cpal::default_host();
         let device = match &device_name {
@@ -79,7 +79,7 @@ pub fn start_recording(
                 .ok()
                 .and_then(|mut devices| devices.find(|d| d.name().ok().as_deref() == Some(wanted.as_str())))
                 .or_else(|| {
-                    eprintln!("[voice] dispositivo '{wanted}' não encontrado, usando o padrão");
+                    eprintln!("[voice] device '{wanted}' not found, using the default");
                     host.default_input_device()
                 }),
             None => host.default_input_device(),
@@ -87,7 +87,7 @@ pub fn start_recording(
         let device = match device {
             Some(d) => d,
             None => {
-                eprintln!("[voice] nenhum dispositivo de entrada de áudio encontrado");
+                eprintln!("[voice] no audio input device found");
                 return;
             }
         };
@@ -97,7 +97,7 @@ pub fn start_recording(
         let config = match device.default_input_config() {
             Ok(c) => c,
             Err(e) => {
-                eprintln!("[voice] falha ao obter config de entrada: {e}");
+                eprintln!("[voice] failed to get input config: {e}");
                 return;
             }
         };
@@ -105,7 +105,7 @@ pub fn start_recording(
         *sample_rate_out.lock().unwrap() = config.sample_rate().0;
         *channels_out.lock().unwrap() = config.channels();
 
-        let err_fn = |err: cpal::StreamError| eprintln!("[voice] erro no stream de áudio: {err}");
+        let err_fn = |err: cpal::StreamError| eprintln!("[voice] audio stream error: {err}");
         let stream_buffer = Arc::clone(&buffer);
 
         let stream = match config.sample_format() {
@@ -127,7 +127,7 @@ pub fn start_recording(
                 None,
             ),
             other => {
-                eprintln!("[voice] formato de amostra não suportado: {other:?}");
+                eprintln!("[voice] unsupported sample format: {other:?}");
                 return;
             }
         };
@@ -135,20 +135,20 @@ pub fn start_recording(
         let stream = match stream {
             Ok(s) => s,
             Err(e) => {
-                eprintln!("[voice] falha ao abrir stream de entrada: {e}");
+                eprintln!("[voice] failed to open input stream: {e}");
                 return;
             }
         };
 
         if let Err(e) = stream.play() {
-            eprintln!("[voice] falha ao iniciar gravação: {e}");
+            eprintln!("[voice] failed to start recording: {e}");
             return;
         }
 
         while !should_stop.load(Ordering::SeqCst) {
             std::thread::sleep(std::time::Duration::from_millis(50));
         }
-        // `stream` é dropado aqui ao sair do escopo, parando a captura.
+        // `stream` is dropped here on scope exit, stopping the capture.
     });
 
     *state.recording_thread.lock().map_err(|e| e.to_string())? = Some(handle);
@@ -205,10 +205,10 @@ fn to_mono(samples: &[f32], channels: u16) -> Vec<f32> {
         .collect()
 }
 
-/// Reamostragem de qualidade (sinc/windowed-sinc) via `rubato`, em vez da
-/// interpolação linear simples da primeira versão — que provavelmente
-/// contribuía pra transcrições erradas tipo "digite echo teste" virar
-/// "de gite, ecotece" (ver docs/14).
+/// High-quality resampling (sinc/windowed-sinc) via `rubato`, instead of the
+/// simple linear interpolation from the first version — which likely
+/// contributed to wrong transcriptions like "digite echo teste" turning into
+/// "de gite, ecotece" (see docs/14).
 fn resample(samples: &[f32], from_rate: u32, to_rate: u32) -> Result<Vec<f32>, String> {
     if from_rate == to_rate || samples.is_empty() {
         return Ok(samples.to_vec());
@@ -237,7 +237,7 @@ fn resample(samples: &[f32], from_rate: u32, to_rate: u32) -> Result<Vec<f32>, S
     while offset < samples.len() {
         let end = (offset + chunk_size).min(samples.len());
         let mut chunk = samples[offset..end].to_vec();
-        chunk.resize(chunk_size, 0.0); // último pedaço: preenche com silêncio
+        chunk.resize(chunk_size, 0.0); // last chunk: pad with silence
         offset = end;
 
         let processed = resampler

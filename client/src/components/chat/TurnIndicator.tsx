@@ -3,21 +3,22 @@ import { formatDurationLong } from "@/lib/utils";
 import { pickThinkingWord } from "@/lib/thinkingWords";
 
 interface TurnIndicatorProps {
-  /** Epoch ms de quando o turno começou de verdade — vem do relay
-   * (`turn_state`, docs/30), não do momento em que este componente montou.
-   * Importa pro dispositivo que NÃO mandou a mensagem (ou que conecta no
-   * meio de um turno já em andamento): sem isso, o cronômetro contaria a
-   * partir de quando ele soube, não do início real, subestimando o tempo já
-   * passado. Pra quem mandou, `ChatPanel` já preenche isso otimisticamente
-   * (`Date.now()` no clique de enviar), então na prática é sempre "agora"
-   * pra essa aba — a diferença só aparece pra quem não iniciou. */
+  /** Epoch ms of when the turn actually started — comes from the relay
+   * (`turn_state`, docs/30), not from when this component mounted. Matters
+   * for the device that did NOT send the message (or that connects in the
+   * middle of a turn already in progress): without this, the timer would
+   * count from when it found out, not the real start, underestimating the
+   * time already elapsed. For whoever sent it, `ChatPanel` already fills
+   * this in optimistically (`Date.now()` on the send click), so in practice
+   * it's always "now" for that tab — the difference only shows up for
+   * whoever didn't start it. */
   startedAt: number;
 }
 
-/** Indicador de turno em andamento — do momento do envio até a resposta
- * terminar (cobre a latência de rede + o tempo de raciocínio do modelo, que
- * frequentemente não expõe texto de thinking de verdade — ver docs/18).
- * Fica acima do composer, fora do log rolável, sem rail lateral.
+/** Indicator for a turn in progress — from the moment of sending until the
+ * response finishes (covers network latency + the model's reasoning time,
+ * which often doesn't expose real thinking text — see docs/18). Sits above
+ * the composer, outside the scrollable log, with no side rail.
  */
 export function TurnIndicator({ startedAt }: TurnIndicatorProps) {
   const [elapsedSeconds, setElapsedSeconds] = useState(() => Math.floor((Date.now() - startedAt) / 1000));

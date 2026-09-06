@@ -5,10 +5,10 @@ export async function listInputDevices(): Promise<string[]> {
   return await invoke<string[]>("list_input_devices");
 }
 
-/** cpal acessa o CoreAudio direto no macOS, o que não dispara o diálogo nativo
- * de permissão — sem isso o app grava só silêncio (whisper "alucina" texto
- * tipo "[Música]"). Força o pedido de permissão de verdade via AVFoundation
- * antes de gravar. No-op em outras plataformas. */
+/** cpal accesses CoreAudio directly on macOS, which doesn't trigger the
+ * native permission dialog — without this the app records only silence
+ * (whisper "hallucinates" text like "[Music]"). Forces the real permission
+ * request via AVFoundation before recording. No-op on other platforms. */
 export async function ensureMicrophonePermission(): Promise<void> {
   if (!isMacOS()) return;
 

@@ -11,26 +11,27 @@ interface ComposerLinkHoverCardProps {
   editor: Editor | null;
 }
 
-/** Hover card (href + editar) pro link criado por paste-to-link no composer.
- * Uma instância só por `Composer` (não por link) com listeners nativos em
- * `editor.view.dom` via delegação de evento — não um Tiptap MarkView por
- * link como antes. O MarkView (`ReactMarkViewRenderer`/`addMarkView`) tem um
- * bug real e reproduzido (não só suspeita): qualquer marca renderizada por
- * ele quebra o mapeamento posição-doc↔DOM do ProseMirror (`view.domAtPos`
- * cai pro `<div contenteditable>` em vez de descer até o texto certo) assim
- * que ela existe no documento — não só na borda dela, no parágrafo inteiro.
- * Reproduzido isolado (fora do app) com Playwright: colar um link deixava o
- * cursor "grudado" na posição de antes do paste (bug 1 relatado pelo
- * usuário), colar sobre um texto selecionado tinha o mesmo problema (bug 2),
- * e apagar uma seleção que incluía um link deixava sem seleção nativa
- * nenhuma, cursor "sumido" (bug 3) — sem o MarkView (mark renderizada como
- * `<a>` puro via `renderHTML`, sem `contentDOM` próprio) os três somem, os
- * mesmos passos reproduzidos isolados voltam a posicionar o cursor certo.
- * O preço é este arquivo: hover/editar não pode mais viver dentro do próprio
- * elemento do link (não existe mais um componente React por link), então a
- * detecção de hover e o `range`/atributos do link editado são resolvidos a
- * partir do elemento DOM nativo (`closest("a.composer-link")` + `posAtDOM` +
- * `getMarkRange`, mesma técnica que o MarkView já usava no hover). */
+/** Hover card (href + edit) for the link created by paste-to-link in the
+ * composer. A single instance per `Composer` (not per link) with native
+ * listeners on `editor.view.dom` via event delegation — not a Tiptap
+ * MarkView per link like before. MarkView (`ReactMarkViewRenderer`/
+ * `addMarkView`) has a real, reproduced bug (not just a suspicion): any mark
+ * it renders breaks ProseMirror's doc-position↔DOM mapping (`view.domAtPos`
+ * falls back to the `<div contenteditable>` instead of descending to the
+ * right text) as soon as it exists in the document — not just at its edge,
+ * the whole paragraph. Reproduced in isolation (outside the app) with
+ * Playwright: pasting a link left the cursor "stuck" at the pre-paste
+ * position (bug 1 reported by the user), pasting over a selected text had
+ * the same problem (bug 2), and deleting a selection that included a link
+ * left no native selection at all, cursor "gone" (bug 3) — without MarkView
+ * (mark rendered as a plain `<a>` via `renderHTML`, with no `contentDOM` of
+ * its own) all three disappear, the same steps reproduced in isolation
+ * correctly position the cursor again. The price is this file: hover/edit
+ * can no longer live inside the link's own element (there's no longer a
+ * React component per link), so hover detection and the edited link's
+ * `range`/attributes are resolved from the native DOM element
+ * (`closest("a.composer-link")` + `posAtDOM` + `getMarkRange`, the same
+ * technique MarkView already used on hover). */
 export function ComposerLinkHoverCard({ editor }: ComposerLinkHoverCardProps) {
   const [cardOpen, setCardOpen] = useState(false);
   const [anchorRect, setAnchorRect] = useState<DOMRect | null>(null);
@@ -75,10 +76,10 @@ export function ComposerLinkHoverCard({ editor }: ComposerLinkHoverCardProps) {
         const $pos = currentEditor.state.doc.resolve(Math.min(pos + 1, currentEditor.state.doc.content.size));
         const range = linkType ? (getMarkRange($pos, linkType) ?? null) : null;
         rangeRef.current = range;
-        // Lido aqui, no exato doc em que `range` foi resolvido — nunca no
-        // render (o doc pode já ter mudado e invalidado `range` nesse
-        // meio-tempo, ex.: logo depois de salvar uma edição, `textBetween`
-        // com um range de antes da edição explode contra o doc novo).
+        // Read here, in the exact doc where `range` was resolved — never in
+        // the render (the doc may have already changed and invalidated
+        // `range` in the meantime, e.g. right after saving an edit,
+        // `textBetween` with a pre-edit range blows up against the new doc).
         const linkMark = range ? currentEditor.state.doc.nodeAt(range.from)?.marks.find((mark) => mark.type === linkType) : undefined;
         attrsRef.current = linkMark?.attrs ?? { href: link.getAttribute("href") };
         setCurrentText(range ? currentEditor.state.doc.textBetween(range.from, range.to) : "");
@@ -92,11 +93,11 @@ export function ComposerLinkHoverCard({ editor }: ComposerLinkHoverCardProps) {
       if (linkElementFromEvent(event)) scheduleClose();
     }
 
-    // `<a href>` real dentro do contenteditable navegaria a página ao
-    // clicar — o `Link` do Tiptap não faz `preventDefault` sozinho quando
-    // `openOnClick: false` (só evita chamar `window.open`). Não impede o
-    // posicionamento normal do cursor: o ProseMirror decide isso a partir
-    // do `mousedown`, não do `click`.
+    // A real `<a href>` inside the contenteditable would navigate the page
+    // on click — Tiptap's `Link` doesn't call `preventDefault` on its own
+    // when `openOnClick: false` (it only avoids calling `window.open`).
+    // Doesn't prevent normal cursor positioning: ProseMirror decides that
+    // from `mousedown`, not `click`.
     function handleClick(event: MouseEvent): void {
       if (linkElementFromEvent(event)) event.preventDefault();
     }

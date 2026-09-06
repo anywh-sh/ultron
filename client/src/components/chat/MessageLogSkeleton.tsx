@@ -14,11 +14,11 @@ const ROWS: SkeletonRow[] = [
 ];
 
 /**
- * Fica no lugar do log enquanto a aba ainda não recebeu o marcador
- * `caught_up` do relay — a reconstrução do histórico a partir do `.jsonl`
- * (docs/20) trouxe uma espera real que antes não existia (o log sempre
- * chegava vazio na hora). Sem isso a tela fica com cara de travada: composer
- * desabilitado, log vazio, até o replay inteiro terminar de chegar.
+ * Stands in for the log while the tab hasn't received the relay's
+ * `caught_up` marker yet — rebuilding history from the `.jsonl` (docs/20)
+ * introduced a real wait that didn't exist before (the log always arrived
+ * empty right away). Without this the screen looks stuck: composer
+ * disabled, empty log, until the whole replay finishes arriving.
  */
 export function MessageLogSkeleton() {
   return (

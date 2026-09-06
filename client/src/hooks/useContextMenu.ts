@@ -3,18 +3,18 @@ import { useState, type MouseEvent } from "react";
 export interface ContextMenuState {
   open: boolean;
   setOpen: (open: boolean) => void;
-  /** Posição fixa (viewport) onde o menu deve ancorar — segue o cursor no
-   * momento do clique direito, não a posição do elemento. */
+  /** Fixed (viewport) position where the menu should anchor — follows the
+   * cursor at the moment of the right-click, not the element's position. */
   position: { x: number; y: number };
   onContextMenu: (event: MouseEvent) => void;
 }
 
 /**
- * Estado de um menu ancorado no ponto do clique direito, em vez do clique
- * esquerdo padrão do Radix — reaproveita o `DropdownMenu` do design system
- * (controlado via `open`/`onOpenChange` + um trigger invisível posicionado
- * no cursor) em vez de trazer o primitivo `ContextMenu` do Radix só pra
- * isso. Usado por `SessionListItem` (painel esquerdo) e `TabBar` (aba).
+ * State for a menu anchored at the right-click point, instead of Radix's
+ * default left-click — reuses the design system's `DropdownMenu`
+ * (controlled via `open`/`onOpenChange` + an invisible trigger positioned
+ * at the cursor) instead of bringing in Radix's `ContextMenu` primitive
+ * just for this. Used by `SessionListItem` (left panel) and `TabBar` (tab).
  */
 export function useContextMenu(): ContextMenuState {
   const [open, setOpen] = useState(false);

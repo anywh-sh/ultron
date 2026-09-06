@@ -4,27 +4,27 @@ import { inTauri } from "@/lib/tauri";
 import { isIOS } from "@/lib/platform";
 
 /**
- * Foco da janela do SO — distinto de "aba ativa dentro do app". Usado pra
- * decidir se uma conversa está realmente visível pro usuário (troca de aba
- * no app + alt-tab pra outro app são os dois jeitos de "não estar olhando").
- * Fora do Tauri assume sempre focado (sem API pra checar, e não é o
- * contexto em que a notificação de turno concluído dispara mesmo).
+ * OS window focus — distinct from "active tab within the app". Used to
+ * decide whether a conversation is actually visible to the user (switching tabs
+ * within the app + alt-tabbing to another app are the two ways of "not looking").
+ * Outside Tauri, always assumes focused (no API to check, and it's not the
+ * context where the turn-complete notification fires anyway).
  *
- * No iOS usa `document.visibilityState`/`visibilitychange` em vez da API de
- * foco de janela do Tauri — achado real (spike no Simulator, docs/37): o
- * foco de "janela" ali mapeia pro par `applicationWillResignActive`/
- * `DidBecomeActive` do UIKit, que dispara pra qualquer interrupção
- * momentânea (Control Center, um alerta do sistema, o próprio prompt nativo
- * de permissão de notificação) — não só quando o app sai de primeiro plano
- * de verdade. Resultado prático: notificação de turno concluído disparando
- * mesmo com o usuário olhando direto pra tela, porque `windowFocused`
- * piscava `false` num instante sem relação com background real. Já
- * `document.hidden` é a API padrão da web justamente para "a página está
- * genuinamente fora de vista", e só vira `true` na transição real de
- * background em WKWebView (confirmado no mesmo spike: dispara pouco antes
- * do processo ser suspenso, não em blips de foco). Desktop mantém a API de
- * janela do Tauri (ali "perder foco" É o sinal certo — alt-tab pra outro
- * app deve mesmo contar como "não estou olhando", diferente do iOS). */
+ * On iOS uses `document.visibilityState`/`visibilitychange` instead of Tauri's
+ * window focus API — real finding (Simulator spike, docs/37): "window"
+ * focus there maps to UIKit's `applicationWillResignActive`/
+ * `DidBecomeActive` pair, which fires for any momentary
+ * interruption (Control Center, a system alert, the native notification
+ * permission prompt itself) — not just when the app actually goes to the
+ * background for real. Practical result: turn-complete notification firing
+ * even with the user looking straight at the screen, because `windowFocused`
+ * blipped to `false` for an instant unrelated to real backgrounding. Meanwhile
+ * `document.hidden` is the standard web API precisely for "the page is
+ * genuinely out of view", and only becomes `true` on the real background
+ * transition in WKWebView (confirmed in the same spike: fires shortly before
+ * the process gets suspended, not on focus blips). Desktop keeps Tauri's
+ * window API (there, "losing focus" IS the correct signal — alt-tabbing to another
+ * app should indeed count as "not looking", unlike iOS). */
 export function useWindowFocus(): boolean {
   const [focused, setFocused] = useState(true);
 

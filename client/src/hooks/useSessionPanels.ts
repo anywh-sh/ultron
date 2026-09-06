@@ -1,12 +1,12 @@
 import { useCallback, useEffect, useState } from "react";
 
-/** Painel lateral direito genérico, um por sessão de chat (aba) — hoje só
- * existe o conteúdo "terminal", mas o formato já separa a casca (aberto,
- * largura, maximizado) do conteúdo (`kind`) porque o visualizador de
- * arquivos do work dir (planejado, ainda não implementado) vai reaproveitar
- * a mesma gaveta: os dois nunca ficam abertos ao mesmo tempo pra uma
- * sessão, é literalmente o mesmo slot trocando de conteúdo, não dois
- * painéis independentes.
+/** Generic right-side panel, one per chat session (tab) — today only
+ * the "terminal" content exists, but the format already separates the shell (open,
+ * width, maximized) from the content (`kind`) because the work dir's
+ * file viewer (planned, not implemented yet) will reuse
+ * the same drawer: the two are never open at the same time for a
+ * session, it's literally the same slot swapping content, not two
+ * independent panels.
  */
 export type SessionPanelKind = "terminal";
 
@@ -42,12 +42,12 @@ function loadPersisted(): PanelMap {
 const EMPTY_PANEL: SessionPanelState = { open: false, kind: "terminal", width: DEFAULT_WIDTH, maximized: false };
 
 /**
- * Estado de todos os painéis direitos do app, um por aba de sessão —
- * mesmo padrão de `useTabs.ts` (um mapa em vez de instâncias separadas),
- * persistido em `localStorage` pra sobreviver a restart do app. Puramente
- * estado de UI (aberto/largura/maximizado): o que existe *dentro* do painel
- * (ex: quais abas de terminal) é responsabilidade de outro hook
- * (`useTerminalTabs`), este aqui só sabe da casca.
+ * State of all the app's right-side panels, one per session tab —
+ * same pattern as `useTabs.ts` (a map instead of separate instances),
+ * persisted in `localStorage` to survive an app restart. Purely
+ * UI state (open/width/maximized): what exists *inside* the panel
+ * (e.g. which terminal tabs) is another hook's responsibility
+ * (`useTerminalTabs`), this one only knows about the shell.
  */
 export function useSessionPanels() {
   const [panels, setPanels] = useState<PanelMap>(loadPersisted);
@@ -93,8 +93,8 @@ export function useSessionPanels() {
     });
   }, []);
 
-  /** Chamado quando a aba de chat é fechada/excluída — sem isso o mapa cresce
-   * pra sempre com entradas de sessões que não existem mais. */
+  /** Called when the chat tab is closed/deleted — without this the map keeps
+   * growing forever with entries for sessions that no longer exist. */
   const removePanel = useCallback((tabId: string) => {
     setPanels((prev) => {
       if (!(tabId in prev)) return prev;

@@ -13,12 +13,12 @@ export interface LongPressHandlers {
 }
 
 /**
- * Long-press pra abrir o menu de contexto nativo no iOS (docs/33) — não é o
- * mesmo padrão de `useContextMenu` (esse é clique-direito abrindo o
- * `DropdownMenu` do Radix, exclusivo do desktop). Cancela no `touchmove`
- * (rolar a lista não deve disparar o menu) e em qualquer `touchend`/
- * `touchcancel` antes do delay — só dispara se o dedo ficar parado o tempo
- * todo, igual o long-press nativo do sistema.
+ * Long-press to open the native context menu on iOS (docs/33) — not the
+ * same pattern as `useContextMenu` (that one is a right-click opening
+ * Radix's `DropdownMenu`, desktop-only). Cancels on `touchmove` (scrolling
+ * the list shouldn't trigger the menu) and on any `touchend`/`touchcancel`
+ * before the delay — only fires if the finger stays still the whole time,
+ * same as the system's native long-press.
  */
 export function useLongPress({ delay = 500, onLongPress }: UseLongPressOptions): LongPressHandlers {
   const timerRef = useRef<number | undefined>(undefined);

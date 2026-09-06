@@ -12,11 +12,11 @@ pub(crate) async fn set_connection_indicator<R: Runtime>(
     app.native_chrome().set_connection_indicator(payload)
 }
 
-/// Menu de contexto nativo (docs/33) — bloqueia (do ponto de vista deste
-/// comando async) até o usuário escolher um item ou descartar o menu; mesmo
-/// padrão de outros plugins Tauri que esperam interação do usuário (ex:
-/// diálogo de permissão do `tauri-plugin-macos-permissions`), não impõe
-/// timeout nenhum por conta própria.
+/// Native context menu (docs/33) — blocks (from this async command's point
+/// of view) until the user picks an item or dismisses the menu; same
+/// pattern as other Tauri plugins that wait on user interaction (e.g. the
+/// `tauri-plugin-macos-permissions` permission dialog), doesn't impose any
+/// timeout of its own.
 #[command]
 pub(crate) async fn show_context_menu<R: Runtime>(
     app: AppHandle<R>,

@@ -12,28 +12,28 @@ import type { LogEntry } from "@/hooks/useMessageLog";
 interface MessageLogProps {
   entries: LogEntry[];
   streamingEntries: LogEntry[];
-  /** Se existem turnos mais antigos que o que já está carregado (Fase 5,
-   * docs/30) — controla se rolar perto do topo ainda dispara busca. */
+  /** Whether there are turns older than what's already loaded (Phase 5,
+   * docs/30) — controls whether scrolling near the top still triggers a fetch. */
   hasMoreHistory: boolean;
-  /** Pedido de página mais antiga em voo — mostra o indicador no topo e
-   * também guarda contra pedido duplicado (a mesma guarda já existe no
-   * chamador, `ChatPanel`, mas checar aqui também evita reagir a scroll
-   * repetido enquanto a resposta não chega). */
+  /** Older-page request in flight — shows the indicator at the top and also
+   * guards against a duplicate request (the same guard already exists in
+   * the caller, `ChatPanel`, but checking here too avoids reacting to
+   * repeated scroll while the response hasn't arrived yet). */
   loadingOlderHistory: boolean;
-  /** Chamado quando o usuário rola perto do topo da lista, com mais
-   * histórico ainda por buscar. */
+  /** Called when the user scrolls near the top of the list, with more
+   * history still to fetch. */
   onLoadOlderHistory: () => void;
-  /** Espaço extra no rodapé — no iOS, o composer flutua por cima do log
-   * (docs/24), então o conteúdo precisa de mais respiro pra não terminar
-   * escondido atrás dele. */
+  /** Extra space at the bottom — on iOS, the composer floats over the log
+   * (docs/24), so the content needs extra breathing room to avoid ending up
+   * hidden behind it. */
   className?: string;
-  /** Edição de mensagem (docs/33) — `id` da entry `kind: "user"` que está
-   * virando `<textarea>` agora (desktop apenas; no iOS o `ChatPanel` nunca
-   * seta isto, a edição lá acontece via composer, não inline). `null` fora
-   * de edição. */
+  /** Message editing (docs/33) — `id` of the `kind: "user"` entry that's
+   * currently turning into a `<textarea>` (desktop only; on iOS `ChatPanel`
+   * never sets this, editing there happens via the composer, not inline).
+   * `null` when not editing. */
   editingMessageId: string | null;
-  /** Identidade estável (vem de refs em `ChatPanel`, não closures novas a
-   * cada render) — ver comentário do `memo` em `Message.tsx`. */
+  /** Stable identity (comes from refs in `ChatPanel`, not fresh closures on
+   * every render) — see the `memo` comment in `Message.tsx`. */
   onStartEdit: (id: string, text: string) => void;
   onCancelEdit: () => void;
   onSaveEdit: (id: string, text: string) => void;
@@ -45,12 +45,12 @@ type RenderItem =
   | ({ kind: "tool" } & ToolPair)
   | { kind: "tool-group"; items: ToolPair[] };
 
-// Tools que nunca entram num grupo colapsado — cada uma merece destaque
-// próprio: Edit/Write mutam disco (diff quer ser visto), TodoWrite é sinal
-// de planejamento, e Task delega pra um subagent cujas sub-tool-calls são
-// invisíveis no protocolo (não chegam como eventos separados), então o card
-// é a única janela pra esse trabalho — não pode ficar enterrado num "Usou N
-// ferramentas".
+// Tools that never go into a collapsed group — each one deserves its own
+// spotlight: Edit/Write mutate disk (the diff wants to be seen), TodoWrite
+// is a planning signal, and Task delegates to a subagent whose sub-tool-calls
+// are invisible in the protocol (they don't arrive as separate events), so
+// the card is the only window into that work — it can't stay buried in a
+// "Used N tools".
 const UNGROUPABLE_TOOLS = new Set(["Edit", "Write", "TodoWrite", "Task"]);
 
 function isGroupable(pair: ToolPair): boolean {
@@ -58,16 +58,16 @@ function isGroupable(pair: ToolPair): boolean {
   return !UNGROUPABLE_TOOLS.has(pair.use.name);
 }
 
-/** Junta tool-use com o tool-result correspondente (por toolUseId), e
- * agrupa sequências contíguas de tool calls "silenciosas" (sem texto entre
- * elas) num único item colapsável — reflete como o Claude realmente age
- * (várias ações em fila) em vez de virar uma lista de cards soltos e
- * idênticos. O protocolo do CLI não expõe "turno" como unidade (só mensagens
- * `assistant`/`user`), e o replay de sessão salva também não reconstrói
- * fronteiras internas de turno — por isso o agrupamento é por adjacência no
- * log (contíguo = sem nenhum bloco de texto/erro no meio), não por turno:
- * funciona idêntico ao vivo e no replay, sem precisar de um conceito que o
- * protocolo não entrega. */
+/** Joins tool-use with its corresponding tool-result (by toolUseId), and
+ * groups contiguous sequences of "silent" tool calls (no text between them)
+ * into a single collapsible item — reflects how Claude actually behaves
+ * (several queued actions) instead of turning into a list of loose,
+ * identical cards. The CLI protocol doesn't expose "turn" as a unit (only
+ * `assistant`/`user` messages), and replaying a saved session also doesn't
+ * reconstruct internal turn boundaries — that's why grouping is by
+ * adjacency in the log (contiguous = no text/error block in between), not
+ * by turn: it works identically live and on replay, without needing a
+ * concept the protocol doesn't provide. */
 function buildRenderItems(entries: LogEntry[]): RenderItem[] {
   const resultByToolUseId = new Map<string, Extract<LogEntry, { kind: "tool-result" }>>();
   for (const entry of entries) {
@@ -206,10 +206,10 @@ export const MessageLog = memo(function MessageLog({
   const parentRef = useRef<HTMLDivElement>(null);
   const userActions: UserActionHandlers = { editingMessageId, onStartEdit, onCancelEdit, onSaveEdit, onCopy };
 
-  // `entries` só ganha uma referência nova quando algo é de fato commitado
-  // (ver reducer em useMessageLog) — memoizar aqui evita recalcular o
-  // pareamento tool-use/tool-result a cada token do streaming, quando só
-  // `streamingEntries` muda.
+  // `entries` only gets a new reference when something is actually
+  // committed (see reducer in useMessageLog) — memoizing here avoids
+  // recomputing the tool-use/tool-result pairing on every streaming token,
+  // when only `streamingEntries` changes.
   const items = useMemo(() => buildRenderItems(entries), [entries]);
 
   const allItems = useMemo<RenderItem[]>(
@@ -219,18 +219,18 @@ export const MessageLog = memo(function MessageLog({
 
   const getItemKey = useCallback((index: number) => itemKey(allItems[index]), [allItems]);
 
-  // Virtualizado — conversas longas (centenas de tool calls/blocos de código
-  // com syntax highlighting) ficavam pesadas mesmo com a memoização acima,
-  // porque toda a lista continuava montada no DOM. `anchorTo: "end"` +
-  // `measureElement` (altura dinâmica — os itens variam muito: bolha curta,
-  // bloco de código longo, tool card expansível) mantêm o fim colado
-  // enquanto a última mensagem cresce durante o streaming, igual ao
-  // `scrollIntoView` antigo. `followOnAppend` é o que resolve o pedido do
-  // usuário: só acompanha uma mensagem nova se o viewport já estava no fim
-  // — se ele rolou pra cima lendo o histórico enquanto o agente trabalha, o
-  // scroll não é puxado pra baixo à força (docs oficiais do
-  // @tanstack/react-virtual, seção "chat"). `useFlushSync: false` é a
-  // recomendação oficial pra evitar warning/custo extra no React 19.
+  // Virtualized — long conversations (hundreds of tool calls/code blocks
+  // with syntax highlighting) got heavy even with the memoization above,
+  // because the whole list stayed mounted in the DOM. `anchorTo: "end"` +
+  // `measureElement` (dynamic height — items vary a lot: short bubble, long
+  // code block, expandable tool card) keep the end pinned while the last
+  // message grows during streaming, same as the old `scrollIntoView`.
+  // `followOnAppend` is what solves the user's request: it only follows a
+  // new message if the viewport was already at the end — if they scrolled
+  // up reading history while the agent works, scroll isn't forced back down
+  // (official @tanstack/react-virtual docs, "chat" section).
+  // `useFlushSync: false` is the official recommendation to avoid a
+  // warning/extra cost in React 19.
   const virtualizer = useVirtualizer({
     count: allItems.length,
     getScrollElement: () => parentRef.current,
@@ -243,23 +243,24 @@ export const MessageLog = memo(function MessageLog({
     useFlushSync: false,
   });
 
-  // Abre a aba já no fim da conversa (equivalente ao scrollIntoView antigo
-  // no primeiro mount) — dali em diante quem cuida de manter colado no fim
-  // é o `anchorTo`/`followOnAppend` acima. Sem guard de "só uma vez": em
-  // StrictMode (dev) o React desmonta e remonta o nó real do container logo
-  // depois do primeiro disparo pra testar limpeza de efeitos — um guard aqui
-  // bloquearia a segunda chamada, que é a que roda no nó DOM final (a
-  // primeira mira um nó descartado). `virtualizer` é uma instância estável
-  // (não muda de identidade em re-renders normais), então em produção isso
-  // roda só uma vez de verdade, igual ao padrão recomendado pela lib.
+  // Opens the tab already at the end of the conversation (equivalent to the
+  // old scrollIntoView on first mount) — from then on `anchorTo`/
+  // `followOnAppend` above take care of keeping it pinned to the end. No
+  // "only once" guard: in StrictMode (dev) React unmounts and remounts the
+  // container's real node right after the first fire to test effect
+  // cleanup — a guard here would block the second call, which is the one
+  // that runs on the final DOM node (the first targets a discarded node).
+  // `virtualizer` is a stable instance (doesn't change identity on normal
+  // re-renders), so in production this really only runs once, matching the
+  // pattern recommended by the library.
   useLayoutEffect(() => {
     virtualizer.scrollToEnd();
   }, [virtualizer]);
 
-  // Scroll reverso (Fase 5, docs/30): guarda a altura total no instante em
-  // que o pedido de turnos mais antigos é disparado — não dá pra saber de
-  // antemão quando a resposta chega, então isso é o único momento confiável
-  // pra capturar o "antes". `null` quando não há compensação em andamento.
+  // Reverse scroll (Phase 5, docs/30): stores the total height at the
+  // instant the request for older turns fires — there's no way to know in
+  // advance when the response arrives, so this is the only reliable moment
+  // to capture the "before". `null` when no compensation is in progress.
   const prependAnchorRef = useRef<number | null>(null);
 
   const handleScroll = useCallback(() => {
@@ -269,20 +270,20 @@ export const MessageLog = memo(function MessageLog({
     onLoadOlderHistory();
   }, [hasMoreHistory, loadingOlderHistory, onLoadOlderHistory, virtualizer]);
 
-  // Achado testando com conteúdo de tamanho real (blocos de código, textos
-  // longos): compensar o scroll uma única vez (na primeira mudança de altura
-  // depois do prepend) não bastava — os itens novos entram com a altura
-  // ESTIMADA (`estimateSize: 88`), `measureElement` só mede a de verdade de
-  // forma assíncrona (ResizeObserver) depois que o DOM já pintou, e essa
-  // correção de tamanho chega numa altura TOTAL diferente da que a gente já
-  // tinha compensado — sem tratar isso, o scroll "chacoalha" (desce um
-  // pouco, sobe de novo) enquanto as medições reais vão chegando. Por isso
-  // este efeito roda em TODO render onde `totalSize` mudou (não só uma vez
-  // por prepend) enquanto a âncora estiver ativa, e só solta a âncora depois
-  // de ~300ms sem nenhuma mudança de tamanho — sinal de que as medições já
-  // assentaram. A janela curta importa: manter a âncora presa por muito
-  // tempo passaria a "corrigir" também um turno ao vivo crescendo no fim,
-  // que `anchorTo`/`followOnAppend` já cuidam sozinhos.
+  // Found while testing with real-sized content (code blocks, long texts):
+  // compensating scroll just once (on the first height change after the
+  // prepend) wasn't enough — new items come in with the ESTIMATED height
+  // (`estimateSize: 88`), `measureElement` only measures the real one
+  // asynchronously (ResizeObserver) after the DOM has already painted, and
+  // that size correction arrives at a TOTAL height different from the one
+  // we'd already compensated for — without handling this, the scroll
+  // "jitters" (goes down a bit, back up) while the real measurements keep
+  // arriving. That's why this effect runs on EVERY render where `totalSize`
+  // changed (not just once per prepend) while the anchor is active, and
+  // only releases the anchor after ~300ms with no size change — a sign the
+  // measurements have settled. The short window matters: keeping the anchor
+  // held for too long would start "correcting" a live turn growing at the
+  // end too, which `anchorTo`/`followOnAppend` already handle on their own.
   const totalSize = virtualizer.getTotalSize();
   const settleTimeoutRef = useRef<number | undefined>(undefined);
   useLayoutEffect(() => {
@@ -302,20 +303,20 @@ export const MessageLog = memo(function MessageLog({
   }, [totalSize]);
 
   return (
-    // `relative` não é sobre layout — é o fix pro bug real do WebKit
-    // (docs/24, reproduzido via Playwright WebKit real, não Chromium):
-    // `backdrop-filter` num ancestral não sampleia o conteúdo desta div se
-    // ela (ou qualquer ancestral entre ela e o elemento com o blur) ficar
-    // `position: static`. Toda a cadeia até `.mobile-canvas` precisa disso
-    // — ver App.tsx (wrappers de tab) e MobileShell.tsx. Não remover.
+    // `relative` isn't about layout — it's the fix for a real WebKit bug
+    // (docs/24, reproduced via real WebKit Playwright, not Chromium):
+    // `backdrop-filter` on an ancestor doesn't sample this div's content if
+    // it (or any ancestor between it and the blurred element) is
+    // `position: static`. The whole chain up to `.mobile-canvas` needs this
+    // — see App.tsx (tab wrappers) and MobileShell.tsx. Do not remove.
     <div
       ref={parentRef}
       onScroll={handleScroll}
-      // `overflow-x-hidden` explícito, não só a ausência dele: sem isso o
-      // eixo X herda o valor computado `auto` (regra da spec de overflow —
-      // `overflow-y` não-`visible` força o outro eixo pra `auto` também),
-      // que abre scroll horizontal assim que qualquer conteúdo (um path
-      // longo em `code`, por ex.) estourar a largura por 1px que seja.
+      // Explicit `overflow-x-hidden`, not just its absence: without this the
+      // X axis inherits the computed `auto` value (overflow spec rule — a
+      // non-`visible` `overflow-y` forces the other axis to `auto` too),
+      // which opens up horizontal scroll as soon as any content (a long
+      // path in `code`, for instance) overflows the width by even 1px.
       className={cn("scrollbar-thin relative flex-1 overflow-x-hidden overflow-y-auto px-4 py-3", className)}
     >
       {loadingOlderHistory && (
@@ -337,9 +338,9 @@ export const MessageLog = memo(function MessageLog({
                 top: 0,
                 left: 0,
                 width: "100%",
-                // Substitui o `gap-1` do layout flex antigo — os itens agora
-                // são posicionados via `transform`, fora de fluxo, então o
-                // espaçamento entre eles precisa vir de dentro de cada um.
+                // Replaces the old flex layout's `gap-1` — items are now
+                // positioned via `transform`, out of flow, so the spacing
+                // between them has to come from within each one.
                 paddingBottom: "0.25rem",
                 transform: `translateY(${virtualItem.start}px)`,
               }}

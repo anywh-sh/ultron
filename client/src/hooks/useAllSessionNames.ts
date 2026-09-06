@@ -4,10 +4,10 @@ import type { SessionSummary } from "@/lib/relay-types";
 import { PROFILES } from "@/lib/profiles";
 
 /**
- * Sessões dos DOIS perfis — irmão de `useSessionNames.ts` (que só busca o
- * perfil ativo), pra alimentar a busca global (Ctrl/Cmd+K — docs/21).
- * `enabled` controla quando busca: fresh a cada abertura do diálogo, sem
- * polling contínuo em background.
+ * Sessions from BOTH profiles — sibling of `useSessionNames.ts` (which only
+ * fetches the active profile), to feed the global search (Ctrl/Cmd+K —
+ * docs/21). `enabled` controls when it fetches: fresh on every dialog
+ * opening, no continuous background polling.
  */
 export function useAllSessionNames(enabled: boolean): {
   byProfile: Record<string, SessionSummary[]>;
@@ -26,7 +26,7 @@ export function useAllSessionNames(enabled: boolean): {
         fetchSessions(profile.host, profile.relayPort)
           .then((sessions): [string, SessionSummary[]] => [profile.id, sessions])
           .catch((error: unknown) => {
-            console.error("[ultron] falha ao listar sessões", profile.id, error);
+            console.error("[ultron] failed to list sessions", profile.id, error);
             return [profile.id, []] as [string, SessionSummary[]];
           }),
       ),

@@ -13,10 +13,10 @@ interface ToolCallGroupProps {
   items: ToolPair[];
 }
 
-/** Colapsa uma sequência contígua de tool calls silenciosas (ver
- * `MessageLog.tsx::buildRenderItems`) num único item, igual ao padrão de 2
- * níveis do Claude Desktop/VS Code: fechado mostra só a contagem, aberto
- * lista cada `ToolCallCard` com seu próprio collapse individual. */
+/** Collapses a contiguous sequence of silent tool calls (see
+ * `MessageLog.tsx::buildRenderItems`) into a single item, same 2-level
+ * pattern as Claude Desktop/VS Code: closed shows just the count, open
+ * lists each `ToolCallCard` with its own individual collapse. */
 export const ToolCallGroup = memo(function ToolCallGroup({ items }: ToolCallGroupProps) {
   const [open, setOpen] = useState(false);
   const pending = items.some((item) => !item.result);

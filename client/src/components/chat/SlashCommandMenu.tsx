@@ -10,12 +10,12 @@ interface SlashCommandMenuProps {
 }
 
 /**
- * Popup de autocompletar do composer (docs/26/27) — abre só quando `/` é o
- * primeiro caractere digitado (ver o `Suggestion` do Tiptap em Composer.tsx).
- * Descrição do item selecionado/hover aparece como tooltip de verdade na
- * lateral direita (`Tooltip` do projeto, `side="right"`) — `open` controlado
- * pelo índice selecionado em vez do hover nativo do Radix, pra funcionar
- * igual tanto navegando por teclado quanto passando o mouse.
+ * Composer autocomplete popup (docs/26/27) — opens only when `/` is the
+ * first character typed (see Tiptap's `Suggestion` in Composer.tsx).
+ * The selected/hovered item's description appears as a real tooltip on the
+ * right side (project's `Tooltip`, `side="right"`) — `open` controlled by
+ * the selected index instead of Radix's native hover, so it works the same
+ * whether navigating by keyboard or mousing over.
  */
 export function SlashCommandMenu({ items, selectedIndex, onHover, onPick }: SlashCommandMenuProps) {
   if (items.length === 0) return null;

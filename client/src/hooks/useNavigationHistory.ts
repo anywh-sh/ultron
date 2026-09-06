@@ -5,13 +5,14 @@ export interface NavLocation {
 }
 
 /**
- * Pilha de navegação estilo browser: cada mudança de aba ativa (por ação do
- * usuário) empilha uma entrada, cortando qualquer "forward" que existisse.
- * `goBack`/`goForward` movem um ponteiro pela pilha sem empilhar nada —
- * `notifyLocationChanged` ignora a próxima chamada logo depois de um dos
- * dois (via `skipNextRef`), porque senão a própria restauração de aba viraria
- * uma entrada nova (docs/21). Desde docs/29 (abas gerais, sem separação por
- * perfil) a localização é só a aba — o perfil já está embutido nela.
+ * Browser-style navigation stack: every active tab change (by user action)
+ * pushes an entry, cutting off any "forward" that existed. `goBack`/
+ * `goForward` move a pointer through the stack without pushing anything —
+ * `notifyLocationChanged` ignores the next call right after one of the two
+ * (via `skipNextRef`), because otherwise the tab restoration itself would
+ * become a new entry (docs/21). Since docs/29 (general tabs, no
+ * per-profile separation) the location is just the tab — the profile is
+ * already embedded in it.
  */
 export function useNavigationHistory(): {
   notifyLocationChanged: (location: NavLocation) => void;

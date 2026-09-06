@@ -22,9 +22,9 @@ export interface UseVoiceRecordingResult {
   cancel: () => void;
 }
 
-/** Envelope de estado por cima dos 3 comandos Tauri existentes (voice.rs, sem
- * mudança) — grava (waveform+timer no composer) → transcreve → texto cai na
- * composer pra revisão, sem enviar sozinho. Ver docs/17. */
+/** State envelope on top of the 3 existing Tauri commands (voice.rs, no
+ * change) — records (waveform+timer in the composer) → transcribes → text lands in the
+ * composer for review, without sending on its own. See docs/17. */
 export function useVoiceRecording({ onTranscribed, onError }: UseVoiceRecordingOptions): UseVoiceRecordingResult {
   const [state, setState] = useState<VoiceRecordingState>("idle");
   const [elapsedSeconds, setElapsedSeconds] = useState(0);
@@ -35,8 +35,8 @@ export function useVoiceRecording({ onTranscribed, onError }: UseVoiceRecordingO
   const timerRef = useRef<number | undefined>(undefined);
 
   useEffect(() => {
-    // Voz fora do escopo do MVP iOS (docs/22/23) — o comando não existe no
-    // build iOS (commit b6b8e63), invocar aqui só rejeitaria a promise à toa.
+    // Voice is out of scope for the iOS MVP (docs/22/23) — the command doesn't exist in the
+    // iOS build (commit b6b8e63), invoking it here would just reject the promise for nothing.
     if (isIOS()) return;
     listInputDevices()
       .then((names) => {
@@ -45,7 +45,7 @@ export function useVoiceRecording({ onTranscribed, onError }: UseVoiceRecordingO
         if (saved && names.includes(saved)) setSelectedDeviceState(saved);
       })
       .catch((error: unknown) => {
-        console.error("[ultron] falha ao listar microfones", error);
+        console.error("[ultron] failed to list microphones", error);
       });
   }, []);
 
@@ -95,9 +95,9 @@ export function useVoiceRecording({ onTranscribed, onError }: UseVoiceRecordingO
     cancelledRef.current = true;
     stopTimer();
     setState("idle");
-    // Não existe comando de "descartar" separado no lado Rust — dispara o
-    // stop de verdade em segundo plano só pra encerrar a captura, ignorando
-    // o resultado. Cancelar fica instantâneo do ponto de vista da UI.
+    // There's no separate "discard" command on the Rust side — fires the
+    // real stop in the background just to end the capture, ignoring
+    // the result. Cancel stays instant from the UI's point of view.
     void stopRecordingAndTranscribe().catch(() => {});
   }, []);
 

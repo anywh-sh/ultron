@@ -21,15 +21,15 @@ interface MobileSidebarProps {
 }
 
 /**
- * Conteúdo por trás do drawer em "reveal" do iOS (docs/24) — largura própria
- * de `REVEAL_PUSH_PX` (via `var(--push)`, definido pelo `MobileShell`), não a
- * tela inteira: o que sobra escondido atrás do canvas nunca chega a
- * renderizar num container maior do que o espaço real que fica visível.
+ * Content behind iOS's "reveal" drawer (docs/24) — its own width of
+ * `REVEAL_PUSH_PX` (via `var(--push)`, defined by `MobileShell`), not the
+ * full screen: what stays hidden behind the canvas never ends up rendering
+ * in a container bigger than the actual visible space.
  *
- * Substitui `Sidebar.tsx` só no iOS — perfil vira segmented control (em vez
- * de dropdown), a busca (Cmd/Ctrl+K, docs/21) ganha um gatilho tocável (não
- * existe atalho de teclado em touch) e não tem botão de "nova conversa": só
- * o + da `MobileTopBar` cria conversa agora.
+ * Replaces `Sidebar.tsx` on iOS only — profile becomes a segmented control
+ * (instead of a dropdown), search (Cmd/Ctrl+K, docs/21) gets a tappable
+ * trigger (there's no keyboard shortcut on touch) and there's no "new
+ * conversation" button: only the `MobileTopBar`'s + creates a conversation now.
  */
 export function MobileSidebar({
   activeProfile,
@@ -86,9 +86,10 @@ export function MobileSidebar({
         Buscar sessão
       </button>
 
-      {/* "Recentes" + lista viram um grupo próprio, com gap curto entre os
-       * dois — o gap "grande" (docs/24) é o da coluna externa (gap-3.5),
-       * entre a busca e este grupo, não entre o rótulo e o primeiro item. */}
+      {/* "Recentes" + list become their own group, with a short gap between
+       * the two — the "large" gap (docs/24) is the outer column's
+       * (gap-3.5), between the search and this group, not between the
+       * label and the first item. */}
       <div className="flex min-h-0 flex-1 flex-col gap-1.5">
         <p className="px-1 font-mono text-[10.5px] tracking-wide text-text-faint uppercase">Recentes</p>
 

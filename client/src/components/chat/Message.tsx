@@ -29,9 +29,9 @@ interface UserBubbleProps {
   onCopy: (text: string) => void;
 }
 
-/** Timestamp relativo ("há 3 min") com tooltip revelando a hora exata —
- * componente próprio só pra isolar o tick de 60s (re-render) do resto do
- * `UserBubble`, que não precisa re-renderizar com o tempo passando. */
+/** Relative timestamp ("3 min ago") with a tooltip revealing the exact time
+ * — its own component just to isolate the 60s tick (re-render) from the
+ * rest of `UserBubble`, which doesn't need to re-render as time passes. */
 function TimestampLabel({ sentAt }: { sentAt: number }) {
   const [, tick] = useReducer((n: number) => n + 1, 0);
   useEffect(() => {
@@ -49,17 +49,17 @@ function TimestampLabel({ sentAt }: { sentAt: number }) {
   );
 }
 
-/** Preview aparece dentro da mensagem enviada, não só como chip pré-envio —
- * docs/17. Editar/copiar/timestamp — docs/33.
+/** Preview appears inside the sent message, not just as a pre-send chip —
+ * docs/17. Edit/copy/timestamp — docs/33.
  *
- * Memoizado (igual `AssistantText` abaixo): sem isso, cada token do
- * streaming re-renderiza o `MessageLog` inteiro, e sem `memo` o React
- * re-executa TODAS as mensagens já commitadas de novo (incluindo o parse de
- * markdown + syntax highlighting das antigas), não só a que está sendo
- * escrita agora — é a causa raiz da lentidão durante geração ativa. Os
- * callbacks (`onStartEdit` etc.) precisam ter identidade estável vindo do
- * chamador (refs, não closures novas a cada render de `ChatPanel`), senão
- * esse `memo` não segura nada — ver `ChatPanel.tsx`. */
+ * Memoized (same as `AssistantText` below): without this, every streaming
+ * token re-renders the whole `MessageLog`, and without `memo` React
+ * re-executes ALL already-committed messages again (including markdown
+ * parsing + syntax highlighting for old ones), not just the one being
+ * written now — this is the root cause of slowness during active
+ * generation. The callbacks (`onStartEdit` etc.) need stable identity from
+ * the caller (refs, not fresh closures on every `ChatPanel` render),
+ * otherwise this `memo` holds nothing back — see `ChatPanel.tsx`. */
 export const UserBubble = memo(function UserBubble({
   id,
   text,
@@ -102,10 +102,10 @@ export const UserBubble = memo(function UserBubble({
     setTimeout(() => setCopied(false), 1500);
   }
 
-  // Long-press (iOS, docs/33) — abre o menu nativo (`UIEditMenuInteraction`)
-  // no ponto do toque, com Copiar/Editar. Só faz sentido chamar em
-  // plataforma iOS; em desktop a interação é hover + clique nos ícones
-  // abaixo do balão (ver `!isIOS()` no JSX).
+  // Long-press (iOS, docs/33) — opens the native menu
+  // (`UIEditMenuInteraction`) at the touch point, with Copy/Edit. Only
+  // makes sense to call on iOS; on desktop the interaction is hover + click
+  // on the icons below the bubble (see `!isIOS()` in the JSX).
   const longPress = useLongPress({
     onLongPress: (point) => {
       void showNativeContextMenu(
@@ -189,13 +189,13 @@ export const UserBubble = memo(function UserBubble({
           </Button>
         </div>
       ) : (
-        // Faixa de ações sempre presente (altura fixa reservada, só o
-        // conteúdo alterna opacidade) — é o que cria o espaçamento pedido
-        // antes da resposta do agente, e evita o balão "pular" quando o
-        // hover revela os ícones (o virtualizador mede a altura do item
-        // inteiro, incluindo esta faixa). Escondida por completo no iOS
-        // (interação é o long-press acima, não hover — não existe hover em
-        // touch).
+        // Action strip always present (fixed height reserved, only the
+        // content toggles opacity) — this is what creates the requested
+        // spacing before the agent's response, and avoids the bubble
+        // "jumping" when hover reveals the icons (the virtualizer measures
+        // the whole item's height, including this strip). Fully hidden on
+        // iOS (the interaction is the long-press above, not hover — there's
+        // no hover on touch).
         !isIOS() && (
           <div className="mt-1 flex h-6 items-center justify-end gap-1 text-xs text-muted-foreground opacity-0 transition-opacity group-hover:opacity-100">
             <TimestampLabel sentAt={sentAt} />
@@ -210,9 +210,9 @@ export const UserBubble = memo(function UserBubble({
             {editDisabled ? (
               <Tooltip>
                 <TooltipTrigger asChild>
-                  {/* Wrapper `span`: um `button disabled` não recebe evento de
-                   * ponteiro nenhum, então o Tooltip nunca abriria se o
-                   * trigger fosse o próprio botão. */}
+                  {/* `span` wrapper: a `disabled` button receives no pointer
+                   * events at all, so the Tooltip would never open if the
+                   * trigger were the button itself. */}
                   <span>
                     <button
                       type="button"
@@ -243,10 +243,10 @@ export const UserBubble = memo(function UserBubble({
   );
 });
 
-/** Memoizado — ver comentário em `UserBubble`. `ReactMarkdown` +
- * `rehype-highlight` reparseiam markdown e re-executam o syntax highlighting
- * inteiros a cada render; sem `memo`, isso rodava de novo pra cada mensagem
- * antiga a cada token novo streamado em QUALQUER mensagem da conversa. */
+/** Memoized — see comment on `UserBubble`. `ReactMarkdown` +
+ * `rehype-highlight` re-parse markdown and re-run syntax highlighting in
+ * full on every render; without `memo`, this would run again for every old
+ * message on every new token streamed in ANY message in the conversation. */
 export const AssistantText = memo(function AssistantText({ text }: { text: string }) {
   return (
     <div className="prose-chat text-sm text-foreground">

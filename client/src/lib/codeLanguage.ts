@@ -1,6 +1,6 @@
-// Mapa extensão → nome de linguagem registrado no bundle "common" do
-// lowlight (ver `highlightCode.tsx`) — usado pra colorir o conteúdo de
-// Edit/Write no `ToolCallCard` de acordo com o arquivo sendo tocado.
+// Extension → language name map registered in lowlight's "common" bundle
+// (see `highlightCode.tsx`) — used to color Edit/Write content in
+// `ToolCallCard` according to the file being touched.
 const EXTENSION_LANGUAGE: Record<string, string> = {
   ts: "typescript",
   tsx: "typescript",

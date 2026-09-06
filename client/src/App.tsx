@@ -28,8 +28,8 @@ import { deleteSession, renameSession } from "@/lib/relayClient";
 import { isIOS } from "@/lib/platform";
 import { cn } from "@/lib/utils";
 
-/** Override opcional via query string (`?profile=&session=`) — só pra permitir
- * deep-link direto num estado específico em testes via Playwright (docs/13). */
+/** Optional override via query string (`?profile=&session=`) — only to allow
+ * a direct deep-link to a specific state in tests via Playwright (docs/13). */
 function readQueryOverride(): { profile: string | null; session: string | null } {
   const params = new URLSearchParams(window.location.search);
   return { profile: params.get("profile"), session: params.get("session") };
@@ -50,17 +50,17 @@ export default function App() {
   const [drawerOpen, setDrawerOpen] = useState(false);
   const [searchOpen, setSearchOpen] = useState(false);
   const [settingsOpen, setSettingsOpen] = useState(false);
-  // Estado de conexão da sessão ativa — só usado pela MobileTopBar do iOS
-  // (docs/24), que fica fora do ChatPanel. Alimentado pelo `onConnectedChange`
-  // de `renderPanel` abaixo, guardado pelo mesmo padrão de "ainda é a aba
-  // visível" que `onTurnComplete` já usa.
+  // Connection state of the active session — only used by iOS's MobileTopBar
+  // (docs/24), which lives outside ChatPanel. Fed by `renderPanel`'s
+  // `onConnectedChange` below, kept using the same "is it still the visible
+  // tab" pattern that `onTurnComplete` already uses.
   const [activeConnected, setActiveConnected] = useState(false);
 
   useEffect(() => {
     void ensureNotificationPermission();
   }, []);
 
-  // Atalho global de busca (Ctrl/Cmd+K — docs/21), em qualquer tela.
+  // Global search shortcut (Ctrl/Cmd+K — docs/21), on any screen.
   useEffect(() => {
     function handleKeyDown(event: KeyboardEvent): void {
       if (event.key.toLowerCase() === "k" && (event.metaKey || event.ctrlKey)) {
@@ -72,11 +72,11 @@ export default function App() {
     return () => window.removeEventListener("keydown", handleKeyDown);
   }, []);
 
-  // Primeiro lançamento: restaura as abas da última vez (lista completa +
-  // ordem + qual estava ativa), de todos os perfis juntas (docs/29). Só roda
-  // uma vez, enquanto ainda não há nenhuma aba aberta. Deep-link de teste via
-  // query string (docs/13) tem prioridade e continua abrindo só a sessão
-  // pedida, no perfil indicado (ou no perfil padrão).
+  // First launch: restores last time's tabs (full list + order + which one
+  // was active), across all profiles together (docs/29). Only runs once,
+  // while no tab is open yet. The test deep-link via query string (docs/13)
+  // takes priority and still opens only the requested session, in the given
+  // profile (or the default one).
   useEffect(() => {
     if (tabsState.tabs.length > 0) return;
     if (queryOverride.session) {
@@ -90,33 +90,32 @@ export default function App() {
 
   const activeTabId = tabsState.activeTabId;
 
-  // Refs "ao vivo" pra `isStillHidden` da notificação (lib/notifications.ts):
-  // o agendamento guarda essa função por até alguns segundos esperando o
-  // resumo assíncrono do relay, então ela precisa ler o estado mais recente
-  // no momento do disparo — um closure fechado sobre `windowFocused`/
-  // `activeTabId` do render em que o turno terminou ficaria com valor
-  // congelado (stale) por todo esse tempo.
+  // "Live" refs for the notification's `isStillHidden` (lib/notifications.ts):
+  // the scheduling keeps this function around for up to a few seconds waiting
+  // for the relay's async summary, so it needs to read the latest state at
+  // the moment it fires — a closure over `windowFocused`/`activeTabId` from
+  // the render where the turn ended would stay stale for that whole time.
   const windowFocusedRef = useRef(windowFocused);
   windowFocusedRef.current = windowFocused;
   const activeTabIdRef = useRef(activeTabId);
   activeTabIdRef.current = activeTabId;
 
-  // Limpa o badge de "turno concluído" da aba que está visível agora.
+  // Clears the "turn complete" badge of the tab that's visible now.
   useEffect(() => {
     if (activeTabId) tabsState.setUnread(activeTabId, false);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [activeTabId]);
 
-  // Evita mostrar "Conectado" herdado da aba anterior por um instante ao
-  // trocar de sessão — o ChatPanel recém-montado reporta o estado real assim
-  // que o WebSocket dele conectar (ou não).
+  // Avoids briefly showing "Connected" inherited from the previous tab when
+  // switching sessions — the freshly mounted ChatPanel reports the real state
+  // as soon as its WebSocket connects (or not).
   useEffect(() => {
     setActiveConnected(false);
   }, [activeTabId]);
 
-  // Empilha uma entrada de histórico (Back/Forward da titlebar — docs/21)
-  // toda vez que a aba ativa muda, exceto quando a mudança veio do próprio
-  // goBack/goForward (o hook filtra isso internamente).
+  // Pushes a history entry (titlebar Back/Forward — docs/21) every time the
+  // active tab changes, except when the change came from goBack/goForward
+  // itself (the hook filters that out internally).
   useEffect(() => {
     nav.notifyLocationChanged({ tabId: activeTabId });
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -137,11 +136,11 @@ export default function App() {
     setDrawerOpen(false);
   }
 
-  // Cria a sessão implicitamente: abre uma aba em branco na hora, sem pedir
-  // nome — o título é inferido a partir do primeiro prompt que o usuário
-  // mandar (relay dispara isso em paralelo ao turno, ver sessionManager.ts).
-  // A sessão só entra na sidebar quando esse título chegar (onTitle do
-  // ChatPanel abaixo), não antes.
+  // Creates the session implicitly: opens a blank tab right away, without
+  // asking for a name — the title is inferred from the first prompt the user
+  // sends (the relay fires this in parallel with the turn, see
+  // sessionManager.ts). The session only enters the sidebar once that title
+  // arrives (ChatPanel's onTitle below), not before.
   function handleNewConversation(): void {
     const id = crypto.randomUUID();
     tabsState.openTab(activeProfile.id, id, null, true);
@@ -154,10 +153,10 @@ export default function App() {
     setDrawerOpen(false);
   }
 
-  /** Troca de perfil (sidebar) + abre/ativa a aba — usado tanto pela busca de
-   * sessão (Cmd/Ctrl+K) quanto pelo clique numa notificação (`useNotificationClick`
-   * abaixo), os dois casos de "ir direto pra uma sessão que pode não ser do
-   * perfil selecionado agora". */
+  /** Switches profile (sidebar) + opens/activates the tab — used both by
+   * session search (Cmd/Ctrl+K) and by clicking a notification
+   * (`useNotificationClick` below), the two cases of "jump straight to a
+   * session that may not belong to the currently selected profile". */
   function focusSession(profileId: string, sessionId: string, title: string | null = null): void {
     setActiveProfileId(profileId);
     tabsState.openTab(profileId, sessionId, title);
@@ -167,16 +166,17 @@ export default function App() {
     focusSession(profileId, sessionId, title);
   }
 
-  // Clique numa notificação de turno concluído — ver useNotificationClick.ts
-  // pra como cada plataforma entrega isso (e a limitação documentada lá:
-  // Windows e iOS funcionam, macOS/Linux desktop não tem o hook de clique).
+  // Click on a turn-complete notification — see useNotificationClick.ts for
+  // how each platform delivers this (and the limitation documented there:
+  // Windows and iOS work, macOS/Linux desktop has no click hook).
   useNotificationClick(({ sessionId, profileId }) => {
     focusSession(profileId, sessionId);
   });
 
-  /** `profileId` explícito (não sempre `activeProfile`) pelo mesmo motivo do
-   * `handleDeleteSession` logo abaixo: também é chamado a partir de uma aba
-   * de outro perfil que não o selecionado na sidebar agora (docs/29). */
+  /** Explicit `profileId` (not always `activeProfile`) for the same reason as
+   * `handleDeleteSession` right below: it's also called from a tab belonging
+   * to a profile other than the one currently selected in the sidebar
+   * (docs/29). */
   function handleRenameSession(profileId: string, id: string, title: string): void {
     const profile = findProfile(profileId);
     if (!profile) return;
@@ -186,15 +186,16 @@ export default function App() {
         if (profileId === activeProfile.id) upsertTitle(id, title);
       })
       .catch((error: unknown) => {
-        console.error("[ultron] falha ao renomear sessão", error);
+        console.error("[ultron] failed to rename session", error);
         window.alert("Não foi possível renomear a sessão.");
       });
   }
 
-  /** Só tira a sessão do controle do ultron — não apaga o transcript que o
-   * Claude Code já mantém sozinho. `profileId` explícito (não sempre
-   * `activeProfile`) porque também é chamado a partir de uma aba de outro
-   * perfil que não o selecionado na sidebar agora (docs/29). */
+  /** Only removes the session from ultron's control — doesn't delete the
+   * transcript that Claude Code already keeps on its own. Explicit
+   * `profileId` (not always `activeProfile`) because it's also called from a
+   * tab belonging to a profile other than the one currently selected in the
+   * sidebar (docs/29). */
   function handleDeleteSession(profileId: string, id: string): void {
     const profile = findProfile(profileId);
     if (!profile) return;
@@ -206,7 +207,7 @@ export default function App() {
         if (profileId === activeProfile.id) removeSession(id);
       })
       .catch((error: unknown) => {
-        console.error("[ultron] falha ao excluir sessão", error);
+        console.error("[ultron] failed to delete session", error);
         window.alert("Não foi possível excluir a sessão.");
       });
   }
@@ -224,19 +225,19 @@ export default function App() {
     }
   }
 
-  // Terminal embutido (docs/30) — desktop only (screenshot/fluxo original é
-  // claramente desktop, iOS fica de fora por enquanto, mesmo gate que
-  // voz/titlebar já usam — docs/23).
+  // Embedded terminal (docs/30) — desktop only (the original screenshot/flow
+  // is clearly desktop, iOS is left out for now, same gate that voice/titlebar
+  // already use — docs/23).
   function handleToggleTerminalPanel(): void {
     if (isCompact || isIOS() || !activeTabId) return;
     sessionPanels.togglePanel(activeTabId, "terminal");
   }
 
-  // Ctrl+Tab / Ctrl+Shift+Tab, igual navegador — de propósito só `ctrlKey`,
-  // não `metaKey || ctrlKey` como os outros atalhos abaixo: no macOS Cmd+Tab
-  // é o app switcher do próprio SO (nunca chega no app), então o padrão de
-  // verdade pra ciclar abas lá também é Ctrl+Tab literal, igual
-  // browser/VS Code — usar `metaKey` aqui só criaria um atalho morto.
+  // Ctrl+Tab / Ctrl+Shift+Tab, like a browser — intentionally only `ctrlKey`,
+  // not `metaKey || ctrlKey` like the other shortcuts below: on macOS Cmd+Tab
+  // is the OS's own app switcher (never reaches the app), so the real
+  // convention for cycling tabs there is also literal Ctrl+Tab, same as
+  // browser/VS Code — using `metaKey` here would just create a dead shortcut.
   function handleCycleTab(direction: 1 | -1): void {
     const { tabs } = tabsState;
     if (tabs.length < 2) return;
@@ -245,10 +246,10 @@ export default function App() {
     tabsState.setActiveTab(tabs[nextIndex].id);
   }
 
-  // Atalhos padrão de qualquer app (equivalentes em Ctrl no Windows/Linux e
-  // Cmd no macOS, via metaKey || ctrlKey): novo (N), fechar aba atual (W),
-  // mostrar/esconder painel lateral (B). Terminal (Ctrl+`) é tratado à
-  // parte, ver comentário dentro do handler.
+  // Standard shortcuts for any app (Ctrl on Windows/Linux and Cmd on macOS,
+  // via metaKey || ctrlKey): new (N), close current tab (W), show/hide side
+  // panel (B). Terminal (Ctrl+`) is handled separately, see the comment
+  // inside the handler.
   useEffect(() => {
     function handleKeyDown(event: KeyboardEvent): void {
       if (event.ctrlKey && event.key === "Tab") {
@@ -256,11 +257,11 @@ export default function App() {
         handleCycleTab(event.shiftKey ? -1 : 1);
         return;
       }
-      // `Ctrl+\`` — literal Ctrl mesmo no macOS, nunca `metaKey`: é a
-      // convenção do próprio VS Code (Cmd+` no macOS já é do sistema,
-      // trocar entre janelas do mesmo app), mesmo motivo do `Ctrl+Tab`
-      // acima. Fica fora do switch de baixo de propósito, que é só
-      // `metaKey || ctrlKey`.
+      // `Ctrl+\`` — literal Ctrl even on macOS, never `metaKey`: it's VS
+      // Code's own convention (Cmd+` on macOS is already an OS shortcut for
+      // switching between windows of the same app), same reason as
+      // `Ctrl+Tab` above. Intentionally left out of the switch below, which
+      // is only `metaKey || ctrlKey`.
       if (event.ctrlKey && event.key === "`") {
         event.preventDefault();
         handleToggleTerminalPanel();
@@ -296,15 +297,17 @@ export default function App() {
     resizable.toggleCollapsed,
   ]);
 
-  // Sessões "rodando" só do perfil selecionado na sidebar agora — é o
-  // universo que a lista da sidebar mostra (docs/29: abas em si não têm mais
-  // noção de perfil selecionado, só a sidebar tem).
+  // "Running" sessions only for the profile currently selected in the
+  // sidebar — that's the universe the sidebar list shows (docs/29: tabs
+  // themselves no longer have a notion of selected profile, only the sidebar
+  // does).
   const runningSessions = new Set(
     tabsState.tabs.filter((tab) => tab.profileId === activeProfile.id && tab.isRunning).map((tab) => tab.id),
   );
-  // Mesmo raciocínio de `runningSessions` — só cobre sessões abertas como
-  // aba (docs/32, Fase E): uma sessão sem aba não tem conexão WS viva pra
-  // saber se tem job rodando, mesma limitação que `isRunning` já tinha.
+  // Same reasoning as `runningSessions` — only covers sessions open as a tab
+  // (docs/32, Phase E): a session without a tab has no live WS connection to
+  // know whether it has a job running, same limitation `isRunning` already
+  // had.
   const backgroundJobSessions = new Set(
     tabsState.tabs.filter((tab) => tab.profileId === activeProfile.id && tab.hasBackgroundJob).map((tab) => tab.id),
   );
@@ -325,28 +328,28 @@ export default function App() {
 
   const activeTab = tabsState.tabs.find((tab) => tab.id === activeTabId);
 
-  // Uma aba pode ser de qualquer perfil (docs/29) — o `ChatPanel` de cada
-  // uma usa o perfil gravado na própria aba, não o perfil selecionado na
-  // sidebar agora.
+  // A tab can belong to any profile (docs/29) — each one's `ChatPanel` uses
+  // the profile recorded on the tab itself, not the profile currently
+  // selected in the sidebar.
   const renderPanel = (tab: Tab) => {
     const profile = findProfile(tab.profileId) ?? PROFILES[0];
     const panel = sessionPanels.getPanel(tab.id);
     const isTabActive = tab.id === activeTabId;
     const chatContent = (
       <ChatPanel
-        // No iOS (sem TabBar/forceMount), `activeTab && renderPanel(activeTab)`
-        // é um único slot de JSX cujo `sessionId` só muda de valor — sem
-        // `key` amarrada à sessão, o React reaproveita a mesma instância
-        // ao trocar de conversa (só atualiza props), e o estado interno
-        // (useMessageLog etc.) não reseta sozinho. `onReconnecting` não
-        // ajuda aqui: ele só dispara numa reconexão de verdade da MESMA
-        // instância de RelayClient, não quando useRelayClient troca de
-        // sessionId e cria uma instância nova. Resultado era o bug real:
-        // clicar em "+" abria uma sessão nova de verdade (conectava,
-        // "Reconectando"→"Conectado") mas a tela continuava mostrando o
-        // log da conversa anterior. No desktop isso já não acontecia (TabBar
-        // já tem `key={tab.id}` no TabsContent, cada aba com instância
-        // própria) — aqui é só deixar explícito no mesmo lugar.
+        // On iOS (no TabBar/forceMount), `activeTab && renderPanel(activeTab)`
+        // is a single JSX slot whose `sessionId` just changes value — without
+        // a `key` tied to the session, React reuses the same instance when
+        // switching conversations (only updates props), and internal state
+        // (useMessageLog etc.) doesn't reset on its own. `onReconnecting`
+        // doesn't help here: it only fires on a real reconnection of the SAME
+        // RelayClient instance, not when useRelayClient swaps sessionId and
+        // creates a new instance. The result was a real bug: clicking "+"
+        // would open a genuinely new session (connecting,
+        // "Reconnecting"→"Connected") but the screen kept showing the
+        // previous conversation's log. On desktop this didn't happen (TabBar
+        // already has `key={tab.id}` on TabsContent, each tab with its own
+        // instance) — here it's just made explicit in the same spot.
         key={tab.id}
         profile={profile}
         sessionId={tab.id}
@@ -395,45 +398,47 @@ export default function App() {
 
     if (isCompact || isIOS()) return chatContent;
 
-    // Terminal embutido (docs/30), desktop only. `isTabActive` é o que
-    // implementa "trocar de sessão fecha o painel sozinho, voltar reabre do
-    // jeito que estava": `TabBar` mantém TODAS as abas montadas em segundo
-    // plano (forceMount, pra manter a WS do chat viva — ver comentário mais
-    // abaixo), então sem esse gate o painel de terminal ficaria conectado
-    // pra sessões fora de foco também. Só a aba ativa realmente monta
-    // `TerminalPanelSlot`; as outras nem chegam a existir no DOM, então nem
-    // abrem WS nenhuma pro terminal — o custo de várias abas de chat
-    // abertas ao mesmo tempo (vários perfis, vários contextos) fica restrito
-    // a um único painel de terminal vivo por vez, não um por sessão.
+    // Embedded terminal (docs/30), desktop only. `isTabActive` is what
+    // implements "switching sessions closes the panel on its own, coming back
+    // reopens it the way it was": `TabBar` keeps ALL tabs mounted in the
+    // background (forceMount, to keep the chat WS alive — see comment
+    // further below), so without this gate the terminal panel would stay
+    // connected for out-of-focus sessions too. Only the active tab actually
+    // mounts `TerminalPanelSlot`; the others don't even exist in the DOM, so
+    // they don't open any terminal WS either — the cost of several chat tabs
+    // open at once (multiple profiles, multiple contexts) stays limited to a
+    // single live terminal panel at a time, not one per session.
     //
-    // Diferente de antes, o gate aqui não inclui mais `panel.open` — é
-    // assim que a animação de abrir/fechar (mesma da sidebar esquerda,
-    // useResizableSidebar) funciona: `TerminalPanelSlot` fica montado o
-    // tempo todo enquanto a aba está ativa, e é ELE (por dentro, leve, sem
-    // xterm.js) quem decide a largura (0 fechado, animando pra `panel.width`
-    // aberto). Sem isso o conteúdo do painel só existia no DOM quando aberto
-    // — não tinha o que a transição CSS animasse, aparecia/sumia de vez.
+    // Unlike before, the gate here no longer includes `panel.open` — that's
+    // how the open/close animation (same as the left sidebar's,
+    // useResizableSidebar) works: `TerminalPanelSlot` stays mounted the whole
+    // time the tab is active, and IT (internally, lightweight, no xterm.js)
+    // is what decides the width (0 closed, animating to `panel.width` when
+    // open). Without this the panel content only existed in the DOM while
+    // open — there was nothing for the CSS transition to animate, it just
+    // popped in/out.
     const chatHidden = isTabActive && panel.open && panel.maximized;
 
-    // O wrapper (esta `div` + a `div` logo abaixo em volta de `chatContent`)
-    // é renderizado incondicionalmente, com a MESMA forma sempre — só a
-    // presença do `TerminalPanelSlot` como irmão alterna (junto com a aba
-    // ficando ativa/inativa). Antes disso era condicional (`if
-    // (!showTerminal) return chatContent` sem wrapper nenhum), e abrir/
-    // fechar/trocar de aba de terminal trocava o tipo do filho nessa posição
-    // da árvore (de `ChatPanel` direto pra `div`) — o React via isso como um
-    // elemento diferente e desmontava `ChatPanel` inteiro (perdendo `ready`,
-    // fechando a WS, reconectando), que é exatamente o flash de skeleton
-    // reportado ao abrir/expandir/fechar o painel. Manter a forma estável
-    // evita esse remount.
+    // The wrapper (this `div` + the `div` right below wrapping
+    // `chatContent`) is rendered unconditionally, with the SAME shape
+    // always — only the presence of `TerminalPanelSlot` as a sibling toggles
+    // (along with the tab becoming active/inactive). Before this it was
+    // conditional (`if (!showTerminal) return chatContent` with no wrapper
+    // at all), and opening/closing/switching the terminal tab changed the
+    // type of the child at that position in the tree (from `ChatPanel`
+    // directly to `div`) — React saw that as a different element and
+    // unmounted the whole `ChatPanel` (losing `ready`, closing the WS,
+    // reconnecting), which is exactly the skeleton flash reported when
+    // opening/expanding/closing the panel. Keeping the shape stable avoids
+    // that remount.
     return (
       <div className="relative flex h-full min-w-0">
-        {/* `invisible absolute inset-0` em vez de encolher pra 0 — mesmo
-         * truque (e mesmo motivo) do `forceMount` de `TabBar.tsx`: o
-         * `MessageLog` usa `@tanstack/react-virtual`, cujo `ResizeObserver`
-         * corrompe o cache de alturas se o container medir tamanho 0 mesmo
-         * que só brevemente (é exatamente o que aconteceria maximizando o
-         * terminal se o chat fosse escondido via `display:none`/largura 0). */}
+        {/* `invisible absolute inset-0` instead of shrinking to 0 — same
+         * trick (and same reason) as `TabBar.tsx`'s `forceMount`: `MessageLog`
+         * uses `@tanstack/react-virtual`, whose `ResizeObserver` corrupts the
+         * height cache if the container measures size 0 even briefly (which
+         * is exactly what would happen when maximizing the terminal if the
+         * chat were hidden via `display:none`/zero width). */}
         <div className={cn("min-w-0 flex-1", chatHidden && "invisible absolute inset-0")}>{chatContent}</div>
         {isTabActive && (
           <TerminalPanelSlot
@@ -450,25 +455,25 @@ export default function App() {
     );
   };
 
-  // Compartilhado entre o shell desktop e o iOS — o que muda entre os dois é
-  // só o chrome ao redor (TitleBar+Sidebar vs. MobileShell), não como cada
-  // sessão é montada.
+  // Shared between the desktop shell and iOS — what changes between the two
+  // is just the surrounding chrome (TitleBar+Sidebar vs. MobileShell), not
+  // how each session gets mounted.
   //
-  // `relative` aqui embaixo não é sobre layout — sem isso, o `backdrop-filter`
-  // da MobileTopBar/composer do iOS não sampleia o log de mensagens no
-  // WebKit real (bug real, reproduzido via Playwright WebKit — docs/24).
-  // Qualquer div `position: static` nessa cadeia até `.mobile-canvas` quebra
-  // o blur. Não remover mesmo parecendo redundante — inofensivo pro desktop
-  // (não muda posição/tamanho de nada).
+  // `relative` down here isn't about layout — without it, iOS's
+  // MobileTopBar/composer `backdrop-filter` doesn't sample the message log
+  // on real WebKit (real bug, reproduced via Playwright WebKit — docs/24).
+  // Any `position: static` div in this chain up to `.mobile-canvas` breaks
+  // the blur. Don't remove it even though it looks redundant — harmless for
+  // desktop (doesn't change position/size of anything).
   const tabsContent = (
     <div className="relative min-h-0 flex-1">
       {tabsState.tabs.length === 0 ? (
         <EmptyState />
       ) : isIOS() ? (
-        // iOS (docs/23, Fase B): MVP é uma sessão em foco por vez, sem manter
-        // várias conexões WebSocket vivas em paralelo em segundo plano — só
-        // monta a sessão ativa, sem o mecanismo de abas do TabBar
-        // (forceMount/dnd-kit, pensado pra desktop).
+        // iOS (docs/23, Phase B): the MVP is one session in focus at a time,
+        // without keeping several WebSocket connections alive in parallel in
+        // the background — only mounts the active session, without TabBar's
+        // tab mechanism (forceMount/dnd-kit, designed for desktop).
         activeTab && renderPanel(activeTab)
       ) : (
         <TabBar

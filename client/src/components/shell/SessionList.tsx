@@ -12,9 +12,9 @@ interface SessionListProps {
   onSelect: (id: string) => void;
   onRename: (id: string, currentTitle: string) => void;
   onDelete: (id: string) => void;
-  /** "lg" usado só pelo drawer do iOS (docs/24) — texto maior e padding
-   * horizontal reduzido pra alinhar com o resto da sidebar (que usa `px-1`,
-   * não o `p-2` que este componente aplica por padrão). */
+  /** "lg" used only by the iOS drawer (docs/24) — larger text and reduced
+   * horizontal padding to align with the rest of the sidebar (which uses
+   * `px-1`, not the `p-2` this component applies by default). */
   size?: "default" | "lg";
 }
 

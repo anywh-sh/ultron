@@ -1,10 +1,10 @@
 import { invoke } from "@tauri-apps/api/core";
 
-/** Item de menu nativo iOS (docs/33) — `systemIcon` é o nome de um SF
- * Symbol (ex: `"doc.on.doc"`, `"pencil"`), renderizado pelo próprio UIKit no
- * lado Swift. `disabledReason` vira a `subtitle` da `UIAction` quando
- * `disabled` — usado pelo botão de editar mensagem com imagem (v1 não
- * suporta, ver docs/20-backlog.md). */
+/** iOS native menu item (docs/33) — `systemIcon` is the name of an SF Symbol
+ * (e.g. `"doc.on.doc"`, `"pencil"`), rendered by UIKit itself on the Swift
+ * side. `disabledReason` becomes the `UIAction`'s `subtitle` when `disabled`
+ * — used by the edit-message-with-image button (v1 doesn't support it, see
+ * docs/20-backlog.md). */
 export interface NativeMenuItem {
   id: string;
   label: string;
@@ -14,21 +14,23 @@ export interface NativeMenuItem {
 }
 
 /**
- * Menu de contexto nativo do iOS — `UIEditMenuInteraction` (API pública
- * desde iOS 16) apresentado no ponto do toque, mesmo estilo arredondado com
- * ícone+label do menu de seleção de texto do sistema. Escolhida em vez de
- * `UIContextMenuInteraction` porque essa só dispara via gesto próprio do
- * sistema (long-press automático); `UIEditMenuInteraction` tem
- * `presentEditMenu(with:)`, público e imperativo, que aceita um ponto
- * arbitrário — o que permite disparar a partir do long-press detectado em
- * JS (`useLongPress`) em vez de depender de um gesture recognizer nativo
- * anexado a um elemento DOM específico (impossível, o conteúdo é WebView).
+ * iOS native context menu — `UIEditMenuInteraction` (public API since iOS
+ * 16) presented at the touch point, the same rounded icon+label style as
+ * the system's text-selection menu. Chosen instead of
+ * `UIContextMenuInteraction` because that one only fires via the system's
+ * own gesture (automatic long-press); `UIEditMenuInteraction` has
+ * `presentEditMenu(with:)`, public and imperative, which accepts an
+ * arbitrary point — which allows triggering it from the long-press detected
+ * in JS (`useLongPress`) instead of depending on a native gesture recognizer
+ * attached to a specific DOM element (impossible, the content is a
+ * WebView).
  *
- * Resolve com o id do item tocado, ou `null` se o usuário descartou o menu
- * sem escolher nada. Implementado pelo plugin `tauri-plugin-native-chrome`
- * (ver `ios/Sources/NativeChromePlugin.swift`) — superfície genérica de
- * propósito, não específica de mensagem de chat: qualquer feature futura que
- * precise de menu nativo no iOS reaproveita o mesmo comando.
+ * Resolves with the id of the tapped item, or `null` if the user dismissed
+ * the menu without picking anything. Implemented by the
+ * `tauri-plugin-native-chrome` plugin (see
+ * `ios/Sources/NativeChromePlugin.swift`) — deliberately generic surface,
+ * not chat-message-specific: any future feature that needs a native menu on
+ * iOS reuses the same command.
  */
 export async function showNativeContextMenu(items: NativeMenuItem[], point: { x: number; y: number }): Promise<string | null> {
   const result = await invoke<{ selectedId: string | null }>("plugin:native-chrome|show_context_menu", { items, point });

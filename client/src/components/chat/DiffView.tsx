@@ -12,10 +12,10 @@ function kindForMarker(marker: string): CodeLine["kind"] {
   return "context";
 }
 
-/** O relay já entrega o diff pronto (`tool_use_result.structuredPatch` do
- * Edit) — só achata os hunks numa lista de linhas (com um separador "⋯"
- * entre hunks não-contíguos) e delega a cor por linha + highlight de
- * linguagem + truncamento pro `CodeLines`. */
+/** The relay already delivers the diff ready-made (`tool_use_result.structuredPatch`
+ * from Edit) — this just flattens the hunks into a list of lines (with a "⋯"
+ * separator between non-contiguous hunks) and delegates per-line color +
+ * language highlighting + truncation to `CodeLines`. */
 export function DiffView({ hunks, language }: DiffViewProps) {
   const lines: CodeLine[] = [];
   hunks.forEach((hunk, hunkIndex) => {

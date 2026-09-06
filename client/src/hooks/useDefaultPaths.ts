@@ -20,20 +20,20 @@ function readDefaultPaths(): DefaultPaths {
   }
 }
 
-/** Leitura avulsa (fora de componente React) do path padrão de um perfil —
- * usada por `ChatPanel` no momento em que uma aba nova recebe seu primeiro
- * `cwd_state`, sem precisar assinar o hook inteiro (que re-renderiza a cada
- * mudança em qualquer perfil). */
+/** Standalone read (outside a React component) of a profile's default path
+ * — used by `ChatPanel` at the moment a new tab receives its first
+ * `cwd_state`, without needing to subscribe to the whole hook (which
+ * re-renders on any change to any profile). */
 export function getDefaultPath(profileId: string): string | undefined {
   return readDefaultPaths()[profileId];
 }
 
 /**
- * Path que uma conversa nova de um perfil deve abrir, configurado em
- * Configurações. Chave única com todos os perfis juntos (ao contrário de
- * `useRecentFolders`, que já recebe um `profileId` concreto) porque a tela
- * de Configurações sempre edita a lista inteira de uma vez. Ausência de
- * entrada = nunca configurado, cai no default do relay daquele perfil
+ * Path that a new conversation for a profile should open in, configured in
+ * Settings. A single key holding all profiles together (unlike
+ * `useRecentFolders`, which already receives a concrete `profileId`)
+ * because the Settings screen always edits the whole list at once. Missing
+ * entry = never configured, falls back to that profile's relay default
  * (`relay/src/paths.ts::defaultCwd`).
  */
 export function useDefaultPaths() {

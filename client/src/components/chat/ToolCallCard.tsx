@@ -50,14 +50,15 @@ function summaryFor(use: ToolCallCardProps["use"]): string | undefined {
   return undefined;
 }
 
-/** Memoizado — ver comentário em `Message.tsx::UserBubble`. `use`/`result`
- * são os mesmos objetos do reducer de `useMessageLog` enquanto a entrada não
- * muda, então o `memo` bail-outa de verdade (não é só shallow-compare vazio)
- * durante o streaming de outras mensagens da conversa. */
+/** Memoized — see comment on `Message.tsx::UserBubble`. `use`/`result` are
+ * the same objects from `useMessageLog`'s reducer as long as the entry
+ * doesn't change, so `memo` actually bails out (not just an empty
+ * shallow-compare) during the streaming of other messages in the
+ * conversation. */
 export const ToolCallCard = memo(function ToolCallCard({ use, result }: ToolCallCardProps) {
-  // Edit/Write já abrem direto — o conteúdo (diff ou arquivo novo) é o que
-  // importa ver de cara, igual ao preview automático do Claude Code no
-  // terminal, em vez de exigir mais um clique pra ver o que mudou.
+  // Edit/Write already open right away — the content (diff or new file) is
+  // what matters to see up front, same as Claude Code's automatic preview
+  // in the terminal, instead of requiring another click to see what changed.
   const [open, setOpen] = useState(() => use.name === "Edit" || use.name === "Write");
   const Icon = ICON_BY_TOOL[use.name] ?? Wrench;
   const summary = summaryFor(use);

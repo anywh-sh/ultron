@@ -2,8 +2,8 @@ import type { Profile } from "@/lib/profiles";
 
 export interface UploadResult {
   path: string;
-  /** Só presente pra vídeo — paths dos frames extraídos no relay via
-   * ffmpeg (ver `relay/src/uploads.ts`), em ordem cronológica. */
+  /** Only present for video — paths of the frames extracted on the relay via
+   * ffmpeg (see `relay/src/uploads.ts`), in chronological order. */
   frames?: string[];
 }
 

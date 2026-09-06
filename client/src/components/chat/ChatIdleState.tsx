@@ -1,9 +1,9 @@
 import { IdleScreen } from "@/components/shell/IdleScreen";
 
-/** Mostrado no lugar do log enquanto a aba é uma conversa nova sem nenhuma
- * mensagem ainda — evita o skeleton de "carregando histórico" (que não faz
- * sentido aqui, não existe histórico nenhum pra carregar) e a sensação de
- * tela em branco enquanto a conexão com o relay ainda não confirmou. */
+/** Shown in place of the log while the tab is a new conversation with no
+ * messages yet — avoids the "loading history" skeleton (which makes no
+ * sense here, there's no history at all to load) and the blank-screen
+ * feeling while the connection to the relay hasn't confirmed yet. */
 export function ChatIdleState() {
   return <IdleScreen heading="Nova sessão" subtitle="Escreva uma mensagem abaixo para começar." />;
 }

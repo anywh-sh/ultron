@@ -16,9 +16,9 @@ interface RenameSessionDialogProps {
   onSave: (title: string) => void;
 }
 
-/** Dialog de renomear sessão, aberto pelo ícone de edição que aparece no
- * hover de um item da `SessionList` — mesmo padrão visual de
- * `EditLinkDialog.tsx`, cada um isolado no próprio form. */
+/** Session rename dialog, opened by the edit icon that appears on hover
+ * over a `SessionList` item — same visual pattern as `EditLinkDialog.tsx`,
+ * each one isolated in its own form. */
 export function RenameSessionDialog({ open, onOpenChange, initialTitle, onSave }: RenameSessionDialogProps) {
   const [title, setTitle] = useState(initialTitle);
 

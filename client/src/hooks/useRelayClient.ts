@@ -10,10 +10,10 @@ import {
 } from "@/lib/relayClient";
 import type { Profile } from "@/lib/profiles";
 
-/** Um `compact_boundary` recebido, com timestamp — o timestamp garante uma
- * referência nova a cada ocorrência (mesmo `trigger`/`preTokens` repetidos),
- * pra quem for mostrar um toast poder reagir via `useEffect` sem precisar
- * avisar o hook de volta que já mostrou. */
+/** A received `compact_boundary`, with a timestamp — the timestamp guarantees a
+ * fresh reference on every occurrence (even with repeated `trigger`/`preTokens`),
+ * so whoever shows a toast can react via `useEffect` without needing to
+ * tell the hook back that it already showed it. */
 export interface CompactBoundaryEvent {
   trigger: "auto" | "manual";
   preTokens: number;
@@ -28,69 +28,69 @@ export interface UseRelayClientOptions {
   onSetCwdError?: (message: string) => void;
   onSessionTitle?: (title: string) => void;
   onSessionDeleted?: () => void;
-  /** Resumo pra notificação chegando — ver `RelayClientCallbacks.onNotificationSummary`.
-   * Passthrough puro (sem state interno): quem usa decide o que fazer, o hook
-   * não precisa re-renderizar por causa disso. */
+  /** Summary for an incoming notification — see `RelayClientCallbacks.onNotificationSummary`.
+   * Pure passthrough (no internal state): the consumer decides what to do, the hook
+   * doesn't need to re-render because of it. */
   onNotificationSummary?: (text: string | null) => void;
-  /** Ver `RelayClientCallbacks.onReconnecting` — dispara antes de todo
-   * replay de histórico que não seja da conexão inicial. */
+  /** See `RelayClientCallbacks.onReconnecting` — fires before any
+   * history replay that isn't from the initial connection. */
   onReconnecting?: () => void;
-  /** `/clear` (docs/26) — ver `RelayClientCallbacks.onConversationReset`. */
+  /** `/clear` (docs/26) — see `RelayClientCallbacks.onConversationReset`. */
   onConversationReset?: () => void;
-  /** Turno em andamento na sessão, não só de quem mandou — ver
-   * `RelayClientCallbacks.onTurnState` (docs/30). Passthrough puro, mesmo
-   * raciocínio de `onNotificationSummary`: `ChatPanel` já mantém o próprio
-   * `turnStartedAt`, não precisa de state duplicado aqui. */
+  /** Turn in progress on the session, not just from whoever sent it — see
+   * `RelayClientCallbacks.onTurnState` (docs/30). Pure passthrough, same
+   * reasoning as `onNotificationSummary`: `ChatPanel` already keeps its own
+   * `turnStartedAt`, no need for duplicated state here. */
   onTurnState?: (state: { active: boolean; startedAt?: number }) => void;
-  /** Cauda recente do histórico dessa sessão — ver
-   * `RelayClientCallbacks.onHistoryPage` (Fase 2/3, docs/30). */
+  /** Recent tail of this session's history — see
+   * `RelayClientCallbacks.onHistoryPage` (Phase 2/3, docs/30). */
   onHistoryPage?: (page: HistoryPageMessage) => void;
-  /** Resposta a `loadOlderHistory` — ver `RelayClientCallbacks.onOlderHistory`
-   * (Fase 2/3, docs/30). */
+  /** Response to `loadOlderHistory` — see `RelayClientCallbacks.onOlderHistory`
+   * (Phase 2/3, docs/30). */
   onOlderHistory?: (page: HistoryPageMessage) => void;
-  /** Edição de mensagem em OUTRO dispositivo conectado na sessão (docs/33) —
-   * ver `RelayClientCallbacks.onHistoryTruncated`. */
+  /** Message edit on ANOTHER device connected to the session (docs/33) —
+   * see `RelayClientCallbacks.onHistoryTruncated`. */
   onHistoryTruncated?: (page: HistoryPageMessage) => void;
-  /** `edit_message` que este dispositivo pediu falhou — ver
+  /** `edit_message` requested by this device failed — see
    * `RelayClientCallbacks.onEditMessageError`. */
   onEditMessageError?: (message: string) => void;
 }
 
 export interface UseRelayClientResult {
   connected: boolean;
-  /** `null` só na janela breve entre conectar e o primeiro `cwd_state`
-   * chegar — ver `SharedSession.addClient` no relay, que manda isso antes
-   * de qualquer outra coisa. */
+  /** `null` only in the brief window between connecting and the first `cwd_state`
+   * arriving — see `SharedSession.addClient` on the relay, which sends this before
+   * anything else. */
   cwd: string | null;
   cwdLocked: boolean;
-  /** `null` só na janela breve entre conectar e o primeiro
-   * `permission_mode_state` chegar — mesmo motivo do `cwd` acima. */
+  /** `null` only in the brief window between connecting and the first
+   * `permission_mode_state` arriving — same reason as `cwd` above. */
   permissionMode: PermissionMode | null;
-  /** `null` tanto na janela breve entre conectar e o primeiro `model_state`
-   * quanto no estado final "nunca escolhido via /model" — os dois se
-   * comportam igual pra UI (usa o padrão do CLI), não precisa distinguir. */
+  /** `null` both in the brief window between connecting and the first `model_state`
+   * and in the final "never chosen via /model" state — the two
+   * behave the same for the UI (uses the CLI default), no need to distinguish. */
   model: ModelChoice | null;
-  /** Modelo padrão de verdade da conta desse perfil (docs/28) — fallback de
-   * exibição pra quando `model` acima é `null`. `null` só na janela breve
-   * antes da sondagem do relay terminar (ou se ela falhar). */
+  /** The actual default model for this profile's account (docs/28) — display
+   * fallback for when `model` above is `null`. `null` only in the brief window
+   * before the relay's probe finishes (or if it fails). */
   defaultModel: string | null;
-  /** `null` até o primeiro `context_usage_state` chegar — nunca chega numa
-   * sessão nova sem nenhum turno concluído ainda (ver sharedSession.ts), e
-   * volta a `null` depois de um `/clear` (docs/26). */
+  /** `null` until the first `context_usage_state` arrives — never arrives for a
+   * new session with no completed turn yet (see sharedSession.ts), and
+   * goes back to `null` after a `/clear` (docs/26). */
   contextUsage: ContextUsage | null;
-  /** Último `compact_boundary` visto, se houver — pensado pra um toast
-   * transitório na UI, não estado persistente (ver `CompactBoundaryEvent`). */
+  /** Last `compact_boundary` seen, if any — meant for a transient toast
+   * in the UI, not persistent state (see `CompactBoundaryEvent`). */
   compactBoundary: CompactBoundaryEvent | null;
-  /** Sugestão de próxima mensagem, se houver — ver relay-types.ts. `null`
-   * tanto "ainda sem sugestão" quanto "sugestão anterior não vale mais". */
+  /** Suggested next message, if any — see relay-types.ts. `null`
+   * for both "no suggestion yet" and "previous suggestion no longer valid". */
   suggestion: string | null;
-  /** Limpa a sugestão só localmente (sem round-trip) — o relay já vai limpar
-   * a dele e broadcastar `null` assim que o `submitTurn` correspondente
-   * chegar, mas isso tem uma latência de rede; quem envia uma mensagem já
-   * sabe que a sugestão de agora não vale mais, então chama isso na hora
-   * pra não arriscar o placeholder antigo reaparecer por uma fração de
-   * segundo depois do composer ser limpo (mesmo espírito da atualização
-   * otimista de `onActivity` em ChatPanel). */
+  /** Clears the suggestion locally only (no round-trip) — the relay will already clear
+   * its own and broadcast `null` as soon as the corresponding `submitTurn`
+   * arrives, but that has network latency; whoever sends a message already
+   * knows the current suggestion is no longer valid, so this is called right away
+   * to avoid the risk of the old placeholder reappearing for a fraction of a
+   * second after the composer is cleared (same spirit as the optimistic
+   * update of `onActivity` in ChatPanel). */
   dismissSuggestion: () => void;
   sendMessage: (text: string) => void;
   stopTurn: () => void;
@@ -98,28 +98,28 @@ export interface UseRelayClientResult {
   setPermissionMode: (mode: PermissionMode) => void;
   setModel: (model: ModelChoice) => void;
   clearConversation: () => void;
-  /** Busca turnos mais antigos que `beforeCursor` — ver
-   * `RelayClient.loadOlderHistory` (Fase 2/3, docs/30). */
+  /** Fetches turns older than `beforeCursor` — see
+   * `RelayClient.loadOlderHistory` (Phase 2/3, docs/30). */
   loadOlderHistory: (beforeCursor: number) => void;
-  /** Jobs `ultron-bg` observados agora nessa sessão — array vazio (nunca
-   * `null`) tanto "nenhum job" quanto "ainda não chegou o primeiro
-   * `background_job_state`" (docs/32, Fase E): as duas não têm UI diferente
-   * (indicador escondido nos dois casos), não precisa distinguir. */
+  /** `ultron-bg` jobs currently observed in this session — empty array (never
+   * `null`) for both "no job" and "the first
+   * `background_job_state` hasn't arrived yet" (docs/32, Phase E): the two don't have
+   * different UI (indicator hidden in both cases), no need to distinguish. */
   backgroundJobs: BackgroundJobSummary[];
-  /** Pede pro relay matar um job `ultron-bg` em andamento (docs/32, Fase F)
-   * — `background_job_state` some da lista assim que o relay processar,
-   * sem confirmação em separado (o próprio job sumir do chip já é o sinal). */
+  /** Asks the relay to kill an in-progress `ultron-bg` job (docs/32, Phase F)
+   * — `background_job_state` disappears from the list as soon as the relay processes it,
+   * with no separate confirmation (the job disappearing from the chip is itself the signal). */
   cancelBackgroundJob: (id: string) => void;
-  /** Edição de mensagem (docs/33) — ver `RelayClient.editMessage`. */
+  /** Message edit (docs/33) — see `RelayClient.editMessage`. */
   editMessage: (fromEnd: number, text: string) => void;
 }
 
 /**
- * Uma instância por aba aberta — inclusive abas em background, que ficam
- * montadas (ver TabBar/forceMount) pra manter o WebSocket vivo mesmo sem
- * foco, conforme docs/18. Callback-based: quem chama decide onde os eventos
- * vão parar (ex: o reducer de `useMessageLog`) em vez do hook acumular seu
- * próprio array duplicado.
+ * One instance per open tab — including background tabs, which stay
+ * mounted (see TabBar/forceMount) to keep the WebSocket alive even without
+ * focus, per docs/18. Callback-based: the caller decides where events
+ * end up (e.g. the `useMessageLog` reducer) instead of the hook accumulating its
+ * own duplicated array.
  */
 export function useRelayClient(
   profile: Profile,
@@ -142,9 +142,9 @@ export function useRelayClient(
   optionsRef.current = options;
 
   useEffect(() => {
-    // Estado de working directory é por conexão — uma troca de aba/sessão
-    // reconecta do zero, então começa "desconhecido" até o relay mandar o
-    // primeiro `cwd_state` dessa sessão nova.
+    // Working directory state is per connection — switching tab/session
+    // reconnects from scratch, so it starts "unknown" until the relay sends the
+    // first `cwd_state` for this new session.
     setCwdState(null);
     setCwdLocked(false);
     setPermissionModeState(null);
@@ -157,10 +157,10 @@ export function useRelayClient(
 
     const client = new RelayClient(profile.host, profile.relayPort, sessionId, {
       onEvent: (event) => {
-        // `compact_boundary` já atravessa o `claude_event` genérico sem
-        // nenhum tratamento especial no relay — só intercepta aqui pra
-        // alimentar o toast, sem tirar o evento do fluxo normal (useMessageLog
-        // etc. continuam recebendo tudo como antes).
+        // `compact_boundary` already passes through the generic `claude_event`
+        // with no special treatment on the relay — this only intercepts it here to
+        // feed the toast, without removing the event from the normal flow (useMessageLog
+        // etc. keep receiving everything as before).
         if (event.type === "system" && event.subtype === "compact_boundary" && event.compactMetadata) {
           setCompactBoundary({ ...event.compactMetadata, receivedAt: Date.now() });
         }
@@ -201,11 +201,11 @@ export function useRelayClient(
     };
   }, [profile.host, profile.relayPort, sessionId]);
 
-  // Reconexão em foreground/background (docs/23, Fase D1): `visibilitychange`
-  // é o sinal confiável em iOS (Fase D0 confirmou que o onFocusChanged do
-  // Tauri nunca dispara lá) — funciona igual em desktop, sem gate de
-  // plataforma. `forceReconnect` já decide sozinho se a conexão atual
-  // precisa mesmo ser recriada.
+  // Foreground/background reconnection (docs/23, Phase D1): `visibilitychange`
+  // is the reliable signal on iOS (Phase D0 confirmed that Tauri's onFocusChanged
+  // never fires there) — works the same on desktop, no platform
+  // gate needed. `forceReconnect` already decides on its own whether the current
+  // connection actually needs to be recreated.
   useEffect(() => {
     function handleVisibilityChange(): void {
       if (document.visibilityState === "visible") clientRef.current?.forceReconnect();

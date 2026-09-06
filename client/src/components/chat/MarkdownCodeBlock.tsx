@@ -3,28 +3,29 @@ import { Check, Copy } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { isIOS } from "@/lib/platform";
 
-/** Override do `pre` no `ReactMarkdown` do `AssistantText` — bloco de código
- * ganha um botão de copiar no canto superior direito. O botão fica FORA do
- * `<pre>` (num wrapper `relative` por cima), não dentro dele: `.prose-chat
- * pre` tem `overflow-x: auto` (blocos longos rolam horizontalmente), e um
- * filho `absolute` de um elemento com scroll rola junto com o conteúdo —
- * ficava se arrastando pro lado ao rolar em vez de continuar fixo no canto.
- * Hover-only no desktop (opacity-0/group-hover) — sempre visível some com a
- * necessidade de sobrepor o código só quando o usuário já pediu pra ver o
- * botão. Sempre visível no iOS, que não tem hover: apareceria só ao tocar
- * (e some de novo), o que não ajuda em nada. Lê o texto via `textContent` do
- * próprio `<pre>` na hora do clique em vez de tentar recompor a partir de
- * `children` (que já vem com spans do rehype-highlight — pegar do DOM
- * renderizado é o jeito simples de ter o texto puro de volta). */
+/** Override of `pre` in `AssistantText`'s `ReactMarkdown` — the code block
+ * gets a copy button in the top-right corner. The button sits OUTSIDE the
+ * `<pre>` (in a `relative` wrapper over it), not inside it: `.prose-chat
+ * pre` has `overflow-x: auto` (long blocks scroll horizontally), and an
+ * `absolute` child of a scrolling element scrolls along with the content —
+ * it would drag sideways while scrolling instead of staying fixed in the
+ * corner. Hover-only on desktop (opacity-0/group-hover) — always-visible
+ * removes the need to overlay the code only when the user has actually
+ * asked to see the button. Always visible on iOS, which has no hover: it
+ * would only appear on tap (then disappear again), which doesn't help at
+ * all. Reads the text via the `<pre>`'s own `textContent` at click time
+ * instead of trying to recompose it from `children` (which already comes
+ * with rehype-highlight spans — grabbing it from the rendered DOM is the
+ * simple way to get the plain text back). */
 export function MarkdownCodeBlock({ children, className, ...props }: ComponentProps<"pre">) {
   const preRef = useRef<HTMLPreElement>(null);
   const [copied, setCopied] = useState(false);
 
   async function handleCopy(): Promise<void> {
-    // `textContent` do bloco vem com uma quebra de linha final (o código do
-    // markdown preserva o "\n" antes do ``` de fechamento) — sem o trim, colar
-    // sempre deixava o cursor numa linha em branco depois do conteúdo em vez
-    // de logo após o último caractere.
+    // The block's `textContent` comes with a trailing newline (the markdown
+    // code preserves the "\n" before the closing ```) — without the trim,
+    // pasting always left the cursor on a blank line after the content
+    // instead of right after the last character.
     const text = (preRef.current?.textContent ?? "").trimEnd();
     try {
       await navigator.clipboard.writeText(text);

@@ -8,9 +8,9 @@ interface SessionListItemProps {
   session: SessionSummary;
   selected: boolean;
   running: boolean;
-  /** Job `ultron-bg` observado agora nessa sessão (docs/32, Fase E) — mesmo
-   * limite de `running`: só sessões abertas como aba têm essa informação
-   * (sem aba = sem conexão WS viva pra saber). */
+  /** `ultron-bg` job currently observed on this session (docs/32, Phase E)
+   * — same limitation as `running`: only sessions open as a tab have this
+   * information (no tab = no live WS connection to know it). */
   hasBackgroundJob: boolean;
   onSelect: (id: string) => void;
   onRename: (id: string, currentTitle: string) => void;

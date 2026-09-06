@@ -12,10 +12,10 @@ interface TerminalTabStripProps {
   onAdd: () => void;
 }
 
-/** Tira de abas "Terminal 1 / Terminal 2 / +" no cabeçalho do painel — igual
- * a screenshot de referência do VS Code. Sem drag-to-reorder (diferente da
- * `TabBar` de sessões): número de abas de terminal por sessão tende a ser
- * pequeno o bastante pra não justificar a complexidade do dnd-kit aqui. */
+/** "Terminal 1 / Terminal 2 / +" tab strip in the panel header — same as the
+ * VS Code reference screenshot. No drag-to-reorder (unlike the sessions'
+ * `TabBar`): the number of terminal tabs per session tends to be small
+ * enough to not justify dnd-kit's complexity here. */
 export function TerminalTabStrip({ tabs, activeTerminalId, onSelect, onClose, onAdd }: TerminalTabStripProps) {
   return (
     <div className="scrollbar-thin flex items-center gap-0.5 overflow-x-auto px-1 py-1">
