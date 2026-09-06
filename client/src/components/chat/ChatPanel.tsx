@@ -561,6 +561,8 @@ export function ChatPanel({
           onChangePermissionMode={setPermissionMode}
           model={model}
           defaultModel={defaultModel}
+          onChangeModel={setModel}
+          modelLocked={cwdLocked}
           contextUsage={contextUsage}
           compactBoundary={compactBoundary}
           suggestion={suggestion}

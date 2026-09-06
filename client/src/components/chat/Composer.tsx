@@ -32,7 +32,7 @@ import { useVoiceRecording } from "@/hooks/useVoiceRecording";
 import type { PendingAttachment } from "@/hooks/useImageUpload";
 import { ComposerLinkHoverCard } from "@/components/chat/ComposerLinkHoverCard";
 import { PermissionModeButton } from "@/components/chat/PermissionModeButton";
-import { ModelLabel } from "@/components/chat/ModelLabel";
+import { ModelButton } from "@/components/chat/ModelButton";
 import { ContextUsageButton } from "@/components/chat/ContextUsageButton";
 import { CompactBoundaryToast } from "@/components/chat/CompactBoundaryToast";
 import { SlashCommandMenu } from "@/components/chat/SlashCommandMenu";
@@ -52,12 +52,19 @@ interface ComposerProps {
   onRemoveImage: (path: string) => void;
   permissionMode: PermissionMode | null;
   onChangePermissionMode: (mode: PermissionMode) => void;
-  /** `null` até o primeiro `/model` da sessão (docs/26) — nesse caso
-   * `ModelLabel` cai pro `defaultModel` (docs/28). */
+  /** `null` até a primeira troca explícita da sessão (docs/26, agora via
+   * `ModelButton` além do `/model` digitado) — nesse caso `ModelButton` cai
+   * pro `defaultModel` (docs/28). */
   model: ModelChoice | null;
   /** Modelo padrão de verdade da conta desse perfil (docs/28) — fallback do
-   * `ModelLabel` quando `model` é `null`. */
+   * `ModelButton` quando `model` é `null`. */
   defaultModel: string | null;
+  onChangeModel: (model: ModelChoice) => void;
+  /** Mesmo sinal do `cwdLocked` (`WorkingDirectoryButton`) — true assim que a
+   * conversa já teve seu primeiro turno. Trocar o modelo nesse ponto exigiria
+   * reler todo o histórico pra CLI reconstruir contexto no modelo novo, então
+   * o `ModelButton` trava junto com a pasta. */
+  modelLocked: boolean;
   /** Desktop-only por ora — o layout iOS (linha única attach/texto/enviar,
    * ver isIOS() abaixo) não tem a toolbar onde isso entraria. */
   contextUsage: ContextUsage | null;
@@ -408,6 +415,8 @@ export const Composer = forwardRef<ComposerHandle, ComposerProps>(function Compo
     onChangePermissionMode,
     model,
     defaultModel,
+    onChangeModel,
+    modelLocked,
     contextUsage,
     compactBoundary,
     suggestion,
@@ -686,7 +695,7 @@ export const Composer = forwardRef<ComposerHandle, ComposerProps>(function Compo
           <div className="flex items-center justify-between gap-2">
             <div className="flex min-w-0 flex-1 items-center gap-2 px-1">
               <PermissionModeButton mode={permissionMode} onChange={onChangePermissionMode} />
-              <ModelLabel model={model} defaultModel={defaultModel} />
+              <ModelButton model={model} defaultModel={defaultModel} onChange={onChangeModel} disabled={disabled || modelLocked} />
               <ContextUsageButton usage={contextUsage} />
               <CompactBoundaryToast event={compactBoundary} />
               {isRecording && (
