@@ -171,6 +171,49 @@ export function TerminalView({ profile, chatSessionId, terminalId }: TerminalVie
       if (socket?.readyState === WebSocket.OPEN) socket.send(JSON.stringify({ type: "input", data }));
     });
 
+    // Mouse wheel over the terminal: xterm.js's own default for this case
+    // (no scrollback on the active buffer — see `scrollTerminal` in the
+    // relay's terminalSession.ts for why that's always true here) is to
+    // convert wheel deltas into literal Up/Down key presses, mimicking a
+    // real xterm for legacy full-screen apps without mouse support. Since
+    // every pane here runs inside tmux, that hack lands on tmux's own
+    // keystream and gets read as shell history navigation (readline's
+    // Up/Down) instead of scrolling — the actual bug report this fixes.
+    // Overriding the handler and returning `false` fully suppresses that
+    // built-in behavior; the relay's `scrollTerminal` drives tmux's own
+    // `copy-mode` instead, which is real pane scrollback with a real
+    // "nothing left to scroll" bottom, and (via `copy-mode -e`) auto-exits
+    // once back at the bottom.
+    const cellHeightPx = (term.options.fontSize ?? 13) * (term.options.lineHeight ?? 1);
+    let wheelLineRemainder = 0;
+    let pendingScrollLines = 0;
+    let scrollFlushRaf: number | undefined;
+    const flushScroll = (): void => {
+      scrollFlushRaf = undefined;
+      if (pendingScrollLines === 0) return;
+      const lines = pendingScrollLines;
+      pendingScrollLines = 0;
+      if (socket?.readyState === WebSocket.OPEN) socket.send(JSON.stringify({ type: "scroll", lines }));
+    };
+    term.attachCustomWheelEventHandler((event) => {
+      let deltaLines: number;
+      if (event.deltaMode === WheelEvent.DOM_DELTA_LINE) {
+        deltaLines = -event.deltaY;
+      } else if (event.deltaMode === WheelEvent.DOM_DELTA_PAGE) {
+        deltaLines = -event.deltaY * term.rows;
+      } else {
+        deltaLines = -event.deltaY / cellHeightPx;
+      }
+      wheelLineRemainder += deltaLines;
+      const wholeLines = Math.trunc(wheelLineRemainder);
+      if (wholeLines !== 0) {
+        wheelLineRemainder -= wholeLines;
+        pendingScrollLines += wholeLines;
+        if (scrollFlushRaf === undefined) scrollFlushRaf = requestAnimationFrame(flushScroll);
+      }
+      return false;
+    });
+
     const resizeObserver = new ResizeObserver(() => {
       fitAddon.fit();
       window.clearTimeout(resizeSendTimer);
@@ -186,6 +229,7 @@ export function TerminalView({ profile, chatSessionId, terminalId }: TerminalVie
       shouldReconnect = false;
       window.clearTimeout(reconnectTimer);
       window.clearTimeout(resizeSendTimer);
+      if (scrollFlushRaf !== undefined) cancelAnimationFrame(scrollFlushRaf);
       resizeObserver.disconnect();
       inputDisposable.dispose();
       socket?.close();

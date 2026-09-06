@@ -5,7 +5,7 @@ import { listDirectories } from "./fsBrowse.js";
 import { defaultCwd } from "./paths.js";
 import { SessionManager } from "./sessionManager.js";
 import { SessionStore, type ModelChoice, type PermissionMode } from "./sessionStore.js";
-import { killAllTerminalsForSession, killTerminal, spawnTerminal } from "./terminalSession.js";
+import { killAllTerminalsForSession, killTerminal, scrollTerminal, spawnTerminal } from "./terminalSession.js";
 import { saveUpload } from "./uploads.js";
 
 // Config via env — allows running one instance per profile (systemd,
@@ -151,6 +151,19 @@ function isTerminalResizeMessage(value: unknown): value is { type: "resize"; col
   const cols = (value as { cols?: unknown }).cols;
   const rows = (value as { rows?: unknown }).rows;
   return typeof cols === "number" && cols > 0 && typeof rows === "number" && rows > 0;
+}
+
+/** Mouse wheel over the embedded terminal — see `scrollTerminal` in
+ * terminalSession.ts for why this drives tmux's `copy-mode` directly instead
+ * of just being handled by xterm.js locally. `lines` is signed: positive
+ * scrolls up (older content), negative scrolls down. */
+function isTerminalScrollMessage(value: unknown): value is { type: "scroll"; lines: number } {
+  return (
+    typeof value === "object" &&
+    value !== null &&
+    (value as { type?: unknown }).type === "scroll" &&
+    typeof (value as { lines?: unknown }).lines === "number"
+  );
 }
 
 /** No body-parsing lib in the project (only the binary upload had a chunk
@@ -388,6 +401,8 @@ function handleTerminalConnection(socket: WebSocket, url: URL): void {
         term.write(parsed.data);
       } else if (isTerminalResizeMessage(parsed)) {
         term.resize(Math.floor(parsed.cols), Math.floor(parsed.rows));
+      } else if (isTerminalScrollMessage(parsed)) {
+        scrollTerminal(PORT, chatSessionId, terminalId, Math.trunc(parsed.lines));
       }
     } catch (error) {
       // `term.write`/`term.resize` call ioctl on the pty's fd under the

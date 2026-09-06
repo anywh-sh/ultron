@@ -133,6 +133,41 @@ export function killTerminal(relayPort: number, chatSessionId: string, terminalI
   return execTmux(relayPort, ["kill-session", "-t", tmuxSessionName(chatSessionId, terminalId)]).then(() => undefined);
 }
 
+/** Scrolls a terminal pane's content via tmux's own `copy-mode`, instead of
+ * relying on xterm.js's normal-buffer scrollback (there is none: tmux keeps
+ * the outer terminal permanently on the alternate screen buffer for as long
+ * as it's attached, regardless of what runs inside the pane, so
+ * `buffer.hasScrollback` is always false from xterm.js's point of view). Two
+ * chained tmux commands (see the `spawnTerminal` comment above for why a
+ * literal `;` argv token works without a shell in between): `copy-mode -e`
+ * enters copy mode (a safe no-op if the pane is already in it) with the same
+ * `-e` tmux's own default mouse binding uses, so scrolling back down past
+ * the bottom auto-exits copy mode instead of getting the pane stuck in it;
+ * `send-keys -X -N <n> scroll-up/down` then moves the view by exactly `n`
+ * lines. Deliberately not `set-option mouse on` (see `spawnTerminal`
+ * comment) — that would hand xterm.js's whole mouse handling to tmux and
+ * break native click-drag text selection, the opposite of the direct
+ * scroll-only path here (driven by the client's own wheel handler, see
+ * `TerminalView.tsx`). */
+export function scrollTerminal(relayPort: number, chatSessionId: string, terminalId: string, lines: number): Promise<void> {
+  if (lines === 0) return Promise.resolve();
+  const target = tmuxSessionName(chatSessionId, terminalId);
+  return execTmux(relayPort, [
+    "copy-mode",
+    "-e",
+    "-t",
+    target,
+    ";",
+    "send-keys",
+    "-X",
+    "-t",
+    target,
+    "-N",
+    String(Math.abs(lines)),
+    lines > 0 ? "scroll-up" : "scroll-down",
+  ]).then(() => undefined);
+}
+
 /** Prefix sweep (doesn't depend on any in-memory record of the relay) —
  * called when deleting an entire chat session, so no orphaned shells keep
  * running forever with no tab controlling them. */
