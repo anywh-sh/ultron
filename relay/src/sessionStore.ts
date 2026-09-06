@@ -286,6 +286,15 @@ export class SessionStore {
     this.persist();
   }
 
+  /** `/clear` — drops the title along with the session_id/history it
+   * described, so the next real prompt gets a fresh one instead of leaving
+   * the old conversation's title stuck on a now-unrelated conversation. */
+  clearTitle(id: string): void {
+    this.ensureEntry(id);
+    this.records[id].title = null;
+    this.persist();
+  }
+
   getCwdState(id: string): SessionCwdState {
     return this.records[id]?.cwd ?? { cwd: this.defaultCwd, locked: false };
   }

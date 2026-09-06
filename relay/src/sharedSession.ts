@@ -68,6 +68,12 @@ export interface SharedSessionOptions {
   /** Called when a `/clear` unlocks the cwd of a session that was already
    * locked (see `clearConversation`) — counterpart to `onLockChange`. */
   onUnlockChange?: () => void;
+  /** Called by `/clear` to drop the persisted title along with the
+   * session_id/history — counterpart to `onSessionIdClear`. Without this,
+   * `SessionManager`'s `onFirstPrompt` guard (which exists to protect an
+   * already-titled session from being overwritten) would also block the new
+   * title a cleared conversation needs. */
+  onTitleClear?: () => void;
   /** Title already persisted for this session, if any (an old migrated
    * session, or a reload of a new session whose title had already been
    * inferred before the relay restarted). */
@@ -466,6 +472,13 @@ export class SharedSession {
       this.historyCleared = true;
       this.contextUsage = undefined;
       this.options.onSessionIdClear?.();
+      // Same reasoning as the session_id/history reset above: the title
+      // described the conversation that no longer exists. Also rearms
+      // `onFirstPrompt` (docs/26) so the next real message gets a fresh one
+      // instead of it staying stuck on the old conversation's title forever.
+      this.title = null;
+      this.firstPromptSeeded = false;
+      this.options.onTitleClear?.();
       if (this.locked) {
         this.locked = false;
         this.options.onUnlockChange?.();

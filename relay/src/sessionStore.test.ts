@@ -41,6 +41,17 @@ test("setTitle records the title and the session starts showing up in listTitled
   });
 });
 
+test("clearTitle (docs/26 /clear) drops the title and the session leaves listTitled again", () => {
+  withStoreFile(undefined, (filePath) => {
+    const store = new SessionStore(filePath, DEFAULT_CWD);
+    store.recordId("abc-123");
+    store.setTitle("abc-123", "Fix the save button bug");
+    store.clearTitle("abc-123");
+    assert.equal(store.getTitle("abc-123"), null);
+    assert.deepEqual(store.listTitled(), []);
+  });
+});
+
 test("migration: legacy shape (name -> session_id|null) becomes the new shape with title = old name", () => {
   withStoreFile({ "com-historico": "abc-123", "sem-turno-ainda": null }, (filePath) => {
     const store = new SessionStore(filePath, DEFAULT_CWD);

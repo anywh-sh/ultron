@@ -145,6 +145,7 @@ export class SessionManager {
       initialSessionId: this.sessionStore.getSessionId(id),
       onSessionIdChange: (sessionId) => this.sessionStore.recordSessionId(id, sessionId),
       onSessionIdClear: () => this.sessionStore.clearSessionId(id),
+      onTitleClear: () => this.sessionStore.clearTitle(id),
       initialCwd: cwd,
       initialLocked: locked,
       onCwdChange: (newCwd) => this.sessionStore.setCwd(id, newCwd),
@@ -163,10 +164,12 @@ export class SessionManager {
       },
       initialTitle: this.sessionStore.getTitle(id),
       onFirstPrompt: (text) => {
-        // Only fires for a genuinely new session — a session migrated from
-        // an old format already arrives with `initialTitle` filled in (its
-        // name at the time), so it never had a null `title` at the start of
-        // the conversation.
+        // Guards against overwriting an already-titled session: a session
+        // migrated from an old format arrives with `initialTitle` filled in
+        // (its name at the time), so it never had a null `title` to begin
+        // with. A cleared conversation (docs/26, `SharedSession.onTitleClear`)
+        // is the other way this can fire with a title already set — there it
+        // doesn't apply, since `clearConversation` already nulled it out.
         if (this.sessionStore.getTitle(id) !== null) return;
         generateTitle(this.homeOverride, session.getCwdState().cwd, text)
           .then((title) => {
