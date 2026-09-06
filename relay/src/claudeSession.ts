@@ -140,6 +140,28 @@ function usageTokenTotal(usage: ResultUsage): number {
 }
 
 /**
+ * `true` only for the specific error text the CLI emits when `--resume`
+ * itself is broken — the session's `.jsonl` is gone or was never valid
+ * (confirmed against the real binary: "No conversation found with session
+ * ID: <id>" and "No conversation found to continue"). This is the ONLY case
+ * where dropping `sessionId` is correct, so the next turn starts a fresh
+ * conversation instead of repeating the same failure forever (the original
+ * reason for clearing on error at all — docs/09, an orphaned session_id
+ * after a credentials bug).
+ *
+ * Every other error `sendTurn` can surface — hitting the 5-hour/weekly usage
+ * limit, the API being overloaded, a network hiccup — is transient and says
+ * nothing about the session being invalid. Treating those the same way was a
+ * real bug: the conversation was still perfectly resumable, but the next
+ * turn went out without `--resume` anyway, so the user lost all context the
+ * moment the limit reset or the API recovered, indistinguishable from a
+ * manual `/clear`.
+ */
+export function isSessionInvalidError(message: string): boolean {
+  return /no conversation found/i.test(message);
+}
+
+/**
  * `true` only for `assistant` events on the conversation's main thread —
  * subagents (`Task`) also emit `assistant` events on the same stdout, but
  * with `parent_tool_use_id` pointing at the `tool_use` that triggered them
@@ -343,15 +365,14 @@ export class ClaudeSession {
 
       if (lastErrorResult) {
         if (this.stopRequested) return { stopped: true, contextUsage, lastAssistantText };
-        this.sessionId = undefined;
+        if (isSessionInvalidError(lastErrorResult)) this.sessionId = undefined;
         throw new Error(lastErrorResult);
       }
       if (eventCount === 0 || exitCode !== 0) {
         if (this.stopRequested) return { stopped: true, contextUsage, lastAssistantText };
-        this.sessionId = undefined;
-        throw new Error(
-          stderrOutput.trim() || `claude saiu com código ${String(exitCode)} sem produzir nenhum evento`,
-        );
+        const message = stderrOutput.trim() || `claude saiu com código ${String(exitCode)} sem produzir nenhum evento`;
+        if (isSessionInvalidError(message)) this.sessionId = undefined;
+        throw new Error(message);
       }
       return { stopped: false, contextUsage, lastAssistantText };
     } finally {

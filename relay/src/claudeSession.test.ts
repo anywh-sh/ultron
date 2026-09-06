@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { extractContextUsage, isMainThreadEvent, type ClaudeEvent } from "./claudeSession.js";
+import { extractContextUsage, isMainThreadEvent, isSessionInvalidError, type ClaudeEvent } from "./claudeSession.js";
 
 // Real shapes, captured by actually running `claude -p` (see the context
 // window indicator plan) — used as the basis for the tests below so the
@@ -110,6 +110,23 @@ test("ignores the result.usage aggregate — never reads tokens from there (real
 test("isMainThreadEvent: true when parent_tool_use_id is null or absent", () => {
   assert.equal(isMainThreadEvent({ type: "assistant", parent_tool_use_id: null }), true);
   assert.equal(isMainThreadEvent({ type: "assistant" }), true);
+});
+
+test("isSessionInvalidError: true for the CLI's real 'no conversation found' messages (--resume genuinely broken)", () => {
+  // Exact strings captured by running the real binary against a bogus
+  // session id (see claudeSession.ts comment) and documented for the
+  // "history not found" case.
+  assert.equal(isSessionInvalidError("No conversation found with session ID: 00000000-0000-0000-0000-000000000000"), true);
+  assert.equal(isSessionInvalidError("No conversation found to continue"), true);
+});
+
+test("isSessionInvalidError: false for transient errors — usage limit, overloaded, network — that don't invalidate the session", () => {
+  // Real finding: treating these the same as a broken --resume wiped
+  // sessionId (hence all conversation context) on every 5-hour usage-limit
+  // hit or API hiccup, even though the session was still perfectly resumable.
+  assert.equal(isSessionInvalidError("Claude AI usage limit reached|1735689600"), false);
+  assert.equal(isSessionInvalidError("Overloaded"), false);
+  assert.equal(isSessionInvalidError("connect ECONNREFUSED 127.0.0.1:443"), false);
 });
 
 test("isMainThreadEvent: false when parent_tool_use_id points at the tool_use that triggered a subagent", () => {
