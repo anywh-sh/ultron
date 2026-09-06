@@ -346,18 +346,18 @@ body {
 /* Inline code (não dentro de `pre`) — antes usava `--card`, quase idêntico
  * ao fundo da mensagem (que não tem bolha própria, flutua direto sobre
  * `--background`), então o trecho de código quase não se distinguia do
- * texto ao redor. Pill com leve tingimento de `--primary` (mesma lógica de
- * `color-mix` já usada acima pro anel de contexto e diff): dá contraste real
- * sem introduzir cor nova fora da paleta docs/17. */
+ * texto ao redor. Pill neutro (fundo mais escuro que `--background`, mesma
+ * família de `--bg-sidebar`; borda na linha de `--border`) — só o texto leva
+ * a cor da marca (`--primary`), pra não competir com o resto da paleta. */
 .prose-chat code {
   font-family: var(--font-mono);
-  background: color-mix(in srgb, var(--primary) 13%, var(--border));
-  border: 1px solid color-mix(in srgb, var(--primary) 22%, transparent);
+  background: var(--bg-sidebar);
+  border: 1px solid var(--border);
   border-radius: 5px;
   padding: 0.15em 0.45em;
   font-size: 0.85em;
   font-weight: 500;
-  color: color-mix(in srgb, var(--primary) 35%, var(--foreground));
+  color: var(--primary);
 }
 .prose-chat pre {
   background: var(--card);
