@@ -593,7 +593,7 @@ export function ChatPanel({
           modelLocked={cwdLocked}
           contextUsage={contextUsage}
           compactBoundary={compactBoundary}
-          suggestion={suggestion}
+          suggestion={isIOS() ? null : suggestion}
           onSend={(text, sentImages) => {
             // Editing via composer (docs/33, iOS) — the normal send (slash
             // commands, `addUserMessage`+`sendMessage`) doesn't apply here:
