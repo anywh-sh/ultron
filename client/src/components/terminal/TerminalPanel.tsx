@@ -62,6 +62,16 @@ export function TerminalPanel({
    * closing itself again). A single effect, driven by the real transition
    * of `tabs.length` between renders, avoids the race. */
   const hasHadTabsRef = useRef(false);
+  /** Guards against StrictMode's dev-only double-invoke of this effect: on
+   * mount, React fires it twice back to back before any state update from
+   * the first call has actually re-rendered the component, so both
+   * invocations still see `tabs.length === 0` — without this guard that
+   * seeded two tabs ("Terminal 1" and "Terminal 2") instead of one, with the
+   * second call's `addTerminal` left active (found while testing: the panel
+   * always opened on "Terminal 2"). The ref is stable across both
+   * invocations (same component instance), so the second one sees it
+   * already flipped and skips. */
+  const seededRef = useRef(false);
   useEffect(() => {
     if (tabs.length > 0) {
       hasHadTabsRef.current = true;
@@ -69,7 +79,8 @@ export function TerminalPanel({
     }
     if (hasHadTabsRef.current) {
       onClose();
-    } else {
+    } else if (!seededRef.current) {
+      seededRef.current = true;
       addTerminal(chatSessionId);
     }
   }, [tabs.length, chatSessionId, onClose, addTerminal]);
