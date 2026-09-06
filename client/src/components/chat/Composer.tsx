@@ -98,11 +98,14 @@ const WAVEFORM_BARS = [0, 1, 2, 3, 4];
  * link, pasting over a selection had the same problem, deleting a selected
  * link made the cursor disappear). The rest of the schema (bold, italic,
  * lists, heading etc) stays disabled — the composer is a simple text box,
- * the request was only to support links via paste-to-link, not to become a
- * full rich-text editor.
+ * the request is only to support links (via paste or typing), not to become
+ * a full rich-text editor. `autolink: true` reuses Tiptap's built-in
+ * linkifyjs-based detection (same mark type as paste-to-link, so styling,
+ * the hover-card edit, and wire serialization all apply unchanged) — it
+ * fires once the typed URL is followed by whitespace.
  */
 const ComposerLink = Link.configure({
-  autolink: false,
+  autolink: true,
   linkOnPaste: true,
   openOnClick: false,
   HTMLAttributes: { class: "composer-link", rel: "noopener noreferrer nofollow" },
