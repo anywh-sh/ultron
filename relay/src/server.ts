@@ -1,7 +1,10 @@
+import { createReadStream } from "node:fs";
 import { createServer } from "node:http";
 import { WebSocketServer, type WebSocket } from "ws";
 import { detectDefaultModel, type DefaultModelInfo } from "./defaultModel.js";
 import { listDirectories } from "./fsBrowse.js";
+import { listFiles, readFileForViewer, resolveRawFile, type FilesError } from "./fsFiles.js";
+import { FilesWatchSession } from "./fsWatch.js";
 import { defaultCwd } from "./paths.js";
 import { SessionManager } from "./sessionManager.js";
 import { SessionStore, type ModelChoice, type PermissionMode } from "./sessionStore.js";
@@ -157,6 +160,22 @@ function isTerminalResizeMessage(value: unknown): value is { type: "resize"; col
  * terminalSession.ts for why this drives tmux's `copy-mode` directly instead
  * of just being handled by xterm.js locally. `lines` is signed: positive
  * scrolls up (older content), negative scrolls down. */
+function statusForFilesError(error: FilesError): number {
+  if (error === "permission_denied") return 403;
+  if (error === "not_found") return 404;
+  return 400; // invalid_path, outside_root
+}
+
+/** Work dir file panel's watch (docs/41 phase 5) — always the client's full
+ * current set of visible dirs/files, never an incremental add/remove (see
+ * `FilesWatchSession`). */
+function isWatchMessage(value: unknown): value is { type: "watch"; dirs: string[]; files: string[] } {
+  if (typeof value !== "object" || value === null || (value as { type?: unknown }).type !== "watch") return false;
+  const dirs = (value as { dirs?: unknown }).dirs;
+  const files = (value as { files?: unknown }).files;
+  return Array.isArray(dirs) && dirs.every((d) => typeof d === "string") && Array.isArray(files) && files.every((f) => typeof f === "string");
+}
+
 function isTerminalScrollMessage(value: unknown): value is { type: "scroll"; lines: number } {
   return (
     typeof value === "object" &&
@@ -326,6 +345,79 @@ const httpServer = createServer((req, res) => {
     return;
   }
 
+  // Work dir file panel (docs/41) — list/read/raw are all rooted at the
+  // requesting session's own cwd (`sessionStore.getCwdState`), never a path
+  // the client supplies directly; the client only ever sends `session=<id>`
+  // plus a path already confirmed to live under that root by a previous
+  // response.
+  if (req.method === "GET" && req.url?.startsWith("/files/list")) {
+    const url = new URL(req.url, `http://${req.headers.host ?? "localhost"}`);
+    const sessionId = url.searchParams.get("session")?.trim() || DEFAULT_SESSION;
+    const rawPath = url.searchParams.get("path");
+    const showHidden = url.searchParams.get("all") === "1";
+    const root = sessionStore.getCwdState(sessionId).cwd;
+    const result = listFiles(root, rawPath, showHidden);
+    res.setHeader("Content-Type", "application/json");
+    res.setHeader("Access-Control-Allow-Origin", "*");
+    if (!result.ok) {
+      res.writeHead(statusForFilesError(result.error));
+      res.end(JSON.stringify({ error: result.error }));
+      return;
+    }
+    res.end(JSON.stringify({ root: result.root, path: result.path, entries: result.entries }));
+    return;
+  }
+
+  if (req.method === "GET" && req.url?.startsWith("/files/read")) {
+    const url = new URL(req.url, `http://${req.headers.host ?? "localhost"}`);
+    const sessionId = url.searchParams.get("session")?.trim() || DEFAULT_SESSION;
+    const rawPath = url.searchParams.get("path");
+    res.setHeader("Content-Type", "application/json");
+    res.setHeader("Access-Control-Allow-Origin", "*");
+    if (!rawPath) {
+      res.writeHead(400);
+      res.end(JSON.stringify({ error: "invalid_path" }));
+      return;
+    }
+    const root = sessionStore.getCwdState(sessionId).cwd;
+    const result = readFileForViewer(root, rawPath);
+    if (!result.ok) {
+      res.writeHead(statusForFilesError(result.error));
+      res.end(JSON.stringify({ error: result.error }));
+      return;
+    }
+    const body =
+      result.kind === "text"
+        ? { kind: "text", path: result.path, content: result.content, size: result.size, mtimeMs: result.mtimeMs, truncated: result.truncated }
+        : result.kind === "image"
+          ? { kind: "image", path: result.path, size: result.size, mtimeMs: result.mtimeMs, mime: result.mime }
+          : { kind: "binary", path: result.path, size: result.size, mtimeMs: result.mtimeMs };
+    res.end(JSON.stringify(body));
+    return;
+  }
+
+  if (req.method === "GET" && req.url?.startsWith("/files/raw")) {
+    const url = new URL(req.url, `http://${req.headers.host ?? "localhost"}`);
+    const sessionId = url.searchParams.get("session")?.trim() || DEFAULT_SESSION;
+    const rawPath = url.searchParams.get("path");
+    res.setHeader("Access-Control-Allow-Origin", "*");
+    if (!rawPath) {
+      res.writeHead(400);
+      res.end();
+      return;
+    }
+    const root = sessionStore.getCwdState(sessionId).cwd;
+    const result = resolveRawFile(root, rawPath);
+    if (!result.ok) {
+      res.writeHead(statusForFilesError(result.error));
+      res.end();
+      return;
+    }
+    res.setHeader("Content-Type", result.mime);
+    createReadStream(result.path).on("error", () => res.end()).pipe(res);
+    return;
+  }
+
   if (req.method === "POST" && req.url?.startsWith("/upload")) {
     const url = new URL(req.url, `http://${req.headers.host ?? "localhost"}`);
     const ext = url.searchParams.get("ext") ?? "bin";
@@ -426,11 +518,44 @@ function handleTerminalConnection(socket: WebSocket, url: URL): void {
   });
 }
 
+/** Work dir file panel's watch (docs/41 phase 5) — same lifecycle as
+ * `/terminal`: connects while the pane is mounted (tab active AND pane
+ * open), disconnects on tab switch/pane close/session change. The relay
+ * keeps no watcher registry beyond this one connection's own
+ * `FilesWatchSession` — everything it opened dies with the socket. */
+function handleFilesConnection(socket: WebSocket, url: URL): void {
+  const chatSessionId = url.searchParams.get("session")?.trim() || DEFAULT_SESSION;
+  const root = sessionStore.getCwdState(chatSessionId).cwd;
+
+  const watchSession = new FilesWatchSession(root, (message) => {
+    if (socket.readyState === socket.OPEN) socket.send(JSON.stringify(message));
+  });
+
+  socket.on("message", (raw: Buffer) => {
+    let parsed: unknown;
+    try {
+      parsed = JSON.parse(raw.toString());
+    } catch {
+      return;
+    }
+    if (isWatchMessage(parsed)) watchSession.update(parsed.dirs, parsed.files);
+  });
+
+  socket.on("close", () => {
+    watchSession.close();
+  });
+}
+
 wss.on("connection", (socket: WebSocket, request) => {
   const url = new URL(request.url ?? "/", `http://${request.headers.host ?? "localhost"}`);
 
   if (url.pathname === "/terminal") {
     handleTerminalConnection(socket, url);
+    return;
+  }
+
+  if (url.pathname === "/files") {
+    handleFilesConnection(socket, url);
     return;
   }
 
