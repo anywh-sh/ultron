@@ -71,14 +71,15 @@ function readLastModels(): LastModelMap {
 /**
  * Model that a new conversation for a profile should preselect, resolved
  * from the preference configured in Settings — standalone read (outside a
- * React component), same reasoning as `getDefaultPath`. `undefined` =
- * nothing to apply ("last used" mode with no history yet for that
- * profile), lets the CLI fall back to the account's own default.
+ * React component), same reasoning as `getDefaultPath`. "last used" mode
+ * falls back to "sonnet" when the profile has no history yet (first-ever
+ * use), since we only support Claude Code today and Sonnet is its
+ * lowest-common-denominator default across profiles/accounts.
  */
-export function getPreferredModel(profileId: string): ModelChoice | undefined {
+export function getPreferredModel(profileId: string): ModelChoice {
   const preference = readPreferences()[profileId] ?? DEFAULT_MODEL_PREFERENCE;
   if (preference.mode === "fixed") return preference.fixedModel;
-  return readLastModels()[profileId];
+  return readLastModels()[profileId] ?? "sonnet";
 }
 
 /**
