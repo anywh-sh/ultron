@@ -1,12 +1,13 @@
 import { homedir } from "node:os";
 
 /**
- * "Pasta padrão do app" pra um perfil — usada como cwd inicial de uma sessão
- * nova e como fallback quando `GET /fs/list` não recebe `path`. Antes desta
- * função existir, o fallback pro perfil pessoal (sem `homeOverride`) era
- * `process.cwd()` do processo do relay — na prática a própria pasta do
- * código-fonte do ultron (`WorkingDirectory` do systemd unit), não o real
- * $HOME do usuário. `homedir()` é o fallback certo.
+ * "Default app folder" for a profile — used as the initial cwd of a new
+ * session and as the fallback when `GET /fs/list` doesn't receive `path`.
+ * Before this function existed, the fallback for the personal profile
+ * (without `homeOverride`) was the relay process's `process.cwd()` — in
+ * practice ultron's own source code folder (the systemd unit's
+ * `WorkingDirectory`), not the user's actual $HOME. `homedir()` is the
+ * correct fallback.
  */
 export function defaultCwd(homeOverride: string | undefined): string {
   return homeOverride ?? homedir();

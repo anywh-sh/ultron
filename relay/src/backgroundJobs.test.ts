@@ -19,7 +19,7 @@ const STARTED_JSON =
 
 // ---- parseStartedMarker -----------------------------------------------
 
-test("parseStartedMarker: reconhece o marcador quando é a string inteira", () => {
+test("parseStartedMarker: recognizes the marker when it is the whole string", () => {
   assert.deepEqual(parseStartedMarker(STARTED_JSON), {
     id: "1788022610814662237-29477",
     pid: 1200509,
@@ -29,7 +29,7 @@ test("parseStartedMarker: reconhece o marcador quando é a string inteira", () =
   });
 });
 
-test("parseStartedMarker: reconhece o marcador com uma quebra de linha depois (saída real do printf)", () => {
+test("parseStartedMarker: recognizes the marker with a trailing newline (real printf output)", () => {
   assert.deepEqual(parseStartedMarker(STARTED_JSON + "\n"), {
     id: "1788022610814662237-29477",
     pid: 1200509,
@@ -39,22 +39,22 @@ test("parseStartedMarker: reconhece o marcador com uma quebra de linha depois (s
   });
 });
 
-test("parseStartedMarker: texto sem o marcador retorna undefined", () => {
+test("parseStartedMarker: text without the marker returns undefined", () => {
   assert.equal(parseStartedMarker("build ok\nexit 0"), undefined);
 });
 
-test("parseStartedMarker: JSON parecido mas com ultron_bg diferente de \"started\" retorna undefined", () => {
+test("parseStartedMarker: JSON that looks similar but with ultron_bg other than \"started\" returns undefined", () => {
   assert.equal(parseStartedMarker('{"ultron_bg":"status","id":"x","done":true}'), undefined);
 });
 
-test("parseStartedMarker: campo obrigatório faltando (pid) retorna undefined em vez de quebrar", () => {
+test("parseStartedMarker: missing required field (pid) returns undefined instead of throwing", () => {
   assert.equal(
     parseStartedMarker('{"ultron_bg":"started","id":"x","log":"a","exitFile":"b","label":"c"}'),
     undefined,
   );
 });
 
-test("parseStartedMarker: JSON malformado (truncado) retorna undefined, não lança", () => {
+test("parseStartedMarker: malformed (truncated) JSON returns undefined, doesn't throw", () => {
   assert.equal(parseStartedMarker('{"ultron_bg":"started","id":"x"'), undefined);
 });
 
@@ -67,27 +67,27 @@ function toolResultEvent(content: unknown): ClaudeEvent {
   };
 }
 
-test("extractStartedJobFromEvent: tool_result com content string (shape mais comum, confirmado contra o binário real)", () => {
+test("extractStartedJobFromEvent: tool_result with string content (most common shape, confirmed against the real binary)", () => {
   const job = extractStartedJobFromEvent(toolResultEvent(STARTED_JSON));
   assert.equal(job?.id, "1788022610814662237-29477");
   assert.equal(job?.label, "sleep-build-stub");
 });
 
-test("extractStartedJobFromEvent: tool_result com content em array de blocos de texto (shape alternativo permitido pela API)", () => {
+test("extractStartedJobFromEvent: tool_result with content as an array of text blocks (alternative shape allowed by the API)", () => {
   const job = extractStartedJobFromEvent(toolResultEvent([{ type: "text", text: STARTED_JSON }]));
   assert.equal(job?.id, "1788022610814662237-29477");
 });
 
-test("extractStartedJobFromEvent: evento assistant (não user/tool_result) retorna undefined", () => {
+test("extractStartedJobFromEvent: assistant event (not user/tool_result) returns undefined", () => {
   const event: ClaudeEvent = { type: "assistant", message: { content: [{ type: "text", text: STARTED_JSON }] } };
   assert.equal(extractStartedJobFromEvent(event), undefined);
 });
 
-test("extractStartedJobFromEvent: tool_result de outra ferramenta (sem o marcador) retorna undefined", () => {
-  assert.equal(extractStartedJobFromEvent(toolResultEvent("arquivo.txt criado")), undefined);
+test("extractStartedJobFromEvent: tool_result from another tool (without the marker) returns undefined", () => {
+  assert.equal(extractStartedJobFromEvent(toolResultEvent("file.txt created")), undefined);
 });
 
-test("extractStartedJobFromEvent: user event sem content array (ex: {}) não lança", () => {
+test("extractStartedJobFromEvent: user event without a content array (e.g. {}) doesn't throw", () => {
   const event: ClaudeEvent = { type: "user", message: {} };
   assert.equal(extractStartedJobFromEvent(event), undefined);
 });
@@ -103,15 +103,15 @@ function withJobFiles(run: (dir: string, logPath: string, exitPath: string) => v
   }
 }
 
-function startedEvent(id: string, log: string, exitFile: string, label = "teste", pid = 12345): ClaudeEvent {
+function startedEvent(id: string, log: string, exitFile: string, label = "test", pid = 12345): ClaudeEvent {
   return toolResultEvent(
     JSON.stringify({ ultron_bg: "started", id, pid, log, exitFile, label }),
   );
 }
 
-test("BackgroundJobTracker: job ainda sem .exit não dispara onFinished e continua na lista", () => {
+test("BackgroundJobTracker: job still without .exit doesn't fire onFinished and stays in the list", () => {
   withJobFiles((_dir, logPath, exitPath) => {
-    writeFileSync(logPath, "rodando...\n");
+    writeFileSync(logPath, "running...\n");
     const finished: FinishedBackgroundJob[] = [];
     const tracker = new BackgroundJobTracker({ onFinished: (job) => finished.push(job) });
     tracker.observeEvent("sess-1", startedEvent("job-1", logPath, exitPath));
@@ -122,27 +122,27 @@ test("BackgroundJobTracker: job ainda sem .exit não dispara onFinished e contin
   });
 });
 
-test("BackgroundJobTracker: .exit aparecendo dispara onFinished com exitCode e cauda do log, e para de observar", () => {
+test("BackgroundJobTracker: .exit appearing fires onFinished with exitCode and the log tail, and stops watching", () => {
   withJobFiles((_dir, logPath, exitPath) => {
     writeFileSync(logPath, "build ok\n");
     writeFileSync(exitPath, "0\n");
     const finished: FinishedBackgroundJob[] = [];
     const tracker = new BackgroundJobTracker({ onFinished: (job) => finished.push(job) });
-    tracker.observeEvent("sess-1", startedEvent("job-1", logPath, exitPath, "meu-build"));
+    tracker.observeEvent("sess-1", startedEvent("job-1", logPath, exitPath, "my-build"));
     tracker.pollOnce();
     assert.equal(finished.length, 1);
     assert.equal(finished[0]?.exitCode, 0);
     assert.equal(finished[0]?.logTail, "build ok\n");
-    assert.equal(finished[0]?.label, "meu-build");
+    assert.equal(finished[0]?.label, "my-build");
     assert.equal(finished[0]?.sessionId, "sess-1");
     assert.equal(tracker.listWatched().length, 0);
     tracker.stopPolling();
   });
 });
 
-test("BackgroundJobTracker: exit code diferente de zero também é reportado (não é tratado como falha do tracker)", () => {
+test("BackgroundJobTracker: a non-zero exit code is also reported (not treated as a tracker failure)", () => {
   withJobFiles((_dir, logPath, exitPath) => {
-    writeFileSync(logPath, "erro: arquivo não encontrado\n");
+    writeFileSync(logPath, "error: file not found\n");
     writeFileSync(exitPath, "1\n");
     const finished: FinishedBackgroundJob[] = [];
     const tracker = new BackgroundJobTracker({ onFinished: (job) => finished.push(job) });
@@ -153,7 +153,7 @@ test("BackgroundJobTracker: exit code diferente de zero também é reportado (n�
   });
 });
 
-test("BackgroundJobTracker: cauda do log respeita logTailBytes (não devolve o arquivo inteiro)", () => {
+test("BackgroundJobTracker: log tail respects logTailBytes (doesn't return the whole file)", () => {
   withJobFiles((_dir, logPath, exitPath) => {
     writeFileSync(logPath, "a".repeat(10_000));
     writeFileSync(exitPath, "0");
@@ -166,9 +166,9 @@ test("BackgroundJobTracker: cauda do log respeita logTailBytes (não devolve o a
   });
 });
 
-test("BackgroundJobTracker: mesmo id observado duas vezes (evento duplicado) não vira dois jobs watched", () => {
+test("BackgroundJobTracker: the same id observed twice (duplicate event) doesn't become two watched jobs", () => {
   withJobFiles((_dir, logPath, exitPath) => {
-    writeFileSync(logPath, "rodando...\n");
+    writeFileSync(logPath, "running...\n");
     const tracker = new BackgroundJobTracker({ onFinished: () => undefined });
     const event = startedEvent("job-1", logPath, exitPath);
     tracker.observeEvent("sess-1", event);
@@ -178,24 +178,24 @@ test("BackgroundJobTracker: mesmo id observado duas vezes (evento duplicado) nã
   });
 });
 
-test("BackgroundJobTracker: job que passa do teto de observação (maxWatchMs) é descartado sem disparar onFinished", async () => {
-  // Não usa `withJobFiles` aqui: precisa manter o diretório vivo através de
-  // um `setTimeout` real (a limpeza síncrona no `finally` do helper rodaria
-  // antes do poll, apagando os arquivos cedo demais).
+test("BackgroundJobTracker: a job that exceeds the observation ceiling (maxWatchMs) is dropped without firing onFinished", async () => {
+  // Doesn't use `withJobFiles` here: needs to keep the directory alive across
+  // a real `setTimeout` (the helper's synchronous cleanup in `finally` would
+  // run before the poll, deleting the files too early).
   const dir = mkdtempSync(join(tmpdir(), "ultron-bgjobs-test-"));
   try {
     const logPath = join(dir, "job.log");
     const exitPath = join(dir, "job.exit");
-    writeFileSync(logPath, "servidor de dev rodando pra sempre\n");
-    // sem .exit — nunca termina, exatamente o caso do teto
+    writeFileSync(logPath, "dev server running forever\n");
+    // no .exit — never finishes, exactly the ceiling case
 
     const finished: FinishedBackgroundJob[] = [];
     const tracker = new BackgroundJobTracker({ onFinished: (job) => finished.push(job), maxWatchMs: 1 });
     tracker.observeEvent("sess-1", startedEvent("job-1", logPath, exitPath));
     assert.equal(tracker.listWatched().length, 1);
 
-    // espera real pra garantir que o teto de 1ms já passou antes do poll
-    // (sem isso, dependendo do timing da máquina, o teste ficaria flaky).
+    // real wait to guarantee the 1ms ceiling has already passed before the poll
+    // (without this, depending on machine timing, the test would be flaky).
     await new Promise((resolve) => setTimeout(resolve, 20));
 
     tracker.pollOnce();
@@ -207,7 +207,7 @@ test("BackgroundJobTracker: job que passa do teto de observação (maxWatchMs) �
   }
 });
 
-test("BackgroundJobTracker: dois jobs da mesma sessão são observados/concluídos independentemente", () => {
+test("BackgroundJobTracker: two jobs from the same session are watched/completed independently", () => {
   withJobFiles((dir, _logPath, _exitPath) => {
     const logA = join(dir, "a.log");
     const exitA = join(dir, "a.exit");
@@ -215,7 +215,7 @@ test("BackgroundJobTracker: dois jobs da mesma sessão são observados/concluíd
     const exitB = join(dir, "b.exit");
     writeFileSync(logA, "a ok\n");
     writeFileSync(exitA, "0");
-    writeFileSync(logB, "b rodando...\n");
+    writeFileSync(logB, "b running...\n");
 
     const finished: FinishedBackgroundJob[] = [];
     const tracker = new BackgroundJobTracker({ onFinished: (job) => finished.push(job) });
@@ -231,44 +231,44 @@ test("BackgroundJobTracker: dois jobs da mesma sessão são observados/concluíd
   });
 });
 
-// ---- persistência em disco (Fase F) --------------------------------------
+// ---- disk persistence (Phase F) --------------------------------------
 
-test("BackgroundJobTracker: com persistPath, um job observado sobrevive a um novo tracker (simula restart do relay)", () => {
+test("BackgroundJobTracker: with persistPath, a watched job survives a new tracker (simulates a relay restart)", () => {
   withJobFiles((dir, logPath, exitPath) => {
-    writeFileSync(logPath, "rodando...\n");
+    writeFileSync(logPath, "running...\n");
     const persistPath = join(dir, "watched.json");
 
     const trackerA = new BackgroundJobTracker({ onFinished: () => undefined, persistPath });
-    trackerA.observeEvent("sess-1", startedEvent("job-1", logPath, exitPath, "sobrevive-restart"));
+    trackerA.observeEvent("sess-1", startedEvent("job-1", logPath, exitPath, "survives-restart"));
     assert.equal(trackerA.listWatched().length, 1);
     trackerA.stopPolling();
 
-    // "Restart do relay": um tracker NOVO, mesmo persistPath — nunca viu o
-    // evento de início, só o que sobrou em disco.
+    // "Relay restart": a NEW tracker, same persistPath — never saw the
+    // start event, only what's left on disk.
     const finishedB: FinishedBackgroundJob[] = [];
     const trackerB = new BackgroundJobTracker({ onFinished: (job) => finishedB.push(job), persistPath });
     assert.equal(trackerB.listWatched().length, 1);
-    assert.equal(trackerB.listWatched()[0]?.label, "sobrevive-restart");
+    assert.equal(trackerB.listWatched()[0]?.label, "survives-restart");
     assert.equal(trackerB.listWatched()[0]?.pid, 12345);
 
-    // job na verdade já tinha terminado enquanto o tracker A "estava fora
-    // do ar" — trackerB precisa descobrir isso sem esperar o poll normal.
+    // the job had actually already finished while tracker A "was down" —
+    // trackerB needs to find this out without waiting for the normal poll.
     writeFileSync(exitPath, "0");
     trackerB.pollOnce();
     assert.equal(finishedB.length, 1);
     assert.equal(trackerB.listWatched().length, 0);
     trackerB.stopPolling();
 
-    // arquivo de persistência também reflete a conclusão (não fica com um
-    // job fantasma que um TERCEIRO restart ressuscitaria de novo).
+    // the persistence file also reflects the completion (no ghost job left
+    // that a THIRD restart would resurrect again).
     const persisted = JSON.parse(readFileSync(persistPath, "utf8")) as unknown[];
     assert.equal(persisted.length, 0);
   });
 });
 
-test("BackgroundJobTracker: sem persistPath, comportamento continua só-em-memória (nenhum arquivo criado)", () => {
+test("BackgroundJobTracker: without persistPath, behavior stays in-memory-only (no file created)", () => {
   withJobFiles((dir, logPath, exitPath) => {
-    writeFileSync(logPath, "rodando...\n");
+    writeFileSync(logPath, "running...\n");
     const tracker = new BackgroundJobTracker({ onFinished: () => undefined });
     tracker.observeEvent("sess-1", startedEvent("job-1", logPath, exitPath));
     assert.equal(existsSync(join(dir, "watched.json")), false);
@@ -276,16 +276,16 @@ test("BackgroundJobTracker: sem persistPath, comportamento continua só-em-memó
   });
 });
 
-test("BackgroundJobTracker: persistPath ausente ou corrompido começa vazio, não lança", () => {
+test("BackgroundJobTracker: missing or corrupted persistPath starts empty, doesn't throw", () => {
   const dir = mkdtempSync(join(tmpdir(), "ultron-bgjobs-test-"));
   try {
-    const missing = join(dir, "não-existe.json");
+    const missing = join(dir, "does-not-exist.json");
     const trackerMissing = new BackgroundJobTracker({ onFinished: () => undefined, persistPath: missing });
     assert.equal(trackerMissing.listWatched().length, 0);
     trackerMissing.stopPolling();
 
-    const corrupted = join(dir, "corrompido.json");
-    writeFileSync(corrupted, "isto não é json{{{");
+    const corrupted = join(dir, "corrupted.json");
+    writeFileSync(corrupted, "this is not json{{{");
     const trackerCorrupted = new BackgroundJobTracker({ onFinished: () => undefined, persistPath: corrupted });
     assert.equal(trackerCorrupted.listWatched().length, 0);
     trackerCorrupted.stopPolling();
@@ -294,30 +294,30 @@ test("BackgroundJobTracker: persistPath ausente ou corrompido começa vazio, nã
   }
 });
 
-// ---- cancel (Fase F) ------------------------------------------------------
+// ---- cancel (Phase F) ------------------------------------------------------
 
-test("BackgroundJobTracker: cancel mata o processo de verdade, remove da lista e NÃO dispara onFinished", async () => {
+test("BackgroundJobTracker: cancel really kills the process, removes it from the list and does NOT fire onFinished", async () => {
   const dir = mkdtempSync(join(tmpdir(), "ultron-bgjobs-test-"));
   try {
     const logPath = join(dir, "job.log");
     const exitPath = join(dir, "job.exit");
     writeFileSync(logPath, "");
 
-    // `detached: true` faz o Node chamar `setsid()` no filho — mesma
-    // topologia do `ultron-bg` real (o PID do processo já é o PGID/SID do
-    // grupo), então `process.kill(-pid, ...)` alcança ele do mesmo jeito.
+    // `detached: true` makes Node call `setsid()` on the child — same
+    // topology as the real `ultron-bg` (the process's PID is already the
+    // group's PGID/SID), so `process.kill(-pid, ...)` reaches it the same way.
     const child = spawn("sleep", ["30"], { detached: true, stdio: "ignore" });
     const pid = child.pid;
-    assert.ok(pid, "spawn deveria ter retornado um PID");
+    assert.ok(pid, "spawn should have returned a PID");
 
     const finished: FinishedBackgroundJob[] = [];
     const tracker = new BackgroundJobTracker({ onFinished: (job) => finished.push(job) });
-    tracker.observeEvent("sess-1", startedEvent("job-1", logPath, exitPath, "sleep-cancelavel", pid));
+    tracker.observeEvent("sess-1", startedEvent("job-1", logPath, exitPath, "cancellable-sleep", pid));
     assert.equal(tracker.listWatched().length, 1);
 
     const ok = tracker.cancel("sess-1", "job-1");
     assert.equal(ok, true);
-    assert.equal(tracker.listWatched().length, 0, "cancel deve remover o job da lista na hora, sem esperar o processo morrer");
+    assert.equal(tracker.listWatched().length, 0, "cancel should remove the job from the list immediately, without waiting for the process to die");
 
     await new Promise((resolve) => setTimeout(resolve, 500));
     let alive = true;
@@ -326,8 +326,8 @@ test("BackgroundJobTracker: cancel mata o processo de verdade, remove da lista e
     } catch {
       alive = false;
     }
-    assert.equal(alive, false, "o processo real deveria ter sido morto pelo cancel");
-    assert.equal(finished.length, 0, "cancel não deve disparar onFinished — quem cancelou já sabe que cancelou");
+    assert.equal(alive, false, "the real process should have been killed by cancel");
+    assert.equal(finished.length, 0, "cancel should not fire onFinished — whoever cancelled it already knows it was cancelled");
 
     tracker.stopPolling();
   } finally {
@@ -335,7 +335,7 @@ test("BackgroundJobTracker: cancel mata o processo de verdade, remove da lista e
   }
 });
 
-test("BackgroundJobTracker: cancel de um id que não existe (ou já terminou) retorna false sem lançar", () => {
+test("BackgroundJobTracker: cancelling an id that doesn't exist (or already finished) returns false without throwing", () => {
   const tracker = new BackgroundJobTracker({ onFinished: () => undefined });
   assert.equal(tracker.cancel("sess-1", "job-fantasma"), false);
   tracker.stopPolling();

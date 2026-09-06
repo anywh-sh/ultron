@@ -2,9 +2,9 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import { extractContextUsage, isMainThreadEvent, type ClaudeEvent } from "./claudeSession.js";
 
-// Shapes reais, capturados rodando `claude -p` de verdade (ver plano do
-// indicador de janela de contexto) — usados como base pros testes abaixo
-// pra não deixar a asserção descolada do formato real do CLI.
+// Real shapes, captured by actually running `claude -p` (see the context
+// window indicator plan) — used as the basis for the tests below so the
+// assertion doesn't drift from the CLI's real format.
 function resultEvent(overrides: Partial<ClaudeEvent> = {}): ClaudeEvent {
   return {
     type: "result",
@@ -26,23 +26,23 @@ function assistantUsage(overrides: Record<string, unknown> = {}) {
   };
 }
 
-test("extrai model/contextWindowSize/usedTokens combinando o último assistant do fio principal com o result", () => {
+test("extracts model/contextWindowSize/usedTokens by combining the last main-thread assistant with the result", () => {
   const usage = extractContextUsage(resultEvent(), "claude-sonnet-5", assistantUsage());
   assert.deepEqual(usage, {
     model: "claude-sonnet-5",
     contextWindowSize: 1_000_000,
     // input_tokens(2) + cache_creation_input_tokens(0) + cache_read_input_tokens(30691)
-    // — output_tokens(4) fica de fora de propósito, mesma fórmula do
-    // `used_percentage` oficial do statusline do Claude Code.
+    // — output_tokens(4) is left out on purpose, same formula as Claude
+    // Code's official statusline `used_percentage`.
     usedTokens: 30693,
   });
 });
 
-test("sem uso do fio principal ainda visto (turno falhou antes de qualquer resposta): retorna undefined", () => {
+test("no main-thread usage seen yet (turn failed before any response): returns undefined", () => {
   assert.equal(extractContextUsage(resultEvent(), "claude-sonnet-5", undefined), undefined);
 });
 
-test("model desconhecido (init não capturado): cai pra primeira entrada de modelUsage em vez de descartar", () => {
+test("unknown model (init not captured): falls back to the first modelUsage entry instead of discarding", () => {
   const usage = extractContextUsage(resultEvent(), undefined, assistantUsage());
   assert.deepEqual(usage, {
     model: "claude-sonnet-5",
@@ -51,7 +51,7 @@ test("model desconhecido (init não capturado): cai pra primeira entrada de mode
   });
 });
 
-test("model capturado não bate com nenhuma chave de modelUsage: mesmo fallback, não retorna undefined", () => {
+test("captured model doesn't match any modelUsage key: same fallback, doesn't return undefined", () => {
   const usage = extractContextUsage(resultEvent(), "claude-opus-5", assistantUsage());
   assert.deepEqual(usage, {
     model: "claude-sonnet-5",
@@ -60,13 +60,13 @@ test("model capturado não bate com nenhuma chave de modelUsage: mesmo fallback,
   });
 });
 
-test("sem campo modelUsage no evento result: retorna undefined", () => {
+test("no modelUsage field on the result event: returns undefined", () => {
   const event = resultEvent();
   delete event.modelUsage;
   assert.equal(extractContextUsage(event, "claude-sonnet-5", assistantUsage()), undefined);
 });
 
-test("modelUsage[model] sem contextWindow: retorna undefined em vez de inventar um limite", () => {
+test("modelUsage[model] without contextWindow: returns undefined instead of making up a limit", () => {
   const usage = extractContextUsage(
     resultEvent({ modelUsage: { "claude-sonnet-5": { canonicalModel: "claude-sonnet-5" } } }),
     "claude-sonnet-5",
@@ -75,12 +75,12 @@ test("modelUsage[model] sem contextWindow: retorna undefined em vez de inventar 
   assert.equal(usage, undefined);
 });
 
-test("modelUsage vazio ({}): retorna undefined em vez de quebrar no fallback", () => {
+test("empty modelUsage ({}): returns undefined instead of breaking on the fallback", () => {
   const usage = extractContextUsage(resultEvent({ modelUsage: {} }), "claude-sonnet-5", assistantUsage());
   assert.equal(usage, undefined);
 });
 
-test("campos de usage ausentes no assistant contam como 0, não quebram a soma", () => {
+test("missing usage fields on the assistant count as 0, don't break the sum", () => {
   const usage = extractContextUsage(resultEvent(), "claude-sonnet-5", { cache_read_input_tokens: 500 });
   assert.deepEqual(usage, {
     model: "claude-sonnet-5",
@@ -89,10 +89,10 @@ test("campos de usage ausentes no assistant contam como 0, não quebram a soma",
   });
 });
 
-test("ignora o agregado do result.usage — nunca lê tokens de lá (achado real: soma tudo do turno, incluindo subagentes)", () => {
-  // `result.usage` aqui simula o shape real que causou o bug de "104%"
-  // reportado numa sessão de verdade: um número gigante que não representa
-  // o contexto do fio principal. A função nem olha pra esse campo.
+test("ignores the result.usage aggregate — never reads tokens from there (real finding: sums the whole turn, including subagents)", () => {
+  // `result.usage` here simulates the real shape that caused the "104%" bug
+  // reported in a real session: a giant number that doesn't represent the
+  // main thread's context. The function doesn't even look at that field.
   const usage = extractContextUsage(
     resultEvent({
       usage: { input_tokens: 30, cache_creation_input_tokens: 36_139, cache_read_input_tokens: 1_402_133 },
@@ -107,18 +107,18 @@ test("ignora o agregado do result.usage — nunca lê tokens de lá (achado real
   });
 });
 
-test("isMainThreadEvent: true quando parent_tool_use_id é null ou ausente", () => {
+test("isMainThreadEvent: true when parent_tool_use_id is null or absent", () => {
   assert.equal(isMainThreadEvent({ type: "assistant", parent_tool_use_id: null }), true);
   assert.equal(isMainThreadEvent({ type: "assistant" }), true);
 });
 
-test("isMainThreadEvent: false quando parent_tool_use_id aponta pro tool_use que disparou um subagente", () => {
-  // Shape real de um evento `assistant` de subagente, capturado rodando um
-  // turno de verdade com `Task` — carrega `parent_tool_use_id`,
-  // `subagent_type` e `task_description`, e um `usage` com contexto isolado
-  // (cache_read_input_tokens: 0 — começa do zero, sem cache da conversa
-  // principal). O ponto é só o `parent_tool_use_id`; os outros campos aqui
-  // são só pra deixar o exemplo fiel ao real.
+test("isMainThreadEvent: false when parent_tool_use_id points at the tool_use that triggered a subagent", () => {
+  // Real shape of a subagent's `assistant` event, captured by running a
+  // real turn with `Task` — carries `parent_tool_use_id`, `subagent_type`,
+  // and `task_description`, and a `usage` with isolated context
+  // (cache_read_input_tokens: 0 — starts from zero, no cache from the main
+  // conversation). The point is only `parent_tool_use_id`; the other fields
+  // here are just to keep the example faithful to the real thing.
   assert.equal(
     isMainThreadEvent({
       type: "assistant",

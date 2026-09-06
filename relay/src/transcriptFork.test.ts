@@ -25,14 +25,14 @@ function readLines(path: string): Array<Record<string, unknown>> {
     .map((line) => JSON.parse(line) as Record<string, unknown>);
 }
 
-test("mantém só as linhas antes do turno cortado, com sessionId novo em cada uma", () => {
+test("keeps only the lines before the cut turn, with a new sessionId in each one", () => {
   withFixture(
     "s1",
     [
-      { type: "user", sessionId: "s1", uuid: "u1", message: { content: "pergunta 1" } },
-      { type: "assistant", sessionId: "s1", uuid: "a1", message: { content: [{ type: "text", text: "resposta 1" }] } },
-      { type: "user", sessionId: "s1", uuid: "u2", message: { content: "pergunta 2 (editada)" } },
-      { type: "assistant", sessionId: "s1", uuid: "a2", message: { content: [{ type: "text", text: "resposta 2" }] } },
+      { type: "user", sessionId: "s1", uuid: "u1", message: { content: "question 1" } },
+      { type: "assistant", sessionId: "s1", uuid: "a1", message: { content: [{ type: "text", text: "answer 1" }] } },
+      { type: "user", sessionId: "s1", uuid: "u2", message: { content: "question 2 (edited)" } },
+      { type: "assistant", sessionId: "s1", uuid: "a2", message: { content: [{ type: "text", text: "answer 2" }] } },
     ],
     (_home, path) => {
       const newSessionId = forkTruncatedTranscript(path, 1);
@@ -46,18 +46,18 @@ test("mantém só as linhas antes do turno cortado, com sessionId novo em cada u
       assert.ok(kept.every((line) => line.sessionId === newSessionId));
       assert.notEqual(newSessionId, "s1");
 
-      // Arquivo original intacto — o corte nunca mexe nele.
+      // Original file untouched — the cut never modifies it.
       assert.equal(readLines(path).length, 4);
     },
   );
 });
 
-test("turnsToKeep 0: arquivo novo fica vazio (equivalente a /clear, mas o chamador deve preferir resetSessionId nesse caso)", () => {
+test("turnsToKeep 0: new file ends up empty (equivalent to /clear, but the caller should prefer resetSessionId in this case)", () => {
   withFixture(
     "s1",
     [
-      { type: "user", sessionId: "s1", uuid: "u1", message: { content: "primeira mensagem" } },
-      { type: "assistant", sessionId: "s1", uuid: "a1", message: { content: [{ type: "text", text: "resposta" }] } },
+      { type: "user", sessionId: "s1", uuid: "u1", message: { content: "first message" } },
+      { type: "assistant", sessionId: "s1", uuid: "a1", message: { content: [{ type: "text", text: "answer" }] } },
     ],
     (_home, path) => {
       const newSessionId = forkTruncatedTranscript(path, 0);
@@ -67,19 +67,19 @@ test("turnsToKeep 0: arquivo novo fica vazio (equivalente a /clear, mas o chamad
   );
 });
 
-test("linhas que não são texto humano genuíno (tool_result) não contam como turno", () => {
+test("lines that aren't genuine human text (tool_result) don't count as a turn", () => {
   withFixture(
     "s1",
     [
-      { type: "user", sessionId: "s1", uuid: "u1", message: { content: "pergunta 1" } },
+      { type: "user", sessionId: "s1", uuid: "u1", message: { content: "question 1" } },
       { type: "assistant", sessionId: "s1", uuid: "a1", message: { content: [{ type: "tool_use", id: "t1", name: "Bash" }] } },
       { type: "user", sessionId: "s1", uuid: "u1b", message: { content: [{ type: "tool_result", tool_use_id: "t1", content: "ok" }] } },
-      { type: "assistant", sessionId: "s1", uuid: "a1b", message: { content: [{ type: "text", text: "feito" }] } },
-      { type: "user", sessionId: "s1", uuid: "u2", message: { content: "pergunta 2" } },
+      { type: "assistant", sessionId: "s1", uuid: "a1b", message: { content: [{ type: "text", text: "done" }] } },
+      { type: "user", sessionId: "s1", uuid: "u2", message: { content: "question 2" } },
     ],
     (_home, path) => {
-      // Cortar mantendo 1 turno deve preservar as 4 primeiras linhas (o
-      // turno inteiro, incluindo o tool_result no meio), não parar em u1b.
+      // Cutting while keeping 1 turn should preserve the first 4 lines (the
+      // whole turn, including the tool_result in the middle), not stop at u1b.
       const newSessionId = forkTruncatedTranscript(path, 1);
       const kept = readLines(join(dirname(path), `${newSessionId}.jsonl`));
       assert.deepEqual(

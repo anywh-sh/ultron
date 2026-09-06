@@ -3,34 +3,34 @@ import * as pty from "node-pty";
 import type { IPty } from "node-pty";
 import { buildChildEnv } from "./claudeSession.js";
 
-// Terminal embutido (docs/30) — reaproveita a mesma dupla ttyd+tmux já
-// validada neste projeto (docs/08), só que sem o ttyd: o relay já é um
-// servidor WS persistente, então spawna o tmux direto via node-pty (`sudo`
-// dentro do terminal precisa de TTY real pro prompt de senha — um
-// child_process sem PTY não serve). tmux é quem garante persistência de
-// verdade: fechar a conexão WS só manda SIGHUP no processo local (que tmux
-// trata como *detach*, não como matar a sessão — mesmo comportamento de
-// fechar um terminal de verdade com tmux dentro), e um restart do relay
-// (ex: deploy de código novo) não derruba os shells abertos, porque o
-// servidor tmux roda independente do processo do relay. O relay não guarda
-// nenhum registro em memória de qual terminal está vivo — tmux é a fonte de
-// verdade, consultado sob demanda (list-sessions) quando precisa.
+// Embedded terminal (docs/30) — reuses the same ttyd+tmux pair already
+// validated in this project (docs/08), just without ttyd: the relay is
+// already a persistent WS server, so it spawns tmux directly via node-pty
+// (`sudo` inside the terminal needs a real TTY for the password prompt — a
+// child_process without a PTY won't do). tmux is what guarantees genuine
+// persistence: closing the WS connection just sends SIGHUP to the local
+// process (which tmux treats as a *detach*, not as killing the session —
+// same behavior as closing a real terminal with tmux inside), and a relay
+// restart (e.g. deploying new code) doesn't bring down the open shells,
+// because the tmux server runs independently of the relay process. The
+// relay keeps no in-memory record of which terminal is alive — tmux is the
+// source of truth, queried on demand (list-sessions) when needed.
 const TMUX_BIN = process.env.TMUX_BIN ?? "/usr/bin/tmux";
 
-/** Um socket tmux dedicado por instância de relay (== por perfil, já que
- * cada perfil roda seu próprio processo de relay numa porta própria) — sem
- * isso, os dois perfis (pessoal/trabalho, mesmo usuário Unix) colidiriam no
- * socket default do tmux (`/tmp/tmux-<uid>/default`), que não sabe nada de
+/** A dedicated tmux socket per relay instance (== per profile, since each
+ * profile runs its own relay process on its own port) — without this, the
+ * two profiles (personal/work, same Unix user) would collide on tmux's
+ * default socket (`/tmp/tmux-<uid>/default`), which knows nothing about a
  * `HOME` override. */
 function tmuxSocketName(relayPort: number): string {
   return `ultron-term-${relayPort}`;
 }
 
-/** IDs vêm de fora (query string da conexão WS) — nunca interpolados numa
- * shell (tanto `pty.spawn` quanto `execFile` recebem argv como array, não
- * uma string pra shell parsear), mas `:`/`.` têm significado especial na
- * sintaxe de "target" do tmux (session:window.pane) mesmo fora de shell
- * nenhuma, então saneia por garantia mesmo os IDs sendo UUIDs na prática. */
+/** IDs come from outside (WS connection query string) — never interpolated
+ * into a shell (both `pty.spawn` and `execFile` receive argv as an array,
+ * not a string for a shell to parse), but `:`/`.` have special meaning in
+ * tmux's "target" syntax (session:window.pane) even outside any shell, so
+ * sanitize just in case even though the IDs are UUIDs in practice. */
 function sanitizeId(id: string): string {
   return id.replace(/[:.]/g, "_");
 }
@@ -49,29 +49,32 @@ export interface SpawnTerminalOptions {
   rows: number;
 }
 
-/** Spawna (ou reanexa a, via `-A`) a sessão tmux dessa aba de terminal. `-c`
- * só tem efeito na criação — reanexar a uma sessão existente ignora `cwd`
- * de propósito (é o comportamento normal de terminal: a pasta de um shell
- * já rodando não teleporta se a working directory da conversa mudar depois;
- * quem quiser outra pasta dá `cd` à mão ou abre uma aba nova).
+/** Spawns (or reattaches to, via `-A`) this terminal tab's tmux session.
+ * `-c` only has an effect on creation — reattaching to an existing session
+ * ignores `cwd` on purpose (that's normal terminal behavior: an
+ * already-running shell's folder doesn't teleport if the conversation's
+ * working directory changes later; whoever wants another folder does `cd`
+ * by hand or opens a new tab).
  *
- * `-f /dev/null` é essencial, não cosmético: socket isolado (`-L`) só separa
- * *sessões* — o tmux ainda carrega `~/.tmux.conf` de verdade pra QUALQUER
- * servidor novo que sobe, não importa o socket. Sem `-f /dev/null`, um
- * `mouse on` (ou qualquer outra coisa) na config pessoal do usuário vazava
- * pro terminal embutido — foi o que causava o indicador `[0/0]` de copy-mode
- * do tmux aparecendo ao selecionar texto com o mouse (achado testando).
+ * `-f /dev/null` is essential, not cosmetic: an isolated socket (`-L`) only
+ * separates *sessions* — tmux still loads the real `~/.tmux.conf` for ANY
+ * new server that comes up, regardless of socket. Without `-f /dev/null`, a
+ * `mouse on` (or anything else) in the user's personal config leaked into
+ * the embedded terminal — that's what caused tmux's `[0/0]` copy-mode
+ * indicator to show up when selecting text with the mouse (finding from
+ * testing).
  *
- * `; set-option ...` encadeado (token `;` literal — sem shell no meio,
- * `pty.spawn` recebe argv puro, então não é sintaxe de shell, é o próprio
- * tmux reconhecendo `;` como separador de comando) fixa o comportamento que
- * a gente quer, sem depender de config nenhuma: `status off` (senão aparece
- * uma linha de "lixo" com id da sessão truncado + hostname + hora, chrome do
- * tmux duplicando a tira de abas do app) e `mouse off` explícito (já é o
- * default do tmux sem config, mas fica documentado — é o que garante seleção
- * de texto sempre nativa do xterm.js, nunca copy-mode do tmux). `-g` (global,
- * não por sessão) garante que isso vale tanto criando quanto reanexando: um
- * `-t <nome>` explícito só teria efeito na criação, igual `-c` acima. */
+ * The chained `; set-option ...` (literal `;` token — no shell in between,
+ * `pty.spawn` receives raw argv, so it's not shell syntax, it's tmux itself
+ * recognizing `;` as a command separator) locks in the behavior we want,
+ * without depending on any config: `status off` (otherwise a "junk" line
+ * shows up with truncated session id + hostname + time, tmux chrome
+ * duplicating the app's tab strip) and explicit `mouse off` (already
+ * tmux's default without a config, but documented here — it's what
+ * guarantees text selection is always xterm.js-native, never tmux's
+ * copy-mode). `-g` (global, not per-session) guarantees this holds both
+ * when creating and when reattaching: an explicit `-t <name>` would only
+ * take effect on creation, like `-c` above. */
 export function spawnTerminal(options: SpawnTerminalOptions): IPty {
   const socket = tmuxSocketName(options.relayPort);
   const name = tmuxSessionName(options.chatSessionId, options.terminalId);
@@ -113,25 +116,26 @@ export function spawnTerminal(options: SpawnTerminalOptions): IPty {
 function execTmux(relayPort: number, args: string[]): Promise<string> {
   return new Promise((resolve) => {
     execFile(TMUX_BIN, ["-L", tmuxSocketName(relayPort), ...args], (error, stdout) => {
-      // Erros aqui são esperados e sem gravidade (sessão já não existia, ou
-      // o socket tmux nunca chegou a existir porque nenhum terminal foi
-      // aberto ainda nesse perfil) — nunca vira exceção pro chamador.
+      // Errors here are expected and non-critical (session no longer
+      // existed, or the tmux socket never came to exist because no
+      // terminal was opened yet in this profile) — never becomes an
+      // exception for the caller.
       resolve(error ? "" : stdout);
     });
   });
 }
 
-/** Fecha uma aba de terminal específica de verdade (mata a sessão tmux, não
- * só detacha) — chamado quando o usuário clica no X de uma aba, diferente
- * de trocar de sessão de chat ou fechar o painel (que só detacham, ver
- * comentário no topo do arquivo). */
+/** Genuinely closes a specific terminal tab (kills the tmux session, not
+ * just a detach) — called when the user clicks a tab's X, unlike switching
+ * chat sessions or closing the panel (which only detach, see comment at
+ * the top of the file). */
 export function killTerminal(relayPort: number, chatSessionId: string, terminalId: string): Promise<void> {
   return execTmux(relayPort, ["kill-session", "-t", tmuxSessionName(chatSessionId, terminalId)]).then(() => undefined);
 }
 
-/** Varredura por prefixo (não depende de nenhum registro em memória do
- * relay) — chamado ao excluir uma sessão de chat inteira, pra não deixar
- * shells órfãos rodando pra sempre sem nenhuma aba que os controle. */
+/** Prefix sweep (doesn't depend on any in-memory record of the relay) —
+ * called when deleting an entire chat session, so no orphaned shells keep
+ * running forever with no tab controlling them. */
 export async function killAllTerminalsForSession(relayPort: number, chatSessionId: string): Promise<void> {
   const stdout = await execTmux(relayPort, ["list-sessions", "-F", "#{session_name}"]);
   const prefix = `${sanitizeId(chatSessionId)}__`;

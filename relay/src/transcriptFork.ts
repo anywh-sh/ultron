@@ -4,24 +4,25 @@ import { dirname, join } from "node:path";
 import { extractHumanText, type TranscriptLine } from "./transcriptReader.js";
 
 /**
- * Edição de mensagem (docs/33) — corta o `.jsonl` que o Claude Code CLI
- * mantém sozinho, no ponto exato da mensagem que o usuário editou, e grava o
- * resultado como uma sessão nova (`session_id` novo). É a única forma real
- * de "recomeçar a conversa a partir daqui": o `claude` CLI não tem nenhuma
- * flag de "retomar cortando no meio" (confirmado no `--help`: só
- * `--resume`/`--fork-session`, sempre a partir da ponta) — sem isso, o
- * próximo `--resume` releria o arquivo inteiro (mensagem antiga + tudo que
- * veio depois) e mandaria esse histórico "errado" pra API, mesmo com a UI já
- * escondendo a mensagem editada.
+ * Message editing (docs/33) — truncates the `.jsonl` file that the Claude
+ * Code CLI maintains on its own, at the exact point of the message the user
+ * edited, and writes the result as a new session (new `session_id`). This is
+ * the only real way to "restart the conversation from here": the `claude`
+ * CLI has no "resume cutting in the middle" flag (confirmed in `--help`:
+ * only `--resume`/`--fork-session`, always from the tip) — without this, the
+ * next `--resume` would reread the whole file (old message + everything that
+ * came after) and send that "wrong" history to the API, even with the UI
+ * already hiding the edited message.
  *
- * `turnsToKeep` é a contagem de turnos (linhas `user` com texto humano
- * genuíno, mesmo critério de `transcriptReader.ts`) que devem sobreviver ao
- * corte — calculado pelo chamador (`SharedSession`) a partir do `history` em
- * memória, que é quem sabe distinguir um turno sintético de `ultron-bg` de
- * um real (o arquivo em si não marca essa diferença). Como cada turno, real
- * ou sintético, corresponde a exatamente uma chamada `claude -p` e portanto
- * exatamente uma linha no `.jsonl`, contar da mesma forma dos dois lados
- * sempre bate — não precisa reconstruir a distinção real/sintético aqui.
+ * `turnsToKeep` is the count of turns (`user` lines with genuine human text,
+ * same criterion as `transcriptReader.ts`) that must survive the cut —
+ * computed by the caller (`SharedSession`) from the in-memory `history`,
+ * which is what knows how to distinguish a synthetic `ultron-bg` turn from a
+ * real one (the file itself doesn't mark that difference). Since each turn,
+ * real or synthetic, corresponds to exactly one `claude -p` call and
+ * therefore exactly one line in the `.jsonl`, counting the same way on both
+ * sides always matches — no need to reconstruct the real/synthetic
+ * distinction here.
  */
 export function forkTruncatedTranscript(path: string, turnsToKeep: number): string {
   const rawLines = readFileSync(path, "utf8").split("\n").filter((line) => line.trim().length > 0);
@@ -33,12 +34,12 @@ export function forkTruncatedTranscript(path: string, turnsToKeep: number): stri
     try {
       line = JSON.parse(rawLines[i]) as TranscriptLine;
     } catch {
-      continue; // mesma tolerância de transcriptReader.ts — só a última linha pode vir quebrada.
+      continue; // same tolerance as transcriptReader.ts — only the last line can arrive broken.
     }
     if (line.type !== "user") continue;
-    // Só a linha de texto humano genuíno conta como início de turno — mesmo
-    // critério de `transcriptReader.ts`. `tool_result` (`isToolResultOnly`)
-    // não inicia turno, é feedback do próprio loop agentic.
+    // Only the genuine human text line counts as the start of a turn — same
+    // criterion as `transcriptReader.ts`. `tool_result` (`isToolResultOnly`)
+    // doesn't start a turn, it's feedback from the agentic loop itself.
     const humanText = extractHumanText(line);
     if (humanText === undefined) continue;
     if (seen === turnsToKeep) {

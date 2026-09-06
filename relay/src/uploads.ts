@@ -4,22 +4,22 @@ import { join } from "node:path";
 import { spawn } from "node:child_process";
 import type { IncomingMessage } from "node:http";
 
-// Onde as imagens/vídeos anexados pelo cliente ficam salvos — precisa ser um
-// caminho que o processo `claude -p` do relay consiga ler (mesma máquina),
-// pra ele usar a ferramenta Read e "ver" a imagem de verdade (ver docs/15).
+// Where images/videos attached by the client get saved — needs to be a path
+// that the relay's `claude -p` process can read (same machine), so it can
+// use the Read tool and genuinely "see" the image (see docs/15).
 const UPLOAD_DIR = process.env.RELAY_UPLOAD_DIR ?? "/tmp/ultron-uploads";
 mkdirSync(UPLOAD_DIR, { recursive: true });
 
-const MAX_UPLOAD_BYTES = 100 * 1024 * 1024; // 100MB — vídeo curto de flow/animação passa fácil dos 25MB de imagem.
+const MAX_UPLOAD_BYTES = 100 * 1024 * 1024; // 100MB — a short flow/animation video easily exceeds an image's 25MB.
 
 const VIDEO_EXTENSIONS = new Set(["mp4", "mov", "m4v", "webm", "avi", "mkv"]);
 const VIDEO_FRAME_COUNT = 6;
 
 export interface UploadResult {
   path: string;
-  /** Só presente pra vídeo — paths dos frames extraídos via ffmpeg, em
-   * ordem cronológica (docs/15: o Claude só "vê" imagem via `Read`, não
-   * vídeo, então isso é o que efetivamente vira contexto visual). */
+  /** Only present for video — paths of the frames extracted via ffmpeg, in
+   * chronological order (docs/15: Claude only "sees" images via `Read`, not
+   * video, so this is what actually becomes visual context). */
   frames?: string[];
 }
 
@@ -60,10 +60,10 @@ async function handleUploadComplete(chunks: Buffer[], ext: string): Promise<Uplo
     const frames = await extractVideoFrames(filePath, id);
     return { path: filePath, frames };
   } catch (error) {
-    // Não derruba o upload por causa disso — o vídeo original já está salvo
-    // e ainda pode ser referenciado (o Claude consegue rodar ffmpeg nele
-    // via Bash), só não ganha os frames como imagem de contexto direto.
-    console.error("[relay] falha ao extrair frames do vídeo:", error);
+    // Doesn't fail the upload because of this — the original video is
+    // already saved and can still be referenced (Claude can run ffmpeg on
+    // it via Bash), it just doesn't get the frames as direct image context.
+    console.error("[relay] failed to extract video frames:", error);
     return { path: filePath };
   }
 }
@@ -97,9 +97,9 @@ async function getVideoDuration(videoPath: string): Promise<number> {
   return Number.isFinite(duration) && duration > 0 ? duration : 1;
 }
 
-// Frames tirados no ponto médio de N fatias iguais da duração (não em
-// t=0/t=fim) — evita cair em fade-in/fade-out preto nas pontas, comum em
-// gravação de tela.
+// Frames taken at the midpoint of N equal slices of the duration (not at
+// t=0/t=end) — avoids landing on a black fade-in/fade-out at the edges,
+// common in screen recordings.
 async function extractVideoFrames(videoPath: string, baseId: string): Promise<string[]> {
   const duration = await getVideoDuration(videoPath);
   const frames: string[] = [];

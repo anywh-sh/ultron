@@ -1,96 +1,101 @@
 import { mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { dirname } from "node:path";
 
-// Mapeamento nome de sessão -> { session_id, cwd/lock }, persistido em disco
-// por perfil — sem isso, GET /sessions, a continuidade via --resume e (desde
-// a feature de working directory) a pasta de trabalho de cada sessão
-// dependiam só de memória e sumiam a cada restart do relay. Ver docs/18 (a
-// parte de session_id) e o plano "working directory" (a parte de cwd/lock).
+// Session name -> { session_id, cwd/lock } mapping, persisted to disk per
+// profile — without this, GET /sessions, continuity via --resume, and
+// (since the working directory feature) each session's working folder
+// depended only on memory and disappeared on every relay restart. See
+// docs/18 (the session_id part) and the "working directory" plan (the
+// cwd/lock part).
 export interface SessionCwdState {
   cwd: string;
-  /** Trava depois do primeiro turno — o session_id do Claude Code fica
-   * amarrado ao cwd usado no spawn (confirmado inspecionando
-   * ~/.claude/projects/<cwd-sanitizado>/), então trocar a pasta de uma
-   * sessão com histórico quebraria o --resume subsequente. Ver
-   * SharedSession.runTurn, que é quem decide o momento exato do lock. */
+  /** Locks after the first turn — Claude Code's session_id gets tied to the
+   * cwd used at spawn (confirmed by inspecting
+   * ~/.claude/projects/<sanitized-cwd>/), so changing the folder of a
+   * session with history would break the subsequent --resume. See
+   * SharedSession.runTurn, which decides the exact moment of the lock. */
   locked: boolean;
 }
 
-/** Espelha os valores aceitos por `claude --permission-mode` que expomos na
- * UI (docs/25) — `bypassPermissions` é o único que ainda usa a flag
- * histórica `--dangerously-skip-permissions` (claudeSession.ts), as outras
- * três vão de `--permission-mode <valor>` direto. `auto`/`dontAsk` ficaram
- * de fora de propósito: `auto` depende de elegibilidade de plano/modelo e
- * roda um classifier por trás (custo/escopo próprios), `dontAsk` é pensado
- * pra CI com allowlist pré-definida, não pra chat interativo. */
+/** Mirrors the values accepted by `claude --permission-mode` that we expose
+ * in the UI (docs/25) — `bypassPermissions` is the only one that still uses
+ * the historical `--dangerously-skip-permissions` flag (claudeSession.ts),
+ * the other three go straight through `--permission-mode <value>`.
+ * `auto`/`dontAsk` were left out on purpose: `auto` depends on plan/model
+ * eligibility and runs its own classifier behind the scenes (its own
+ * cost/scope), `dontAsk` is meant for CI with a predefined allowlist, not
+ * for interactive chat. */
 export type PermissionMode = "default" | "acceptEdits" | "plan" | "bypassPermissions";
 
-/** Espelha os aliases que `claude --model` aceita, curados do mesmo jeito
- * que `PermissionMode` (docs/25): as variantes de contexto estendido
- * (`sonnet[1m]` etc.) e `opusplan` ficam de fora por enquanto, exigem
- * explicação própria que não foi pedida ainda. */
+/** Mirrors the aliases that `claude --model` accepts, curated the same way
+ * as `PermissionMode` (docs/25): the extended-context variants (`sonnet[1m]`
+ * etc.) and `opusplan` are left out for now, they need their own explanation
+ * that hasn't been requested yet. */
 export type ModelChoice = "default" | "sonnet" | "opus" | "haiku" | "fable";
 
-/** Uso de contexto do turno mais recente de uma sessão — ver ClaudeSession
- * (quem extrai isso do evento `result` do `claude -p`) e o plano do
- * indicador de janela de contexto. `contextWindowSize` vem direto do CLI
- * (`modelUsage[model].contextWindow`), não de uma tabela estática nossa —
- * assim continua certo pra contas com contexto estendido (1M) sem precisar
- * saber disso de antemão. */
+/** Context usage of a session's most recent turn — see ClaudeSession (which
+ * extracts this from the `claude -p` `result` event) and the context window
+ * indicator plan. `contextWindowSize` comes straight from the CLI
+ * (`modelUsage[model].contextWindow`), not from a static table of ours —
+ * that way it stays correct for accounts with extended context (1M) without
+ * needing to know about that in advance. */
 export interface ContextUsage {
-  /** Modelo resolvido nesse turno (ex. "claude-sonnet-5"). */
+  /** Model resolved for that turn (e.g. "claude-sonnet-5"). */
   model: string;
   contextWindowSize: number;
   /** `input_tokens + cache_creation_input_tokens + cache_read_input_tokens`
-   * do `result.usage` — mesma fórmula que a doc oficial do Claude Code usa
-   * pro `used_percentage` do statusline (exclui `output_tokens` de
-   * propósito). */
+   * from `result.usage` — same formula the official Claude Code docs use
+   * for the statusline's `used_percentage` (excludes `output_tokens` on
+   * purpose). */
   usedTokens: number;
 }
 
 export interface SessionEntry {
   sessionId: string | null;
-  /** `null` até o título ser inferido do primeiro prompt (ou definido por um
-   * rename manual) — enquanto `null`, a sessão existe (cwd/lock já podem
-   * estar em uso) mas não aparece em `listTitled()`/`GET /sessions`, que é o
-   * que mantém a sidebar em branco até lá. Ver SessionManager.createSession
-   * (gatilho) e titleGenerator.ts (geração). */
+  /** `null` until the title is inferred from the first prompt (or set by a
+   * manual rename) — while `null`, the session exists (cwd/lock may already
+   * be in use) but doesn't show up in `listTitled()`/`GET /sessions`, which
+   * is what keeps the sidebar blank until then. See
+   * SessionManager.createSession (trigger) and titleGenerator.ts
+   * (generation). */
   title: string | null;
   cwd: SessionCwdState;
-  /** Timestamp (epoch ms) do último turno enviado — é o que ordena
-   * `listTitled()`. Atualizado a cada turno, não só no primeiro (ver
-   * `touch`), pra reabrir uma sessão antiga e conversar com ela subir pro
-   * topo da sidebar. Nunca `null`: criação/migração já semeia com o
-   * timestamp de agora, então uma sessão recém-criada ainda entra ordenada
-   * (não precisa de "nunca interagida" como caso especial). */
+  /** Timestamp (epoch ms) of the last turn sent — this is what orders
+   * `listTitled()`. Updated on every turn, not just the first (see
+   * `touch`), so reopening an old session and chatting with it moves it
+   * back to the top of the sidebar. Never `null`: creation/migration
+   * already seeds it with the current timestamp, so a freshly created
+   * session still sorts in (no need for "never interacted with" as a
+   * special case). */
   lastActiveAt: number;
-  /** Opcional pra tolerar registros gravados antes dessa feature — lidos
-   * como `"bypassPermissions"` (ver `getPermissionMode`), que é o
-   * comportamento hardcoded que todo mundo já tinha antes de existir modo
-   * selecionável. Diferente de `cwd`, não trava depois do primeiro turno —
-   * o modo pode mudar a qualquer momento da conversa. */
+  /** Optional to tolerate records written before this feature existed —
+   * read as `"bypassPermissions"` (see `getPermissionMode`), which is the
+   * hardcoded behavior everyone already had before a selectable mode
+   * existed. Unlike `cwd`, it doesn't lock after the first turn — the mode
+   * can change at any point in the conversation. */
   permissionMode?: PermissionMode;
-  /** Opcional: `undefined` (nunca escolhido via `/model`) significa "não
-   * passa `--model` no spawn", igual o comportamento de sempre antes dessa
-   * feature existir — diferente de `permissionMode`, não tem um valor
-   * hardcoded de fallback, porque "deixar o CLI decidir seu próprio padrão"
-   * já É o comportamento padrão. Mesma regra de "não trava depois do
-   * primeiro turno" do `permissionMode`. */
+  /** Optional: `undefined` (never chosen via `/model`) means "don't pass
+   * `--model` on spawn", same as the behavior that always existed before
+   * this feature — unlike `permissionMode`, there's no hardcoded fallback
+   * value, because "let the CLI decide its own default" already IS the
+   * default behavior. Same "doesn't lock after the first turn" rule as
+   * `permissionMode`. */
   model?: ModelChoice;
-  /** Opcional pelo mesmo motivo de `permissionMode`: tolera registros
-   * gravados antes dessa feature existir. Nunca reconstruído a partir do
-   * `.jsonl` do Claude Code num restart — o evento `result` (única fonte do
-   * limite real por modelo) só existe no stdout ao vivo do `claude -p`,
-   * nunca é persistido no transcript. Por isso precisa ser gravado aqui a
-   * cada turno, senão some pro cliente até o próximo turno rodar. */
+  /** Optional for the same reason as `permissionMode`: tolerates records
+   * written before this feature existed. Never rebuilt from Claude Code's
+   * `.jsonl` on a restart — the `result` event (the only source of the real
+   * per-model limit) only exists in `claude -p`'s live stdout, it's never
+   * persisted in the transcript. That's why it needs to be recorded here on
+   * every turn, otherwise it disappears for the client until the next turn
+   * runs. */
   contextUsage?: ContextUsage;
 }
 
 export type SessionRecord = Record<string, SessionEntry>;
 
-/** Shape anterior a essa mudança: id -> { session_id, cwd/lock }, sem
- * `title` — o id em si já era o "nome" mostrado na UI. Usado só pra migrar
- * arquivos gravados antes da feature de título/rename. */
+/** Shape prior to this change: id -> { session_id, cwd/lock }, without
+ * `title` — the id itself was already the "name" shown in the UI. Used only
+ * to migrate files written before the title/rename feature. */
 type PreTitleSessionRecord = Record<string, { sessionId: string | null; cwd: SessionCwdState }>;
 
 function isPreTitleRecord(value: object): value is PreTitleSessionRecord {
@@ -104,9 +109,9 @@ function isPreTitleRecord(value: object): value is PreTitleSessionRecord {
   );
 }
 
-/** Shape anterior a essa mudança: já tem `title`, mas não `lastActiveAt` —
- * arquivos gravados entre a feature de título/rename e a de ordenação por
- * última interação. */
+/** Shape prior to this change: already has `title`, but not `lastActiveAt`
+ * — files written between the title/rename feature and the last-interaction
+ * ordering feature. */
 type PreActivitySessionRecord = Record<string, { sessionId: string | null; title: string | null; cwd: SessionCwdState }>;
 
 function isPreActivityRecord(value: object): value is PreActivitySessionRecord {
@@ -119,8 +124,8 @@ function isPreActivityRecord(value: object): value is PreActivitySessionRecord {
   );
 }
 
-/** Shape anterior a essa mudança: nome -> session_id (ou null). Usado só pra
- * detectar e migrar arquivos de sessão já existentes em produção. */
+/** Shape prior to this change: name -> session_id (or null). Used only to
+ * detect and migrate session files that already exist in production. */
 type LegacySessionRecord = Record<string, string | null>;
 
 function isLegacyRecord(value: object): value is LegacySessionRecord {
@@ -144,27 +149,28 @@ export class SessionStore {
     try {
       parsed = JSON.parse(readFileSync(this.filePath, "utf8"));
     } catch {
-      // Arquivo ausente na primeira vez, ou corrompido — nunca crasha o
-      // relay por causa disso, só começa com o mapeamento vazio.
+      // File missing the first time, or corrupted — never crash the relay
+      // because of this, just start with an empty mapping.
       return {};
     }
     if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) return {};
 
-    // Um só timestamp pra todo o lote de migração (não `Date.now()` por
-    // entrada): mantém as sessões existentes empatadas na ordenação por
-    // `lastActiveAt`, e o `Array.sort` estável do V8 preserva a ordem
-    // original (inserção) entre empates — não embaralha a lista existente.
+    // A single timestamp for the whole migration batch (not `Date.now()`
+    // per entry): keeps existing sessions tied in the `lastActiveAt`
+    // ordering, and V8's stable `Array.sort` preserves the original
+    // (insertion) order among ties — doesn't shuffle the existing list.
     const migrationNow = Date.now();
 
     if (isLegacyRecord(parsed)) {
       this.migrated = true;
       const migrated: SessionRecord = {};
       for (const [name, sessionId] of Object.entries(parsed)) {
-        // Sessão que já tinha session_id de verdade já tem histórico
-        // gravado sob o cwd implícito de então (homeOverride ?? homedir()) —
-        // trata como já travada, pra não arriscar quebrar o --resume dela.
-        // Nome antigo vira id E título inicial: sessão já existente não
-        // precisa (nem deve) gerar um título novo, ela já tinha um nome útil.
+        // A session that already had a real session_id already has history
+        // recorded under the implicit cwd from back then (homeOverride ??
+        // homedir()) — treat it as already locked, to avoid risking
+        // breaking its --resume. Old name becomes both id AND initial
+        // title: an already-existing session doesn't need (and shouldn't)
+        // generate a new title, it already had a useful name.
         migrated[name] = {
           sessionId,
           title: name,
@@ -201,18 +207,19 @@ export class SessionStore {
     writeFileSync(this.filePath, JSON.stringify(this.records, null, 2));
   }
 
-  /** Todos os ids conhecidos, titulados ou não — usado só pra materializar
-   * as `SharedSession` em memória no boot (SessionManager), que precisam
-   * existir mesmo pra uma sessão ainda sem título (cwd/lock/session_id já
-   * podem estar em uso). */
+  /** All known ids, titled or not — used only to materialize the
+   * `SharedSession` instances in memory at boot (SessionManager), which
+   * need to exist even for a session without a title yet (cwd/lock/session_id
+   * may already be in use). */
   listIds(): string[] {
     return Object.keys(this.records);
   }
 
-  /** Só as sessões já tituladas — é isso que `GET /sessions` expõe, o que
-   * mantém a sidebar em branco até o primeiro prompt (ou um rename manual)
-   * dar um título à sessão. Ordenado por última interação (mais recente
-   * primeiro) — reabrir uma sessão antiga e conversar com ela sobe pro topo. */
+  /** Only the already-titled sessions — this is what `GET /sessions`
+   * exposes, which keeps the sidebar blank until the first prompt (or a
+   * manual rename) gives the session a title. Sorted by last interaction
+   * (most recent first) — reopening an old session and chatting with it
+   * moves it to the top. */
   listTitled(): { id: string; title: string }[] {
     return Object.entries(this.records)
       .filter((entry): entry is [string, SessionEntry & { title: string }] => entry[1].title !== null)
@@ -228,26 +235,27 @@ export class SessionStore {
     return this.records[id]?.title ?? null;
   }
 
-  /** Idempotente — garante que o id já exista (sem título ainda) mesmo
-   * antes do primeiro turno terminar (e portanto antes de termos um
-   * session_id de verdade pra ele). */
+  /** Idempotent — guarantees the id already exists (without a title yet)
+   * even before the first turn finishes (and therefore before we have a
+   * real session_id for it). */
   recordId(id: string): void {
     if (id in this.records) return;
     this.records[id] = { sessionId: null, title: null, cwd: { cwd: this.defaultCwd, locked: false }, lastActiveAt: Date.now() };
     this.persist();
   }
 
-  /** Chamado a cada turno enviado (não só no primeiro) — é o que faz uma
-   * sessão antiga voltar pro topo da sidebar ao ser usada de novo. */
+  /** Called on every turn sent (not just the first) — this is what makes an
+   * old session move back to the top of the sidebar when used again. */
   touch(id: string): void {
     this.ensureEntry(id);
     this.records[id].lastActiveAt = Date.now();
     this.persist();
   }
 
-  /** `true` se a sessão existia (e foi removida); `false` se já não existia.
-   * Só tira do controle do ultron — não mexe no transcript que o Claude
-   * Code já mantém sozinho em `~/.claude/projects/`. */
+  /** `true` if the session existed (and was removed); `false` if it already
+   * didn't exist. Only removes it from ultron's control — doesn't touch the
+   * transcript that Claude Code already maintains on its own in
+   * `~/.claude/projects/`. */
   deleteEntry(id: string): boolean {
     if (!(id in this.records)) return false;
     delete this.records[id];
@@ -255,8 +263,8 @@ export class SessionStore {
     return true;
   }
 
-  /** Usado tanto pra gravar o título inferido do primeiro prompt quanto pra
-   * um rename manual — nos dois casos é só "o título de agora é este". */
+  /** Used both to record the title inferred from the first prompt and for a
+   * manual rename — in both cases it's just "the title now is this one". */
   setTitle(id: string, title: string): void {
     this.ensureEntry(id);
     this.records[id].title = title;
@@ -269,8 +277,9 @@ export class SessionStore {
     this.persist();
   }
 
-  /** `/clear` (docs/26) — solta a continuidade gravada, senão um restart do
-   * relay voltaria a dar `--resume` na conversa que o usuário já limpou. */
+  /** `/clear` (docs/26) — drops the recorded continuity, otherwise a relay
+   * restart would go back to `--resume`ing the conversation the user
+   * already cleared. */
   clearSessionId(id: string): void {
     this.ensureEntry(id);
     this.records[id].sessionId = null;
@@ -293,9 +302,9 @@ export class SessionStore {
     this.persist();
   }
 
-  /** `/clear` (ver `SharedSession.clearConversation`) — contraparte de
-   * `lockCwd`, senão um restart do relay voltaria a carregar a sessão como
-   * travada mesmo depois do destravamento. */
+  /** `/clear` (see `SharedSession.clearConversation`) — counterpart to
+   * `lockCwd`, otherwise a relay restart would go back to loading the
+   * session as locked even after it was unlocked. */
   unlockCwd(id: string): void {
     this.ensureEntry(id);
     this.records[id].cwd.locked = false;

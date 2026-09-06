@@ -3,44 +3,46 @@ import { SharedSession } from "./sharedSession.js";
 import type { SessionStore } from "./sessionStore.js";
 import { BackgroundJobTracker, type FinishedBackgroundJob } from "./backgroundJobs.js";
 
-// Múltiplas sessões identificadas por id dentro de um mesmo perfil (= um
-// processo de relay) — equivalente ao que janelas tmux davam na arquitetura
-// antiga (docs/08), agora em cima do relay. Nomes eram só em memória (sumiam
-// a cada restart) até a Fase 7 (docs/18) — agora persistem via SessionStore;
-// no boot, materializamos uma SharedSession pra cada id já persistido
-// (barato: o construtor não faz I/O nem spawn). `id` é estável desde a
-// criação e nunca muda; `title` (exibido na UI) começa `null` — só sessões
-// já tituladas entram em `listTitled()`, que é o que a sidebar lista.
+// Multiple sessions identified by id within the same profile (= one relay
+// process) — equivalent to what tmux windows provided in the old
+// architecture (docs/08), now on top of the relay. Names used to be
+// in-memory only (lost on every restart) until Phase 7 (docs/18) — now they
+// persist via SessionStore; at boot, we materialize a SharedSession for
+// every id already persisted (cheap: the constructor does no I/O or spawn).
+// `id` is stable since creation and never changes; `title` (shown in the UI)
+// starts as `null` — only already-titled sessions go into `listTitled()`,
+// which is what the sidebar lists.
 export class SessionManager {
   private readonly sessions = new Map<string, SharedSession>();
-  /** Um tracker só pro processo inteiro (não um por sessão) — jobs
-   * `ultron-bg` de sessões diferentes não têm relação entre si, mas o
-   * poller e o teto de observação (docs/32, Fase C) fazem mais sentido
-   * compartilhados do que duplicados N vezes. */
+  /** A single tracker for the whole process (not one per session) — `ultron-bg`
+   * jobs from different sessions have no relation to each other, but the
+   * poller and the observation ceiling (docs/32, Phase C) make more sense
+   * shared than duplicated N times. */
   private readonly backgroundJobs: BackgroundJobTracker;
 
   constructor(
     private readonly homeOverride: string | undefined,
     private readonly sessionStore: SessionStore,
-    /** Fase F de docs/32 — arquivo onde o `BackgroundJobTracker` persiste a
-     * lista de jobs observados, pra sobreviver a um restart do relay. Mesmo
-     * `undefined` opcional que `BackgroundJobTrackerOptions.persistPath`
-     * aceita (usado pelos testes que não passam isso), mas em produção
-     * `server.ts` sempre passa um caminho de verdade. */
+    /** docs/32 Phase F — file where `BackgroundJobTracker` persists the list
+     * of watched jobs, to survive a relay restart. Same optional `undefined`
+     * that `BackgroundJobTrackerOptions.persistPath` accepts (used by tests
+     * that don't pass this), but in production `server.ts` always passes a
+     * real path. */
     backgroundJobsFilePath?: string,
   ) {
-    // `this.sessions` precisa existir ANTES do `BackgroundJobTracker` ser
-    // construído: se houver jobs persistidos de uma sessão que já terminou
-    // durante a queda do relay (Fase F), o construtor do tracker agenda um
-    // poll imediato (`setImmediate`, não síncrono — achado real: era
-    // síncrono numa versão anterior, e `onFinished`/`onChanged` disparavam
-    // ANTES de `this.backgroundJobs` sequer terminar de ser atribuído aqui,
-    // travando o boot com `TypeError: Cannot read properties of undefined`)
-    // pra descobrir isso sem esperar o primeiro poll normal — mas mesmo
-    // adiado, ele roda antes de qualquer cliente se conectar; se
-    // `this.sessions` ainda estivesse vazio nesse momento,
-    // `handleBackgroundJobFinished` acharia a sessão "inexistente" e
-    // descartaria o follow-up à toa, mesmo ela existindo de verdade.
+    // `this.sessions` needs to exist BEFORE `BackgroundJobTracker` is
+    // constructed: if there are persisted jobs from a session that already
+    // finished while the relay was down (Phase F), the tracker's
+    // constructor schedules an immediate poll (`setImmediate`, not
+    // synchronous — real finding: it was synchronous in an earlier version,
+    // and `onFinished`/`onChanged` fired BEFORE `this.backgroundJobs` even
+    // finished being assigned here, hanging the boot with `TypeError:
+    // Cannot read properties of undefined`) to find this out without
+    // waiting for the first normal poll — but even deferred, it runs before
+    // any client connects; if `this.sessions` were still empty at that
+    // point, `handleBackgroundJobFinished` would think the session
+    // "doesn't exist" and discard the follow-up for nothing, even though it
+    // genuinely exists.
     for (const id of sessionStore.listIds()) {
       this.sessions.set(id, this.createSession(id));
     }
@@ -49,35 +51,35 @@ export class SessionManager {
       onChanged: (sessionId) => this.syncBackgroundJobState(sessionId),
       persistPath: backgroundJobsFilePath,
     });
-    // Jobs recarregados do disco que AINDA estão rodando (não capturados
-    // pelo `onChanged` síncrono acima, que só dispara em fim/expiração) —
-    // sincroniza o `background_job_state` delas agora, não só quando o
-    // tracker detectar a próxima mudança.
+    // Jobs reloaded from disk that are STILL running (not captured by the
+    // synchronous `onChanged` above, which only fires on finish/expiry) —
+    // sync their `background_job_state` now, not only when the tracker
+    // detects the next change.
     for (const job of this.backgroundJobs.listWatched()) {
       this.syncBackgroundJobState(job.sessionId);
     }
   }
 
-  /** Fase D de docs/32 — chamado pelo `BackgroundJobTracker` quando um job
-   * termina. `this.sessions.get` (não `getOrCreate`): se a sessão foi
-   * deletada enquanto o job rodava, não tem pra quem reportar — descarta
-   * silenciosamente em vez de ressuscitar uma entrada no `SessionStore`. */
+  /** docs/32 Phase D — called by `BackgroundJobTracker` when a job finishes.
+   * `this.sessions.get` (not `getOrCreate`): if the session was deleted
+   * while the job was running, there's no one to report to — discard
+   * silently instead of resurrecting an entry in `SessionStore`. */
   private handleBackgroundJobFinished(job: FinishedBackgroundJob): void {
     const session = this.sessions.get(job.sessionId);
     if (!session) {
       console.warn(
-        `[relay] background job "${job.label}" (${job.id}) terminou, mas a sessão ${job.sessionId} não existe mais — descartando`,
+        `[relay] background job "${job.label}" (${job.id}) finished, but session ${job.sessionId} no longer exists — discarding`,
       );
       return;
     }
     session.submitBackgroundJobResult(job);
   }
 
-  /** Fase E de docs/32 — mantém o `background_job_state` que a `SharedSession`
-   * expõe pro cliente em sincronia com o tracker sempre que a lista de jobs
-   * observados de uma sessão muda (início, fim ou expiração). Sessão sem aba
-   * aberta (`this.sessions.get` undefined) simplesmente não tem pra quem
-   * mandar — sem efeito, o tracker continua sendo a fonte de verdade. */
+  /** docs/32 Phase E — keeps the `background_job_state` that `SharedSession`
+   * exposes to the client in sync with the tracker whenever a session's list
+   * of watched jobs changes (start, finish, or expiry). A session with no
+   * open tab (`this.sessions.get` undefined) simply has no one to send it
+   * to — no effect, the tracker remains the source of truth. */
   private syncBackgroundJobState(sessionId: string): void {
     this.sessions.get(sessionId)?.setBackgroundJobs(this.backgroundJobs.listWatchedForSession(sessionId));
   }
@@ -86,16 +88,16 @@ export class SessionManager {
     return this.sessionStore.listTitled();
   }
 
-  /** Resolve quando nenhuma sessão tiver turno em andamento — usado pelo
-   * shutdown gracioso (server.ts) antes de deixar o processo sair. */
+  /** Resolves when no session has a turn in progress — used by graceful
+   * shutdown (server.ts) before letting the process exit. */
   async waitForAllIdle(): Promise<void> {
     await Promise.all([...this.sessions.values()].map((session) => session.waitForIdle()));
   }
 
-  /** Interrompe (SIGINT, mesmo caminho do botão "Parar") o turno em
-   * andamento de toda sessão — usado só como fallback do shutdown gracioso
-   * quando o prazo de espera normal estoura, pra terminar rápido e limpo em
-   * vez de deixar o systemd matar os processos `claude -p` cru. */
+  /** Interrupts (SIGINT, same path as the "Stop" button) the turn in
+   * progress for every session — used only as a graceful shutdown fallback
+   * when the normal wait deadline runs out, to end quickly and cleanly
+   * instead of letting systemd kill the raw `claude -p` processes. */
   stopAllTurns(): void {
     for (const session of this.sessions.values()) session.stopTurn();
   }
@@ -110,10 +112,10 @@ export class SessionManager {
     return session;
   }
 
-  /** Rename manual (dialog na sidebar) — funciona mesmo pra uma sessão sem
-   * aba aberta no momento (`sessions.get` pode dar `undefined`; só o
-   * SessionStore precisa existir). Se a sessão estiver aberta em algum
-   * dispositivo, `SharedSession.setTitle` propaga a mudança ao vivo. */
+  /** Manual rename (sidebar dialog) — works even for a session with no tab
+   * currently open (`sessions.get` may return `undefined`; only the
+   * SessionStore needs to exist). If the session is open on some device,
+   * `SharedSession.setTitle` propagates the change live. */
   renameTitle(id: string, title: string): boolean {
     if (this.sessionStore.getTitle(id) === null && !this.sessions.has(id)) return false;
     this.sessionStore.setTitle(id, title);
@@ -121,10 +123,11 @@ export class SessionManager {
     return true;
   }
 
-  /** Só tira a sessão do controle do ultron (SessionStore + mapa em
-   * memória) — não apaga o transcript que o Claude Code já mantém sozinho
-   * em `~/.claude/projects/`. Para o turno em andamento (se houver) e avisa
-   * quem estiver conectado antes de derrubar a conexão. */
+  /** Only removes the session from ultron's control (SessionStore +
+   * in-memory map) — doesn't delete the transcript that Claude Code already
+   * maintains on its own in `~/.claude/projects/`. Stops the turn in
+   * progress (if any) and notifies whoever is connected before dropping the
+   * connection. */
   deleteSession(id: string): boolean {
     const session = this.sessions.get(id);
     if (session) {
@@ -160,9 +163,10 @@ export class SessionManager {
       },
       initialTitle: this.sessionStore.getTitle(id),
       onFirstPrompt: (text) => {
-        // Só dispara pra sessão de verdade nova — uma sessão migrada de um
-        // formato antigo já chega com `initialTitle` preenchido (o nome de
-        // então), então nunca teve `title` null pra começo de conversa.
+        // Only fires for a genuinely new session — a session migrated from
+        // an old format already arrives with `initialTitle` filled in (its
+        // name at the time), so it never had a null `title` at the start of
+        // the conversation.
         if (this.sessionStore.getTitle(id) !== null) return;
         generateTitle(this.homeOverride, session.getCwdState().cwd, text)
           .then((title) => {
@@ -170,7 +174,7 @@ export class SessionManager {
             session.setTitle(title);
           })
           .catch((error: unknown) => {
-            console.error("[relay] falha ao gerar título da sessão:", error);
+            console.error("[relay] failed to generate session title:", error);
           });
       },
     });

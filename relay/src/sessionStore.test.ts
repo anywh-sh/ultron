@@ -18,7 +18,7 @@ function withStoreFile(seed: unknown, run: (filePath: string) => void): void {
   }
 }
 
-test("arquivo ausente: começa vazio, recordId semeia cwd padrão destravado e sem título", () => {
+test("missing file: starts empty, recordId seeds an unlocked default cwd and no title", () => {
   withStoreFile(undefined, (filePath) => {
     const store = new SessionStore(filePath, DEFAULT_CWD);
     assert.deepEqual(store.listIds(), []);
@@ -31,31 +31,31 @@ test("arquivo ausente: começa vazio, recordId semeia cwd padrão destravado e s
   });
 });
 
-test("setTitle grava o título e a sessão passa a aparecer em listTitled", () => {
+test("setTitle records the title and the session starts showing up in listTitled", () => {
   withStoreFile(undefined, (filePath) => {
     const store = new SessionStore(filePath, DEFAULT_CWD);
     store.recordId("abc-123");
-    store.setTitle("abc-123", "Corrigir bug do botão salvar");
-    assert.equal(store.getTitle("abc-123"), "Corrigir bug do botão salvar");
-    assert.deepEqual(store.listTitled(), [{ id: "abc-123", title: "Corrigir bug do botão salvar" }]);
+    store.setTitle("abc-123", "Fix the save button bug");
+    assert.equal(store.getTitle("abc-123"), "Fix the save button bug");
+    assert.deepEqual(store.listTitled(), [{ id: "abc-123", title: "Fix the save button bug" }]);
   });
 });
 
-test("migração: shape legado (nome -> session_id|null) vira o shape novo com título = nome antigo", () => {
+test("migration: legacy shape (name -> session_id|null) becomes the new shape with title = old name", () => {
   withStoreFile({ "com-historico": "abc-123", "sem-turno-ainda": null }, (filePath) => {
     const store = new SessionStore(filePath, DEFAULT_CWD);
 
-    // Sessão que já tinha session_id de verdade: trava (não arrisca o --resume dela).
+    // Session that already had a real session_id: locks (doesn't risk its --resume).
     assert.deepEqual(store.getCwdState("com-historico"), { cwd: DEFAULT_CWD, locked: true });
     assert.equal(store.getSessionId("com-historico"), "abc-123");
     assert.equal(store.getTitle("com-historico"), "com-historico");
 
-    // Sessão sem session_id ainda: destravada, mas já titulada com o próprio nome.
+    // Session with no session_id yet: unlocked, but already titled with its own name.
     assert.deepEqual(store.getCwdState("sem-turno-ainda"), { cwd: DEFAULT_CWD, locked: false });
     assert.equal(store.getSessionId("sem-turno-ainda"), undefined);
     assert.equal(store.getTitle("sem-turno-ainda"), "sem-turno-ainda");
 
-    // Repersistiu no shape novo — reabrir não re-detecta como legado.
+    // Re-persisted in the new shape — reopening doesn't re-detect it as legacy.
     const persisted = JSON.parse(readFileSync(filePath, "utf8"));
     const { lastActiveAt, ...rest } = persisted["com-historico"];
     assert.equal(typeof lastActiveAt, "number");
@@ -67,7 +67,7 @@ test("migração: shape legado (nome -> session_id|null) vira o shape novo com t
   });
 });
 
-test("migração: shape pré-título (sem campo title) ganha título = id", () => {
+test("migration: pre-title shape (no title field) gets title = id", () => {
   withStoreFile(
     { s1: { sessionId: "sess-1", cwd: { cwd: "/tmp/projeto", locked: true } } },
     (filePath) => {
@@ -79,12 +79,12 @@ test("migração: shape pré-título (sem campo title) ganha título = id", () =
   );
 });
 
-test("migração: shape pré-atividade (com title, sem lastActiveAt) ganha lastActiveAt", () => {
+test("migration: pre-activity shape (with title, no lastActiveAt) gets lastActiveAt", () => {
   withStoreFile(
-    { s1: { sessionId: "sess-1", title: "Sessão 1", cwd: { cwd: "/tmp/projeto", locked: true } } },
+    { s1: { sessionId: "sess-1", title: "Session 1", cwd: { cwd: "/tmp/projeto", locked: true } } },
     (filePath) => {
       const store = new SessionStore(filePath, DEFAULT_CWD);
-      assert.deepEqual(store.listTitled(), [{ id: "s1", title: "Sessão 1" }]);
+      assert.deepEqual(store.listTitled(), [{ id: "s1", title: "Session 1" }]);
       const persisted = JSON.parse(readFileSync(filePath, "utf8"));
       assert.equal(typeof persisted.s1.lastActiveAt, "number");
     },
@@ -95,31 +95,31 @@ function sleep(ms: number): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
-test("listTitled ordena por lastActiveAt decrescente (mais recente primeiro)", async () => {
+test("listTitled sorts by lastActiveAt descending (most recent first)", async () => {
   const dir = mkdtempSync(join(tmpdir(), "ultron-sessionstore-test-"));
   try {
     const filePath = join(dir, "sessions.json");
     const store = new SessionStore(filePath, DEFAULT_CWD);
 
-    // `setTimeout` entre cada operação: `Date.now()` tem resolução de 1ms,
-    // chamadas síncronas seguidas quase sempre empatam no mesmo
-    // milissegundo — sem o delay, o teste ficaria dependente de sorte.
+    // `setTimeout` between each operation: `Date.now()` has 1ms resolution,
+    // consecutive synchronous calls almost always tie on the same
+    // millisecond — without the delay, the test would depend on luck.
     store.recordId("s1");
-    store.setTitle("s1", "Primeira");
+    store.setTitle("s1", "First");
     await sleep(5);
     store.recordId("s2");
-    store.setTitle("s2", "Segunda");
+    store.setTitle("s2", "Second");
     await sleep(5);
     store.recordId("s3");
-    store.setTitle("s3", "Terceira");
+    store.setTitle("s3", "Third");
 
-    // Sem tocar em nada, a ordem segue a de criação (mais recente primeiro).
+    // Without touching anything, the order follows creation (most recent first).
     assert.deepEqual(
       store.listTitled().map((s) => s.id),
       ["s3", "s2", "s1"],
     );
 
-    // Reabrir a mais antiga (s1) sobe ela pro topo.
+    // Reopening the oldest (s1) moves it to the top.
     await sleep(5);
     store.touch("s1");
     assert.deepEqual(
@@ -131,23 +131,23 @@ test("listTitled ordena por lastActiveAt decrescente (mais recente primeiro)", a
   }
 });
 
-test("deleteEntry remove a sessão e devolve false se já não existia", () => {
+test("deleteEntry removes the session and returns false if it no longer existed", () => {
   withStoreFile(undefined, (filePath) => {
     const store = new SessionStore(filePath, DEFAULT_CWD);
     store.recordId("s1");
-    store.setTitle("s1", "Sessão 1");
+    store.setTitle("s1", "Session 1");
     assert.equal(store.deleteEntry("s1"), true);
     assert.deepEqual(store.listTitled(), []);
     assert.equal(store.getTitle("s1"), null);
     assert.equal(store.deleteEntry("s1"), false);
 
-    // Reabrir o arquivo reflete a remoção.
+    // Reopening the file reflects the removal.
     const reopened = new SessionStore(filePath, DEFAULT_CWD);
     assert.deepEqual(reopened.listIds(), []);
   });
 });
 
-test("setCwd/lockCwd/getCwdState fazem round-trip e persistem em disco", () => {
+test("setCwd/lockCwd/getCwdState round-trip and persist to disk", () => {
   withStoreFile(undefined, (filePath) => {
     const store = new SessionStore(filePath, DEFAULT_CWD);
     store.recordId("s1");
@@ -157,13 +157,13 @@ test("setCwd/lockCwd/getCwdState fazem round-trip e persistem em disco", () => {
     store.lockCwd("s1");
     assert.deepEqual(store.getCwdState("s1"), { cwd: "/home/user/mode/widgets", locked: true });
 
-    // Reabrir o arquivo reflete o que foi persistido.
+    // Reopening the file reflects what was persisted.
     const reopened = new SessionStore(filePath, DEFAULT_CWD);
     assert.deepEqual(reopened.getCwdState("s1"), { cwd: "/home/user/mode/widgets", locked: true });
   });
 });
 
-test("recordSessionId grava o id sem mexer no cwd já escolhido", () => {
+test("recordSessionId records the id without touching the already-chosen cwd", () => {
   withStoreFile(undefined, (filePath) => {
     const store = new SessionStore(filePath, DEFAULT_CWD);
     store.recordId("s1");
@@ -174,14 +174,14 @@ test("recordSessionId grava o id sem mexer no cwd já escolhido", () => {
   });
 });
 
-test("getContextUsage sem registro ainda: undefined, não quebra (sessão nova, nenhum turno rodou)", () => {
+test("getContextUsage with no record yet: undefined, doesn't break (new session, no turn has run)", () => {
   withStoreFile(undefined, (filePath) => {
     const store = new SessionStore(filePath, DEFAULT_CWD);
     assert.equal(store.getContextUsage("nunca-visto"), undefined);
   });
 });
 
-test("setContextUsage faz round-trip e persiste em disco, sobrevivendo a reabrir o arquivo", () => {
+test("setContextUsage round-trips and persists to disk, surviving reopening the file", () => {
   withStoreFile(undefined, (filePath) => {
     const store = new SessionStore(filePath, DEFAULT_CWD);
     store.recordId("s1");
@@ -192,7 +192,7 @@ test("setContextUsage faz round-trip e persiste em disco, sobrevivendo a reabrir
       usedTokens: 30693,
     });
 
-    // Simula o restart do relay: o valor sobrevive sem esperar um novo turno.
+    // Simulates a relay restart: the value survives without waiting for a new turn.
     const reopened = new SessionStore(filePath, DEFAULT_CWD);
     assert.deepEqual(reopened.getContextUsage("s1"), {
       model: "claude-sonnet-5",
@@ -202,7 +202,7 @@ test("setContextUsage faz round-trip e persiste em disco, sobrevivendo a reabrir
   });
 });
 
-test("setContextUsage chamado antes de recordId ainda funciona (ensureEntry cria o registro)", () => {
+test("setContextUsage called before recordId still works (ensureEntry creates the record)", () => {
   withStoreFile(undefined, (filePath) => {
     const store = new SessionStore(filePath, DEFAULT_CWD);
     store.setContextUsage("nova", { model: "claude-opus-5", contextWindowSize: 200_000, usedTokens: 1000 });
@@ -214,12 +214,12 @@ test("setContextUsage chamado antes de recordId ainda funciona (ensureEntry cria
   });
 });
 
-test("registro antigo sem contextUsage (gravado antes dessa feature existir) carrega normalmente, campo undefined", () => {
+test("old record without contextUsage (written before this feature existed) loads normally, field undefined", () => {
   withStoreFile(
     {
       s1: {
         sessionId: "sess-1",
-        title: "Sessão 1",
+        title: "Session 1",
         cwd: { cwd: "/tmp/projeto", locked: true },
         lastActiveAt: Date.now(),
       },
@@ -227,7 +227,7 @@ test("registro antigo sem contextUsage (gravado antes dessa feature existir) car
     (filePath) => {
       const store = new SessionStore(filePath, DEFAULT_CWD);
       assert.equal(store.getContextUsage("s1"), undefined);
-      // E continua gravável normalmente a partir daqui.
+      // And it's still writable normally from here on.
       store.setContextUsage("s1", { model: "claude-sonnet-5", contextWindowSize: 1_000_000, usedTokens: 42 });
       assert.deepEqual(store.getContextUsage("s1"), {
         model: "claude-sonnet-5",

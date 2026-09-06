@@ -12,24 +12,24 @@ function assistantText(text: string): BroadcastMessage {
 }
 
 const turnComplete: BroadcastMessage = { type: "turn_complete", stopped: false };
-const turnError: BroadcastMessage = { type: "turn_error", message: "deu ruim" };
+const turnError: BroadcastMessage = { type: "turn_error", message: "something went wrong" };
 
-/** N turnos completos, cada um com 2 eventos + terminador (3 mensagens por
- * turno) — o suficiente pra exercitar corte no meio de vários turnos. */
+/** N complete turns, each with 2 events + terminator (3 messages per turn)
+ * — enough to exercise cutting in the middle of several turns. */
 function buildTurns(n: number): BroadcastMessage[] {
   const history: BroadcastMessage[] = [];
   for (let i = 0; i < n; i++) {
-    history.push(userPrompt(`pergunta ${i}`), assistantText(`resposta ${i}`), turnComplete);
+    history.push(userPrompt(`question ${i}`), assistantText(`answer ${i}`), turnComplete);
   }
   return history;
 }
 
-test("história vazia: página vazia, sem mais nada pra buscar", () => {
+test("empty history: empty page, nothing else to fetch", () => {
   const page = pageHistoryBefore([], 0, 20);
   assert.deepEqual(page, { messages: [], cursor: 0, hasMore: false });
 });
 
-test("menos turnos que o teto: manda tudo, hasMore false (comportamento idêntico ao replay antigo)", () => {
+test("fewer turns than the ceiling: sends everything, hasMore false (identical behavior to the old replay)", () => {
   const history = buildTurns(5);
   const page = pageHistoryBefore(history, history.length, 20);
   assert.deepEqual(page.messages, history);
@@ -37,49 +37,49 @@ test("menos turnos que o teto: manda tudo, hasMore false (comportamento idêntic
   assert.equal(page.hasMore, false);
 });
 
-test("exatamente o teto de turnos: ainda manda tudo, hasMore false (limite não é off-by-one)", () => {
+test("exactly the turn ceiling: still sends everything, hasMore false (limit isn't off-by-one)", () => {
   const history = buildTurns(20);
   const page = pageHistoryBefore(history, history.length, 20);
   assert.deepEqual(page.messages, history);
   assert.equal(page.hasMore, false);
 });
 
-test("mais turnos que o teto: manda só a cauda, hasMore true, cursor no início do turno certo", () => {
+test("more turns than the ceiling: sends only the tail, hasMore true, cursor at the start of the right turn", () => {
   const history = buildTurns(25);
   const page = pageHistoryBefore(history, history.length, 20);
   assert.equal(page.hasMore, true);
-  // Os 20 turnos mais recentes são os turnos 5..24 (0-indexado) — cada turno
-  // tem 3 mensagens, então o turno 5 começa no índice 15.
+  // The 20 most recent turns are turns 5..24 (0-indexed) — each turn has 3
+  // messages, so turn 5 starts at index 15.
   assert.equal(page.cursor, 15);
   assert.deepEqual(page.messages, history.slice(15));
-  assert.deepEqual(page.messages[0], userPrompt("pergunta 5"));
+  assert.deepEqual(page.messages[0], userPrompt("question 5"));
 });
 
-test("turno em andamento (sem terminador no fim) entra na página como o turno mais recente", () => {
-  const history = [...buildTurns(3), userPrompt("pergunta em andamento"), assistantText("resposta parcial")];
+test("turn in progress (no terminator at the end) is included in the page as the most recent turn", () => {
+  const history = [...buildTurns(3), userPrompt("question in progress"), assistantText("partial answer")];
   const page = pageHistoryBefore(history, history.length, 20);
   assert.deepEqual(page.messages, history);
   assert.equal(page.hasMore, false);
 });
 
-test("turn_error também fecha um turno, igual turn_complete", () => {
+test("turn_error also closes a turn, just like turn_complete", () => {
   const history = [userPrompt("p1"), assistantText("r1"), turnError, userPrompt("p2"), assistantText("r2"), turnComplete];
   const page = pageHistoryBefore(history, history.length, 1);
   assert.equal(page.cursor, 3);
   assert.deepEqual(page.messages, history.slice(3));
 });
 
-test("load_older_history: cursor de uma página busca a página anterior, sem sobrepor nem pular turno", () => {
+test("load_older_history: one page's cursor fetches the previous page, without overlapping or skipping a turn", () => {
   const history = buildTurns(45);
   const first = pageHistoryBefore(history, history.length, 20);
   assert.equal(first.hasMore, true);
 
   const second = pageHistoryBefore(history, first.cursor, 20);
-  assert.equal(second.hasMore, true); // ainda sobram 5 turnos (45 - 20 - 20)
+  assert.equal(second.hasMore, true); // still 5 turns left (45 - 20 - 20)
   assert.deepEqual(second.messages, history.slice(second.cursor, first.cursor));
 
   const third = pageHistoryBefore(history, second.cursor, 20);
-  assert.equal(third.hasMore, false); // os 5 turnos restantes, do início
+  assert.equal(third.hasMore, false); // the remaining 5 turns, from the start
   assert.equal(third.cursor, 0);
   assert.deepEqual([...third.messages, ...second.messages, ...first.messages], history);
 });
@@ -91,44 +91,44 @@ function syntheticBackgroundJobPrompt(label: string): BroadcastMessage {
   };
 }
 
-test("findEditTarget: fromEnd 1 acha a última mensagem, cutIndex no início do turno", () => {
+test("findEditTarget: fromEnd 1 finds the last message, cutIndex at the start of the turn", () => {
   const history = buildTurns(3);
   const target = findEditTarget(history, 1);
   assert.deepEqual(target, { cutIndex: 6, turnsBefore: 2 });
 });
 
-test("findEditTarget: fromEnd maior conta turnos mais antigos", () => {
+test("findEditTarget: larger fromEnd counts older turns", () => {
   const history = buildTurns(3);
   const target = findEditTarget(history, 3);
   assert.deepEqual(target, { cutIndex: 0, turnsBefore: 0 });
 });
 
-test("findEditTarget: fromEnd além do que existe devolve undefined (pedido inválido)", () => {
+test("findEditTarget: fromEnd beyond what exists returns undefined (invalid request)", () => {
   const history = buildTurns(3);
   assert.equal(findEditTarget(history, 4), undefined);
   assert.equal(findEditTarget([], 1), undefined);
 });
 
-test("findEditTarget: pula turnos sintéticos de ultron-bg ao contar do fim", () => {
+test("findEditTarget: skips synthetic ultron-bg turns when counting from the end", () => {
   const history = [
-    ...buildTurns(2), // turno real 0, turno real 1
+    ...buildTurns(2), // real turn 0, real turn 1
     syntheticBackgroundJobPrompt("job x"),
-    assistantText("resumo do job"),
+    assistantText("job summary"),
     turnComplete,
-    userPrompt("pergunta real mais recente"),
-    assistantText("resposta"),
+    userPrompt("most recent real question"),
+    assistantText("answer"),
     turnComplete,
   ];
-  // fromEnd=1 deve achar "pergunta real mais recente" (pula o turno sintético
-  // antes dele), não o turno sintético em si.
+  // fromEnd=1 should find "most recent real question" (skipping the
+  // synthetic turn before it), not the synthetic turn itself.
   const last = findEditTarget(history, 1);
-  assert.deepEqual(history[last!.cutIndex], userPrompt("pergunta real mais recente"));
-  // turnsBefore conta TODOS os turnos antes (2 reais + 1 sintético = 3),
-  // porque cada um vira exatamente uma linha no .jsonl real.
+  assert.deepEqual(history[last!.cutIndex], userPrompt("most recent real question"));
+  // turnsBefore counts ALL turns before it (2 real + 1 synthetic = 3),
+  // because each one becomes exactly one line in the real .jsonl.
   assert.equal(last!.turnsBefore, 3);
 
-  // fromEnd=2 deve pular o sintético e achar o turno real 1 (buildTurns).
+  // fromEnd=2 should skip the synthetic one and find real turn 1 (buildTurns).
   const secondFromEnd = findEditTarget(history, 2);
-  assert.deepEqual(history[secondFromEnd!.cutIndex], userPrompt("pergunta 1"));
+  assert.deepEqual(history[secondFromEnd!.cutIndex], userPrompt("question 1"));
   assert.equal(secondFromEnd!.turnsBefore, 1);
 });

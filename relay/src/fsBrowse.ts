@@ -1,11 +1,11 @@
 import { statSync, readdirSync } from "node:fs";
 import { isAbsolute, join, resolve } from "node:path";
 
-// Suporta o modal de escolha de pasta (docs do plano "working directory") —
-// lista só subdiretórios, nunca arquivos. Síncrono e puro de propósito: sem
-// I/O assíncrono nem dependência do request HTTP, pra dar pra chamar tanto
-// do endpoint `GET /fs/list` quanto da validação em `SharedSession.setCwd`
-// sem duplicar a lógica de erro.
+// Supports the folder-picker modal (see the "working directory" plan docs) —
+// lists only subdirectories, never files. Synchronous and pure on purpose:
+// no async I/O nor dependency on the HTTP request, so it can be called both
+// from the `GET /fs/list` endpoint and from the validation in
+// `SharedSession.setCwd` without duplicating the error logic.
 
 export type FsError = "not_found" | "permission_denied" | "not_a_directory" | "invalid_path";
 
@@ -23,10 +23,10 @@ function errorFromErrno(error: unknown): FsError {
   return "not_found";
 }
 
-/** Confirma que `rawPath` existe e é um diretório, devolvendo a forma
- * canônica (`path.resolve`) — é o que o cliente usa como `browsePath` depois
- * de cada navegação, pra breadcrumb sempre refletir o que o servidor
- * confirmou (não o que foi digitado/clicado). */
+/** Confirms that `rawPath` exists and is a directory, returning the
+ * canonical form (`path.resolve`) — this is what the client uses as
+ * `browsePath` after each navigation, so the breadcrumb always reflects what
+ * the server confirmed (not what was typed/clicked). */
 export function checkDirectory(rawPath: string): CheckResult {
   if (!isAbsolute(rawPath)) return { ok: false, error: "invalid_path" };
   const resolved = resolve(rawPath);
@@ -41,12 +41,12 @@ export function checkDirectory(rawPath: string): CheckResult {
 
 type ListResult = { ok: true; path: string; entries: FsEntry[] } | { ok: false; error: FsError };
 
-/** Só subpastas — link simbólico apontando pra diretório entra (senão
- * `/home/user/.ultron-trabalho-home`, que é onde o perfil trabalho de fato
- * trabalha, sumiria de qualquer listagem que passe por um symlink), link
- * quebrado é ignorado. Sem filtro de dotdir — pastas escondidas continuam
- * navegáveis, o picker não é uma listagem "pra usuário final" com
- * convenções de gerenciador de arquivo. */
+/** Subfolders only — a symlink pointing to a directory is included
+ * (otherwise `/home/user/.ultron-trabalho-home`, which is where the work
+ * profile actually operates, would disappear from any listing that goes
+ * through a symlink); a broken link is ignored. No dotdir filter — hidden
+ * folders remain navigable, the picker isn't an "end user" listing with
+ * file-manager conventions. */
 export function listDirectories(rawPath: string): ListResult {
   const check = checkDirectory(rawPath);
   if (!check.ok) return check;
@@ -66,7 +66,7 @@ export function listDirectories(rawPath: string): ListResult {
       try {
         isDir = statSync(fullPath).isDirectory();
       } catch {
-        continue; // symlink quebrado — ignora silenciosamente.
+        continue; // broken symlink — ignore silently.
       }
     }
     if (isDir) entries.push({ name: dirent.name, path: fullPath });

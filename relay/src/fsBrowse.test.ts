@@ -14,17 +14,17 @@ function withTempDir(run: (dir: string) => void): void {
   }
 }
 
-test("checkDirectory rejeita path relativo", () => {
+test("checkDirectory rejects a relative path", () => {
   assert.deepEqual(checkDirectory("relative/path"), { ok: false, error: "invalid_path" });
 });
 
-test("checkDirectory: path inexistente", () => {
+test("checkDirectory: nonexistent path", () => {
   withTempDir((dir) => {
     assert.deepEqual(checkDirectory(join(dir, "nao-existe")), { ok: false, error: "not_found" });
   });
 });
 
-test("checkDirectory: path é arquivo, não diretório", () => {
+test("checkDirectory: path is a file, not a directory", () => {
   withTempDir((dir) => {
     const file = join(dir, "arquivo.txt");
     writeFileSync(file, "conteúdo");
@@ -32,7 +32,7 @@ test("checkDirectory: path é arquivo, não diretório", () => {
   });
 });
 
-test("listDirectories: só subpastas, arquivo comum é excluído", () => {
+test("listDirectories: only subfolders, a regular file is excluded", () => {
   withTempDir((dir) => {
     mkdirSync(join(dir, "pasta-b"));
     mkdirSync(join(dir, "pasta-a"));
@@ -48,7 +48,7 @@ test("listDirectories: só subpastas, arquivo comum é excluído", () => {
   });
 });
 
-test("listDirectories: symlink pra diretório entra, symlink quebrado é ignorado", () => {
+test("listDirectories: a symlink to a directory is included, a broken symlink is ignored", () => {
   withTempDir((dir) => {
     const realDir = join(dir, "real");
     mkdirSync(realDir);
@@ -65,13 +65,13 @@ test("listDirectories: symlink pra diretório entra, symlink quebrado é ignorad
   });
 });
 
-test("listDirectories: path inexistente propaga not_found", () => {
+test("listDirectories: nonexistent path propagates not_found", () => {
   withTempDir((dir) => {
     assert.deepEqual(listDirectories(join(dir, "nao-existe")), { ok: false, error: "not_found" });
   });
 });
 
-test("listDirectories: sem permissão de leitura", { skip: process.getuid?.() === 0 }, () => {
+test("listDirectories: no read permission", { skip: process.getuid?.() === 0 }, () => {
   withTempDir((dir) => {
     const restricted = join(dir, "restrita");
     mkdirSync(restricted);
@@ -80,7 +80,7 @@ test("listDirectories: sem permissão de leitura", { skip: process.getuid?.() ==
     try {
       assert.deepEqual(listDirectories(restricted), { ok: false, error: "permission_denied" });
     } finally {
-      chmodSync(restricted, 0o755); // pro rmSync do withTempDir conseguir limpar depois.
+      chmodSync(restricted, 0o755); // so withTempDir's rmSync can clean up afterward.
     }
   });
 });

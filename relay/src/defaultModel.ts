@@ -1,28 +1,28 @@
 import { spawn } from "node:child_process";
 
-// Mesmo binário/PATH do turno de verdade (claudeSession.ts) — motivo idêntico:
-// systemd não sourca o shell interativo do usuário.
+// Same binary/PATH as the real turn (claudeSession.ts) — identical reason:
+// systemd doesn't source the user's interactive shell.
 const CLAUDE_BIN = process.env.CLAUDE_BIN ?? "/home/user/.local/bin/claude";
 const EXTRA_PATH_DIRS = ["/home/user/.local/bin", "/home/user/.nvm/versions/node/v20.19.0/bin"];
 
-// Extrai só a família do modelo — "Sonnet 5 (default)" -> "Sonnet", "Opus 5
-// (1M context) (default)" -> "Opus". Mesmo vocabulário de MODEL_LABELS no
-// cliente (docs/26), então o texto já chega pronto pra mostrar sem mapear de
-// novo lá.
+// Extracts just the model family — "Sonnet 5 (default)" -> "Sonnet", "Opus 5
+// (1M context) (default)" -> "Opus". Same vocabulary as MODEL_LABELS on the
+// client (docs/26), so the text already arrives ready to display without
+// remapping it there.
 const MODEL_NAME_RE = /^Current model:\s*(Sonnet|Opus|Haiku|Fable)\b/i;
 
 /**
- * Roda uma vez no boot do relay (server.ts) pra descobrir o modelo padrão de
- * verdade da conta desse perfil (docs/28) — achado testando manualmente:
- * `/model` sem argumento é interceptado pela própria CLI antes de qualquer
- * chamada de API (`num_turns: 0` no resultado), então não custa nada e roda
- * em ~100-200ms. Cada perfil roda seu próprio processo de relay com seu
- * próprio `$HOME` (docs/08), então cada instância sonda só a conta dele.
+ * Runs once at relay boot (server.ts) to find out this profile account's
+ * actual default model (docs/28) — found by testing manually: `/model`
+ * without an argument is intercepted by the CLI itself before any API call
+ * (`num_turns: 0` in the result), so it costs nothing and runs in
+ * ~100-200ms. Each profile runs its own relay process with its own `$HOME`
+ * (docs/08), so each instance only probes its own account.
  *
- * Achado real que motivou isso: os dois perfis têm defaults DIFERENTES —
- * pessoal veio "Sonnet 5 (default)", trabalho veio "Opus 5 (1M context)
- * (default)". Não dava pra supor um valor fixo (ex: sempre "Opus") sem
- * mostrar uma label errada pra pelo menos um dos dois.
+ * The actual finding that motivated this: the two profiles have DIFFERENT
+ * defaults — personal came back "Sonnet 5 (default)", work came back "Opus 5
+ * (1M context) (default)". There was no way to assume a fixed value (e.g.
+ * always "Opus") without showing a wrong label for at least one of the two.
  */
 export async function detectDefaultModel(homeOverride: string | undefined, cwd: string): Promise<string | undefined> {
   const env = { ...process.env };
@@ -38,11 +38,11 @@ export async function detectDefaultModel(homeOverride: string | undefined, cwd: 
       "--output-format",
       "json",
       "--no-session-persistence",
-      // Mesmas flags do titleGenerator.ts, mesmo motivo: sem elas, um perfil
-      // com MCP configurado (achado real testando o perfil trabalho) imprime
-      // uma linha de log solta no stdout DEPOIS do JSON (algo como "Client.
-      // listTools() called but server does not advertise tools capability"),
-      // quebrando o parse abaixo mesmo com exit code 0.
+      // Same flags as titleGenerator.ts, same reason: without them, a
+      // profile with MCP configured (actual finding while testing the work
+      // profile) prints a stray log line on stdout AFTER the JSON (something
+      // like "Client. listTools() called but server does not advertise
+      // tools capability"), breaking the parse below even with exit code 0.
       "--tools",
       "",
       "--dangerously-skip-permissions",
@@ -62,9 +62,9 @@ export async function detectDefaultModel(homeOverride: string | undefined, cwd: 
   });
   if (exitCode !== 0) return undefined;
 
-  // Defesa extra além das flags acima: o resultado sempre vem numa linha só
-  // (confirmado testando), então ignora qualquer coisa que ainda vaze depois
-  // dela em vez de tentar fazer `JSON.parse` do stdout inteiro.
+  // Extra defense beyond the flags above: the result always comes on a
+  // single line (confirmed by testing), so ignore anything that still leaks
+  // after it instead of trying to `JSON.parse` the whole stdout.
   let parsed: { result?: unknown };
   try {
     parsed = JSON.parse(stdout.split("\n")[0] ?? "") as { result?: unknown };

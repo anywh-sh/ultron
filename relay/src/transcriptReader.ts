@@ -4,13 +4,13 @@ import type { ClaudeEvent } from "./claudeSession.js";
 import type { BroadcastMessage } from "./sharedSession.js";
 
 /**
- * Uma linha do `.jsonl` que o Claude Code grava sozinho em
- * `~/.claude/projects/<projeto>/<session_id>.jsonl` — formato solto de
- * propósito (é o transcript interno dele, não um protocolo nosso, e tem
- * tipos de linha que nunca documentamos: `queue-operation`, `attachment`,
+ * A line of the `.jsonl` that Claude Code writes on its own at
+ * `~/.claude/projects/<project>/<session_id>.jsonl` — loosely typed on
+ * purpose (it's its own internal transcript, not a protocol of ours, and it
+ * has line types we've never documented: `queue-operation`, `attachment`,
  * `last-prompt`, `mode`, `ai-title`, `permission-mode`, `agent-name`,
- * `pr-link`, `file-history-*`...). Só os campos que realmente usamos ficam
- * tipados; o resto é ignorado por design.
+ * `pr-link`, `file-history-*`...). Only the fields we actually use are
+ * typed; the rest is ignored by design.
  */
 export interface TranscriptLine {
   type: string;
@@ -28,8 +28,8 @@ function isTextBlock(value: unknown): value is { type: "text"; text: string } {
   );
 }
 
-/** Exportado — reaproveitado por `transcriptFork.ts` pra achar a mesma linha
- * "mensagem humana genuína" ao contar turnos pra truncar (docs/33). */
+/** Exported — reused by `transcriptFork.ts` to find the same "genuine human
+ * message" line while counting turns for truncation (docs/33). */
 export function isToolResultOnly(content: unknown): boolean {
   return (
     Array.isArray(content) &&
@@ -39,13 +39,13 @@ export function isToolResultOnly(content: unknown): boolean {
 }
 
 /**
- * Extrai o texto de uma mensagem humana genuína — string direta, ou lista
- * com pelo menos um bloco de texto. `undefined` quando o registro não é
- * isso: feedback de `tool_result` (agentic loop, não digitado por ninguém)
- * ou ruído `isMeta` (reminders/caveats injetados pelo próprio Claude Code).
+ * Extracts the text of a genuine human message — a direct string, or a list
+ * with at least one text block. `undefined` when the record isn't that:
+ * `tool_result` feedback (agentic loop, not typed by anyone) or `isMeta`
+ * noise (reminders/caveats injected by Claude Code itself).
  *
- * Exportado — `transcriptFork.ts` (docs/33) usa o mesmo critério pra contar
- * turnos ao decidir onde cortar o arquivo na edição de mensagem.
+ * Exported — `transcriptFork.ts` (docs/33) uses the same criterion to count
+ * turns when deciding where to cut the file during message editing.
  */
 export function extractHumanText(line: TranscriptLine): string | undefined {
   if (line.isMeta) return undefined;
@@ -59,26 +59,27 @@ export function extractHumanText(line: TranscriptLine): string | undefined {
 }
 
 /**
- * Troca por `-` qualquer caractere fora de `[a-zA-Z0-9-]` — mesma
- * sanitização que o Claude Code usa pro nome da pasta em
- * `~/.claude/projects/`. Confirmado batendo contra pastas reais dos dois
- * perfis: `/home/user/personal/ultron/relay` -> `-home-user-personal-ultron-relay`,
+ * Replaces any character outside `[a-zA-Z0-9-]` with `-` — same
+ * sanitization Claude Code uses for the folder name in
+ * `~/.claude/projects/`. Confirmed by checking against real folders from
+ * both profiles: `/home/user/personal/ultron/relay` -> `-home-user-personal-ultron-relay`,
  * `/home/user/.ultron-trabalho-home` -> `-home-user--ultron-trabalho-home`.
  */
 export function sanitizeCwd(cwd: string): string {
   return cwd.replace(/[^a-zA-Z0-9-]/g, "-");
 }
 
-/** O Claude Code CLI deriva o nome da pasta do `cwd` real do processo
- * (`process.cwd()`, que o kernel já devolve sem componentes de symlink) —
- * sanitizar o `cwd` bruto sem resolver symlink primeiro faz essa conta bater
- * com uma pasta que não existe sempre que algum componente do caminho for
- * symlink (achado real: `~/.ultron-trabalho-home/mode` -> `~/mode`, sessões
- * do repo `widgets` calculavam `-home-user--ultron-trabalho-home-mode-widgets` em vez
- * da pasta de verdade, `-home-user-mode-widgets`). Cai pro `cwd` bruto se o
- * caminho não existir mais (sessão de teste/fixture, ou pasta apagada) —
- * mesmo comportamento de antes nesse caso, só sem tentar resolver o que não
- * dá. */
+/** The Claude Code CLI derives the folder name from the process's real
+ * `cwd` (`process.cwd()`, which the kernel already returns without symlink
+ * components) — sanitizing the raw `cwd` without resolving the symlink
+ * first makes this calculation land on a folder that doesn't exist whenever
+ * some path component is a symlink (real finding: `~/.ultron-trabalho-home/mode`
+ * -> `~/mode`, sessions in the `widgets` repo computed
+ * `-home-user--ultron-trabalho-home-mode-widgets` instead of the real folder,
+ * `-home-user-mode-widgets`). Falls back to the raw `cwd` if the path no longer
+ * exists (test/fixture session, or a deleted folder) — same behavior as
+ * before in that case, just without trying to resolve what can't be
+ * resolved. */
 function resolveRealCwd(cwd: string): string {
   try {
     return realpathSync(cwd);
@@ -87,23 +88,24 @@ function resolveRealCwd(cwd: string): string {
   }
 }
 
-/** Exportado só pra teste — deixa o teste escrever a fixture no mesmo lugar
- * que o código real vai procurar, em vez de duplicar a regra de sanitização.
- * `home` e `cwd` já vêm resolvidos pelo caller (`SharedSession`, via
- * `paths.ts::defaultCwd` pro primeiro e o cwd de verdade da sessão pro
- * segundo) — cwd é por sessão desde a feature de working directory, não dá
- * mais pra assumir que é igual a `home`/`process.cwd()` aqui dentro. */
+/** Exported only for testing — lets the test write the fixture in the same
+ * place the real code will look, instead of duplicating the sanitization
+ * rule. `home` and `cwd` already come resolved by the caller
+ * (`SharedSession`, via `paths.ts::defaultCwd` for the first and the
+ * session's real cwd for the second) — cwd has been per-session since the
+ * working directory feature, so it can no longer be assumed to equal
+ * `home`/`process.cwd()` in here. */
 export function transcriptPath(home: string, cwd: string, sessionId: string): string {
   return join(home, ".claude", "projects", sanitizeCwd(resolveRealCwd(cwd)), `${sessionId}.jsonl`);
 }
 
 /**
- * Reconstrói o `history` de uma sessão a partir do transcript que o Claude
- * Code já mantém sozinho — usado quando o relay reinicia e perde o
- * `SharedSession.history` em memória (sempre foi só em memória, nunca
- * persistido). Tradução, não replay direto: ver docs/20-backlog.md e o
- * plano desta mudança pros motivos e a investigação por trás das regras
- * abaixo.
+ * Rebuilds a session's `history` from the transcript that Claude Code
+ * already maintains on its own — used when the relay restarts and loses
+ * `SharedSession.history` in memory (it was always in-memory only, never
+ * persisted). Translation, not a direct replay: see docs/20-backlog.md and
+ * this change's plan for the reasons and the investigation behind the
+ * rules below.
  */
 export function readHistoryFromTranscript(home: string, cwd: string, sessionId: string): BroadcastMessage[] {
   const path = transcriptPath(home, cwd, sessionId);
@@ -119,8 +121,8 @@ export function readHistoryFromTranscript(home: string, cwd: string, sessionId: 
     try {
       line = JSON.parse(rawLine) as TranscriptLine;
     } catch {
-      // Só pode acontecer na última linha, se alguém reconectar no meio de
-      // uma escrita — descarta em vez de quebrar o replay inteiro.
+      // Can only happen on the last line, if something reconnects mid-write
+      // — discard instead of breaking the whole replay.
       continue;
     }
 
@@ -130,16 +132,17 @@ export function readHistoryFromTranscript(home: string, cwd: string, sessionId: 
       continue;
     }
 
-    if (line.type !== "user") continue; // resto é ruído sem representação visual (ver módulo).
+    if (line.type !== "user") continue; // the rest is noise with no visual representation (see module).
 
     const humanText = extractHumanText(line);
     if (humanText !== undefined) {
       if (turnOpen) messages.push({ type: "turn_complete" });
-      // Timestamp real da linha (docs/33) — o client usa isso pra mostrar
-      // "há X min" em mensagens reconstruídas do disco; quem manda ao vivo já
-      // sabe a própria hora do clique, não depende disso. Omitido (não
-      // `undefined` explícito) quando a linha não tem `timestamp` — mantém a
-      // forma do evento idêntica à de antes dessa feature existir nesse caso.
+      // Real timestamp of the line (docs/33) — the client uses this to show
+      // "X min ago" on messages reconstructed from disk; whoever sends it
+      // live already knows the click's own time, doesn't depend on this.
+      // Omitted (not explicit `undefined`) when the line has no
+      // `timestamp` — keeps the event's shape identical to before this
+      // feature existed in that case.
       const event: ClaudeEvent = {
         type: "user_prompt",
         message: { content: [{ type: "text", text: humanText }] },
@@ -154,12 +157,12 @@ export function readHistoryFromTranscript(home: string, cwd: string, sessionId: 
       const event: ClaudeEvent = { type: "user", message: line.message };
       messages.push({ type: "claude_event", event });
     }
-    // `isMeta` ou formato inesperado: ignora, sem representação visual.
+    // `isMeta` or unexpected format: ignore, no visual representation.
   }
 
-  // Turno aberto no fim do arquivo não é fechado de propósito — pode estar
-  // genuinamente em andamento (relay caiu no meio de um turno). Deixar
-  // aberto é inofensivo: `turnInFlight` no cliente é só local, não é
-  // afetado por replay.
+  // A turn left open at the end of the file is not closed on purpose — it
+  // may genuinely be in progress (relay crashed mid-turn). Leaving it open
+  // is harmless: `turnInFlight` on the client is local only, unaffected by
+  // replay.
   return messages;
 }

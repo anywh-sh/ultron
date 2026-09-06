@@ -10,11 +10,15 @@ import { INITIAL_HISTORY_TAIL_TURNS, findEditTarget, pageHistoryBefore, type Edi
 import type { ContextUsage, ModelChoice, PermissionMode } from "./sessionStore.js";
 import { toBackgroundJobSummary, type BackgroundJobSummary, type FinishedBackgroundJob, type WatchedJob } from "./backgroundJobs.js";
 
-/** Fase D de docs/32 — texto do turno sintético disparado quando um job
- * `ultron-bg` termina. Instrução explícita pra só reportar (não iniciar
- * trabalho novo nem outro `ultron-bg`) — sem essa trava, um turno automático
- * que já tem ferramentas liberadas (mesmo `permissionMode` da sessão)
- * poderia virar uma cadeia de ações não pedidas pelo usuário.
+/** docs/32 Phase D — text of the synthetic turn fired when an `ultron-bg`
+ * job finishes. Explicit instruction to only report (not start new work nor
+ * another `ultron-bg`) — without this guard, an automatic turn that already
+ * has tools unlocked (same `permissionMode` as the session) could turn into
+ * a chain of actions the user never asked for.
+ *
+ * NOTE: kept in Portuguese on purpose — this text is sent as the actual
+ * synthetic user message for the turn, so its language is what the model's
+ * reply (shown to the user in the chat log) will follow.
  */
 function buildBackgroundJobFollowupPrompt(job: FinishedBackgroundJob): string {
   const status = job.exitCode === 0 ? "concluiu com sucesso (exit 0)" : `terminou com erro (exit ${String(job.exitCode)})`;
@@ -35,92 +39,93 @@ export type BroadcastMessage =
   | { type: "turn_complete"; stopped?: boolean }
   | { type: "turn_error"; message: string };
 
-// `suggestion` (e outros estados "atuais": cwd_state, permission_mode_state
-// etc.) não entra em `BroadcastMessage`/`history` de propósito — são mandados
-// direto via socket.send em vez de `this.broadcast`, e uma reconexão pega o
-// valor de agora via `addClient`, não um replay de mudanças passadas.
+// `suggestion` (and other "current" states: cwd_state, permission_mode_state
+// etc.) deliberately doesn't enter `BroadcastMessage`/`history` — they're
+// sent directly via socket.send instead of `this.broadcast`, and a
+// reconnection picks up the current value via `addClient`, not a replay of
+// past changes.
 
 export interface SharedSessionOptions {
-  /** session_id já persistido pra essa sessão (Fase 7 / docs/18), se houver. */
+  /** session_id already persisted for this session (Phase 7 / docs/18), if any. */
   initialSessionId?: string;
-  /** Chamado com o session_id aprendido depois de cada turno bem-sucedido —
-   * é assim que o SessionManager grava no SessionStore. */
+  /** Called with the session_id learned after every successful turn — this
+   * is how SessionManager writes it to SessionStore. */
   onSessionIdChange?: (sessionId: string) => void;
-  /** Chamado quando `/clear` solta a continuidade local (docs/26) — é assim
-   * que o SessionManager apaga o session_id gravado no SessionStore, senão
-   * um restart do relay voltaria a dar `--resume` na conversa já limpa. */
+  /** Called when `/clear` drops local continuity (docs/26) — this is how
+   * SessionManager erases the session_id recorded in SessionStore,
+   * otherwise a relay restart would go back to `--resume`ing the
+   * already-cleared conversation. */
   onSessionIdClear?: () => void;
-  /** cwd atual da sessão (padrão do app se o usuário nunca escolheu uma pasta). */
+  /** Session's current cwd (the app's default if the user never picked a folder). */
   initialCwd: string;
-  /** Se `true`, a pasta já foi consumida por um turno e não pode mais mudar
-   * — ver comentário em `runTurn` pro porquê. */
+  /** If `true`, the folder has already been consumed by a turn and can no
+   * longer change — see the comment in `runTurn` for why. */
   initialLocked: boolean;
-  /** Chamado sempre que o cwd muda (só possível antes do lock) — é assim
-   * que o SessionManager grava no SessionStore. */
+  /** Called whenever the cwd changes (only possible before the lock) —
+   * this is how SessionManager writes it to SessionStore. */
   onCwdChange?: (cwd: string) => void;
-  /** Chamado uma única vez, no momento em que a sessão trava (primeiro
-   * turno de verdade). */
+  /** Called exactly once, at the moment the session locks (first real turn). */
   onLockChange?: () => void;
-  /** Chamado quando um `/clear` destrava o cwd de uma sessão que já estava
-   * travada (ver `clearConversation`) — contraparte de `onLockChange`. */
+  /** Called when a `/clear` unlocks the cwd of a session that was already
+   * locked (see `clearConversation`) — counterpart to `onLockChange`. */
   onUnlockChange?: () => void;
-  /** Título já persistido pra essa sessão, se houver (sessão antiga migrada,
-   * ou reload de uma sessão nova cujo título já tinha sido inferido antes do
-   * restart do relay). */
+  /** Title already persisted for this session, if any (an old migrated
+   * session, or a reload of a new session whose title had already been
+   * inferred before the relay restarted). */
   initialTitle?: string | null;
-  /** Chamado uma única vez, com o texto da primeira mensagem que não é um
-   * comando (não começa com "/") — SessionManager usa isso pra disparar a
-   * geração de título em paralelo ao turno (não bloqueia a resposta).
-   * Desacoplado de `onLockChange` de propósito: uma sessão cujas primeiras
-   * mensagens são `/model opus`/`/clear` trava o cwd normalmente no
-   * primeiro turno, mas só ganha título quando uma mensagem de verdade
-   * chegar (docs/26) — sem isso o título saía do texto do comando. */
+  /** Called exactly once, with the text of the first message that isn't a
+   * command (doesn't start with "/") — SessionManager uses this to trigger
+   * title generation in parallel with the turn (doesn't block the
+   * response). Deliberately decoupled from `onLockChange`: a session whose
+   * first messages are `/model opus`/`/clear` locks the cwd normally on the
+   * first turn, but only gets a title once a real message arrives
+   * (docs/26) — without this the title would come out of the command text. */
   onFirstPrompt?: (text: string) => void;
-  /** Chamado no início de TODO turno (não só o primeiro) — é o que deixa o
-   * SessionManager marcar `lastActiveAt` no SessionStore, usado pra ordenar
-   * a sidebar por última interação. */
+  /** Called at the start of EVERY turn (not just the first) — this is what
+   * lets SessionManager mark `lastActiveAt` in SessionStore, used to sort
+   * the sidebar by last interaction. */
   onActivity?: () => void;
-  /** Modo de permissão já persistido pra essa sessão (docs/25), ou
-   * `"bypassPermissions"` pra uma sessão nova — mesmo comportamento
-   * hardcoded de antes dessa feature existir. */
+  /** Permission mode already persisted for this session (docs/25), or
+   * `"bypassPermissions"` for a new session — same hardcoded behavior as
+   * before this feature existed. */
   initialPermissionMode: PermissionMode;
-  /** Chamado sempre que o modo muda — é assim que o SessionManager grava no
-   * SessionStore. Diferente de `onCwdChange`, pode disparar a qualquer
-   * momento da conversa (não só antes do primeiro turno). */
+  /** Called whenever the mode changes — this is how SessionManager writes
+   * it to SessionStore. Unlike `onCwdChange`, it can fire at any point in
+   * the conversation (not just before the first turn). */
   onPermissionModeChange?: (mode: PermissionMode) => void;
-  /** Uso de contexto já persistido pra essa sessão (último turno antes de um
-   * possível restart do relay), se houver. */
+  /** Context usage already persisted for this session (last turn before a
+   * possible relay restart), if any. */
   initialContextUsage?: ContextUsage;
-  /** Chamado ao fim de todo turno que produziu um `result` utilizável — é
-   * assim que o SessionManager grava no SessionStore. Pode não disparar num
-   * turno que falhou antes de qualquer chamada de API. */
+  /** Called at the end of every turn that produced a usable `result` — this
+   * is how SessionManager writes it to SessionStore. May not fire for a
+   * turn that failed before any API call. */
   onContextUsageChange?: (usage: ContextUsage) => void;
-  /** Modelo já persistido pra essa sessão (docs/26), ou `undefined` se nunca
-   * escolhido via `/model` — nesse caso não passa `--model` no spawn,
-   * comportamento idêntico a antes dessa feature existir. */
+  /** Model already persisted for this session (docs/26), or `undefined` if
+   * never chosen via `/model` — in that case `--model` isn't passed on
+   * spawn, identical behavior to before this feature existed. */
   initialModel?: ModelChoice;
-  /** Chamado sempre que o modelo muda — mesmo padrão de
-   * `onPermissionModeChange`, pode disparar a qualquer momento. */
+  /** Called whenever the model changes — same pattern as
+   * `onPermissionModeChange`, can fire at any moment. */
   onModelChange?: (model: ModelChoice) => void;
-  /** Chamado com todo `ClaudeEvent` de todo turno (real ou de follow-up de
-   * background) — é assim que o `SessionManager` liga o `BackgroundJobTracker`
-   * sem a `SharedSession` precisar saber nada sobre `ultron-bg` (docs/32,
-   * Fase D). Puramente observacional. */
+  /** Called with every `ClaudeEvent` of every turn (real or a background
+   * follow-up) — this is how `SessionManager` wires up the
+   * `BackgroundJobTracker` without `SharedSession` needing to know anything
+   * about `ultron-bg` (docs/32, Phase D). Purely observational. */
   onEvent?: (event: ClaudeEvent) => void;
-  /** Fase F de docs/32 — chamado com o id de um job `ultron-bg` que o
-   * usuário pediu pra cancelar pela UI. Mesmo raciocínio de `onEvent`: a
-   * `SharedSession` não sabe nada sobre o `BackgroundJobTracker`, só repassa
-   * pro `SessionManager` decidir o que fazer. */
+  /** docs/32 Phase F — called with the id of an `ultron-bg` job the user
+   * asked to cancel from the UI. Same reasoning as `onEvent`: `SharedSession`
+   * doesn't know anything about `BackgroundJobTracker`, it just passes it
+   * along for `SessionManager` to decide what to do. */
   onCancelBackgroundJob?: (jobId: string) => void;
 }
 
 export type SetCwdResult = { ok: true } | { ok: false; error: string };
 
 /**
- * Uma sessão do Claude compartilhada por todos os clientes conectados nela.
- * Novos clientes recebem replay do histórico antes de passar a receber
- * eventos ao vivo — é isso que dá a "sessão compartilhada em tempo real"
- * entre dispositivos (docs/04 antigo, agora via docs/11).
+ * A Claude session shared by every client connected to it. New clients
+ * receive a history replay before switching over to live events — this is
+ * what gives the "real-time shared session" across devices (old docs/04,
+ * now via docs/11).
  */
 export class SharedSession {
   private readonly claude: ClaudeSession;
@@ -133,29 +138,30 @@ export class SharedSession {
   private permissionMode: PermissionMode;
   private model: ModelChoice | undefined;
   private contextUsage: ContextUsage | undefined;
-  /** Sugestão de próxima mensagem (gerada de forma assíncrona ao fim de todo
-   * turno bem-sucedido, ver `runTurn`) — só em memória, de propósito: é uma
-   * conveniência de baixo risco, não precisa sobreviver a um restart do relay
-   * (diferente de `contextUsage`, que é persistido no SessionStore). */
+  /** Next-message suggestion (generated asynchronously at the end of every
+   * successful turn, see `runTurn`) — in-memory only, on purpose: it's a
+   * low-risk convenience, doesn't need to survive a relay restart (unlike
+   * `contextUsage`, which is persisted in SessionStore). */
   private suggestion: string | null = null;
-  /** Separado de `locked`: uma sessão pode travar o cwd no primeiro turno
-   * (ex: um `/model opus` de abertura) sem ainda ter uma mensagem de verdade
-   * pra título — ver `onFirstPrompt` acima. */
+  /** Separate from `locked`: a session can lock the cwd on the first turn
+   * (e.g. an opening `/model opus`) without yet having a real message for
+   * the title — see `onFirstPrompt` above. */
   private firstPromptSeeded = false;
-  /** `true` depois de um `/clear` — impede `ensureHistoryLoaded` de recarregar
-   * o transcript antigo do disco pra um cliente que conecta depois do clear
-   * (o guard normal dela só olha `history.length`, que a gente zera de
-   * propósito no clear). */
+  /** `true` after a `/clear` — prevents `ensureHistoryLoaded` from
+   * reloading the old transcript from disk for a client that connects
+   * after the clear (its normal guard only looks at `history.length`,
+   * which we deliberately zero out on clear). */
   private historyCleared = false;
-  /** `null` fora de um turno — timestamp (epoch ms) de quando o turno atual
-   * começou, enquanto um estiver rodando. Estado "atual" (como `cwd`),
-   * não fica em `history`: um cliente conectando (ou reconectando) pega o
-   * valor de agora via `addClient`, igual `sendCwdState`. */
+  /** `null` outside of a turn — timestamp (epoch ms) of when the current
+   * turn started, while one is running. "Current" state (like `cwd`),
+   * doesn't go into `history`: a client connecting (or reconnecting) picks
+   * up the current value via `addClient`, same as `sendCwdState`. */
   private turnStartedAt: number | null = null;
-  /** Jobs `ultron-bg` observados agora nesta sessão — Fase E de docs/32.
-   * Igual `contextUsage`/`suggestion`: só em memória (não persiste a um
-   * restart do relay), o próprio `BackgroundJobTracker` é que sobrevive ou
-   * não entre reinícios, essa lista é só o espelho do que ele sabe AGORA. */
+  /** `ultron-bg` jobs currently watched in this session — docs/32 Phase E.
+   * Same as `contextUsage`/`suggestion`: in-memory only (doesn't persist
+   * across a relay restart), it's `BackgroundJobTracker` itself that
+   * survives (or not) between restarts — this list is just a mirror of
+   * what it knows RIGHT NOW. */
   private backgroundJobs: BackgroundJobSummary[] = [];
 
   constructor(
@@ -187,17 +193,17 @@ export class SharedSession {
     return this.contextUsage;
   }
 
-  /** Diferente de `setCwd`, não tem trava nem validação — qualquer um dos
-   * 4 valores é sempre aceitável a qualquer momento da conversa (docs/25). */
+  /** Unlike `setCwd`, has no lock or validation — any of the 4 values is
+   * always acceptable at any point in the conversation (docs/25). */
   setPermissionMode(mode: PermissionMode): void {
     this.permissionMode = mode;
     this.options.onPermissionModeChange?.(mode);
     this.broadcastPermissionMode();
   }
 
-  /** Mesmo padrão de `setPermissionMode` — vale a partir do próximo turno,
-   * sem trava nem validação de valor (o WS handler já valida contra
-   * `MODEL_CHOICES` antes de chegar aqui, docs/26). */
+  /** Same pattern as `setPermissionMode` — takes effect from the next turn
+   * on, no lock or value validation (the WS handler already validates
+   * against `MODEL_CHOICES` before it gets here, docs/26). */
   setModel(model: ModelChoice): void {
     this.model = model;
     this.options.onModelChange?.(model);
@@ -208,19 +214,19 @@ export class SharedSession {
     return this.title;
   }
 
-  /** Chamado tanto pelo título inferido do primeiro prompt quanto por um
-   * rename manual (SessionManager.renameTitle) — os dois casos só precisam
-   * atualizar o estado local e avisar quem estiver conectado agora mesmo
-   * (outro dispositivo com essa sessão aberta, ex). Persistência em disco é
-   * responsabilidade do SessionStore, não desta classe. */
+  /** Called both by the title inferred from the first prompt and by a
+   * manual rename (SessionManager.renameTitle) — both cases only need to
+   * update local state and notify whoever is connected right now (e.g.
+   * another device with this session open). Disk persistence is
+   * SessionStore's responsibility, not this class's. */
   setTitle(title: string): void {
     this.title = title;
     this.broadcastTitle();
   }
 
-  /** Só permitido antes do primeiro turno (ver `runTurn`) — quem chama
-   * (server.ts) já trata o caso `ok: false` mandando um erro só pro cliente
-   * que pediu, não um broadcast. */
+  /** Only allowed before the first turn (see `runTurn`) — the caller
+   * (server.ts) already handles the `ok: false` case by sending an error
+   * only to the client that asked, not a broadcast. */
   setCwd(path: string): SetCwdResult {
     if (this.locked) return { ok: false, error: "working directory já travado, sessão já tem histórico" };
     const check = checkDirectory(path);
@@ -231,26 +237,28 @@ export class SharedSession {
     return { ok: true };
   }
 
-  /** Fase E de docs/32 — chamado pelo `SessionManager` (via
-   * `BackgroundJobTracker.onChanged`) sempre que a lista de jobs `ultron-bg`
-   * observados desta sessão muda. Mesmo padrão de `setTitle`/`setPermissionMode`:
-   * atualiza o estado local e avisa quem estiver conectado agora. */
+  /** docs/32 Phase E — called by `SessionManager` (via
+   * `BackgroundJobTracker.onChanged`) whenever this session's list of
+   * watched `ultron-bg` jobs changes. Same pattern as
+   * `setTitle`/`setPermissionMode`: updates local state and notifies
+   * whoever is connected right now. */
   setBackgroundJobs(jobs: WatchedJob[]): void {
     this.backgroundJobs = jobs.map(toBackgroundJobSummary);
     this.broadcastBackgroundJobs();
   }
 
-  /** Fase F de docs/32 — pedido de cancelamento vindo da UI (chip do
-   * `ChatPanel`). Passthrough puro pro `SessionManager`; `setBackgroundJobs`
-   * (chamado por ele via `onChanged` do tracker) já cuida de avisar os
-   * clientes que o job sumiu da lista — não precisa fazer nada extra aqui. */
+  /** docs/32 Phase F — cancellation request coming from the UI (the
+   * `ChatPanel` chip). Pure passthrough to `SessionManager`;
+   * `setBackgroundJobs` (called by it via the tracker's `onChanged`)
+   * already takes care of telling clients the job disappeared from the
+   * list — nothing extra needed here. */
   cancelBackgroundJob(jobId: string): void {
     this.options.onCancelBackgroundJob?.(jobId);
   }
 
   addClient(socket: WebSocket): void {
-    // Primeiro que tudo — uma aba recém-aberta sabe o cwd/lock imediatamente,
-    // sem esperar um turno ou o replay de histórico terminar.
+    // First thing of all — a freshly opened tab knows the cwd/lock
+    // immediately, without waiting for a turn or the history replay to finish.
     this.sendCwdState(socket);
     this.sendPermissionMode(socket);
     this.sendModelState(socket);
@@ -261,28 +269,30 @@ export class SharedSession {
     this.sendBackgroundJobs(socket);
 
     this.ensureHistoryLoaded();
-    // Fase 2 (docs/30) — só a cauda recente (`INITIAL_HISTORY_TAIL_TURNS`
-    // turnos), não `history` inteiro: sessões longas (achado real, "IVT
-    // Fix" — 1670 linhas reconstruídas) travavam a conexão mandando tudo de
-    // uma vez. O resto vem sob demanda via `loadOlderHistory`, disparado pelo
-    // usuário rolando pra cima na UI. Uma única mensagem com o array inteiro
-    // (não um `send` por evento) — é o que deixa o cliente hidratar o log
-    // com um dispatch só em vez de um por evento (custo O(n²) do reducer).
+    // Phase 2 (docs/30) — only the recent tail (`INITIAL_HISTORY_TAIL_TURNS`
+    // turns), not the whole `history`: long sessions (a real finding, "IVT
+    // Fix" — 1670 reconstructed lines) used to stall the connection by
+    // sending everything at once. The rest comes on demand via
+    // `loadOlderHistory`, triggered by the user scrolling up in the UI. A
+    // single message with the whole array (not one `send` per event) — this
+    // is what lets the client hydrate the log with a single dispatch instead
+    // of one per event (the reducer's O(n²) cost).
     const page = pageHistoryBefore(this.history, this.history.length, INITIAL_HISTORY_TAIL_TURNS);
     socket.send(JSON.stringify({ type: "history_page", messages: page.messages, cursor: page.cursor, hasMore: page.hasMore }));
-    // Marca o fim do replay pra esse cliente — não entra em `history` (não é
-    // um evento da sessão, é por-conexão), então nunca é reenviado pros
-    // próximos clientes que conectarem. É o que deixa o cliente distinguir
-    // "turn_complete" de reconstrução de histórico vs turno de verdade
-    // concluído depois que ele conectou (relevante pra notificação do SO).
+    // Marks the end of the replay for this client — doesn't enter `history`
+    // (it's not a session event, it's per-connection), so it's never resent
+    // to the next clients that connect. This is what lets the client tell
+    // apart a "turn_complete" from history reconstruction vs a real turn
+    // that finished after it connected (relevant for OS notifications).
     socket.send(JSON.stringify({ type: "caught_up" }));
     this.clients.add(socket);
   }
 
-  /** Fase 2 (docs/30) — busca sob demanda de turnos mais antigos que a cauda
-   * mandada em `addClient`, disparada pelo usuário rolando pra cima na UI.
-   * Só responde pro socket que pediu: não é um evento da sessão (não entra
-   * de novo em `history`, já está lá), é uma busca pontual de um cliente. */
+  /** Phase 2 (docs/30) — on-demand fetch of turns older than the tail sent
+   * in `addClient`, triggered by the user scrolling up in the UI. Only
+   * responds to the socket that asked: it's not a session event (doesn't
+   * enter `history` again, it's already there), it's a one-off lookup for
+   * one client. */
   loadOlderHistory(socket: WebSocket, beforeCursor: number): void {
     const page = pageHistoryBefore(this.history, beforeCursor, INITIAL_HISTORY_TAIL_TURNS);
     socket.send(JSON.stringify({ type: "older_history", messages: page.messages, cursor: page.cursor, hasMore: page.hasMore }));
@@ -292,10 +302,10 @@ export class SharedSession {
     this.clients.delete(socket);
   }
 
-  /** Chamado quando a sessão é excluída (SessionManager.deleteSession) —
-   * avisa quem estiver conectado agora (esta aba, ou outro dispositivo com
-   * a mesma sessão aberta) antes de fechar a conexão, pra distinguir de um
-   * erro de rede de verdade. */
+  /** Called when the session is deleted (SessionManager.deleteSession) —
+   * notifies whoever is connected right now (this tab, or another device
+   * with the same session open) before closing the connection, to tell it
+   * apart from a real network error. */
   closeAllClients(): void {
     for (const client of this.clients) {
       client.send(JSON.stringify({ type: "session_deleted" }));
@@ -305,65 +315,65 @@ export class SharedSession {
   }
 
   /**
-   * `history` sempre foi só em memória — some a cada restart do relay,
-   * mesmo o Claude Code tendo o transcript completo em disco (docs/20-backlog,
-   * "Reconstrução de histórico de mensagens via `.jsonl`"). Roda uma vez por
-   * processo: depois de carregado, `history` nunca mais fica vazio pra essa
-   * sessão. Sem `initialSessionId` não tem o que ler (sessão nova).
+   * `history` has always been in-memory only — it disappears on every relay
+   * restart, even though Claude Code has the complete transcript on disk
+   * (docs/20-backlog, "Message history reconstruction via `.jsonl`"). Runs
+   * once per process: once loaded, `history` is never empty again for this
+   * session. Without `initialSessionId` there's nothing to read (new session).
    */
   private ensureHistoryLoaded(): void {
     if (this.history.length > 0 || this.historyCleared || !this.options.initialSessionId) return;
-    const home = defaultCwd(this.homeOverride); // onde ~/.claude/projects/ do processo filho vive
+    const home = defaultCwd(this.homeOverride); // where the child process's ~/.claude/projects/ lives
     this.history.push(...readHistoryFromTranscript(home, this.cwd, this.options.initialSessionId));
   }
 
-  /** `origin` é o socket que mandou esta mensagem — usado só pra saber quem
-   * já tem a bolha da pergunta localmente (o `ChatPanel` de quem mandou já
-   * commitou ela de forma otimista antes de chamar isto) e não duplicar nele
-   * o `user_prompt` sintético que `runTurn` broadcasta pros OUTROS
-   * dispositivos conectados na mesma sessão (ver comentário lá). */
+  /** `origin` is the socket that sent this message — used only to know who
+   * already has the question bubble locally (the sender's `ChatPanel`
+   * already committed it optimistically before calling this) so it doesn't
+   * get duplicated by the synthetic `user_prompt` that `runTurn` broadcasts
+   * to the OTHER devices connected to the same session (see comment there). */
   submitTurn(origin: WebSocket, text: string): void {
-    // Sugestão de um turno anterior não vale mais assim que um novo começa —
-    // limpa na hora (não espera o turno terminar) pra não ficar pendurada
-    // durante toda a duração do turno em andamento.
+    // A previous turn's suggestion no longer applies once a new one starts —
+    // clear it right away (don't wait for the turn to finish) so it doesn't
+    // stay hanging around for the whole duration of the turn in progress.
     this.clearSuggestion();
-    // Enfileira: só um turno do `claude -p` roda por vez nessa sessão.
+    // Enqueue: only one `claude -p` turn runs at a time in this session.
     this.turnQueue = this.turnQueue.then(() => this.runTurn(origin, text));
   }
 
-  /** Fase D de docs/32 — disparado pelo `BackgroundJobTracker` (via
-   * `SessionManager`) quando um job iniciado com `ultron-bg` termina DEPOIS
-   * que o turno original que o lançou já tinha acabado (o motivo de
-   * `ultron-bg` existir: o processo `claude -p` daquele turno já morreu,
-   * então não tem mais quem avisar o usuário por conta própria). Mesma
-   * fila (`turnQueue`) que serializa `/clear` contra turnos de verdade —
-   * nunca roda em paralelo com um turno do usuário nem corrompe
-   * `session_id`/histórico fora de ordem. Sem `origin` (nenhum cliente
-   * mandou isso) — `runTurn` broadcasta o prompt sintético pra todo mundo
-   * conectado, não só "pros outros". */
+  /** docs/32 Phase D — fired by `BackgroundJobTracker` (via
+   * `SessionManager`) when a job started with `ultron-bg` finishes AFTER
+   * the original turn that launched it has already ended (the reason
+   * `ultron-bg` exists: that turn's `claude -p` process has already died,
+   * so there's no one left to notify the user on its own). Same queue
+   * (`turnQueue`) that serializes `/clear` against real turns — never runs
+   * in parallel with a user turn nor corrupts `session_id`/history out of
+   * order. No `origin` (no client sent this) — `runTurn` broadcasts the
+   * synthetic prompt to everyone connected, not just "to the others". */
   submitBackgroundJobResult(job: FinishedBackgroundJob): void {
     this.clearSuggestion();
     const text = buildBackgroundJobFollowupPrompt(job);
     this.turnQueue = this.turnQueue.then(() => this.runTurn(undefined, text, { label: job.label }));
   }
 
-  /** Interrompe o turno em andamento, se houver — não mexe na fila (turnos
-   * enfileirados, se algum dia existirem, continuam normalmente depois). */
+  /** Interrupts the turn in progress, if any — doesn't touch the queue
+   * (queued turns, if they ever exist, continue normally afterward). */
   stopTurn(): void {
     this.claude.stop();
   }
 
   /**
-   * Edição de mensagem (docs/33): parar o turno atual (se houver) + cortar o
-   * `.jsonl` real no ponto da mensagem editada + rodar um turno novo com o
-   * texto editado — automático a partir desta única chamada. Interrompe o
-   * turno ANTES de enfileirar (não dentro de `performEdit`) pra não esperar
-   * a resposta em andamento terminar sozinha; a fila (`turnQueue`, mesma que
-   * já serializa turnos normais e `/clear`) garante que `performEdit` só
-   * roda depois que esse turno interrompido resolver de verdade — só nesse
-   * momento o processo `claude -p` já saiu e o `.jsonl` tem a escrita
-   * completa em disco (`ClaudeSession.stop`, testado contra o binário real:
-   * `SIGINT` sempre sai antes de `sendTurn` resolver).
+   * Message edit (docs/33): stop the current turn (if any) + cut the real
+   * `.jsonl` at the edited message's point + run a new turn with the edited
+   * text — automatic from this single call. Interrupts the turn BEFORE
+   * enqueueing (not inside `performEdit`) to avoid waiting for the response
+   * in progress to finish on its own; the queue (`turnQueue`, the same one
+   * that already serializes normal turns and `/clear`) guarantees
+   * `performEdit` only runs after that interrupted turn has genuinely
+   * resolved — only at that point has the `claude -p` process actually
+   * exited and the `.jsonl` has the complete write on disk
+   * (`ClaudeSession.stop`, tested against the real binary: `SIGINT` always
+   * exits before `sendTurn` resolves).
    */
   editMessage(origin: WebSocket, fromEnd: number, text: string): void {
     const target = findEditTarget(this.history, fromEnd);
@@ -376,23 +386,23 @@ export class SharedSession {
     this.turnQueue = this.turnQueue.then(() => this.performEdit(origin, target, text));
   }
 
-  /** Reaproveita o `runTurn` normal pro turno com o texto editado — mesmo
-   * broadcast de `user_prompt` pros outros dispositivos (excluindo `origin`,
-   * que já se autotruncou de forma otimista igual a um envio normal), mesmo
-   * streaming, mesmo `turn_complete`. Só o que vem antes (truncar o
-   * transcript real + o `history` em memória + avisar os OUTROS
-   * dispositivos do corte) é específico de edição. */
+  /** Reuses the normal `runTurn` for the turn with the edited text — same
+   * `user_prompt` broadcast to other devices (excluding `origin`, which
+   * already optimistically self-truncated like a normal send), same
+   * streaming, same `turn_complete`. Only what comes before (truncating the
+   * real transcript + the in-memory `history` + notifying the OTHER
+   * devices of the cut) is edit-specific. */
   private async performEdit(origin: WebSocket, target: EditTarget, text: string): Promise<void> {
     try {
       if (target.turnsBefore > 0) {
         const sessionId = this.claude.getSessionId();
-        // Sem session_id conhecido mas com turnos antes do corte: só
-        // acontece se o primeiro turno de verdade tiver falhado antes de
-        // qualquer `result` (nunca chegou a existir um `.jsonl` referenciável
-        // — ver comentário de `ClaudeSession.sendTurn`). Nesse caso não tem
-        // arquivo pra truncar; o próximo turno já sai sem `--resume` de
-        // qualquer jeito, então não faz nada aqui (comportamento correto por
-        // omissão, não por tratamento especial).
+        // No known session_id but with turns before the cut: only happens
+        // if the very first real turn failed before any `result` (a
+        // referenceable `.jsonl` never came to exist — see the comment on
+        // `ClaudeSession.sendTurn`). In that case there's no file to
+        // truncate; the next turn already goes out without `--resume`
+        // anyway, so nothing happens here (correct behavior by omission,
+        // not special-cased handling).
         if (sessionId) {
           const home = defaultCwd(this.homeOverride);
           const path = transcriptPath(home, this.cwd, sessionId);
@@ -401,15 +411,15 @@ export class SharedSession {
           this.options.onSessionIdChange?.(newSessionId);
         }
       } else {
-        // Editando a primeiríssima mensagem da sessão — não sobra nada pra
-        // preservar num arquivo novo, equivalente a um `/clear` seguido do
-        // texto editado.
+        // Editing the very first message of the session — nothing left to
+        // preserve in a new file, equivalent to a `/clear` followed by the
+        // edited text.
         this.claude.resetSessionId();
         this.options.onSessionIdClear?.();
       }
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error);
-      console.error("[relay] falha ao truncar transcript pra edição:", message);
+      console.error("[relay] failed to truncate transcript for edit:", message);
       origin.send(JSON.stringify({ type: "edit_message_error", message: "Não foi possível editar essa mensagem." }));
       return;
     }
@@ -418,10 +428,10 @@ export class SharedSession {
     this.contextUsage = undefined;
     this.broadcastContextUsageReset();
 
-    // Sincroniza OUTROS dispositivos conectados nesta sessão pro ponto
-    // truncado — `origin` não recebe isso porque já se autotruncou de forma
-    // otimista antes de mandar `edit_message` (mesmo padrão do
-    // `user_prompt` sintético em `runTurn`, que também pula `origin`).
+    // Syncs OTHER devices connected to this session to the truncated point
+    // — `origin` doesn't receive this because it already optimistically
+    // self-truncated before sending `edit_message` (same pattern as the
+    // synthetic `user_prompt` in `runTurn`, which also skips `origin`).
     const page = pageHistoryBefore(this.history, this.history.length, INITIAL_HISTORY_TAIL_TURNS);
     const payload = JSON.stringify({ type: "history_truncated", messages: page.messages, cursor: page.cursor, hasMore: page.hasMore });
     for (const client of this.clients) {
@@ -431,25 +441,25 @@ export class SharedSession {
     await this.runTurn(origin, text);
   }
 
-  /** Resolve quando não houver turno em andamento (nem enfileirado) nesta
-   * sessão — usado pelo shutdown gracioso do relay (server.ts) pra saber
-   * quando é seguro sair sem interromper nada no meio. `turnQueue` nunca
-   * rejeita (`runTurn` trata os próprios erros e nunca relança), então dá
-   * pra devolver ele direto sem try/catch aqui. */
+  /** Resolves when there's no turn in progress (nor queued) in this session
+   * — used by the relay's graceful shutdown (server.ts) to know when it's
+   * safe to exit without interrupting anything mid-flight. `turnQueue`
+   * never rejects (`runTurn` handles its own errors and never rethrows), so
+   * it's fine to return it directly without a try/catch here. */
   waitForIdle(): Promise<void> {
     return this.turnQueue;
   }
 
-  /** `/clear` (docs/26) — mesma fila dos turnos de verdade (`turnQueue`),
-   * pra nunca correr em paralelo com um turno em andamento e arriscar um dos
-   * dois sobrescrever o `session_id`/`history` do outro fora de ordem. Não
-   * mexe em permissionMode nem model — só o CONTEÚDO da conversa reseta,
-   * igual o `/clear` de verdade da CLI (só que sem rodar processo nenhum:
-   * ver `ClaudeSession.resetSessionId`). O cwd É destravado, ao contrário
-   * da CLI: sem histórico nem `session_id` sobrando, não há mais nada
-   * amarrando o próximo turno à pasta antiga (ver o comentário sobre o lock
-   * em `runTurn`), então a sessão pode escolher outra de novo, igual uma
-   * sessão nova. */
+  /** `/clear` (docs/26) — same queue as real turns (`turnQueue`), so it
+   * never runs in parallel with a turn in progress and risks one of the
+   * two overwriting the other's `session_id`/`history` out of order.
+   * Doesn't touch permissionMode or model — only the conversation's CONTENT
+   * resets, same as the CLI's real `/clear` (just without running any
+   * process: see `ClaudeSession.resetSessionId`). The cwd IS unlocked,
+   * unlike the CLI: with no history or `session_id` left, there's nothing
+   * left tying the next turn to the old folder (see the comment about the
+   * lock in `runTurn`), so the session can pick another one again, just
+   * like a new session. */
   clearConversation(): void {
     this.turnQueue = this.turnQueue.then(() => {
       this.claude.resetSessionId();
@@ -468,12 +478,12 @@ export class SharedSession {
     });
   }
 
-  /** `origin` é `undefined` só pro turno de follow-up sintético
-   * (`submitBackgroundJobResult`) — nenhum cliente específico "já tem a
-   * bolha localmente" nesse caso, então o prompt sintético vai pra todo
-   * mundo, e a trava de cwd/título (só faz sentido pro PRIMEIRO turno de
-   * verdade da sessão, que por definição já aconteceu antes de qualquer job
-   * existir pra terminar) é pulada. */
+  /** `origin` is `undefined` only for the synthetic follow-up turn
+   * (`submitBackgroundJobResult`) — no specific client "already has the
+   * bubble locally" in that case, so the synthetic prompt goes to
+   * everyone, and the cwd/title lock (only makes sense for the FIRST real
+   * turn of the session, which by definition already happened before any
+   * job existed to finish) is skipped. */
   private async runTurn(
     origin: WebSocket | undefined,
     text: string,
@@ -481,26 +491,27 @@ export class SharedSession {
   ): Promise<void> {
     this.options.onActivity?.();
 
-    // Turno em andamento é estado "atual" (mesmo raciocínio de cwd/permissão/
-    // modelo), não um evento de `history` — achado real testando multi-
-    // dispositivo: sem isso, só quem mandou a mensagem via o indicador de
-    // "pensando"/cronômetro (`TurnIndicator`), porque `turnInFlight` no
-    // cliente só liga otimisticamente em quem clicou "Enviar". `startedAt`
-    // (não só um booleano) deixa o cronômetro de outro dispositivo — ou de
-    // um terceiro conectando no meio do turno — contar a partir do início
-    // real, não de quando ele soube.
+    // A turn in progress is "current" state (same reasoning as
+    // cwd/permission/model), not a `history` event — a real finding from
+    // testing multi-device: without this, only whoever sent the message saw
+    // the "thinking"/timer indicator (`TurnIndicator`), because the
+    // client's `turnInFlight` only turns on optimistically for whoever
+    // clicked "Send". `startedAt` (not just a boolean) lets another
+    // device's timer — or a third device connecting mid-turn — count from
+    // the real start, not from when it found out.
     this.turnStartedAt = Date.now();
     this.broadcastTurnState();
 
-    // Sincroniza a pergunta pros OUTROS dispositivos conectados nesta mesma
-    // sessão — achado real: sem isso, quem não mandou a mensagem via ao vivo
-    // a resposta do assistente aparecer sem a pergunta que a motivou (o
-    // protocolo nunca carregava o texto do usuário, só os eventos que a CLI
-    // emite depois). Mesmo formato sintético que `transcriptReader.ts` já usa
-    // pro replay reconstruído do disco — o reducer do cliente
-    // (`useMessageLog.ts`) já sabe tratar `user_prompt`. Não manda pra
-    // `origin`: quem mandou já commitou a bolha localmente de forma otimista
-    // (`ChatPanel`), receber de volta duplicaria.
+    // Syncs the question to the OTHER devices connected to this same
+    // session — a real finding: without this, whoever didn't send the
+    // message would see the assistant's response appear live without the
+    // question that prompted it (the protocol never carried the user's
+    // text, only the events the CLI emits afterward). Same synthetic format
+    // that `transcriptReader.ts` already uses for the replay reconstructed
+    // from disk — the client's reducer (`useMessageLog.ts`) already knows
+    // how to handle `user_prompt`. Doesn't send to `origin`: whoever sent it
+    // already committed the bubble locally optimistically (`ChatPanel`),
+    // getting it back would duplicate it.
     {
       const event: ClaudeEvent = synthetic
         ? { type: "user_prompt", synthetic: "background_job", label: synthetic.label, message: { content: [{ type: "text", text }] } }
@@ -513,22 +524,23 @@ export class SharedSession {
     }
 
     if (!synthetic) {
-      // Trava a pasta no momento exato do primeiro turno de verdade — não na
-      // conexão WS (que já acontece antes de qualquer mensagem) nem em
-      // `submitTurn` (evita corrida entre dois `submitTurn` em sequência antes
-      // do primeiro desenfileirar). O session_id que este turno pode gerar
-      // fica amarrado ao `this.cwd` de agora pro `--resume` funcionar depois.
+      // Locks the folder at the exact moment of the first real turn — not
+      // at the WS connection (which already happens before any message)
+      // nor in `submitTurn` (avoids a race between two `submitTurn` calls
+      // in sequence before the first one dequeues). The session_id this
+      // turn may generate gets tied to the current `this.cwd` so
+      // `--resume` works later.
       if (!this.locked) {
         this.locked = true;
         this.options.onLockChange?.();
         this.broadcastCwdState();
       }
-      // Comandos (`/clear`, `/model` etc, docs/26) não contam como primeiro
-      // prompt de verdade pro título — só roda a geração quando a primeira
-      // mensagem que não começa com "/" chegar, mesmo que não seja o primeiro
-      // turno da sessão. Um turno sintético nunca conta (não é "a primeira
-      // mensagem" de ninguém, e a sessão já tem título há muito tempo se um
-      // job teve tempo de rodar e terminar).
+      // Commands (`/clear`, `/model` etc, docs/26) don't count as a real
+      // first prompt for the title — generation only runs once the first
+      // message that doesn't start with "/" arrives, even if it's not the
+      // session's first turn. A synthetic turn never counts (it's not
+      // "the first message" from anyone, and the session has had a title
+      // for a while already if a job had time to run and finish).
       if (!this.firstPromptSeeded && !text.trim().startsWith("/")) {
         this.firstPromptSeeded = true;
         this.options.onFirstPrompt?.(text);
@@ -543,10 +555,10 @@ export class SharedSession {
         this.model,
         (event) => {
           this.broadcast({ type: "claude_event", event });
-          // Fase D de docs/32 — deixa o tracker de jobs `ultron-bg` (dono na
-          // `SessionManager`) ver todo evento de todo turno, procurando o
-          // marcador de início. Puramente observacional: nunca lança nem
-          // altera o fluxo do turno.
+          // docs/32 Phase D — lets the `ultron-bg` job tracker (owned by
+          // `SessionManager`) see every event of every turn, looking for
+          // the start marker. Purely observational: never throws nor
+          // alters the turn's flow.
           this.options.onEvent?.(event);
         },
       );
@@ -558,13 +570,13 @@ export class SharedSession {
         this.broadcastContextUsage();
       }
       this.broadcast({ type: "turn_complete", stopped });
-      // Só sugere um follow-up de um turno que terminou de verdade (não
-      // interrompido) — fire-and-forget, não atrasa `turn_complete` acima.
-      // Velocidade não é prioridade aqui (é uma conveniência, não parte do
-      // fluxo principal), então nenhum timeout/cancelamento é necessário.
-      // Turno sintético (`synthetic`) nunca sugere: o "texto do usuário" que
-      // alimentaria o gerador é a instrução interna do follow-up, não algo
-      // que faça sentido oferecer como próxima mensagem de verdade.
+      // Only suggests a follow-up for a turn that genuinely finished (not
+      // interrupted) — fire-and-forget, doesn't delay `turn_complete`
+      // above. Speed isn't a priority here (it's a convenience, not part
+      // of the main flow), so no timeout/cancellation is needed. A
+      // synthetic turn (`synthetic`) never suggests: the "user text" that
+      // would feed the generator is the follow-up's internal instruction,
+      // not something that makes sense to offer as a real next message.
       if (!stopped && !synthetic) {
         generateSuggestion(this.homeOverride, this.cwd, text, lastAssistantText)
           .then((suggestion) => {
@@ -572,25 +584,26 @@ export class SharedSession {
             this.broadcastSuggestion();
           })
           .catch((error: unknown) => {
-            console.error("[relay] falha ao gerar sugestão de próxima mensagem:", error);
+            console.error("[relay] failed to generate next-message suggestion:", error);
           });
       }
       if (!stopped) {
-        // Mesma ideia da sugestão acima (fire-and-forget, sem atrasar
-        // turn_complete), mas pro resumo usado na notificação do SO — ver
-        // notificationSummaryGenerator.ts. Diferente da sugestão, não é
-        // "estado atual" (não fica em `this.*`/não reenvia em `addClient`):
-        // é um evento de um turno específico, reproduzi-lo numa reconexão
-        // dispararia uma notificação zumbi de um turno já visto.
+        // Same idea as the suggestion above (fire-and-forget, without
+        // delaying turn_complete), but for the summary used in the OS
+        // notification — see notificationSummaryGenerator.ts. Unlike the
+        // suggestion, it's not "current" state (doesn't live in `this.*`/
+        // doesn't get resent in `addClient`): it's an event of a specific
+        // turn, replaying it on a reconnection would fire a zombie
+        // notification for a turn already seen.
         generateNotificationSummary(this.homeOverride, this.cwd, lastAssistantText)
           .then((summary) => this.broadcastNotificationSummary(summary ?? null))
           .catch((error: unknown) => {
-            console.error("[relay] falha ao gerar resumo de notificação:", error);
+            console.error("[relay] failed to generate notification summary:", error);
           });
       }
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error);
-      console.error("[relay] turno falhou:", message);
+      console.error("[relay] turn failed:", message);
       this.broadcast({ type: "turn_error", message });
     } finally {
       this.turnStartedAt = null;
@@ -598,10 +611,10 @@ export class SharedSession {
     }
   }
 
-  /** Manda sempre, mesmo lista vazia — igual `sendCwdState`/`sendTurnState`,
-   * não tem ambiguidade "ainda não chegou" aqui pra justificar um guard
-   * (sessão sem job nenhum e sessão que nunca teve um parecem iguais pro
-   * cliente: nenhuma mostra o indicador). */
+  /** Always sends, even an empty list — same as `sendCwdState`/`sendTurnState`,
+   * there's no "hasn't arrived yet" ambiguity here to justify a guard (a
+   * session with no jobs and one that never had one look the same to the
+   * client: neither shows the indicator). */
   private sendBackgroundJobs(target: WebSocket): void {
     target.send(JSON.stringify({ type: "background_job_state", jobs: this.backgroundJobs }));
   }
@@ -634,10 +647,10 @@ export class SharedSession {
     for (const client of this.clients) this.sendPermissionMode(client);
   }
 
-  /** Diferente de `sendContextUsage`, manda sempre — `model` indefinido é um
-   * estado válido e final ("nunca escolhido, usa o padrão do CLI"), não um
-   * "ainda não chegou" transitório, então não tem ambiguidade em avisar o
-   * cliente logo na conexão. */
+  /** Unlike `sendContextUsage`, always sends — an undefined `model` is a
+   * valid, final state ("never chosen, uses the CLI's default"), not a
+   * transient "hasn't arrived yet", so there's no ambiguity in notifying
+   * the client right at connection. */
   private sendModelState(target: WebSocket): void {
     target.send(JSON.stringify({ type: "model_state", model: this.model ?? null }));
   }
@@ -651,39 +664,40 @@ export class SharedSession {
     target.send(JSON.stringify({ type: "context_usage_state", usage: this.contextUsage }));
   }
 
-  /** Mesmo raciocínio de `broadcastCwdState`/`broadcastTitle`: estado
-   * "atual", não evento de `history` — uma reconexão pega o valor de agora
-   * via `addClient` (`sendContextUsage`), não um replay de mudanças. */
+  /** Same reasoning as `broadcastCwdState`/`broadcastTitle`: "current"
+   * state, not a `history` event — a reconnection picks up the current
+   * value via `addClient` (`sendContextUsage`), not a replay of changes. */
   private broadcastContextUsage(): void {
     for (const client of this.clients) this.sendContextUsage(client);
   }
 
-  /** Só usado quando um `/clear` (ou equivalente) reinicia a conversa —
-   * diferente de `sendContextUsage`, manda mesmo sem valor (`null`), porque
-   * aqui o objetivo é avisar quem já está conectado que o valor anterior
-   * não vale mais (o guard de `sendContextUsage` existe pra não confundir
-   * "sessão nova, nunca teve turno" com "teve e foi resetada"). */
+  /** Only used when a `/clear` (or equivalent) resets the conversation —
+   * unlike `sendContextUsage`, sends even without a value (`null`), because
+   * the goal here is to tell whoever is already connected that the
+   * previous value no longer applies (`sendContextUsage`'s guard exists to
+   * avoid confusing "new session, never had a turn" with "had one and was
+   * reset"). */
   private broadcastContextUsageReset(): void {
     for (const client of this.clients) {
       client.send(JSON.stringify({ type: "context_usage_state", usage: null }));
     }
   }
 
-  /** Só pros clientes já conectados (mesmo raciocínio de
-   * `broadcastContextUsageReset`) — quem conectar depois do clear já vê o
-   * `history` vazio naturalmente via `addClient`, não precisa de sinal
-   * nenhum. */
+  /** Only for already-connected clients (same reasoning as
+   * `broadcastContextUsageReset`) — whoever connects after the clear
+   * already sees the empty `history` naturally via `addClient`, no signal
+   * needed. */
   private broadcastConversationReset(): void {
     for (const client of this.clients) {
       client.send(JSON.stringify({ type: "conversation_reset" }));
     }
   }
 
-  /** Diferente de `sendContextUsage`, manda sempre (mesmo `null`) — não tem
-   * ambiguidade de "ainda não chegou" pra distinguir aqui: uma sessão sem
-   * nenhuma sugestão ainda e uma que teve a sugestão limpa parecem iguais
-   * pro cliente (nenhuma das duas mostra placeholder nenhum), então não
-   * precisa do guard que `sendContextUsage` tem. */
+  /** Unlike `sendContextUsage`, always sends (even `null`) — there's no
+   * "hasn't arrived yet" ambiguity to tell apart here: a session with no
+   * suggestion yet and one whose suggestion was cleared look the same to
+   * the client (neither shows any placeholder), so it doesn't need the
+   * guard `sendContextUsage` has. */
   private sendSuggestion(target: WebSocket): void {
     target.send(JSON.stringify({ type: "suggestion", text: this.suggestion }));
   }
@@ -698,8 +712,8 @@ export class SharedSession {
     this.broadcastSuggestion();
   }
 
-  /** Evento efêmero de um turno específico (ver comentário em `runTurn`) —
-   * manda só pros clientes conectados agora, sem guardar estado nenhum. */
+  /** Ephemeral event of a specific turn (see comment in `runTurn`) — sends
+   * only to clients connected right now, without storing any state. */
   private broadcastNotificationSummary(text: string | null): void {
     for (const client of this.clients) client.send(JSON.stringify({ type: "notification_summary", text }));
   }
@@ -708,9 +722,9 @@ export class SharedSession {
     target.send(JSON.stringify({ type: "session_title", title }));
   }
 
-  /** Não entra em `history` pelo mesmo motivo do cwd: é estado "atual", não
-   * um evento da conversa — um cliente reconectando pega o valor de agora
-   * via `addClient`, não um replay de mudanças passadas. */
+  /** Doesn't enter `history` for the same reason as cwd: it's "current"
+   * state, not a conversation event — a client reconnecting picks up the
+   * current value via `addClient`, not a replay of past changes. */
   private broadcastTitle(): void {
     if (this.title === null) return;
     for (const client of this.clients) this.sendTitle(client, this.title);
@@ -724,10 +738,10 @@ export class SharedSession {
     }
   }
 
-  /** Mesmo que `broadcast` (entra em `history`, um terceiro dispositivo
-   * conectando depois vê no replay), só que pula um socket — usado pelo
-   * `user_prompt` sintético em `runTurn`, que não deve voltar pra quem já
-   * tem a bolha localmente. */
+  /** Same as `broadcast` (enters `history`, a third device connecting later
+   * sees it in the replay), just skips one socket — used by the synthetic
+   * `user_prompt` in `runTurn`, which shouldn't go back to whoever already
+   * has the bubble locally. */
   private broadcastExcept(message: BroadcastMessage, exclude: WebSocket): void {
     this.history.push(message);
     const payload = JSON.stringify(message);

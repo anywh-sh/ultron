@@ -2,13 +2,13 @@ import { closeSync, existsSync, mkdirSync, openSync, readFileSync, readSync, sta
 import { dirname } from "node:path";
 import type { ClaudeEvent } from "./claudeSession.js";
 
-// Fase C de docs/32 — rastreia jobs iniciados via `ultron-bg` (relay/scripts)
-// fora do processo do turno, já que o registro interno do CLI pra
-// `run_in_background`/`BashOutput` some junto com o `claude -p` daquele
-// turno. Ainda não dispara nenhum turno de follow-up (Fase D) — só detecta
-// o marcador de início e observa a conclusão via arquivo `.exit`, pra
-// validar a detecção isoladamente antes de acoplar em qualquer coisa que
-// afete o usuário.
+// docs/32 Phase C — tracks jobs started via `ultron-bg` (relay/scripts)
+// outside the turn's process, since the CLI's internal record for
+// `run_in_background`/`BashOutput` disappears along with that turn's
+// `claude -p`. Doesn't trigger any follow-up turn yet (Phase D) — it only
+// detects the start marker and watches for completion via the `.exit` file,
+// to validate detection in isolation before coupling it to anything that
+// affects the user.
 
 export interface BackgroundJobStarted {
   id: string;
@@ -25,19 +25,19 @@ export interface WatchedJob {
   logPath: string;
   exitPath: string;
   startedAt: number;
-  /** PID reportado pelo `ultron-bg start` (Fase F de docs/32) — só usado
-   * pra cancelamento (`cancel`, `kill -<pid>` no grupo de processo inteiro),
-   * NUNCA pra detectar conclusão (isso é papel do arquivo `.exit`; reuso de
-   * PID pelo SO mascararia um job morto como "ainda rodando"). `setsid` faz
-   * esse PID ser ao mesmo tempo o PID/PGID/SID do processo — confirmado na
-   * prática (docs/32, Fase A) —, então sinalizar o grupo (`-pid`) alcança
-   * tudo que o comando gerou, não só o processo raiz. */
+  /** PID reported by `ultron-bg start` (docs/32 Phase F) — only used for
+   * cancellation (`cancel`, `kill -<pid>` on the whole process group),
+   * NEVER to detect completion (that's the `.exit` file's job; PID reuse by
+   * the OS would mask a dead job as "still running"). `setsid` makes this
+   * PID simultaneously the process's PID/PGID/SID — confirmed in practice
+   * (docs/32, Phase A) —, so signaling the group (`-pid`) reaches
+   * everything the command spawned, not just the root process. */
   pid: number;
 }
 
-/** Subconjunto de `WatchedJob` seguro pra expor ao cliente (Fase E de
- * docs/32) — sem `logPath`/`exitPath` (caminhos de arquivo no servidor,
- * detalhe interno) nem `sessionId` (já implícito na conexão WS da sessão). */
+/** Subset of `WatchedJob` safe to expose to the client (docs/32 Phase E) —
+ * without `logPath`/`exitPath` (server-side file paths, internal detail)
+ * nor `sessionId` (already implicit in the session's WS connection). */
 export interface BackgroundJobSummary {
   id: string;
   label: string;
@@ -53,15 +53,15 @@ export interface FinishedBackgroundJob extends WatchedJob {
   logTail: string;
 }
 
-// Só a linha de marcador (uma das potencialmente várias linhas de stdout de
-// uma chamada Bash) — não assume que é a string inteira, então sobrevive a
-// eventual saída extra antes/depois dela.
+// Only the marker line (one of potentially several lines of a Bash call's
+// stdout) — doesn't assume it's the whole string, so it survives any extra
+// output before/after it.
 const MARKER_RE = /\{"ultron_bg":"started".*\}/;
 
 /**
- * Parser puro (sem I/O) do marcador que `ultron-bg start` imprime — separado
- * de `extractStartedJobFromEvent` pra poder testar contra strings soltas sem
- * precisar montar um `ClaudeEvent` inteiro.
+ * Pure (no I/O) parser for the marker that `ultron-bg start` prints —
+ * separated from `extractStartedJobFromEvent` so it can be tested against
+ * loose strings without having to build a whole `ClaudeEvent`.
  */
 export function parseStartedMarker(text: string): BackgroundJobStarted | undefined {
   const match = MARKER_RE.exec(text);
@@ -98,12 +98,11 @@ interface TextBlock {
 }
 
 /**
- * Shape real de um evento de `tool_result` no stream-json (confirmado
- * rodando `claude -p` de verdade, docs/32 Fase C): `type: "user"`,
- * `message.content` é um array de blocos; o que interessa aqui tem
- * `type: "tool_result"` e `content` — string na maioria dos casos vistos,
- * mas a API também permite um array de blocos de texto, então os dois são
- * tratados.
+ * Real shape of a `tool_result` event in the stream-json (confirmed by
+ * actually running `claude -p`, docs/32 Phase C): `type: "user"`,
+ * `message.content` is an array of blocks; what matters here has
+ * `type: "tool_result"` and `content` — a string in most cases observed,
+ * but the API also allows an array of text blocks, so both are handled.
  */
 function collectToolResultTexts(event: ClaudeEvent): string[] {
   if (event.type !== "user") return [];
@@ -138,10 +137,10 @@ function readExitCode(exitPath: string): number {
   return Number.isFinite(parsed) ? parsed : -1;
 }
 
-/** Só a cauda — mesmo padrão de truncamento de
- * `notificationSummaryGenerator.ts`/`suggestionGenerator.ts`, mas lendo só
- * os últimos `maxBytes` do arquivo em vez de carregar tudo pra memória (um
- * job barulhento pode gerar um log grande). */
+/** Only the tail — same truncation pattern as
+ * `notificationSummaryGenerator.ts`/`suggestionGenerator.ts`, but reading
+ * only the last `maxBytes` of the file instead of loading everything into
+ * memory (a noisy job can generate a large log). */
 function readLogTail(logPath: string, maxBytes: number): string {
   const size = statSync(logPath).size;
   const start = Math.max(0, size - maxBytes);
@@ -158,34 +157,34 @@ function readLogTail(logPath: string, maxBytes: number): string {
 }
 
 export interface BackgroundJobTrackerOptions {
-  /** Chamado quando um job observado termina — na Fase D dispara o turno de
-   * follow-up (ver `sessionManager.ts`). */
+  /** Called when a watched job finishes — Phase D triggers the follow-up
+   * turn from this (see `sessionManager.ts`). */
   onFinished: (job: FinishedBackgroundJob) => void;
-  /** Disparado sempre que a lista de jobs observados de uma sessão muda —
-   * início, conclusão OU expiração pelo teto (`maxWatchMs`). Fase E de
-   * docs/32: é o que alimenta o `background_job_state` que o cliente usa
-   * pro indicador de UI ("existe um job rodando agora"). Só o `sessionId`
-   * — quem consome busca a lista atual via `listWatchedForSession`, não
-   * carrega o array pronto (evita o callback ficar desatualizado se duas
-   * mudanças acontecerem em sequência antes de quem escuta reagir). */
+  /** Fired whenever a session's list of watched jobs changes — start,
+   * completion, OR expiry from the ceiling (`maxWatchMs`). docs/32 Phase E:
+   * this is what feeds the `background_job_state` the client uses for the
+   * UI indicator ("there's a job running now"). Only `sessionId` — the
+   * consumer fetches the current list via `listWatchedForSession`, it
+   * doesn't get handed a ready-made array (avoids the callback going stale
+   * if two changes happen in sequence before the listener reacts). */
   onChanged?: (sessionId: string) => void;
-  /** ms entre polls do disco — separado em option (não constante) só pra
-   * teste conseguir usar um intervalo curto sem depender do valor de
-   * produção. */
+  /** ms between disk polls — split into an option (not a constant) just so
+   * tests can use a short interval without depending on the production
+   * value. */
   pollIntervalMs?: number;
-  /** Teto de observação — job que nunca termina (ex: servidor de dev
-   * deixado de propósito) para de ser observado depois disso, evita a lista
-   * crescer sem limite. */
+  /** Observation ceiling — a job that never finishes (e.g. a dev server
+   * left running on purpose) stops being watched after this, preventing the
+   * list from growing unbounded. */
   maxWatchMs?: number;
-  /** Cauda do log entregue em `FinishedBackgroundJob.logTail`. */
+  /** Log tail delivered in `FinishedBackgroundJob.logTail`. */
   logTailBytes?: number;
-  /** Caminho pro arquivo de persistência (Fase F de docs/32) — se
-   * informado, a lista de jobs observados sobrevive a um restart do relay:
-   * gravada a cada mudança (mesmo padrão síncrono do `SessionStore`,
-   * `writeFileSync` do estado inteiro), recarregada no construtor e o
-   * polling retomado de onde parou. `undefined` (padrão dos testes) mantém
-   * o comportamento só-em-memória de antes — sem isso um restart no meio de
-   * um job perdia o rastreamento pra sempre (edge case #10 do plano). */
+  /** Path to the persistence file (docs/32 Phase F) — if provided, the list
+   * of watched jobs survives a relay restart: written on every change (same
+   * synchronous pattern as `SessionStore`, `writeFileSync` of the whole
+   * state), reloaded in the constructor, and polling resumed where it left
+   * off. `undefined` (the tests' default) keeps the previous in-memory-only
+   * behavior — without this, a restart mid-job would lose tracking forever
+   * (edge case #10 of the plan). */
   persistPath?: string;
 }
 
@@ -209,15 +208,15 @@ export class BackgroundJobTracker {
       for (const job of this.load(this.options.persistPath)) {
         this.jobs.set(`${job.sessionId}:${job.id}`, job);
       }
-      // Um job pode ter terminado (ou expirado) enquanto o relay estava
-      // fora do ar — não espera o primeiro `pollIntervalMs` pra descobrir,
-      // resolve isso já no boot. `setImmediate` (não uma chamada síncrona
-      // aqui dentro do construtor): achado real testando restart — quem
-      // instancia isto (`SessionManager`) só atribui o próprio campo depois
-      // que ESTE construtor retornar; um `onChanged`/`onFinished` disparado
-      // síncrono demais via `pollOnce()` chegava no callback do
-      // `SessionManager` ANTES dele terminar de guardar a referência do
-      // tracker, e `this.backgroundJobs` (lá) ainda estava `undefined`.
+      // A job may have finished (or expired) while the relay was down —
+      // don't wait for the first `pollIntervalMs` to find out, resolve this
+      // right at boot. `setImmediate` (not a synchronous call here inside
+      // the constructor): real finding while testing restart — whoever
+      // instantiates this (`SessionManager`) only assigns its own field
+      // after THIS constructor returns; an `onChanged`/`onFinished` fired
+      // too synchronously via `pollOnce()` reached `SessionManager`'s
+      // callback BEFORE it finished storing the tracker's reference, and
+      // `this.backgroundJobs` (there) was still `undefined`.
       if (this.jobs.size > 0) {
         this.ensurePolling();
         setImmediate(() => this.pollOnce());
@@ -225,8 +224,8 @@ export class BackgroundJobTracker {
     }
   }
 
-  /** Nunca lança — arquivo ausente (primeira vez) ou corrompido só começa
-   * vazio, mesmo padrão de `SessionStore.load`. */
+  /** Never throws — a missing file (first time) or a corrupted one just
+   * starts empty, same pattern as `SessionStore.load`. */
   private load(persistPath: string): WatchedJob[] {
     let parsed: unknown;
     try {
@@ -249,18 +248,20 @@ export class BackgroundJobTracker {
     );
   }
 
-  /** Grava o estado inteiro a cada mutação — mesmo padrão síncrono e sem
-   * debounce do `SessionStore` (docs/18): mudanças de job são raras (início/
-   * fim/cancelamento, nunca por poll tick), o custo de um `writeFileSync` a
-   * mais não importa. No-op se `persistPath` não foi configurado. */
+  /** Writes the whole state on every mutation — same synchronous,
+   * debounce-free pattern as `SessionStore` (docs/18): job changes are rare
+   * (start/finish/cancel, never on a poll tick), the cost of one more
+   * `writeFileSync` doesn't matter. No-op if `persistPath` wasn't
+   * configured. */
   private persist(): void {
     if (!this.options.persistPath) return;
     mkdirSync(dirname(this.options.persistPath), { recursive: true });
     writeFileSync(this.options.persistPath, JSON.stringify([...this.jobs.values()], null, 2));
   }
 
-  /** Chamado com todo `ClaudeEvent` de todo turno (ver `SharedSession.runTurn`)
-   * — no-op pra quase todos, só reage aos que carregam o marcador de início. */
+  /** Called with every `ClaudeEvent` of every turn (see
+   * `SharedSession.runTurn`) — a no-op for almost all of them, only reacts
+   * to the ones carrying the start marker. */
   observeEvent(sessionId: string, event: ClaudeEvent): void {
     const started = extractStartedJobFromEvent(event);
     if (!started) return;
@@ -294,14 +295,14 @@ export class BackgroundJobTracker {
     this.timer.unref?.();
   }
 
-  /** Público só pra teste poder disparar um poll sem esperar o intervalo
-   * real — o `setInterval` em produção chama o mesmo método. */
+  /** Public only so tests can trigger a poll without waiting for the real
+   * interval — `setInterval` in production calls this same method. */
   pollOnce(): void {
     const now = Date.now();
     for (const [key, job] of this.jobs) {
       if (now - job.startedAt > this.maxWatchMs) {
         console.warn(
-          `[relay] background job "${job.label}" (${job.id}) expirou sem terminar depois de ${String(this.maxWatchMs)}ms — parando de observar`,
+          `[relay] background job "${job.label}" (${job.id}) expired without finishing after ${String(this.maxWatchMs)}ms — no longer watching`,
         );
         this.jobs.delete(key);
         this.persist();
@@ -316,7 +317,7 @@ export class BackgroundJobTracker {
         exitCode = readExitCode(job.exitPath);
         logTail = readLogTail(job.logPath, this.logTailBytes);
       } catch (error) {
-        console.error(`[relay] falha lendo resultado do background job "${job.label}" (${job.id}):`, error);
+        console.error(`[relay] failed reading background job result "${job.label}" (${job.id}):`, error);
         this.persist();
         this.options.onChanged?.(job.sessionId);
         continue;
@@ -331,18 +332,18 @@ export class BackgroundJobTracker {
     }
   }
 
-  /** Fase F de docs/32 — cancelamento pela UI. Mata o GRUPO de processo
-   * inteiro (`pid` negativo, alcança tudo que o comando gerou, não só o
-   * processo raiz), não passa por `.exit`/`onFinished`: diferente de um job
-   * que termina sozinho, quem cancelou já sabe que cancelou (clicou o
-   * botão), um turno de follow-up automático resumindo "foi cancelado"
-   * seria ruído redundante. `SIGTERM` primeiro (dá chance de limpar
-   * arquivos temporários etc.), `SIGKILL` ~2s depois pra quem ignora o
-   * primeiro — mesma prática padrão de ferramentas tipo `timeout(1)`.
-   * Retorna `false` sem efeito nenhum se o job já não está mais sendo
-   * observado (terminou sozinho ou já foi cancelado antes) — corrida
-   * possível entre o usuário clicar "cancelar" e o poll seguinte achar o
-   * `.exit`. */
+  /** docs/32 Phase F — cancellation from the UI. Kills the WHOLE process
+   * GROUP (negative `pid`, reaches everything the command spawned, not just
+   * the root process), doesn't go through `.exit`/`onFinished`: unlike a job
+   * that finishes on its own, whoever cancelled it already knows it was
+   * cancelled (they clicked the button), an automatic follow-up turn
+   * summarizing "it was cancelled" would be redundant noise. `SIGTERM`
+   * first (gives a chance to clean up temp files etc.), `SIGKILL` ~2s later
+   * for anything that ignores the first one — same standard practice as
+   * tools like `timeout(1)`. Returns `false` with no effect if the job is
+   * no longer being watched (it finished on its own or was already
+   * cancelled before) — a race is possible between the user clicking
+   * "cancel" and the next poll finding the `.exit`. */
   cancel(sessionId: string, jobId: string): boolean {
     const key = `${sessionId}:${jobId}`;
     const job = this.jobs.get(key);
@@ -355,22 +356,22 @@ export class BackgroundJobTracker {
     try {
       process.kill(-job.pid, "SIGTERM");
     } catch {
-      // Grupo já não existe (job tinha acabado de terminar sozinho bem
-      // nesse instante) — nada a matar, mas a lista já foi atualizada acima.
+      // Group no longer exists (the job had just finished on its own right
+      // at this instant) — nothing to kill, but the list was already updated above.
       return true;
     }
     setTimeout(() => {
       try {
         process.kill(-job.pid, "SIGKILL");
       } catch {
-        // Já morreu com o SIGTERM — esperado na maioria dos casos.
+        // Already died from the SIGTERM — expected in most cases.
       }
     }, 2000).unref();
     return true;
   }
 
-  /** Só pra teste/shutdown — produção nunca precisa parar o poller enquanto
-   * o processo estiver vivo. */
+  /** Only for tests/shutdown — production never needs to stop the poller
+   * while the process is alive. */
   stopPolling(): void {
     if (!this.timer) return;
     clearInterval(this.timer);

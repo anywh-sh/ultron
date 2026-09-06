@@ -1,20 +1,20 @@
 import type { BroadcastMessage } from "./sharedSession.js";
 
-/** Quantos turnos completos mandar de cara pra um cliente que acabou de
- * conectar (Fase 2 do plano de histórico paginado, docs/30) — chute educado
- * até calibrar contra um caso real grande (ex: "IVT Fix", ~1670 linhas de
- * transcript reconstruídas). O resto vem sob demanda via `load_older_history`
- * quando o usuário rolar pra cima. */
+/** How many complete turns to send right away to a client that just
+ * connected (Phase 2 of the paginated history plan, docs/30) — an educated
+ * guess until calibrated against a real large case (e.g. "IVT Fix", ~1670
+ * reconstructed transcript lines). The rest comes on demand via
+ * `load_older_history` when the user scrolls up. */
 export const INITIAL_HISTORY_TAIL_TURNS = 20;
 
 export interface HistoryPage {
   messages: BroadcastMessage[];
-  /** Índice (dentro de `history`) do primeiro evento desta página — é o que
-   * o cliente devolve como `beforeCursor` pra pedir a página anterior
-   * (mais antiga). */
+  /** Index (within `history`) of the first event on this page — this is
+   * what the client sends back as `beforeCursor` to request the previous
+   * (older) page. */
   cursor: number;
-  /** Se `false`, `cursor` é `0` e não existe turno mais antigo que essa
-   * página pra buscar. */
+  /** If `false`, `cursor` is `0` and there's no turn older than this page
+   * to fetch. */
   hasMore: boolean;
 }
 
@@ -22,12 +22,12 @@ function isTurnBoundary(message: BroadcastMessage): boolean {
   return message.type === "turn_complete" || message.type === "turn_error";
 }
 
-/** Índices de início de cada turno dentro de `history`. Um turno vai do seu
- * índice de início até (inclusive) o próximo `turn_complete`/`turn_error` —
- * exceto o último, que fica "aberto" (sem terminador ainda) se houver
- * genuinamente um turno em andamento no momento em que isso roda. Não exige
- * um `user_prompt` marcando o início (histórico ao vivo antes da Fase 1 não
- * tinha isso) — o corte usa só o terminador do fim, presente nos dois casos. */
+/** Start indices of each turn within `history`. A turn goes from its start
+ * index up to (inclusive) the next `turn_complete`/`turn_error` — except
+ * the last one, which stays "open" (no terminator yet) if there genuinely
+ * is a turn in progress at the moment this runs. Doesn't require a
+ * `user_prompt` marking the start (live history before Phase 1 didn't have
+ * that) — the cut uses only the end terminator, present in both cases. */
 function turnStartIndices(history: BroadcastMessage[]): number[] {
   if (history.length === 0) return [];
   const starts = [0];
@@ -38,11 +38,11 @@ function turnStartIndices(history: BroadcastMessage[]): number[] {
 }
 
 /**
- * Devolve até `maxTurns` turnos completos imediatamente antes de
- * `beforeCursor` (exclusive). `beforeCursor: history.length` pega a cauda
- * mais recente (uso de `SharedSession.addClient`); o `cursor` devolvido por
- * uma página busca a página seguinte, mais antiga (uso de
- * `SharedSession.loadOlderHistory`) — os dois casos são a mesma função.
+ * Returns up to `maxTurns` complete turns immediately before `beforeCursor`
+ * (exclusive). `beforeCursor: history.length` fetches the most recent tail
+ * (used by `SharedSession.addClient`); the `cursor` returned by one page
+ * fetches the next, older page (used by `SharedSession.loadOlderHistory`) —
+ * both cases are the same function.
  */
 export function pageHistoryBefore(history: BroadcastMessage[], beforeCursor: number, maxTurns: number): HistoryPage {
   const starts = turnStartIndices(history).filter((start) => start < beforeCursor);
@@ -52,13 +52,13 @@ export function pageHistoryBefore(history: BroadcastMessage[], beforeCursor: num
   return { messages: history.slice(cursor, beforeCursor), cursor, hasMore: cutoffIndex > 0 };
 }
 
-/** `true` só pro turno de follow-up automático de um job `ultron-bg`
- * terminado (docs/32, Fase D) — nunca aparece pro usuário como mensagem
- * editável (o client renderiza como nota de sistema, `kind:
- * "background-job-note"`, não como bolha `kind: "user"`). Mensagens antigas
- * de antes da Fase 1 de docs/30 (sem `user_prompt` marcando o início do
- * turno) caem no `false` default — tratadas como reais, mesmo comportamento
- * que já existia antes dessa distinção existir. */
+/** `true` only for the automatic follow-up turn of a finished `ultron-bg`
+ * job (docs/32, Phase D) — never appears to the user as an editable message
+ * (the client renders it as a system note, `kind: "background-job-note"`,
+ * not as a `kind: "user"` bubble). Old messages from before docs/30 Phase 1
+ * (without `user_prompt` marking the turn's start) fall through to the
+ * `false` default — treated as real, same behavior that already existed
+ * before this distinction existed. */
 function isSyntheticBackgroundJobStart(message: BroadcastMessage): boolean {
   return (
     message.type === "claude_event" && message.event.type === "user_prompt" && message.event.synthetic === "background_job"
@@ -66,25 +66,25 @@ function isSyntheticBackgroundJobStart(message: BroadcastMessage): boolean {
 }
 
 export interface EditTarget {
-  /** Índice em `history` onde o turno editado começa — tudo a partir daqui
-   * (inclusive) é descartado. */
+  /** Index in `history` where the edited turn starts — everything from here
+   * (inclusive) is discarded. */
   cutIndex: number;
-  /** Quantos turnos (reais + sintéticos) precedem esse ponto. Cada turno,
-   * real ou sintético, corresponde a exatamente uma chamada `claude -p` e
-   * portanto exatamente uma linha `user` no `.jsonl` real — por isso esse
-   * número é também o parâmetro que `transcriptFork.ts` precisa pra cortar o
-   * arquivo no mesmo lugar, sem precisar reconstruir a distinção
-   * real/sintético a partir do disco (docs/33). */
+  /** How many turns (real + synthetic) precede this point. Each turn, real
+   * or synthetic, corresponds to exactly one `claude -p` call and therefore
+   * exactly one `user` line in the real `.jsonl` — that's why this number
+   * is also the parameter `transcriptFork.ts` needs to cut the file at the
+   * same spot, without needing to reconstruct the real/synthetic
+   * distinction from disk (docs/33). */
   turnsBefore: number;
 }
 
 /**
- * Acha o ponto de corte pra editar a `fromEnd`-ésima mensagem do usuário
- * contando do fim (`1` = a última) — pula turnos sintéticos de `ultron-bg`
- * ao contar, já que eles não aparecem pro usuário como mensagem editável
- * (docs/33). `undefined` se `fromEnd` for maior que a quantidade de turnos
- * reais existentes (pedido inválido/obsoleto — quem chama deve recusar em
- * vez de truncar errado).
+ * Finds the cut point to edit the `fromEnd`-th user message counting from
+ * the end (`1` = the last one) — skips synthetic `ultron-bg` turns while
+ * counting, since they don't appear to the user as an editable message
+ * (docs/33). `undefined` if `fromEnd` is greater than the number of real
+ * turns that exist (invalid/stale request — the caller should refuse
+ * instead of truncating incorrectly).
  */
 export function findEditTarget(history: BroadcastMessage[], fromEnd: number): EditTarget | undefined {
   const starts = turnStartIndices(history);

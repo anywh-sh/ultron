@@ -2,55 +2,55 @@ import { spawn, type ChildProcessWithoutNullStreams } from "node:child_process";
 import { createInterface } from "node:readline";
 import type { ContextUsage, ModelChoice, PermissionMode } from "./sessionStore.js";
 
-// Um turno = um processo `claude -p`. Continuidade entre turnos vem de
-// `--resume <session_id>`, não de manter um processo vivo — ver
-// docs/10-stream-json-validacao.md e docs/11.
+// A turn = a `claude -p` process. Continuity across turns comes from
+// `--resume <session_id>`, not from keeping a process alive — see
+// docs/10-stream-json-validacao.md and docs/11.
 //
-// ANTHROPIC_API_KEY é sempre removida do ambiente do processo filho: é a
-// regra de ouro do projeto (docs/00) — se essa env var vazar, o Claude Code
-// passa a cobrar por API em vez de usar o plano.
+// ANTHROPIC_API_KEY is always removed from the child process's environment:
+// it's the project's golden rule (docs/00) — if that env var leaks, Claude
+// Code starts billing via API instead of using the plan.
 //
-// Caminho absoluto e PATH explícito: rodando via systemd o processo não tem
-// o PATH do shell interativo do usuário (não sourca .bashrc/.profile), então
-// nem o binário nem ferramentas que ele invoca internamente (node, git...)
-// seriam encontrados só pelo nome — mesma classe de bug que já corrigimos
-// pro tmux em docs/08.
+// Absolute path and explicit PATH: running via systemd the process doesn't
+// have the user's interactive shell PATH (doesn't source .bashrc/.profile),
+// so neither the binary nor tools it invokes internally (node, git...) would
+// be found by name alone — same bug class we already fixed for tmux in
+// docs/08.
 const CLAUDE_BIN = process.env.CLAUDE_BIN ?? "/home/user/.local/bin/claude";
-// `relay/scripts` (não `dist/` nem `src/`) — o helper é um script bash
-// standalone, não precisa de build, e fica no PATH pro turno achar
-// `ultron-bg` só pelo nome (ver docs/32).
+// `relay/scripts` (not `dist/` nor `src/`) — the helper is a standalone bash
+// script, doesn't need a build, and stays on PATH so the turn finds
+// `ultron-bg` by name alone (see docs/32).
 const EXTRA_PATH_DIRS = [
   "/home/user/.local/bin",
   "/home/user/.nvm/versions/node/v20.19.0/bin",
   "/home/user/personal/ultron/relay/scripts",
 ];
 
-/** Anexado em todo turno, independente do CLAUDE.md do projeto ativo — é uma
- * preferência do CLIENTE ultron, não de um projeto específico. Sem isso, ao
- * escrever um rascunho pra colar em outro lugar (Slack, e-mail), o modelo
- * às vezes quebra o texto manualmente a cada ~80 colunas (hábito herdado de
- * texto de terminal/commit) — dentro de um bloco ``` isso é literal (`pre`
- * preserva `\n`), então em vez de um parágrafo fluido que a UI quebra
- * sozinha pela largura da tela, sobra um parágrafo com quebras de linha no
- * meio de frases. Texto enxuto de propósito (~1/3 do original) — isso entra
- * em TODO turno mesmo quando não tem nada a ver com rascunho de texto, então
- * o custo de token do reforço mais explícito não valia a pena até aparecer
- * de novo na prática. Se voltar a acontecer, dá pra reforçar mesmo custando
- * mais tokens.
+/** Appended to every turn, regardless of the active project's CLAUDE.md — it's
+ * a preference of the ultron CLIENT, not of a specific project. Without
+ * this, when writing a draft meant to be pasted elsewhere (Slack, email),
+ * the model sometimes manually wraps the text every ~80 columns (habit
+ * inherited from terminal/commit text) — inside a ``` block that's literal
+ * (`pre` preserves `\n`), so instead of a fluid paragraph that the UI wraps
+ * on its own by screen width, you end up with a paragraph with line breaks
+ * in the middle of sentences. Text kept lean on purpose (~1/3 of the
+ * original) — this goes into EVERY turn even when it has nothing to do with
+ * drafting text, so the token cost of a more explicit reinforcement wasn't
+ * worth it until it showed up again in practice. If it happens again, it
+ * can be reinforced even at the cost of more tokens.
  *
- * Segundo parágrafo: cada turno é um processo `claude -p` novo (comentário do topo do arquivo)
- * — o registro interno que sustenta `run_in_background`/`BashOutput` vive só
- * na memória DESSE processo e some quando o turno termina. Sem este aviso,
- * o modelo promete "vou rodar em background e te aviso quando terminar"
- * usando esse mecanismo nativo (ou `&`/`nohup` cru) e a promessa nunca se
- * cumpre — achado real do usuário, causa raiz documentada em docs/32.
- * `ultron-bg` (script em `relay/scripts/`, incluído no PATH acima) resolve
- * isso ficando fora do processo do turno; o `BackgroundJobTracker`
- * (`backgroundJobs.ts`, ligado em `sessionManager.ts`) observa a conclusão e
- * dispara um turno de follow-up automático (`SharedSession.
- * submitBackgroundJobResult`, docs/32 Fase D) — a promessa abaixo já é
- * cumprida de verdade, validada ponta-a-ponta contra o binário real
- * (`relay/test-background-job.mjs`).
+ * Second paragraph: each turn is a new `claude -p` process (comment at the
+ * top of the file) — the internal record backing `run_in_background`/
+ * `BashOutput` lives only in THAT process's memory and disappears when the
+ * turn ends. Without this warning, the model promises "I'll run this in the
+ * background and let you know when it's done" using that native mechanism
+ * (or raw `&`/`nohup`) and the promise never gets kept — a real finding from
+ * the user, root cause documented in docs/32. `ultron-bg` (script in
+ * `relay/scripts/`, included in the PATH above) solves this by staying
+ * outside the turn's process; `BackgroundJobTracker` (`backgroundJobs.ts`,
+ * wired in `sessionManager.ts`) watches for completion and triggers an
+ * automatic follow-up turn (`SharedSession.submitBackgroundJobResult`,
+ * docs/32 Phase D) — the promise below is now genuinely kept, validated
+ * end-to-end against the real binary (`relay/test-background-job.mjs`).
  */
 const APPEND_SYSTEM_PROMPT =
   "When writing prose meant to be pasted elsewhere (Slack, email), write each paragraph as one " +
@@ -65,11 +65,11 @@ const APPEND_SYSTEM_PROMPT =
   "will automatically get a new turn reporting the result, which the user is notified about. You " +
   "can tell them that.";
 
-/** Env de todo processo filho do relay (turno do `claude -p` aqui, shell
- * interativo em terminalSession.ts) — extraído pra um lugar só porque a
- * regra de ouro (nunca deixar `ANTHROPIC_API_KEY` vazar pro processo filho,
- * docs/00) tem que valer igual nos dois: um terminal aberto pelo usuário é
- * tão capaz de rodar `claude` manualmente quanto o próprio spawn do turno. */
+/** Env for every relay child process (the `claude -p` turn here, interactive
+ * shell in terminalSession.ts) — extracted to one place because the golden
+ * rule (never let `ANTHROPIC_API_KEY` leak to the child process, docs/00)
+ * must hold equally for both: a terminal opened by the user is just as
+ * capable of running `claude` manually as the turn's own spawn. */
 export function buildChildEnv(homeOverride: string | undefined): NodeJS.ProcessEnv {
   const env = { ...process.env };
   delete env.ANTHROPIC_API_KEY;
@@ -86,37 +86,37 @@ export interface ClaudeEvent {
   is_error?: boolean;
   result?: string;
   errors?: string[];
-  /** Presente só em `type: "user_prompt"` (sintético, nunca vem do stdout do
-   * CLI) — ISO da linha real do `.jsonl` na reconstrução de histórico, ou
-   * `new Date().toISOString()` no broadcast ao vivo pros outros dispositivos
-   * (docs/33). Quem mandou a mensagem já sabe a própria hora do clique, não
-   * depende disso. */
+  /** Present only in `type: "user_prompt"` (synthetic, never comes from the
+   * CLI's stdout) — ISO from the actual `.jsonl` line when rebuilding
+   * history, or `new Date().toISOString()` in the live broadcast to other
+   * devices (docs/33). Whoever sent the message already knows the click's
+   * own time, doesn't depend on this. */
   timestamp?: string;
   [key: string]: unknown;
 }
 
 export interface ClaudeSessionOptions {
-  /** Sobrescreve $HOME do processo filho — usado pro isolamento por perfil (docs/08). */
+  /** Overrides the child process's $HOME — used for per-profile isolation (docs/08). */
   homeOverride?: string;
-  /** Semeia o session_id a partir do que a Fase 7 persistiu em disco — ver
-   * SessionStore/docs/18. Sem isso, um restart do relay perdia a
-   * continuidade de `--resume` mesmo com a sessão do Claude Code intacta. */
+  /** Seeds the session_id from what Phase 7 persisted to disk — see
+   * SessionStore/docs/18. Without this, a relay restart would lose
+   * `--resume` continuity even with the Claude Code session intact. */
   initialSessionId?: string;
 }
 
 export interface SendTurnResult {
-  /** `true` quando o turno terminou porque `stop()` foi chamado, não porque
-   * o `claude` de fato concluiu ou deu erro. */
+  /** `true` when the turn ended because `stop()` was called, not because
+   * `claude` actually finished or errored. */
   stopped: boolean;
-  /** `undefined` se o turno não chegou a produzir um `result` com os campos
-   * esperados (ex: erro antes de qualquer chamada de API) — nesse caso quem
-   * chama deve manter o último valor conhecido, não zerar. */
+  /** `undefined` if the turn didn't get to produce a `result` with the
+   * expected fields (e.g. error before any API call) — in that case the
+   * caller should keep the last known value, not reset it. */
   contextUsage?: ContextUsage;
-  /** Texto da última resposta do assistente no fio principal (não inclui
-   * subagentes, mesmo filtro de `isMainThreadEvent`) — usado só pra alimentar
-   * o gerador de sugestão de próxima mensagem (suggestionGenerator.ts).
-   * `undefined` se o turno não produziu nenhum bloco de texto (ex: só
-   * tool_use antes de interromper). */
+  /** Text of the last assistant response on the main thread (doesn't include
+   * subagents, same filter as `isMainThreadEvent`) — used only to feed the
+   * next-message suggestion generator (suggestionGenerator.ts).
+   * `undefined` if the turn didn't produce any text block (e.g. only
+   * tool_use before being interrupted). */
   lastAssistantText?: string;
 }
 
@@ -140,36 +140,36 @@ function usageTokenTotal(usage: ResultUsage): number {
 }
 
 /**
- * `true` só pro evento `assistant` do fio principal da conversa — subagentes
- * (`Task`) também emitem eventos `assistant` no mesmo stdout, mas com
- * `parent_tool_use_id` apontando pro `tool_use` que os disparou (confirmado
- * rodando um turno real com um subagente: o evento dele tinha
- * `cache_read_input_tokens: 0` — contexto isolado, começando do zero — bem
- * diferente do fio principal). Sem esse filtro, o usage de um subagente
- * (que pode ler arquivos grandes por conta própria) contamina o número do
- * fio principal.
+ * `true` only for `assistant` events on the conversation's main thread —
+ * subagents (`Task`) also emit `assistant` events on the same stdout, but
+ * with `parent_tool_use_id` pointing at the `tool_use` that triggered them
+ * (confirmed by running a real turn with a subagent: its event had
+ * `cache_read_input_tokens: 0` — isolated context, starting from zero —
+ * quite different from the main thread). Without this filter, a subagent's
+ * usage (which can read large files on its own) contaminates the main
+ * thread's number.
  */
 export function isMainThreadEvent(event: ClaudeEvent): boolean {
   return event.parent_tool_use_id === null || event.parent_tool_use_id === undefined;
 }
 
 /**
- * Monta o uso de contexto a partir de duas fontes complementares: `usage`
- * vem do ÚLTIMO evento `assistant` do fio principal visto no turno (uma
- * única resposta da Messages API — mesma semântica do `current_usage`
- * oficial do statusline do Claude Code), e `contextWindowSize` vem de
- * `modelUsage[model]` no evento `result` de fim de turno — dado real do CLI
- * pra aquela conta (ex: contexto estendido de 1M), nunca uma tabela
- * estática nossa.
+ * Builds context usage from two complementary sources: `usage` comes from
+ * the LAST `assistant` event on the main thread seen in the turn (a single
+ * Messages API response — same semantics as Claude Code's official
+ * statusline `current_usage`), and `contextWindowSize` comes from
+ * `modelUsage[model]` in the turn's ending `result` event — real data from
+ * the CLI for that account (e.g. extended 1M context), never a static table
+ * of ours.
  *
- * Importante: os campos de nível superior do próprio `result.usage` (e o
- * `result.usage.iterations`) são agregados que somam TUDO que rodou no
- * turno, incluindo subagentes — testado contra uma sessão real e contra um
- * turno com subagente, os dois infladavam o total muito além do que o fio
- * principal realmente tinha em contexto (>100% numa sessão que não tinha
- * nem 40% do limite de verdade usado). Por isso este código nunca lê
- * `result.usage` pra tokens — só pro `modelUsage` (que é uma propriedade
- * estática do modelo, não um contador, e não sofre desse problema).
+ * Important: the top-level fields of `result.usage` itself (and
+ * `result.usage.iterations`) are aggregates that sum EVERYTHING that ran in
+ * the turn, including subagents — tested against a real session and against
+ * a turn with a subagent, both inflated the total well beyond what the main
+ * thread actually had in context (>100% in a session that hadn't even used
+ * 40% of the real limit). That's why this code never reads `result.usage`
+ * for tokens — only for `modelUsage` (which is a static property of the
+ * model, not a counter, and doesn't suffer from this problem).
  */
 export function extractContextUsage(
   resultEvent: ClaudeEvent,
@@ -202,29 +202,29 @@ export class ClaudeSession {
     return this.sessionId;
   }
 
-  /** `/clear` (docs/26) — não roda nada no `claude`, só solta a continuidade
-   * local: o próximo `sendTurn` não leva `--resume`, então começa uma
-   * conversa nova de verdade no lado da CLI, sem gastar processo/turno só
-   * pra "avisar" ela disso. */
+  /** `/clear` (docs/26) — doesn't run anything on `claude`, just drops the
+   * local continuity: the next `sendTurn` won't carry `--resume`, so it
+   * genuinely starts a new conversation on the CLI side, without spending a
+   * process/turn just to "tell" it about that. */
   resetSessionId(): void {
     this.sessionId = undefined;
   }
 
-  /** Edição de mensagem (docs/33) — depois de `transcriptFork.ts` gravar um
-   * `.jsonl` novo truncado, o próximo `sendTurn` precisa dar `--resume`
-   * nesse id novo, não no antigo (que ainda tem a mensagem editada e tudo
-   * que veio depois). */
+  /** Message editing (docs/33) — after `transcriptFork.ts` writes a new
+   * truncated `.jsonl`, the next `sendTurn` needs to `--resume` with that
+   * new id, not the old one (which still has the edited message and
+   * everything that came after it). */
   setSessionId(sessionId: string): void {
     this.sessionId = sessionId;
   }
 
   /**
-   * Interrompe o turno em andamento, se houver — usado pelo botão "Parar" no
-   * cliente. Testado direto contra o binário: `claude -p` captura `SIGINT` e
-   * sai com código 0 (não morre "cru"), inclusive mandando um `result` final
-   * com `session_id` válido mesmo quando interrompido no meio do streaming
-   * — `sendTurn` usa `stopRequested` pra não tratar isso como erro de
-   * verdade (o que apagaria a continuidade da sessão à toa).
+   * Interrupts the turn in progress, if any — used by the "Stop" button on
+   * the client. Tested directly against the binary: `claude -p` catches
+   * `SIGINT` and exits with code 0 (doesn't die "raw"), even sending a final
+   * `result` with a valid `session_id` even when interrupted mid-stream —
+   * `sendTurn` uses `stopRequested` to avoid treating this as a genuine
+   * error (which would erase session continuity for nothing).
    */
   stop(): boolean {
     if (!this.currentChild) return false;
@@ -251,23 +251,24 @@ export class ClaudeSession {
       "--append-system-prompt",
       APPEND_SYSTEM_PROMPT,
       ...(model ? ["--model", model] : []),
-      // `bypassPermissions` é o modo padrão histórico (o único que existia
-      // antes de o modo ser selecionável, ver docs/25) — continua na flag
-      // dedicada porque é a forma testada contra o binário real de evitar
-      // que uma ferramenta tocando um caminho novo (ex: imagem recém-
-      // enviada) fique presa pedindo aprovação que ninguém pode dar num
-      // processo não-interativo (achado real testando upload de imagem,
-      // docs/15). Os outros modos vão direto na flag genérica — headless sem
-      // `--permission-prompt-tool` nunca trava esperando aprovação: a ação
-      // é só negada e o Claude segue trabalhando (doc oficial, ver docs/25).
+      // `bypassPermissions` is the historical default mode (the only one
+      // that existed before the mode became selectable, see docs/25) — it
+      // stays on the dedicated flag because that's the way, tested against
+      // the real binary, to avoid a tool touching a new path (e.g. a
+      // freshly uploaded image) getting stuck asking for approval that
+      // nobody can give in a non-interactive process (real finding while
+      // testing image upload, docs/15). The other modes go straight into
+      // the generic flag — headless without `--permission-prompt-tool`
+      // never hangs waiting for approval: the action is simply denied and
+      // Claude keeps working (official docs, see docs/25).
       ...(permissionMode === "bypassPermissions"
         ? ["--dangerously-skip-permissions"]
         : ["--permission-mode", permissionMode]),
     ];
-    // Se um `--resume` anterior tiver falhado (sessão inválida, histórico
-    // não encontrado etc.), sessionId já foi limpo abaixo — a próxima
-    // chamada começa uma conversa nova automaticamente em vez de repetir
-    // o mesmo erro pra sempre.
+    // If a previous `--resume` failed (invalid session, history not found,
+    // etc.), sessionId was already cleared below — the next call
+    // automatically starts a new conversation instead of repeating the same
+    // error forever.
     if (this.sessionId) {
       args.push("--resume", this.sessionId);
     }
@@ -309,20 +310,20 @@ export class ClaudeSession {
           if (event.type === "assistant" && isMainThreadEvent(event)) {
             const message = event.message as { usage?: ResultUsage; content?: ContentBlock[] } | undefined;
             if (message?.usage) lastMainThreadUsage = message.usage;
-            // Sobrescreve a cada evento assistant do fio principal — o
-            // último antes do `result` é a resposta final que o usuário viu,
-            // que é o que interessa pro gerador de sugestão (não precisa
-            // acumular todas as respostas intermediárias do turno).
+            // Overwritten on every main-thread assistant event — the last
+            // one before `result` is the final response the user saw, which
+            // is what matters for the suggestion generator (no need to
+            // accumulate every intermediate response in the turn).
             const textBlocks = message?.content?.filter((block) => block.type === "text" && block.text);
             if (textBlocks && textBlocks.length > 0) {
               lastAssistantText = textBlocks.map((block) => block.text).join("\n");
             }
           }
           if (event.type === "result") {
-            // Capturado sempre que presente, erro ou não — um turno
-            // interrompido por `stop()` ainda manda um `result` com
-            // `session_id` válido (testado contra o binário real), e sem
-            // isso a continuidade da sessão se perdia à toa num stop.
+            // Captured whenever present, error or not — a turn interrupted
+            // by `stop()` still sends a `result` with a valid `session_id`
+            // (tested against the real binary), and without this the
+            // session's continuity would be lost for nothing on a stop.
             if (typeof event.session_id === "string") this.sessionId = event.session_id;
             if (event.is_error) {
               lastErrorResult =

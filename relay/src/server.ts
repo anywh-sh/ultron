@@ -8,21 +8,21 @@ import { SessionStore, type ModelChoice, type PermissionMode } from "./sessionSt
 import { killAllTerminalsForSession, killTerminal, spawnTerminal } from "./terminalSession.js";
 import { saveUpload } from "./uploads.js";
 
-// Config via env — permite rodar uma instância por perfil (systemd,
-// infra/systemd/) sem mudar código, igual o ttyd fazia (docs/08).
+// Config via env — allows running one instance per profile (systemd,
+// infra/systemd/) without changing code, same as ttyd used to do (docs/08).
 const PORT = Number(process.env.RELAY_PORT ?? 8765);
 const HOST = process.env.RELAY_HOST ?? "127.0.0.1";
 const HOME_OVERRIDE = process.env.RELAY_HOME_OVERRIDE;
 const DEFAULT_SESSION = "default";
 
-// Mesmo padrão do RELAY_UPLOAD_DIR: os dois serviços systemd (pessoal/
-// trabalho) compartilham WorkingDirectory, então um caminho relativo fixo
-// colidiria entre perfis — precisa de env var dedicada em produção. O
-// fallback "./sessions.local.json" é só pra `npm run dev` local.
+// Same pattern as RELAY_UPLOAD_DIR: the two systemd services (personal/
+// work) share WorkingDirectory, so a fixed relative path would collide
+// between profiles — needs a dedicated env var in production. The
+// "./sessions.local.json" fallback is only for local `npm run dev`.
 const SESSIONS_FILE = process.env.RELAY_SESSIONS_FILE ?? "./sessions.local.json";
 
-// Mesmo raciocínio de SESSIONS_FILE — Fase F de docs/32, persistência dos
-// jobs `ultron-bg` observados (sobrevive a um restart do relay).
+// Same reasoning as SESSIONS_FILE — docs/32 Phase F, persistence of the
+// watched `ultron-bg` jobs (survives a relay restart).
 const BACKGROUND_JOBS_FILE = process.env.RELAY_BACKGROUND_JOBS_FILE ?? "./background-jobs.local.json";
 
 interface UserMessage {
@@ -43,8 +43,8 @@ function isStopTurnMessage(value: unknown): value is { type: "stop_turn" } {
   return typeof value === "object" && value !== null && (value as { type?: unknown }).type === "stop_turn";
 }
 
-/** Edição de mensagem (docs/33) — `fromEnd` conta a partir do fim (`1` = a
- * última mensagem do usuário). */
+/** Message edit (docs/33) — `fromEnd` counts from the end (`1` = the
+ * user's last message). */
 function isEditMessageMessage(value: unknown): value is { type: "edit_message"; fromEnd: number; text: string } {
   return (
     typeof value === "object" &&
@@ -121,8 +121,8 @@ function isTerminalInputMessage(value: unknown): value is { type: "input"; data:
   );
 }
 
-/** Fase 2 do histórico paginado (docs/30) — pedido de turnos mais antigos que
- * a cauda inicial, disparado pelo usuário rolando pra cima na UI. */
+/** Paginated history Phase 2 (docs/30) — request for turns older than the
+ * initial tail, triggered by the user scrolling up in the UI. */
 function isLoadOlderHistoryMessage(value: unknown): value is { type: "load_older_history"; beforeCursor: number } {
   return (
     typeof value === "object" &&
@@ -132,7 +132,7 @@ function isLoadOlderHistoryMessage(value: unknown): value is { type: "load_older
   );
 }
 
-/** Fase F de docs/32 — cancelamento de um job `ultron-bg` pedido pela UI. */
+/** docs/32 Phase F — cancellation of an `ultron-bg` job requested by the UI. */
 function isCancelBackgroundJobMessage(value: unknown): value is { type: "cancel_background_job"; id: string } {
   return (
     typeof value === "object" &&
@@ -149,10 +149,9 @@ function isTerminalResizeMessage(value: unknown): value is { type: "resize"; col
   return typeof cols === "number" && cols > 0 && typeof rows === "number" && rows > 0;
 }
 
-/** Sem lib de parsing de body no projeto (só o upload binário tinha um
- * acumulador de chunks, `uploads.ts`) — o corpo de rename é pequeno o
- * bastante (um id + um título) pra não justificar trazer uma dependência só
- * por isso. */
+/** No body-parsing lib in the project (only the binary upload had a chunk
+ * accumulator, `uploads.ts`) — the rename body is small enough (an id + a
+ * title) that it doesn't justify pulling in a dependency just for this. */
 function readJsonBody(req: import("node:http").IncomingMessage): Promise<unknown> {
   return new Promise((resolve, reject) => {
     const chunks: Buffer[] = [];
@@ -171,15 +170,15 @@ function readJsonBody(req: import("node:http").IncomingMessage): Promise<unknown
 const sessionStore = new SessionStore(SESSIONS_FILE, defaultCwd(HOME_OVERRIDE));
 const sessionManager = new SessionManager(HOME_OVERRIDE, sessionStore, BACKGROUND_JOBS_FILE);
 
-// `true` a partir do primeiro SIGTERM/SIGINT recebido — rejeita turno novo
-// (ver `isUserMessage` acima) enquanto `gracefulShutdown` espera os turnos
-// já em andamento terminarem, ver definição no fim do arquivo.
+// `true` from the first SIGTERM/SIGINT received onward — rejects a new turn
+// (see `isUserMessage` above) while `gracefulShutdown` waits for turns
+// already in progress to finish, see the definition at the end of the file.
 let shuttingDown = false;
 
-// Sondagem do modelo padrão da conta desse perfil (docs/28) — roda uma vez
-// no boot, em paralelo com tudo o mais (não bloqueia `httpServer.listen`
-// abaixo). `defaultModelClients` cobre a corrida óbvia: a conexão WS do
-// primeiro cliente quase sempre chega antes da sondagem resolver.
+// Probing this profile's account default model (docs/28) — runs once at
+// boot, in parallel with everything else (doesn't block `httpServer.listen`
+// below). `defaultModelClients` covers the obvious race: the first client's
+// WS connection almost always arrives before the probe resolves.
 let defaultModelLabel: string | undefined;
 const defaultModelClients = new Set<WebSocket>();
 detectDefaultModel(HOME_OVERRIDE, defaultCwd(HOME_OVERRIDE))
@@ -191,7 +190,7 @@ detectDefaultModel(HOME_OVERRIDE, defaultCwd(HOME_OVERRIDE))
     }
   })
   .catch((error: unknown) => {
-    console.error("[relay] falha ao detectar modelo padrão:", error);
+    console.error("[relay] failed to detect default model:", error);
   });
 
 const httpServer = createServer((req, res) => {
@@ -219,20 +218,20 @@ const httpServer = createServer((req, res) => {
         const title = isRenameBody(body) ? body.title.trim() : "";
         if (!isRenameBody(body) || !title) {
           res.writeHead(400);
-          res.end(JSON.stringify({ error: "id e title (não vazio) são obrigatórios" }));
+          res.end(JSON.stringify({ error: "id and a non-empty title are required" }));
           return;
         }
         const ok = sessionManager.renameTitle(body.id, title);
         if (!ok) {
           res.writeHead(404);
-          res.end(JSON.stringify({ error: "sessão não encontrada" }));
+          res.end(JSON.stringify({ error: "session not found" }));
           return;
         }
         res.end(JSON.stringify({ ok: true }));
       })
       .catch(() => {
         res.writeHead(400);
-        res.end(JSON.stringify({ error: "corpo inválido" }));
+        res.end(JSON.stringify({ error: "invalid body" }));
       });
     return;
   }
@@ -244,25 +243,25 @@ const httpServer = createServer((req, res) => {
       .then((body) => {
         if (!isIdBody(body)) {
           res.writeHead(400);
-          res.end(JSON.stringify({ error: "id é obrigatório" }));
+          res.end(JSON.stringify({ error: "id is required" }));
           return;
         }
         const ok = sessionManager.deleteSession(body.id);
         if (!ok) {
           res.writeHead(404);
-          res.end(JSON.stringify({ error: "sessão não encontrada" }));
+          res.end(JSON.stringify({ error: "session not found" }));
           return;
         }
-        // Varre e mata qualquer terminal (tmux) que essa sessão de chat
-        // ainda tivesse aberto — sem isso ficaria órfão pra sempre, sem
-        // nenhuma aba na UI que soubesse que ele existe (ver terminalSession.ts).
+        // Sweeps and kills any terminal (tmux) this chat session still had
+        // open — without this it would stay orphaned forever, with no tab in
+        // the UI aware it exists (see terminalSession.ts).
         killAllTerminalsForSession(PORT, body.id)
-          .catch((error: unknown) => console.error("[relay] falha ao limpar terminais da sessão excluída:", error))
+          .catch((error: unknown) => console.error("[relay] failed to clean up terminals for deleted session:", error))
           .finally(() => res.end(JSON.stringify({ ok: true })));
       })
       .catch(() => {
         res.writeHead(400);
-        res.end(JSON.stringify({ error: "corpo inválido" }));
+        res.end(JSON.stringify({ error: "invalid body" }));
       });
     return;
   }
@@ -274,20 +273,20 @@ const httpServer = createServer((req, res) => {
       .then((body) => {
         if (!isTerminalCloseBody(body)) {
           res.writeHead(400);
-          res.end(JSON.stringify({ error: "session e term são obrigatórios" }));
+          res.end(JSON.stringify({ error: "session and term are required" }));
           return;
         }
         killTerminal(PORT, body.session, body.term)
           .then(() => res.end(JSON.stringify({ ok: true })))
           .catch((error: unknown) => {
-            console.error("[relay] falha ao fechar terminal:", error);
+            console.error("[relay] failed to close terminal:", error);
             res.writeHead(500);
-            res.end(JSON.stringify({ error: "falha ao fechar terminal" }));
+            res.end(JSON.stringify({ error: "failed to close terminal" }));
           });
       })
       .catch(() => {
         res.writeHead(400);
-        res.end(JSON.stringify({ error: "corpo inválido" }));
+        res.end(JSON.stringify({ error: "invalid body" }));
       });
     return;
   }
@@ -318,7 +317,7 @@ const httpServer = createServer((req, res) => {
         res.end(JSON.stringify(result));
       })
       .catch((error: unknown) => {
-        console.error("[relay] falha no upload:", error);
+        console.error("[relay] upload failed:", error);
         res.setHeader("Access-Control-Allow-Origin", "*");
         res.writeHead(500);
         res.end(String(error instanceof Error ? error.message : error));
@@ -336,13 +335,13 @@ httpServer.listen(PORT, HOST, () => {
   console.log(`[relay] listening on ws://${HOST}:${PORT}`, HOME_OVERRIDE ? `(HOME=${HOME_OVERRIDE})` : "");
 });
 
-/** Um shell interativo (tmux) por aba de terminal — protocolo próprio,
- * bem mais simples que o do chat (sem replay de histórico: reanexar ao tmux
- * já redesenha a tela sozinho, ver terminalSession.ts). Fechar a conexão WS
- * (troca de aba/sessão, painel fechado, ou rede caindo) só detacha — nunca
- * mata a sessão tmux por aqui; matar de verdade é só via `POST
- * /terminals/close` (aba fechada explicitamente) ou na exclusão da sessão
- * de chat inteira. */
+/** One interactive shell (tmux) per terminal tab — its own protocol, much
+ * simpler than the chat's (no history replay: reattaching to tmux already
+ * redraws the screen on its own, see terminalSession.ts). Closing the WS
+ * connection (tab/session switch, panel closed, or network drop) only
+ * detaches — it never kills the tmux session from here; actually killing it
+ * only happens via `POST /terminals/close` (tab explicitly closed) or when
+ * the whole chat session is deleted. */
 function handleTerminalConnection(socket: WebSocket, url: URL): void {
   const chatSessionId = url.searchParams.get("session")?.trim() || DEFAULT_SESSION;
   const terminalId = url.searchParams.get("term")?.trim();
@@ -385,17 +384,17 @@ function handleTerminalConnection(socket: WebSocket, url: URL): void {
         term.resize(Math.floor(parsed.cols), Math.floor(parsed.rows));
       }
     } catch (error) {
-      // `term.write`/`term.resize` chamam ioctl no fd do pty por baixo —
-      // achado rodando o app de verdade: uma mensagem em trânsito (ex:
-      // resize debounced) pode chegar depois do pty já ter morrido (`close`
-      // do socket já rodou `term.kill()`, ou o processo saiu sozinho),
-      // lançando uma exceção síncrona (`EBADF`). Sem este try/catch isso
-      // não ficava só nessa aba de terminal — derrubava o processo do relay
-      // INTEIRO (exceção não tratada dentro do handler de um EventEmitter),
-      // junto com toda sessão de chat conectada nele. Descartar a mensagem
-      // é seguro: o cliente do terminal já vai reconectar sozinho se o pty
-      // de fato morreu.
-      console.error("[relay] mensagem de terminal descartada, pty possivelmente já morto:", error);
+      // `term.write`/`term.resize` call ioctl on the pty's fd under the
+      // hood — a real finding from running the app: a message in transit
+      // (e.g. a debounced resize) can arrive after the pty has already died
+      // (the socket's `close` already ran `term.kill()`, or the process
+      // exited on its own), throwing a synchronous exception (`EBADF`).
+      // Without this try/catch, this wouldn't stay contained to this
+      // terminal tab — it would take down the WHOLE relay process (an
+      // uncaught exception inside an EventEmitter's handler), along with
+      // every chat session connected to it. Dropping the message is safe:
+      // the terminal client will reconnect on its own if the pty really did die.
+      console.error("[relay] discarding terminal message, pty possibly already dead:", error);
     }
   });
 
@@ -463,7 +462,7 @@ wss.on("connection", (socket: WebSocket, request) => {
       return;
     }
     if (!isUserMessage(parsed)) {
-      console.warn("[relay] mensagem ignorada, formato inesperado:", parsed);
+      console.warn("[relay] message ignored, unexpected format:", parsed);
       return;
     }
     if (shuttingDown) {
@@ -480,16 +479,16 @@ wss.on("connection", (socket: WebSocket, request) => {
   });
 });
 
-// Quanto tempo esperar turno(s) em andamento terminarem sozinhos antes de
-// desistir e abortar via SIGINT (ver abaixo) — generoso de propósito
-// (respostas longas existem), mas configurável pra não exigir rebuild se
-// precisar ajustar. O unit systemd (`TimeoutStopSec`) precisa ficar MAIOR
-// que isso + `SHUTDOWN_ABORT_GRACE_MS`, senão o systemd manda SIGKILL pro
-// cgroup inteiro antes da gente sequer terminar de esperar.
+// How long to wait for turn(s) in progress to finish on their own before
+// giving up and aborting via SIGINT (see below) — generous on purpose
+// (long responses exist), but configurable so adjusting it doesn't require
+// a rebuild. The systemd unit's `TimeoutStopSec` needs to stay GREATER than
+// this + `SHUTDOWN_ABORT_GRACE_MS`, otherwise systemd sends SIGKILL to the
+// whole cgroup before we even finish waiting.
 const SHUTDOWN_GRACE_MS = Number(process.env.RELAY_SHUTDOWN_GRACE_MS ?? 4 * 60 * 1000);
-// Depois do SIGINT de fallback (mesmo caminho do botão "Parar" — testado
-// contra o binário, sai limpo com `result` válido), quanto esperar o
-// processo `claude -p` de fato terminar antes de sair de qualquer jeito.
+// After the fallback SIGINT (same path as the "Stop" button — tested
+// against the real binary, exits cleanly with a valid `result`), how long
+// to wait for the `claude -p` process to actually finish before exiting anyway.
 const SHUTDOWN_ABORT_GRACE_MS = 10_000;
 
 function delay(ms: number): Promise<void> {
@@ -497,20 +496,21 @@ function delay(ms: number): Promise<void> {
 }
 
 /**
- * SIGTERM (`systemctl restart`/`stop`) ou SIGINT (Ctrl+C em dev) — por
- * padrão o systemd (`KillMode=control-group`, não usado aqui de propósito,
- * ver infra/systemd/) mandaria o sinal pro processo `claude -p` filho ao
- * mesmo tempo que pro relay, matando um turno em andamento cru (só o SIGINT
- * mandado pelo botão "Parar" foi validado como saída limpa, não SIGTERM).
- * Com `KillMode=mixed` no unit, só o relay recebe o sinal — esta função para
- * de aceitar conexão nova e turno novo, espera os turnos já em andamento
- * terminarem sozinhos, e só recorre ao SIGINT (`stopTurn`, mesmo caminho do
- * botão "Parar") se algum ficar preso além do prazo de graça.
+ * SIGTERM (`systemctl restart`/`stop`) or SIGINT (Ctrl+C in dev) — by
+ * default systemd (`KillMode=control-group`, deliberately not used here,
+ * see infra/systemd/) would send the signal to the child `claude -p`
+ * process at the same time as the relay, killing a turn in progress raw
+ * (only the SIGINT sent by the "Stop" button was validated as a clean exit,
+ * not SIGTERM). With `KillMode=mixed` on the unit, only the relay receives
+ * the signal — this function stops accepting new connections and new
+ * turns, waits for turns already in progress to finish on their own, and
+ * only resorts to SIGINT (`stopTurn`, same path as the "Stop" button) if
+ * one gets stuck past the grace period.
  */
 async function gracefulShutdown(signal: NodeJS.Signals): Promise<void> {
   if (shuttingDown) return;
   shuttingDown = true;
-  console.log(`[relay] ${signal} recebido — parando de aceitar conexão nova e esperando turno(s) em andamento...`);
+  console.log(`[relay] ${signal} received — no longer accepting new connections, waiting for turn(s) in progress...`);
   httpServer.close();
 
   const idle = sessionManager.waitForAllIdle();
@@ -518,13 +518,13 @@ async function gracefulShutdown(signal: NodeJS.Signals): Promise<void> {
 
   if (timedOut) {
     console.warn(
-      `[relay] turno(s) ainda em andamento após ${SHUTDOWN_GRACE_MS}ms — abortando com SIGINT (mesmo caminho do botão "Parar") antes de sair.`,
+      `[relay] turn(s) still in progress after ${SHUTDOWN_GRACE_MS}ms — aborting with SIGINT (same path as the "Stop" button) before exiting.`,
     );
     sessionManager.stopAllTurns();
     await Promise.race([idle, delay(SHUTDOWN_ABORT_GRACE_MS)]);
   }
 
-  console.log("[relay] saindo.");
+  console.log("[relay] exiting.");
   process.exit(0);
 }
 
