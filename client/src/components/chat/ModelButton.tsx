@@ -7,28 +7,8 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import type { ModelChoice } from "@/lib/relayClient";
+import { getKnownModels, labelForModel } from "@/lib/modelCatalog";
 import { cn } from "@/lib/utils";
-
-/** Includes "default" just so the label exists if `model` arrives that way
- * (old session, or `/model default` typed) — it's no longer a clickable
- * option in the dropdown (see `MODELS` below): the new-conversation
- * preselection now comes from Settings (`useModelPreference`), so "Padrão"
- * stopped making sense as a manual choice. Exported for `SettingsDialog` to
- * reuse the same labels in the fixed model selector. */
-export const MODEL_LABELS: Record<ModelChoice, string> = {
-  default: "Padrão",
-  sonnet: "Sonnet",
-  opus: "Opus",
-  haiku: "Haiku",
-  fable: "Fable",
-};
-
-const MODELS: { value: ModelChoice; label: string }[] = [
-  { value: "sonnet", label: MODEL_LABELS.sonnet },
-  { value: "opus", label: MODEL_LABELS.opus },
-  { value: "haiku", label: MODEL_LABELS.haiku },
-  { value: "fable", label: MODEL_LABELS.fable },
-];
 
 interface ModelButtonProps {
   model: ModelChoice | null;
@@ -48,7 +28,7 @@ interface ModelButtonProps {
 }
 
 function labelFor(model: ModelChoice | null, defaultModel: string | null): string {
-  if (model) return MODEL_LABELS[model];
+  if (model) return labelForModel(model);
   return defaultModel ?? "…";
 }
 
@@ -99,10 +79,10 @@ export function ModelButton({ model, defaultModel, onChange, disabled }: ModelBu
       </DropdownMenuTrigger>
 
       <DropdownMenuContent align="start">
-        {MODELS.map((option) => (
-          <DropdownMenuItem key={option.value} onSelect={() => onChange(option.value)}>
-            <Check className={cn("size-3.5", option.value !== model && "opacity-0")} />
-            {option.label}
+        {getKnownModels().map((choice) => (
+          <DropdownMenuItem key={choice} onSelect={() => onChange(choice)}>
+            <Check className={cn("size-3.5", choice !== model && "opacity-0")} />
+            {labelForModel(choice)}
           </DropdownMenuItem>
         ))}
       </DropdownMenuContent>

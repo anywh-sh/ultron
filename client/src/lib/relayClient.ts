@@ -10,6 +10,7 @@ import type {
   RelayMessage,
   SessionSummary,
 } from "@/lib/relay-types";
+import { recordAvailableModels } from "@/lib/modelCatalog";
 
 export type {
   BackgroundJobSummary,
@@ -101,7 +102,7 @@ export interface RelayClientCallbacks {
   /** This profile's account's actual default model (docs/28) — sent
    * as soon as the relay finishes probing at boot (may arrive before or after
    * the connection opens), doesn't change after that for the life of the process. */
-  onDefaultModelState?: (label: string) => void;
+  onDefaultModelState?: (label: string, available: ModelChoice[]) => void;
   /** Sent right on connection (if there's already a completed turn in this
    * session) and again at the end of every turn that produced context usage —
    * see sharedSession.ts::broadcastContextUsage. `null` after a
@@ -243,7 +244,8 @@ export class RelayClient {
       } else if (parsed.type === "model_state") {
         this.callbacks.onModelState(parsed.model);
       } else if (parsed.type === "default_model_state") {
-        this.callbacks.onDefaultModelState?.(parsed.label);
+        recordAvailableModels(parsed.available);
+        this.callbacks.onDefaultModelState?.(parsed.label, parsed.available);
       } else if (parsed.type === "context_usage_state") {
         this.callbacks.onContextUsageState?.(parsed.usage);
       } else if (parsed.type === "turn_state") {

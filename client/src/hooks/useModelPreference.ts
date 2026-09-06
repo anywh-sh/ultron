@@ -8,7 +8,9 @@ export type ModelPreferenceMode = "lastUsed" | "fixed";
 
 /** Never "default" on purpose — the fixed model has to be a real model, not
  * a synonym for "don't choose anything" (see removal of the "Padrão"
- * option from `ModelButton`). */
+ * option from `ModelButton`). No longer a closed union: the real catalog is
+ * fetched from the CLI (`@/lib/modelCatalog`), see `SettingsDialog` for the
+ * selector built from it. */
 export type FixedModelChoice = Exclude<ModelChoice, "default">;
 
 export interface ModelPreference {
@@ -17,22 +19,25 @@ export interface ModelPreference {
 }
 
 const VALID_MODES: ModelPreferenceMode[] = ["lastUsed", "fixed"];
-/** Same 4 options as `ModelButton` (no "default", see `FixedModelChoice`) —
- * exported for `SettingsDialog` to build the fixed model selector. */
-export const FIXED_MODEL_CHOICES: FixedModelChoice[] = ["sonnet", "opus", "haiku", "fable"];
-const VALID_MODELS: ModelChoice[] = ["default", ...FIXED_MODEL_CHOICES];
 
 export const DEFAULT_MODEL_PREFERENCE: ModelPreference = { mode: "lastUsed", fixedModel: "sonnet" };
 
 type PreferenceMap = Record<string, ModelPreference>;
 type LastModelMap = Record<string, ModelChoice>;
 
+/** No membership check against the known catalog here on purpose — at the
+ * time this runs (app cold start, before any relay connection reported the
+ * real catalog back) a legitimately-stored value like "opusplan" would still
+ * fail an `includes` check against the fallback list. Format sanity only,
+ * same reasoning as the relay's `isSetModelMessage` (let the CLI be the
+ * final arbiter of whether a model actually exists). */
 function isModelPreference(value: unknown): value is ModelPreference {
   if (typeof value !== "object" || value === null) return false;
   const candidate = value as Record<string, unknown>;
   return (
     VALID_MODES.includes(candidate.mode as ModelPreferenceMode) &&
-    FIXED_MODEL_CHOICES.includes(candidate.fixedModel as FixedModelChoice)
+    typeof candidate.fixedModel === "string" &&
+    candidate.fixedModel.length > 0
   );
 }
 
@@ -59,8 +64,8 @@ function readLastModels(): LastModelMap {
     const parsed: unknown = JSON.parse(raw);
     if (typeof parsed !== "object" || parsed === null) return {};
     return Object.fromEntries(
-      Object.entries(parsed as Record<string, unknown>).filter((entry): entry is [string, ModelChoice] =>
-        VALID_MODELS.includes(entry[1] as ModelChoice),
+      Object.entries(parsed as Record<string, unknown>).filter(
+        (entry): entry is [string, ModelChoice] => typeof entry[1] === "string" && entry[1].length > 0,
       ),
     );
   } catch {

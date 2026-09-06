@@ -27,11 +27,11 @@ export interface SessionCwdState {
  * for interactive chat. */
 export type PermissionMode = "default" | "acceptEdits" | "plan" | "bypassPermissions";
 
-/** Mirrors the aliases that `claude --model` accepts, curated the same way
- * as `PermissionMode` (docs/25): the extended-context variants (`sonnet[1m]`
- * etc.) and `opusplan` are left out for now, they need their own explanation
- * that hasn't been requested yet. */
-export type ModelChoice = "default" | "sonnet" | "opus" | "haiku" | "fable";
+/** Opaque `claude --model` value — no fixed union anymore: the real catalog
+ * is fetched from the CLI itself (defaultModel.ts's `/model` probe) instead
+ * of curated by hand, so it can include aliases we haven't special-cased
+ * (`sonnet[1m]`, `opusplan`, a full model ID, ...) without a relay change. */
+export type ModelChoice = string;
 
 /** Context usage of a session's most recent turn — see ClaudeSession (which
  * extracts this from the `claude -p` `result` event) and the context window

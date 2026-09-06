@@ -14,6 +14,32 @@ const EXTRA_PATH_DIRS = ["/home/user/.local/bin", "/home/user/.nvm/versions/node
 // ready to display without remapping it there.
 const MODEL_NAME_RE = /^Current model:\s*`?(Sonnet|Opus|Haiku|Fable)\b/i;
 
+// Same `result` string also lists every alias the CLI accepts, e.g.
+// "Usage: /model <name>. Available: sonnet, opus, haiku, fable, best,
+// sonnet[1m], opus[1m], fable[1m], opusplan, default, or a full model ID."
+// Non-greedy up to the first period after "Available:" — confirmed by
+// testing there's no other period inside the list itself.
+const AVAILABLE_MODELS_RE = /Available:\s*(.+?)(?:\.|$)/;
+
+export interface DefaultModelInfo {
+  label: string;
+  available: string[];
+}
+
+/** Parses the "Available: ..." segment into individual aliases, dropping the
+ * trailing "or a full model ID" filler (not a real alias) — tested against
+ * both profile accounts (Sonnet-5 default and Opus-5 default) and the list
+ * came back byte-for-byte identical, so this is a CLI-version catalog, not
+ * an account entitlement list. */
+function parseAvailableModels(result: string): string[] {
+  const match = AVAILABLE_MODELS_RE.exec(result);
+  if (!match) return [];
+  return match[1]
+    .split(",")
+    .map((token) => token.trim())
+    .filter((token) => token.length > 0 && !token.startsWith("or "));
+}
+
 /**
  * Runs once at relay boot (server.ts) to find out this profile account's
  * actual default model (docs/28) — found by testing manually: `/model`
@@ -26,8 +52,15 @@ const MODEL_NAME_RE = /^Current model:\s*`?(Sonnet|Opus|Haiku|Fable)\b/i;
  * defaults — personal came back "Sonnet 5 (default)", work came back "Opus 5
  * (1M context) (default)". There was no way to assume a fixed value (e.g.
  * always "Opus") without showing a wrong label for at least one of the two.
+ *
+ * The same probe also returns the full model catalog (`available`) straight
+ * from the CLI's own usage text, instead of a hardcoded list that goes stale
+ * whenever a new alias ships.
  */
-export async function detectDefaultModel(homeOverride: string | undefined, cwd: string): Promise<string | undefined> {
+export async function detectDefaultModel(
+  homeOverride: string | undefined,
+  cwd: string,
+): Promise<DefaultModelInfo | undefined> {
   const env = { ...process.env };
   delete env.ANTHROPIC_API_KEY;
   if (homeOverride) env.HOME = homeOverride;
@@ -75,8 +108,13 @@ export async function detectDefaultModel(homeOverride: string | undefined, cwd: 
     return undefined;
   }
 
-  const match = typeof parsed.result === "string" ? MODEL_NAME_RE.exec(parsed.result) : null;
+  const result = parsed.result;
+  if (typeof result !== "string") return undefined;
+  const match = MODEL_NAME_RE.exec(result);
   if (!match) return undefined;
   const name = match[1].toLowerCase();
-  return name.charAt(0).toUpperCase() + name.slice(1);
+  return {
+    label: name.charAt(0).toUpperCase() + name.slice(1),
+    available: parseAvailableModels(result),
+  };
 }

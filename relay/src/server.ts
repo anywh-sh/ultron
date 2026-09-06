@@ -1,6 +1,6 @@
 import { createServer } from "node:http";
 import { WebSocketServer, type WebSocket } from "ws";
-import { detectDefaultModel } from "./defaultModel.js";
+import { detectDefaultModel, type DefaultModelInfo } from "./defaultModel.js";
 import { listDirectories } from "./fsBrowse.js";
 import { defaultCwd } from "./paths.js";
 import { SessionManager } from "./sessionManager.js";
@@ -79,14 +79,18 @@ function isSetPermissionModeMessage(value: unknown): value is { type: "set_permi
   );
 }
 
-const MODEL_CHOICES: readonly ModelChoice[] = ["default", "sonnet", "opus", "haiku", "fable"];
-
+// No fixed enum here on purpose — the model catalog is now whatever the
+// CLI's own `/model` probe reports (defaultModel.ts), which can grow without
+// a relay change. A garbage value just makes the CLI itself reject the turn
+// with its own error, same reasoning as the composer's `/model` parsing
+// (client/src/lib/slashCommands.ts).
 function isSetModelMessage(value: unknown): value is { type: "set_model"; model: ModelChoice } {
   return (
     typeof value === "object" &&
     value !== null &&
     (value as { type?: unknown }).type === "set_model" &&
-    MODEL_CHOICES.includes((value as { model?: unknown }).model as ModelChoice)
+    typeof (value as { model?: unknown }).model === "string" &&
+    (value as { model: string }).model.length > 0
   );
 }
 
@@ -178,15 +182,17 @@ let shuttingDown = false;
 // Probing this profile's account default model (docs/28) — runs once at
 // boot, in parallel with everything else (doesn't block `httpServer.listen`
 // below). `defaultModelClients` covers the obvious race: the first client's
-// WS connection almost always arrives before the probe resolves.
-let defaultModelLabel: string | undefined;
+// WS connection almost always arrives before the probe resolves. Also
+// carries the full model catalog (`available`) straight from the CLI's own
+// usage text, replacing what used to be a hardcoded list.
+let defaultModelInfo: DefaultModelInfo | undefined;
 const defaultModelClients = new Set<WebSocket>();
 detectDefaultModel(HOME_OVERRIDE, defaultCwd(HOME_OVERRIDE))
-  .then((label) => {
-    defaultModelLabel = label;
-    if (!label) return;
+  .then((info) => {
+    defaultModelInfo = info;
+    if (!info) return;
     for (const client of defaultModelClients) {
-      client.send(JSON.stringify({ type: "default_model_state", label }));
+      client.send(JSON.stringify({ type: "default_model_state", label: info.label, available: info.available }));
     }
   })
   .catch((error: unknown) => {
@@ -420,7 +426,11 @@ wss.on("connection", (socket: WebSocket, request) => {
   session.addClient(socket);
 
   defaultModelClients.add(socket);
-  if (defaultModelLabel) socket.send(JSON.stringify({ type: "default_model_state", label: defaultModelLabel }));
+  if (defaultModelInfo) {
+    socket.send(
+      JSON.stringify({ type: "default_model_state", label: defaultModelInfo.label, available: defaultModelInfo.available }),
+    );
+  }
 
   socket.on("message", (raw: Buffer) => {
     const parsed: unknown = JSON.parse(raw.toString());

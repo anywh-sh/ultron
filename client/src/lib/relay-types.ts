@@ -101,8 +101,10 @@ export interface ClaudeEvent {
 export type PermissionMode = "default" | "acceptEdits" | "plan" | "bypassPermissions";
 
 /** Mirrors the relay's `ModelChoice` (relay/src/sessionStore.ts) — same
- * convention as `PermissionMode` above, no cross-package import. */
-export type ModelChoice = "default" | "sonnet" | "opus" | "haiku" | "fable";
+ * convention as `PermissionMode` above, no cross-package import. Opaque
+ * string, not a fixed union: the real catalog comes from the CLI's own
+ * `/model` probe (see `default_model_state` below), not a hardcoded list. */
+export type ModelChoice = string;
 
 /** Mirrors the relay's `ContextUsage` (relay/src/sessionStore.ts) —
  * `contextWindowSize` itself comes directly from the CLI
@@ -167,8 +169,11 @@ export type RelayMessage =
   /** This profile's actual default account model (docs/28), probed once at
    * relay boot — not per session, it's the same value for every connection
    * of this process. Used as a display fallback when the session never ran
-   * `/model` (`model_state` still `null`). */
-  | { type: "default_model_state"; label: string }
+   * `/model` (`model_state` still `null`). `available` is the full model
+   * catalog straight from the CLI's own usage text (defaultModel.ts) —
+   * source of truth for every model picker in the UI, replacing what used to
+   * be a hardcoded list. */
+  | { type: "default_model_state"; label: string; available: string[] }
   /** Next-message suggestion, generated asynchronously at the end of every
    * successful turn (relay/src/sharedSession.ts) — shown as the composer's
    * placeholder when the field is empty. `null` both for "no suggestion yet"

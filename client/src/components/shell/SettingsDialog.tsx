@@ -7,12 +7,11 @@ import { FolderPickerDialog } from "@/components/chat/FolderPickerDialog";
 import { useDefaultPaths } from "@/hooks/useDefaultPaths";
 import {
   DEFAULT_MODEL_PREFERENCE,
-  FIXED_MODEL_CHOICES,
   useModelPreference,
   type ModelPreference,
   type ModelPreferenceMode,
 } from "@/hooks/useModelPreference";
-import { MODEL_LABELS } from "@/components/chat/ModelButton";
+import { getKnownModels, labelForModel } from "@/lib/modelCatalog";
 import { PROFILES, type Profile } from "@/lib/profiles";
 import { cn } from "@/lib/utils";
 
@@ -107,9 +106,9 @@ function ProfileModelRow({
               <SelectValue />
             </SelectTrigger>
             <SelectContent>
-              {FIXED_MODEL_CHOICES.map((choice) => (
+              {getKnownModels().map((choice) => (
                 <SelectItem key={choice} value={choice}>
-                  {MODEL_LABELS[choice]}
+                  {labelForModel(choice)}
                 </SelectItem>
               ))}
             </SelectContent>
