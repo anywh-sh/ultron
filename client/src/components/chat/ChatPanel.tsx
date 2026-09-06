@@ -609,7 +609,10 @@ export function ChatPanel({
             // slashCommands.ts for the reason behind each). A command with
             // an uncurated argument (`/model gpt4`) falls into the `else`,
             // becomes a normal message and the CLI itself responds with its
-            // own error.
+            // own error. Still recognized on iOS even without the
+            // autocomplete menu (see Composer.tsx) — there's no toolbar
+            // button there to change model/permission mode, so typing the
+            // command is the only way to do it on that platform.
             const command = parseSlashCommand(text);
             if (command?.name === "clear") {
               clearConversation();

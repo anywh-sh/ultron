@@ -471,8 +471,11 @@ export const Composer = forwardRef<ComposerHandle, ComposerProps>(function Compo
   const suggestionRef = useRef<string | null>(suggestion);
   suggestionRef.current = suggestion;
   const [placeholderExtension] = useState(() => createPlaceholderExtension(suggestionRef));
+  // No autocomplete menu on iOS: `/model`/`/clear` still work when typed in
+  // full (see the `parseSlashCommand` call in `ChatPanel.tsx`), just without
+  // the popup — the desktop-only convenience this extension adds.
   const extensions = useMemo(
-    () => [...EXTENSIONS, placeholderExtension, slashCommandExtension],
+    () => [...EXTENSIONS, placeholderExtension, ...(isIOS() ? [] : [slashCommandExtension])],
     [placeholderExtension, slashCommandExtension],
   );
 
