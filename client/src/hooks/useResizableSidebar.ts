@@ -3,6 +3,11 @@ import { useCallback, useRef, useState } from "react";
 const MIN_WIDTH = 220;
 const MAX_WIDTH = 420;
 const DEFAULT_WIDTH = 280;
+const COLLAPSED_STORAGE_KEY = "ultron:sidebar-collapsed";
+
+function readInitialCollapsed(): boolean {
+  return localStorage.getItem(COLLAPSED_STORAGE_KEY) === "true";
+}
 
 export interface ResizableSidebar {
   /** Largura efetiva em px — 0 quando colapsada, sem depender de regra CSS separada. */
@@ -15,7 +20,7 @@ export interface ResizableSidebar {
 
 export function useResizableSidebar(): ResizableSidebar {
   const [width, setWidth] = useState(DEFAULT_WIDTH);
-  const [collapsed, setCollapsed] = useState(false);
+  const [collapsed, setCollapsed] = useState(readInitialCollapsed);
   const [isDragging, setIsDragging] = useState(false);
   const draggingRef = useRef(false);
 
@@ -48,7 +53,13 @@ export function useResizableSidebar(): ResizableSidebar {
     [collapsed, width],
   );
 
-  const toggleCollapsed = useCallback(() => setCollapsed((value) => !value), []);
+  const toggleCollapsed = useCallback(() => {
+    setCollapsed((value) => {
+      const next = !value;
+      localStorage.setItem(COLLAPSED_STORAGE_KEY, String(next));
+      return next;
+    });
+  }, []);
 
   return { width: collapsed ? 0 : width, collapsed, isDragging, toggleCollapsed, startDrag };
 }
