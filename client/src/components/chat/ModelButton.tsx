@@ -1,4 +1,4 @@
-import { useRef } from "react";
+import { useRef, useState } from "react";
 import { Check, ChevronDown, Cpu } from "lucide-react";
 import {
   DropdownMenu,
@@ -58,19 +58,32 @@ function labelFor(model: ModelChoice | null, defaultModel: string | null): strin
 export function ModelButton({ model, defaultModel, onChange, disabled }: ModelButtonProps) {
   const triggerRef = useRef<HTMLButtonElement>(null);
   const label = labelFor(model, defaultModel);
+  const isDisabled = disabled || label === "…";
+  const [open, setOpen] = useState(false);
 
   return (
     <DropdownMenu
       modal={false}
-      onOpenChange={(open) => {
-        if (!open) triggerRef.current?.blur();
+      // Controlado (não só `onOpenChange`) de propósito: passar `disabled` só
+      // pro `<button>` filho via `asChild` não bastava — o `Trigger` do Radix
+      // lê seu PRÓPRIO prop `disabled` (default `false`, já que a gente só
+      // dava `asChild`) pra decidir se ignora pointerdown/keydown, então o
+      // menu abria mesmo com o botão cinza/travado em pelo menos uma WebView
+      // (mesma classe de quirk que motivou `modal={false}` acima). Barrar a
+      // abertura aqui, no estado, funciona não importa qual evento de baixo
+      // nível o WebView decidiu disparar num `<button disabled>`.
+      open={open}
+      onOpenChange={(next) => {
+        if (next && isDisabled) return;
+        setOpen(next);
+        if (!next) triggerRef.current?.blur();
       }}
     >
-      <DropdownMenuTrigger asChild>
+      <DropdownMenuTrigger asChild disabled={isDisabled}>
         <button
           ref={triggerRef}
           type="button"
-          disabled={disabled || label === "…"}
+          disabled={isDisabled}
           className="flex h-7 shrink-0 cursor-pointer items-center gap-1 rounded-md border border-border bg-bg-elevated px-2 text-xs text-foreground transition-colors hover:bg-border disabled:cursor-not-allowed disabled:opacity-50"
         >
           <Cpu className="size-3.5 shrink-0 text-muted-foreground" />
