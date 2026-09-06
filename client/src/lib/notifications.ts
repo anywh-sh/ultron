@@ -20,8 +20,11 @@ export async function ensureNotificationPermission(): Promise<void> {
 /** Maximum time waiting for the AI-generated summary (relay,
  * `notificationSummaryGenerator.ts`) before firing the notification with the
  * fallback body — covers both the generator failing and unusual slowness,
- * without stalling the notification indefinitely. */
-const NOTIFICATION_SUMMARY_TIMEOUT_MS = 4000;
+ * without stalling the notification indefinitely. Measured real calls (`claude
+ * -p ... --model haiku`) at ~7-9s; a lower value (previously 4s) meant the
+ * timeout fired almost every time and the notification always showed the raw
+ * fallback instead of the generated summary. */
+const NOTIFICATION_SUMMARY_TIMEOUT_MS = 10000;
 
 const FALLBACK_BODY = "Resposta pronta";
 const STOPPED_BODY = "Interrompido";
