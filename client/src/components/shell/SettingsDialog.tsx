@@ -12,7 +12,8 @@ import {
   type ModelPreferenceMode,
 } from "@/hooks/useModelPreference";
 import { getKnownModels, labelForModel } from "@/lib/modelCatalog";
-import { PROFILES, type Profile } from "@/lib/profiles";
+import type { Profile } from "@/lib/profiles";
+import { useProfiles } from "@/hooks/useProfiles";
 import { cn } from "@/lib/utils";
 
 interface SettingsDialogProps {
@@ -127,6 +128,7 @@ function ProfileModelRow({
  */
 export function SettingsDialog({ open, onOpenChange }: SettingsDialogProps) {
   const [section, setSection] = useState<Section>("geral");
+  const profiles = useProfiles();
   const { paths, setDefaultPath, clearDefaultPath } = useDefaultPaths();
   const { preferences, setPreference } = useModelPreference();
 
@@ -161,7 +163,7 @@ export function SettingsDialog({ open, onOpenChange }: SettingsDialogProps) {
                   </p>
                 </div>
                 <div className="flex flex-col gap-2">
-                  {PROFILES.map((profile) => (
+                  {profiles.map((profile) => (
                     <ProfilePathRow
                       key={profile.id}
                       profile={profile}
@@ -179,7 +181,7 @@ export function SettingsDialog({ open, onOpenChange }: SettingsDialogProps) {
                   </p>
                 </div>
                 <div className="flex flex-col gap-2">
-                  {PROFILES.map((profile) => (
+                  {profiles.map((profile) => (
                     <ProfileModelRow
                       key={profile.id}
                       profile={profile}

@@ -29,7 +29,7 @@ interface MobileShellProps {
  * resizable Sidebar/Sheet) with: a session sidebar always mounted behind
  * (`MobileSidebar`), and a "canvas" in front that carries the consolidated
  * top bar (`MobileTopBar`) + the chat content (`children`, the same
- * `PROFILES.map` `App` already mounts for desktop). The canvas slides to
+ * per-profile panels `App` already mounts for desktop). The canvas slides to
  * reveal the sidebar instead of an overlay with a scrim — see `useRevealDrawer`.
  */
 export function MobileShell({

@@ -3,7 +3,8 @@ import { Search } from "lucide-react";
 import { SessionList } from "@/components/shell/SessionList";
 import { RenameSessionDialog } from "@/components/shell/RenameSessionDialog";
 import { cn } from "@/lib/utils";
-import { PROFILES, type Profile } from "@/lib/profiles";
+import type { Profile } from "@/lib/profiles";
+import { useProfiles } from "@/hooks/useProfiles";
 import type { SessionSummary } from "@/lib/relay-types";
 
 interface MobileSidebarProps {
@@ -45,6 +46,7 @@ export function MobileSidebar({
   onOpenSearch,
 }: MobileSidebarProps) {
   const [renaming, setRenaming] = useState<{ id: string; title: string } | null>(null);
+  const profiles = useProfiles();
 
   return (
     <div className="absolute inset-y-0 left-0 z-0 flex w-[var(--push)] min-w-0 flex-col gap-3.5 bg-bg-sidebar pt-14 pr-4 pb-6 pl-4">
@@ -56,7 +58,7 @@ export function MobileSidebar({
       </div>
 
       <div className="flex gap-0.5 rounded-xl bg-bg-elevated p-0.5">
-        {PROFILES.map((profile) => (
+        {profiles.map((profile) => (
           <button
             key={profile.id}
             type="button"

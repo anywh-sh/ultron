@@ -25,7 +25,7 @@ import { useTerminalTabs } from "@/hooks/useTerminalTabs";
 import { useFileTabs } from "@/hooks/useFileTabs";
 import { useWindowFocus } from "@/hooks/useWindowFocus";
 import { useNotificationClick } from "@/hooks/useNotificationClick";
-import { PROFILES, findProfile } from "@/lib/profiles";
+import { findProfile, getProfiles } from "@/lib/profiles";
 import { ensureNotificationPermission, notifyTurnComplete } from "@/lib/notifications";
 import { deleteSession, renameSession } from "@/lib/relayClient";
 import { isIOS } from "@/lib/platform";
@@ -340,7 +340,7 @@ export default function App() {
   // the profile recorded on the tab itself, not the profile currently
   // selected in the sidebar.
   const renderPanel = (tab: Tab) => {
-    const profile = findProfile(tab.profileId) ?? PROFILES[0];
+    const profile = findProfile(tab.profileId) ?? getProfiles()[0];
     const dock = sessionDock.getDock(tab.id);
     const isTabActive = tab.id === activeTabId;
     const chatContent = (

@@ -1,6 +1,6 @@
 import { CommandDialog, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from "@/components/ui/command";
 import { useAllSessionNames } from "@/hooks/useAllSessionNames";
-import { PROFILES } from "@/lib/profiles";
+import { useProfiles } from "@/hooks/useProfiles";
 import { cn } from "@/lib/utils";
 
 interface SessionSearchProps {
@@ -11,6 +11,7 @@ interface SessionSearchProps {
 
 export function SessionSearch({ open, onOpenChange, onSelectSession }: SessionSearchProps) {
   const { byProfile, loading } = useAllSessionNames(open);
+  const profiles = useProfiles();
 
   return (
     <CommandDialog
@@ -22,7 +23,7 @@ export function SessionSearch({ open, onOpenChange, onSelectSession }: SessionSe
       <CommandInput placeholder="Buscar sessão…" />
       <CommandList>
         <CommandEmpty>{loading ? "Buscando…" : "Nenhuma sessão encontrada."}</CommandEmpty>
-        {PROFILES.map((profile) => {
+        {profiles.map((profile) => {
           const sessions = byProfile[profile.id] ?? [];
           if (sessions.length === 0) return null;
 

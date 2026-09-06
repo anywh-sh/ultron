@@ -6,7 +6,8 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { cn } from "@/lib/utils";
-import { PROFILES, type Profile } from "@/lib/profiles";
+import type { Profile } from "@/lib/profiles";
+import { useProfiles } from "@/hooks/useProfiles";
 
 interface ProfileSwitcherProps {
   activeProfile: Profile;
@@ -14,6 +15,7 @@ interface ProfileSwitcherProps {
 }
 
 export function ProfileSwitcher({ activeProfile, onChange }: ProfileSwitcherProps) {
+  const profiles = useProfiles();
   return (
     <DropdownMenu>
       <DropdownMenuTrigger asChild>
@@ -33,7 +35,7 @@ export function ProfileSwitcher({ activeProfile, onChange }: ProfileSwitcherProp
         </button>
       </DropdownMenuTrigger>
       <DropdownMenuContent align="start" className="w-[var(--radix-dropdown-menu-trigger-width)]">
-        {PROFILES.map((profile) => (
+        {profiles.map((profile) => (
           <DropdownMenuItem key={profile.id} onSelect={() => onChange(profile.id)}>
             <Check className={cn("size-3.5", profile.id !== activeProfile.id && "opacity-0")} />
             <span

@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { arrayMove } from "@dnd-kit/sortable";
-import { PROFILES } from "@/lib/profiles";
+import { getProfiles } from "@/lib/profiles";
 
 export interface Tab {
   id: string;
@@ -64,7 +64,7 @@ function migrateLegacyTabs(): PersistedTabs | null {
   const allTabs: PersistedTab[] = [];
   let activeTabId: string | null = null;
 
-  for (const profile of PROFILES) {
+  for (const profile of getProfiles()) {
     const raw = localStorage.getItem(legacyTabsKey(profile.id));
     if (raw === null) continue;
     try {

@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { fetchSessions } from "@/lib/relayClient";
 import type { SessionSummary } from "@/lib/relay-types";
-import { PROFILES } from "@/lib/profiles";
+import { useProfiles } from "@/hooks/useProfiles";
 
 /**
  * Sessions from BOTH profiles — sibling of `useSessionNames.ts` (which only
@@ -13,6 +13,7 @@ export function useAllSessionNames(enabled: boolean): {
   byProfile: Record<string, SessionSummary[]>;
   loading: boolean;
 } {
+  const profiles = useProfiles();
   const [byProfile, setByProfile] = useState<Record<string, SessionSummary[]>>({});
   const [loading, setLoading] = useState(false);
 
@@ -22,7 +23,7 @@ export function useAllSessionNames(enabled: boolean): {
     setLoading(true);
 
     Promise.all(
-      PROFILES.map((profile) =>
+      profiles.map((profile) =>
         fetchSessions(profile.host, profile.relayPort)
           .then((sessions): [string, SessionSummary[]] => [profile.id, sessions])
           .catch((error: unknown) => {
@@ -39,7 +40,7 @@ export function useAllSessionNames(enabled: boolean): {
     return () => {
       cancelled = true;
     };
-  }, [enabled]);
+  }, [enabled, profiles]);
 
   return { byProfile, loading };
 }
