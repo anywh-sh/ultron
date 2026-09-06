@@ -10,7 +10,7 @@ import {
 } from "react";
 import { ArrowUp, Check, ChevronDown, Mic, Paperclip, Square, Video, X } from "lucide-react";
 import { Extension, type JSONContent } from "@tiptap/core";
-import { EditorContent, ReactMarkViewRenderer, ReactRenderer, useEditor } from "@tiptap/react";
+import { EditorContent, ReactRenderer, useEditor } from "@tiptap/react";
 import StarterKit from "@tiptap/starter-kit";
 import { Link } from "@tiptap/extension-link";
 import { Placeholder } from "@tiptap/extension-placeholder";
@@ -30,7 +30,7 @@ import { cn, formatDuration } from "@/lib/utils";
 import { isIOS } from "@/lib/platform";
 import { useVoiceRecording } from "@/hooks/useVoiceRecording";
 import type { PendingAttachment } from "@/hooks/useImageUpload";
-import { ComposerLinkView } from "@/components/chat/ComposerLinkView";
+import { ComposerLinkHoverCard } from "@/components/chat/ComposerLinkHoverCard";
 import { PermissionModeButton } from "@/components/chat/PermissionModeButton";
 import { ModelLabel } from "@/components/chat/ModelLabel";
 import { ContextUsageButton } from "@/components/chat/ContextUsageButton";
@@ -81,16 +81,20 @@ export interface ComposerHandle {
 const WAVEFORM_BARS = [0, 1, 2, 3, 4];
 
 /**
- * Só o link ganha um mark view interativo (hover card + editar) — o resto
- * do schema (bold, itálico, listas, heading etc) fica desativado: o
- * composer é uma caixa de texto simples, o pedido era só suportar link via
- * paste-to-link, não virar um editor rich-text completo.
+ * Link renderizado como `<a>` nativo puro (sem `addMarkView`/`contentDOM`
+ * próprio) — o hover card + editar interativos vivem fora da marca, em
+ * `ComposerLinkHoverCard` (uma instância só por `Composer`, não por link).
+ * Motivo, não só preferência: um Tiptap MarkView React aqui quebra de forma
+ * reproduzida o mapeamento posição-doc↔DOM do ProseMirror sempre que existe
+ * no documento — ver o comentário grande em `ComposerLinkHoverCard.tsx`
+ * pros três bugs reais que isso causava (cursor não ia pro fim depois de
+ * colar um link, colar sobre seleção tinha o mesmo problema, apagar um link
+ * selecionado sumia com o cursor). Resto do schema (bold, itálico, listas,
+ * heading etc) continua desativado — o composer é uma caixa de texto
+ * simples, o pedido era só suportar link via paste-to-link, não virar um
+ * editor rich-text completo.
  */
-const ComposerLink = Link.extend({
-  addMarkView() {
-    return ReactMarkViewRenderer(ComposerLinkView);
-  },
-}).configure({
+const ComposerLink = Link.configure({
   autolink: false,
   linkOnPaste: true,
   openOnClick: false,
@@ -594,6 +598,8 @@ export const Composer = forwardRef<ComposerHandle, ComposerProps>(function Compo
         focused ? "border-primary" : isIOS() ? "border-white/8" : "border-border",
       )}
     >
+      <ComposerLinkHoverCard editor={editor} />
+
       {pendingImages.length > 0 && (
         <div className="flex flex-wrap gap-1.5 px-1">
           {pendingImages.map((image) => (
