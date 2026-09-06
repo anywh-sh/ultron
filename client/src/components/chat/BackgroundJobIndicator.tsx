@@ -56,7 +56,7 @@ function ElapsedTime({ startedAt }: { startedAt: number }) {
  */
 export function BackgroundJobIndicator({ jobs, onCancel }: BackgroundJobIndicatorProps) {
   const triggerRef = useRef<HTMLButtonElement>(null);
-  const [confirmCancel, setConfirmCancel] = useState<BackgroundJobSummary | null>(null);
+  const [confirmTarget, setConfirmTarget] = useState<BackgroundJobSummary | "all" | null>(null);
 
   if (jobs.length === 0) return null;
 
@@ -83,7 +83,21 @@ export function BackgroundJobIndicator({ jobs, onCancel }: BackgroundJobIndicato
         </DropdownMenuTrigger>
 
         <DropdownMenuContent align="start" className="w-64">
-          <DropdownMenuLabel>Rodando em background</DropdownMenuLabel>
+          <div className="flex items-center justify-between gap-2 py-1 pr-2 pl-2">
+            <DropdownMenuLabel className="p-0">Rodando em background</DropdownMenuLabel>
+            {jobs.length > 1 ? (
+              <button
+                type="button"
+                onClick={(event) => {
+                  event.preventDefault();
+                  setConfirmTarget("all");
+                }}
+                className="cursor-pointer text-[11px] text-muted-foreground underline-offset-2 hover:text-destructive hover:underline"
+              >
+                Cancelar todos
+              </button>
+            ) : null}
+          </div>
           <DropdownMenuSeparator />
           <div className="flex flex-col gap-2 px-2 py-1.5">
             {jobs.map((job) => (
@@ -99,7 +113,7 @@ export function BackgroundJobIndicator({ jobs, onCancel }: BackgroundJobIndicato
                     title="Cancelar"
                     onClick={(event) => {
                       event.preventDefault();
-                      setConfirmCancel(job);
+                      setConfirmTarget(job);
                     }}
                     className="cursor-pointer rounded p-0.5 text-muted-foreground transition-colors hover:bg-border hover:text-destructive"
                   >
@@ -116,24 +130,29 @@ export function BackgroundJobIndicator({ jobs, onCancel }: BackgroundJobIndicato
         </DropdownMenuContent>
       </DropdownMenu>
 
-      <AlertDialog open={confirmCancel !== null} onOpenChange={(open) => !open && setConfirmCancel(null)}>
+      <AlertDialog open={confirmTarget !== null} onOpenChange={(open) => !open && setConfirmTarget(null)}>
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>Cancelar job em background</AlertDialogTitle>
+            <AlertDialogTitle>{confirmTarget === "all" ? "Cancelar todos os jobs" : "Cancelar job em background"}</AlertDialogTitle>
             <AlertDialogDescription>
-              Cancelar "{confirmCancel?.label}"? O processo é encerrado imediatamente — essa ação não pode ser
-              desfeita.
+              {confirmTarget === "all"
+                ? `Cancelar os ${String(jobs.length)} jobs em background? Os processos são encerrados imediatamente — essa ação não pode ser desfeita.`
+                : `Cancelar "${confirmTarget?.label}"? O processo é encerrado imediatamente — essa ação não pode ser desfeita.`}
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
             <AlertDialogCancel>Voltar</AlertDialogCancel>
             <AlertDialogAction
               onClick={() => {
-                if (confirmCancel) onCancel(confirmCancel.id);
-                setConfirmCancel(null);
+                if (confirmTarget === "all") {
+                  for (const job of jobs) onCancel(job.id);
+                } else if (confirmTarget) {
+                  onCancel(confirmTarget.id);
+                }
+                setConfirmTarget(null);
               }}
             >
-              Cancelar job
+              {confirmTarget === "all" ? "Cancelar todos" : "Cancelar job"}
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
