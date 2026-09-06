@@ -1,4 +1,5 @@
 import { Menu, Plus } from "lucide-react";
+import { useKeyboardInset } from "@/hooks/useKeyboardInset";
 import { cn } from "@/lib/utils";
 
 interface MobileTopBarProps {
@@ -21,8 +22,16 @@ interface MobileTopBarProps {
  * for real native Swift glass — see `tauri-plugin-native-chrome`.
  */
 export function MobileTopBar({ title, connected, onOpenDrawer, onNewConversation }: MobileTopBarProps) {
+  // Compensates `offsetTop` (see `useKeyboardInset`) — without this, opening
+  // the keyboard visually slides this bar up and off the top of the screen
+  // (WebKit pans the visual viewport for keyboard avoidance, but doesn't
+  // reposition `position: absolute`/`fixed` elements, which stay anchored to
+  // the layout viewport). Most visible on a screen with nothing scrollable
+  // yet (a fresh "new conversation" tab) — docs/34 item 6.
+  const { offsetTop } = useKeyboardInset();
+
   return (
-    <div className="absolute inset-x-4 z-30" style={{ top: "calc(env(safe-area-inset-top) + 8px)" }}>
+    <div className="absolute inset-x-4 z-30" style={{ top: `calc(env(safe-area-inset-top) + 8px + ${offsetTop}px)` }}>
       <div className="flex h-13 items-center gap-1 rounded-full border border-white/8 bg-bg-elevated/45 px-1.5 shadow-lg backdrop-blur-lg backdrop-saturate-150">
         <button
           type="button"

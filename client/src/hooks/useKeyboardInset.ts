@@ -20,6 +20,17 @@ export interface KeyboardInsetInfo {
    * the home indicator, which stops existing with the keyboard open) for a
    * fixed value, otherwise a gap remains even with `shift` correctly zeroed. */
   isOpen: boolean;
+  /** How far (px) the visual viewport's top edge has panned down from the
+   * layout viewport's top edge — WebKit's own keyboard-avoidance mechanism
+   * (unrelated to and not blocked by `body { position: fixed }`, which only
+   * stops the DOM's own document-scroll machinery). Any `position:
+   * fixed`/`absolute` element keeps its coordinates in the layout viewport,
+   * so once this is nonzero it visually slides up and off the top of the
+   * screen unless compensated (`MobileTopBar`) — a known WebKit limitation
+   * (`position: fixed` isn't kept pinned to the visual viewport while a
+   * keyboard offsets it), same class of bug `shift` above already works
+   * around for the composer. */
+  offsetTop: number;
   /** Raw values just for temporary visual diagnostics
    * (`KeyboardDebugOverlay.tsx`) — remove together when the overlay goes away. */
   debug: { vvHeight: number; winHeight: number; offsetTop: number; restingVvHeight: number };
@@ -28,6 +39,7 @@ export interface KeyboardInsetInfo {
 const EMPTY: KeyboardInsetInfo = {
   shift: 0,
   isOpen: false,
+  offsetTop: 0,
   debug: { vvHeight: 0, winHeight: 0, offsetTop: 0, restingVvHeight: 0 },
 };
 
@@ -59,7 +71,7 @@ export function useKeyboardInset(): KeyboardInsetInfo {
       // variations (address bar, rotation, etc.).
       const isOpen = restingVvHeight - vvHeight > 50;
 
-      setInfo({ shift, isOpen, debug: { vvHeight, winHeight, offsetTop, restingVvHeight } });
+      setInfo({ shift, isOpen, offsetTop, debug: { vvHeight, winHeight, offsetTop, restingVvHeight } });
     }
 
     update();
