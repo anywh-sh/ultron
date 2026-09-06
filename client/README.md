@@ -1,7 +1,20 @@
-# Tauri + Vanilla TS
+# ultron client
 
-This template should help get you started developing with Tauri in vanilla HTML, CSS and Typescript.
+Desktop (Windows/macOS/Linux) and iOS client, built with React + TypeScript + Tailwind CSS + shadcn/ui on top of Tauri 2.0. Talks to the relay (`../relay`) over WebSocket.
 
-## Recommended IDE Setup
+See the root [README](../README.md) for how this fits into the rest of the project, and `../docs/` for the full decision history.
 
-- [VS Code](https://code.visualstudio.com/) + [Tauri](https://marketplace.visualstudio.com/items?itemName=tauri-apps.tauri-vscode) + [rust-analyzer](https://marketplace.visualstudio.com/items?itemName=rust-lang.rust-analyzer)
+## Development
+
+```bash
+npm install
+npm run dev        # Vite dev server (browser preview, no Tauri APIs)
+npm run tauri dev  # full desktop app
+```
+
+## iOS
+
+```bash
+npm run ios:device                       # Simulator, or prompts for a connected device
+npm run ios:device -- "My iPhone"        # a specific physical device by name
+```
