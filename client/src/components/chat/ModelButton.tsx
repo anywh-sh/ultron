@@ -9,7 +9,13 @@ import {
 import type { ModelChoice } from "@/lib/relayClient";
 import { cn } from "@/lib/utils";
 
-const MODEL_LABELS: Record<ModelChoice, string> = {
+/** Inclui "default" só pro label existir se `model` chegar assim (sessão
+ * antiga, ou `/model default` digitado) — não é mais uma opção clicável no
+ * dropdown (ver `MODELS` abaixo): a pré-seleção de conversa nova agora vem de
+ * Configurações (`useModelPreference`), então "Padrão" parou de fazer
+ * sentido como escolha manual. Exportado pra `SettingsDialog` reusar os
+ * mesmos rótulos no seletor de modelo fixo. */
+export const MODEL_LABELS: Record<ModelChoice, string> = {
   default: "Padrão",
   sonnet: "Sonnet",
   opus: "Opus",
@@ -18,7 +24,6 @@ const MODEL_LABELS: Record<ModelChoice, string> = {
 };
 
 const MODELS: { value: ModelChoice; label: string }[] = [
-  { value: "default", label: MODEL_LABELS.default },
   { value: "sonnet", label: MODEL_LABELS.sonnet },
   { value: "opus", label: MODEL_LABELS.opus },
   { value: "haiku", label: MODEL_LABELS.haiku },

@@ -2,8 +2,17 @@ import { useState } from "react";
 import { Folder, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { FolderPickerDialog } from "@/components/chat/FolderPickerDialog";
 import { useDefaultPaths } from "@/hooks/useDefaultPaths";
+import {
+  DEFAULT_MODEL_PREFERENCE,
+  FIXED_MODEL_CHOICES,
+  useModelPreference,
+  type ModelPreference,
+  type ModelPreferenceMode,
+} from "@/hooks/useModelPreference";
+import { MODEL_LABELS } from "@/components/chat/ModelButton";
 import { PROFILES, type Profile } from "@/lib/profiles";
 import { cn } from "@/lib/utils";
 
@@ -62,6 +71,54 @@ function ProfilePathRow({
   );
 }
 
+function ProfileModelRow({
+  profile,
+  preference,
+  onChange,
+}: {
+  profile: Profile;
+  preference: ModelPreference;
+  onChange: (preference: ModelPreference) => void;
+}) {
+  return (
+    <div className="flex items-center justify-between gap-3 rounded-md border border-border px-3 py-2.5">
+      <span className="text-sm font-medium">{profile.label}</span>
+      <div className="flex shrink-0 items-center gap-2">
+        <Select
+          value={preference.mode}
+          onValueChange={(mode) => onChange({ ...preference, mode: mode as ModelPreferenceMode })}
+        >
+          <SelectTrigger size="sm">
+            <SelectValue />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="lastUsed">Último usado</SelectItem>
+            <SelectItem value="fixed">Sempre o mesmo</SelectItem>
+          </SelectContent>
+        </Select>
+
+        {preference.mode === "fixed" && (
+          <Select
+            value={preference.fixedModel}
+            onValueChange={(fixedModel) => onChange({ ...preference, fixedModel: fixedModel as ModelPreference["fixedModel"] })}
+          >
+            <SelectTrigger size="sm">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              {FIXED_MODEL_CHOICES.map((choice) => (
+                <SelectItem key={choice} value={choice}>
+                  {MODEL_LABELS[choice]}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        )}
+      </div>
+    </div>
+  );
+}
+
 /**
  * Dialog de configurações do app — aberto pelo menu na `TitleBar`. Layout de
  * dois painéis (padrão comum em apps desktop de configuração): nav escura à
@@ -71,6 +128,7 @@ function ProfilePathRow({
 export function SettingsDialog({ open, onOpenChange }: SettingsDialogProps) {
   const [section, setSection] = useState<Section>("geral");
   const { paths, setDefaultPath, clearDefaultPath } = useDefaultPaths();
+  const { preferences, setPreference } = useModelPreference();
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -110,6 +168,23 @@ export function SettingsDialog({ open, onOpenChange }: SettingsDialogProps) {
                       path={paths[profile.id]}
                       onSelect={(path) => setDefaultPath(profile.id, path)}
                       onClear={() => clearDefaultPath(profile.id)}
+                    />
+                  ))}
+                </div>
+
+                <div>
+                  <h3 className="text-sm font-medium">Modelo padrão</h3>
+                  <p className="text-xs text-muted-foreground">
+                    Modelo pré-selecionado quando uma conversa nova de cada perfil começa.
+                  </p>
+                </div>
+                <div className="flex flex-col gap-2">
+                  {PROFILES.map((profile) => (
+                    <ProfileModelRow
+                      key={profile.id}
+                      profile={profile}
+                      preference={preferences[profile.id] ?? DEFAULT_MODEL_PREFERENCE}
+                      onChange={(preference) => setPreference(profile.id, preference)}
                     />
                   ))}
                 </div>

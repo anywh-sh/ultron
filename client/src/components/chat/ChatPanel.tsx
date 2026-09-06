@@ -5,6 +5,7 @@ import { invoke } from "@tauri-apps/api/core";
 import { guessMimeFromExtension } from "@/lib/mimeTypes";
 import { useRelayClient } from "@/hooks/useRelayClient";
 import { getDefaultPath } from "@/hooks/useDefaultPaths";
+import { getPreferredModel, setLastModel } from "@/hooks/useModelPreference";
 import { useKeyboardInset } from "@/hooks/useKeyboardInset";
 import { useMessageLog, type LogEntry } from "@/hooks/useMessageLog";
 import { useImageUpload, type PendingAttachment } from "@/hooks/useImageUpload";
@@ -359,6 +360,30 @@ export function ChatPanel({
       setCwd(defaultPath);
     }
   }, [isNewConversation, cwd, profile.id, setCwd]);
+
+  // Aplica a preferência de modelo do perfil (Configurações) numa conversa
+  // nova — mesmo raciocínio do efeito de pasta padrão acima, mas gatilhado em
+  // `ready` (pós `caught_up`) em vez de `cwd !== null`: o `model_state`
+  // inicial do relay pode chegar como `null` de verdade (sessão nunca teve
+  // `/model`), o que o tornaria indistinguível de "ainda não chegou" — `ready`
+  // já garante que aquele primeiro `model_state` (sempre mandado antes do
+  // `caught_up`, ver `SharedSession.addClient`) já foi processado.
+  const appliedModelPreferenceRef = useRef(false);
+  useEffect(() => {
+    if (!isNewConversation || appliedModelPreferenceRef.current || !ready) return;
+    appliedModelPreferenceRef.current = true;
+    const preferredModel = getPreferredModel(profile.id);
+    if (preferredModel && preferredModel !== model) setModel(preferredModel);
+  }, [isNewConversation, ready, model, profile.id, setModel]);
+
+  // Grava o modelo em uso como "último usado" do perfil (docs/26) sempre que
+  // ele muda pra um valor concreto — cobre a troca manual (`ModelButton`,
+  // `/model`) e a própria pré-seleção acima, de propósito: religar o modo
+  // "lastUsed" mais tarde não deve perder o que rodou enquanto "fixed"
+  // estava ativo.
+  useEffect(() => {
+    if (model) setLastModel(profile.id, model);
+  }, [model, profile.id]);
 
   // Mesmo padrão de `onTurnActiveChange` acima: reporta pro Tab via ref —
   // abas em background continuam montadas (docs/18), então isso também
