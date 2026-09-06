@@ -180,14 +180,6 @@ export type RelayMessage =
    * and for "the previous suggestion is no longer valid" (new turn
    * starting, `/clear`). */
   | { type: "suggestion"; text: string | null }
-  /** Short summary (up to ~12 words) of what the last response did or left
-   * pending, generated asynchronously at the end of every successful turn
-   * (relay/src/sharedSession.ts) — used as the OS notification's body
-   * (`lib/notifications.ts`; the title is just the conversation's name).
-   * Unlike `suggestion`, it's not "current state": it's an event for a
-   * specific turn, not resent on a reconnection. `null` on generator
-   * failure/empty result — consumers fall back to the last user message. */
-  | { type: "notification_summary"; text: string | null }
   /** `ultron-bg` jobs currently observed in the session — "current" state
    * (same reasoning as `cwd_state`/`turn_state`), sent again on every new
    * connection and whenever the list changes (a job starting, ending or

@@ -29,17 +29,12 @@ interface ChatPanelProps {
   /** Tab opened via "new conversation" — shows the idle state instead of the
    * loading skeleton while the log is still empty. */
   isNewConversation?: boolean;
-  /** `lastUserText` is the last message the user sent in this turn
-   * (extracted synchronously from the log, no round-trip) — `App` uses this
-   * as the OS notification's fallback body, if the summary below doesn't
-   * arrive in time. */
-  onTurnComplete?: (result: { stopped: boolean; lastUserText: string | null }) => void;
-  /** Summary of what the response did (or left pending), generated
-   * asynchronously after `onTurnComplete` (see
-   * relay-types.ts::notification_summary) — `App` uses this as the
-   * notification body, with `lastUserText` above as a fallback if it doesn't
-   * arrive in time. */
-  onNotificationSummary?: (text: string | null) => void;
+  /** `lastUserText`/`lastAssistantText` are this turn's last user message and
+   * the assistant's final text reply — both extracted synchronously from the
+   * log, no round-trip needed. `App` uses `lastAssistantText` (cleaned up and
+   * truncated) as the OS notification's body, falling back to `lastUserText`
+   * when the turn produced no text (e.g. tool-only response). */
+  onTurnComplete?: (result: { stopped: boolean; lastUserText: string | null; lastAssistantText: string | null }) => void;
   onTurnActiveChange?: (active: boolean) => void;
   /** Title inferred from the first prompt (or from a live rename on another
    * device) arriving over this session's WS — see sharedSession.ts. */
@@ -117,7 +112,6 @@ export function ChatPanel({
   sessionId,
   isNewConversation,
   onTurnComplete,
-  onNotificationSummary,
   onTurnActiveChange,
   onBackgroundJobsChange,
   onTitle,
@@ -138,8 +132,6 @@ export function ChatPanel({
   onBackgroundJobsChangeRef.current = onBackgroundJobsChange;
   const onTitleRef = useRef(onTitle);
   onTitleRef.current = onTitle;
-  const onNotificationSummaryRef = useRef(onNotificationSummary);
-  onNotificationSummaryRef.current = onNotificationSummary;
   const onDeletedRef = useRef(onDeleted);
   onDeletedRef.current = onDeleted;
 
@@ -317,8 +309,14 @@ export function ChatPanel({
       logRef.current.handleTurnComplete(stopped);
       setTurnStartedAt(null);
       if (!caughtUpRef.current) return;
-      const lastUserEntry = [...logRef.current.entries].reverse().find((entry) => entry.kind === "user");
-      onTurnComplete?.({ stopped, lastUserText: lastUserEntry?.kind === "user" ? lastUserEntry.text : null });
+      const entries = [...logRef.current.entries].reverse();
+      const lastUserEntry = entries.find((entry) => entry.kind === "user");
+      const lastTextEntry = entries.find((entry) => entry.kind === "text");
+      onTurnComplete?.({
+        stopped,
+        lastUserText: lastUserEntry?.kind === "user" ? lastUserEntry.text : null,
+        lastAssistantText: lastTextEntry?.kind === "text" ? lastTextEntry.text : null,
+      });
     },
     onTurnError: (message) => {
       logRef.current.handleTurnError(message);
@@ -339,7 +337,6 @@ export function ChatPanel({
       }
       window.alert(`Não foi possível trocar a pasta: ${message}`);
     },
-    onNotificationSummary: (text) => onNotificationSummaryRef.current?.(text),
     onSessionTitle: (title) => onTitleRef.current?.(title),
     onSessionDeleted: () => onDeletedRef.current?.(),
   });

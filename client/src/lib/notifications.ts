@@ -17,38 +17,27 @@ export async function ensureNotificationPermission(): Promise<void> {
   permissionGranted = (await requestPermission()) === "granted";
 }
 
-/** Maximum time waiting for the AI-generated summary (relay,
- * `notificationSummaryGenerator.ts`) before firing the notification with the
- * fallback body — covers both the generator failing and unusual slowness,
- * without stalling the notification indefinitely. Measured real calls (`claude
- * -p ... --model haiku`) at ~7-9s; a lower value (previously 4s) meant the
- * timeout fired almost every time and the notification always showed the raw
- * fallback instead of the generated summary. */
-const NOTIFICATION_SUMMARY_TIMEOUT_MS = 10000;
-
 const FALLBACK_BODY = "Resposta pronta";
 const STOPPED_BODY = "Interrompido";
 const MAX_BODY_CHARS = 160;
 
-interface PendingNotification {
-  timer: ReturnType<typeof setTimeout>;
-  profile: Profile;
-  sessionTitle: string;
-  /** Body to use if the relay's summary doesn't arrive in time — the last
-   * user message (more informative than generic text), or `FALLBACK_BODY`
-   * if that message doesn't exist for some reason. */
-  fallbackBody: string;
-  isStillHidden: () => boolean;
-}
-
-/** One entry per tab with a scheduled notification — keyed by `tabId`
- * (== the relay's sessionId) so `resolveNotificationSummary` can match the
- * async summary that arrives later with the turn that triggered it. */
-const pending = new Map<string, PendingNotification>();
-
+/** Turns the assistant's raw (markdown) reply into a plain-text notification
+ * body — drops fenced code blocks entirely (unreadable cut off mid-block in a
+ * toast) and emphasis/inline-code markers, then truncates at a word boundary
+ * instead of mid-word. Deliberately not a summary: just the beginning of the
+ * real response, which in practice already carries the gist most of the time
+ * (responses tend to lead with the answer, elaborate after), at zero latency
+ * and no extra cost — replaced an AI-generated-summary approach (relay
+ * round-trip via `claude -p --model haiku`) measured at 7-15s per call, too
+ * slow to reliably beat the notification firing. */
 function cleanBody(text: string): string {
-  const collapsed = text.trim().replace(/\s+/g, " ");
-  return collapsed.length > MAX_BODY_CHARS ? `${collapsed.slice(0, MAX_BODY_CHARS)}…` : collapsed;
+  const withoutCode = text.replace(/```[\s\S]*?```/g, " ");
+  const withoutMarkdown = withoutCode.replace(/[*_`]/g, "");
+  const collapsed = withoutMarkdown.trim().replace(/\s+/g, " ");
+  if (collapsed.length <= MAX_BODY_CHARS) return collapsed;
+  const cut = collapsed.slice(0, MAX_BODY_CHARS);
+  const lastSpace = cut.lastIndexOf(" ");
+  return `${lastSpace > 0 ? cut.slice(0, lastSpace) : cut}…`;
 }
 
 /** Goes straight to the Rust `notify_turn_complete` command instead of the
@@ -61,55 +50,30 @@ function cleanBody(text: string): string {
  *
  * Title is just the conversation's name (no profile prefix — tested with
  * "[Profile] summary" and it didn't look good, the profile only matters for
- * click routing, doesn't need to take up space in the title); the body is
- * the summary of what the assistant did or, if it ended up waiting on some
- * user decision, what's pending — see the system prompt in
- * notificationSummaryGenerator.ts. */
+ * click routing, doesn't need to take up space in the title). */
 function fire(tabId: string, profile: Profile, sessionTitle: string, body: string): void {
   if (!inTauri() || !permissionGranted) return;
   void invoke("notify_turn_complete", { title: sessionTitle, body: cleanBody(body), sessionId: tabId, profileId: profile.id });
 }
 
-/** Called (via `App.tsx`) when a turn ends out of focus — schedules the OS
- * notification. Interrupted turns (`stopped`) notify right away, with no
- * summary to wait for (there's no coherent response to summarize). Genuinely
- * completed turns wait for the async summary to arrive via
- * `resolveNotificationSummary`, with the timeout above as a safety net and
- * the last user message as an alternative body (more useful than generic
- * text). `isStillHidden` is rechecked at the actual firing moment (here only
- * on timeout; `resolveNotificationSummary` rechecks again when the summary
- * arrives) — avoids notifying about a turn whose tab the user has already
- * gone back to looking at while the summary was still generating. */
-export function scheduleTurnCompleteNotification(
+/** Called (via `App.tsx`) when a turn ends out of focus — fires the OS
+ * notification right away (no async wait, no timeout race: the caller
+ * already re-checked visibility right before calling this). Interrupted
+ * turns (`stopped`) show a fixed body — there's no coherent response to show
+ * instead. Completed turns show the assistant's actual final reply (cleaned
+ * up/truncated), falling back to the user's last message for the rare turn
+ * that produced no text at all (e.g. a tool-only response). */
+export function notifyTurnComplete(
   tabId: string,
   profile: Profile,
   sessionTitle: string,
   lastUserText: string | null,
+  lastAssistantText: string | null,
   stopped: boolean,
-  isStillHidden: () => boolean,
 ): void {
   if (stopped) {
     fire(tabId, profile, sessionTitle, STOPPED_BODY);
     return;
   }
-  const existing = pending.get(tabId);
-  if (existing) clearTimeout(existing.timer);
-  const fallbackBody = lastUserText ?? FALLBACK_BODY;
-  const timer = setTimeout(() => {
-    pending.delete(tabId);
-    if (isStillHidden()) fire(tabId, profile, sessionTitle, fallbackBody);
-  }, NOTIFICATION_SUMMARY_TIMEOUT_MS);
-  pending.set(tabId, { timer, profile, sessionTitle, fallbackBody, isStillHidden });
-}
-
-/** Called (via `App.tsx`) when that turn's `notification_summary` arrives
- * from the relay. With no pending entry for that `tabId` — a turn that
- * already fired the timeout fallback, was `stopped`, or the tab never lost
- * focus to begin with — it's a silent no-op. */
-export function resolveNotificationSummary(tabId: string, summary: string | null): void {
-  const entry = pending.get(tabId);
-  if (!entry) return;
-  clearTimeout(entry.timer);
-  pending.delete(tabId);
-  if (entry.isStillHidden()) fire(tabId, entry.profile, entry.sessionTitle, summary ?? entry.fallbackBody);
+  fire(tabId, profile, sessionTitle, lastAssistantText ?? lastUserText ?? FALLBACK_BODY);
 }

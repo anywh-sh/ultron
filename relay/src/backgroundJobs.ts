@@ -137,10 +137,9 @@ function readExitCode(exitPath: string): number {
   return Number.isFinite(parsed) ? parsed : -1;
 }
 
-/** Only the tail — same truncation pattern as
- * `notificationSummaryGenerator.ts`/`suggestionGenerator.ts`, but reading
- * only the last `maxBytes` of the file instead of loading everything into
- * memory (a noisy job can generate a large log). */
+/** Only the tail — same truncation pattern as `suggestionGenerator.ts`, but
+ * reading only the last `maxBytes` of the file instead of loading everything
+ * into memory (a noisy job can generate a large log). */
 function readLogTail(logPath: string, maxBytes: number): string {
   const size = statSync(logPath).size;
   const start = Math.max(0, size - maxBytes);

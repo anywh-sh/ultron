@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { Menu } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Sheet, SheetContent, SheetTitle } from "@/components/ui/sheet";
@@ -23,7 +23,7 @@ import { useTerminalTabs } from "@/hooks/useTerminalTabs";
 import { useWindowFocus } from "@/hooks/useWindowFocus";
 import { useNotificationClick } from "@/hooks/useNotificationClick";
 import { PROFILES, findProfile } from "@/lib/profiles";
-import { ensureNotificationPermission, scheduleTurnCompleteNotification, resolveNotificationSummary } from "@/lib/notifications";
+import { ensureNotificationPermission, notifyTurnComplete } from "@/lib/notifications";
 import { deleteSession, renameSession } from "@/lib/relayClient";
 import { isIOS } from "@/lib/platform";
 import { cn } from "@/lib/utils";
@@ -89,16 +89,6 @@ export default function App() {
   }, []);
 
   const activeTabId = tabsState.activeTabId;
-
-  // "Live" refs for the notification's `isStillHidden` (lib/notifications.ts):
-  // the scheduling keeps this function around for up to a few seconds waiting
-  // for the relay's async summary, so it needs to read the latest state at
-  // the moment it fires — a closure over `windowFocused`/`activeTabId` from
-  // the render where the turn ended would stay stale for that whole time.
-  const windowFocusedRef = useRef(windowFocused);
-  windowFocusedRef.current = windowFocused;
-  const activeTabIdRef = useRef(activeTabId);
-  activeTabIdRef.current = activeTabId;
 
   // Clears the "turn complete" badge of the tab that's visible now.
   useEffect(() => {
@@ -356,21 +346,12 @@ export default function App() {
         isNewConversation={tab.isNew}
         onTurnActiveChange={(active) => tabsState.setRunning(tab.id, active)}
         onBackgroundJobsChange={(jobs) => tabsState.setHasBackgroundJob(tab.id, jobs.length > 0)}
-        onTurnComplete={({ stopped, lastUserText }) => {
+        onTurnComplete={({ stopped, lastUserText, lastAssistantText }) => {
           const stillVisible = tab.id === tabsState.activeTabId && windowFocused;
           if (stillVisible) return;
           tabsState.setUnread(tab.id, true);
-          const isStillHidden = () => !(tab.id === activeTabIdRef.current && windowFocusedRef.current);
-          scheduleTurnCompleteNotification(
-            tab.id,
-            profile,
-            tab.title ?? "Nova sessão",
-            lastUserText,
-            stopped,
-            isStillHidden,
-          );
+          notifyTurnComplete(tab.id, profile, tab.title ?? "Nova sessão", lastUserText, lastAssistantText, stopped);
         }}
-        onNotificationSummary={(summary) => resolveNotificationSummary(tab.id, summary)}
         onTitle={(title) => {
           tabsState.setTabTitle(tab.id, title);
           if (tab.profileId === activeProfile.id) upsertTitle(tab.id, title);

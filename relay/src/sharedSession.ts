@@ -2,7 +2,6 @@ import type { WebSocket } from "ws";
 import { ClaudeSession, type ClaudeEvent } from "./claudeSession.js";
 import { checkDirectory } from "./fsBrowse.js";
 import { defaultCwd } from "./paths.js";
-import { generateNotificationSummary } from "./notificationSummaryGenerator.js";
 import { generateSuggestion } from "./suggestionGenerator.js";
 import { readHistoryFromTranscript, transcriptPath } from "./transcriptReader.js";
 import { forkTruncatedTranscript } from "./transcriptFork.js";
@@ -587,20 +586,6 @@ export class SharedSession {
             console.error("[relay] failed to generate next-message suggestion:", error);
           });
       }
-      if (!stopped) {
-        // Same idea as the suggestion above (fire-and-forget, without
-        // delaying turn_complete), but for the summary used in the OS
-        // notification — see notificationSummaryGenerator.ts. Unlike the
-        // suggestion, it's not "current" state (doesn't live in `this.*`/
-        // doesn't get resent in `addClient`): it's an event of a specific
-        // turn, replaying it on a reconnection would fire a zombie
-        // notification for a turn already seen.
-        generateNotificationSummary(this.homeOverride, this.cwd, lastAssistantText)
-          .then((summary) => this.broadcastNotificationSummary(summary ?? null))
-          .catch((error: unknown) => {
-            console.error("[relay] failed to generate notification summary:", error);
-          });
-      }
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error);
       console.error("[relay] turn failed:", message);
@@ -712,11 +697,6 @@ export class SharedSession {
     this.broadcastSuggestion();
   }
 
-  /** Ephemeral event of a specific turn (see comment in `runTurn`) — sends
-   * only to clients connected right now, without storing any state. */
-  private broadcastNotificationSummary(text: string | null): void {
-    for (const client of this.clients) client.send(JSON.stringify({ type: "notification_summary", text }));
-  }
 
   private sendTitle(target: WebSocket, title: string): void {
     target.send(JSON.stringify({ type: "session_title", title }));

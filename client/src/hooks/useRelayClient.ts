@@ -28,19 +28,14 @@ export interface UseRelayClientOptions {
   onSetCwdError?: (message: string) => void;
   onSessionTitle?: (title: string) => void;
   onSessionDeleted?: () => void;
-  /** Summary for an incoming notification — see `RelayClientCallbacks.onNotificationSummary`.
-   * Pure passthrough (no internal state): the consumer decides what to do, the hook
-   * doesn't need to re-render because of it. */
-  onNotificationSummary?: (text: string | null) => void;
   /** See `RelayClientCallbacks.onReconnecting` — fires before any
    * history replay that isn't from the initial connection. */
   onReconnecting?: () => void;
   /** `/clear` (docs/26) — see `RelayClientCallbacks.onConversationReset`. */
   onConversationReset?: () => void;
   /** Turn in progress on the session, not just from whoever sent it — see
-   * `RelayClientCallbacks.onTurnState` (docs/30). Pure passthrough, same
-   * reasoning as `onNotificationSummary`: `ChatPanel` already keeps its own
-   * `turnStartedAt`, no need for duplicated state here. */
+   * `RelayClientCallbacks.onTurnState` (docs/30). Pure passthrough: `ChatPanel`
+   * already keeps its own `turnStartedAt`, no need for duplicated state here. */
   onTurnState?: (state: { active: boolean; startedAt?: number }) => void;
   /** Recent tail of this session's history — see
    * `RelayClientCallbacks.onHistoryPage` (Phase 2/3, docs/30). */
@@ -179,7 +174,6 @@ export function useRelayClient(
       onDefaultModelState: setDefaultModel,
       onContextUsageState: setContextUsage,
       onSuggestion: setSuggestion,
-      onNotificationSummary: (text) => optionsRef.current.onNotificationSummary?.(text),
       onSessionTitle: (title) => optionsRef.current.onSessionTitle?.(title),
       onSessionDeleted: () => optionsRef.current.onSessionDeleted?.(),
       onConnectionChange: setConnected,
