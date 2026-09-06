@@ -346,12 +346,13 @@ body {
 /* Inline code (não dentro de `pre`) — antes usava `--card`, quase idêntico
  * ao fundo da mensagem (que não tem bolha própria, flutua direto sobre
  * `--background`), então o trecho de código quase não se distinguia do
- * texto ao redor. Pill neutro (fundo mais escuro que `--background`, mesma
- * família de `--bg-sidebar`; borda na linha de `--border`) — só o texto leva
- * a cor da marca (`--primary`), pra não competir com o resto da paleta. */
+ * texto ao redor. Pill neutro (fundo mais escuro que `--background`, mas
+ * suavizado em direção a ela — puro `--bg-sidebar` pesava demais; borda na
+ * linha de `--border`) — só o texto leva a cor da marca (`--primary`), pra
+ * não competir com o resto da paleta. */
 .prose-chat code {
   font-family: var(--font-mono);
-  background: var(--bg-sidebar);
+  background: color-mix(in srgb, var(--bg-sidebar) 55%, var(--background));
   border: 1px solid var(--border);
   border-radius: 5px;
   padding: 0.15em 0.45em;
