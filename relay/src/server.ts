@@ -1,6 +1,8 @@
 import { spawn } from "node:child_process";
 import { createReadStream } from "node:fs";
 import { createServer } from "node:http";
+import { dirname, resolve as resolvePath } from "node:path";
+import { fileURLToPath } from "node:url";
 import { WebSocketServer, type WebSocket } from "ws";
 import { buildChildEnv } from "./claudeSession.js";
 import { CLAUDE_BIN } from "./claudeCliConfig.js";
@@ -9,11 +11,17 @@ import { listDirectories } from "./fsBrowse.js";
 import { listFiles, readFileForViewer, resolveRawFile, type FilesError } from "./fsFiles.js";
 import { FilesWatchSession } from "./fsWatch.js";
 import { defaultCwd } from "./paths.js";
-import { findHomeOverrideCollision, listProfiles } from "./profileRegistry.js";
+import { findHomeOverrideCollision, listProfiles, slugify } from "./profileRegistry.js";
 import { SessionManager } from "./sessionManager.js";
 import { SessionStore, type ModelChoice, type PermissionMode } from "./sessionStore.js";
 import { killAllTerminalsForSession, killTerminal, scrollTerminal, spawnTerminal } from "./terminalSession.js";
 import { saveUpload } from "./uploads.js";
+
+// Resolved relative to this file (not hardcoded), same reasoning as
+// SCRIPTS_DIR in claudeCliConfig.ts — works whether running from `src/`
+// (tsx) or `dist/` (tsc build), since both mirror the same layout one
+// level below `relay/`.
+const ADD_PROFILE_SCRIPT = resolvePath(dirname(fileURLToPath(import.meta.url)), "../../infra/systemd/add-profile.sh");
 
 // Config via env — allows running one instance per profile (systemd,
 // infra/systemd/) without changing code, same as ttyd used to do (docs/08).
@@ -112,6 +120,16 @@ function isRenameBody(value: unknown): value is { id: string; title: string } {
 
 function isIdBody(value: unknown): value is { id: string } {
   return typeof value === "object" && value !== null && typeof (value as { id?: unknown }).id === "string";
+}
+
+function isCreateProfileBody(value: unknown): value is { label: string; home?: string } {
+  if (typeof value !== "object" || value === null) return false;
+  const candidate = value as { label?: unknown; home?: unknown };
+  return (
+    typeof candidate.label === "string" &&
+    candidate.label.trim().length > 0 &&
+    (candidate.home === undefined || typeof candidate.home === "string")
+  );
 }
 
 function isTerminalCloseBody(value: unknown): value is { session: string; term: string } {
@@ -391,6 +409,103 @@ const httpServer = createServer((req, res) => {
         console.error("[relay] failed to list profiles:", error);
         res.writeHead(500);
         res.end(JSON.stringify({ error: "failed to list profiles" }));
+      });
+    return;
+  }
+
+  if (req.method === "POST" && req.url === "/control/profiles") {
+    res.setHeader("Content-Type", "application/json");
+    res.setHeader("Access-Control-Allow-Origin", "*");
+    readJsonBody(req)
+      .then(async (body) => {
+        if (!isCreateProfileBody(body)) {
+          res.writeHead(400);
+          res.end(JSON.stringify({ error: "label is required" }));
+          return;
+        }
+        const homeOverride = body.home && body.home.length > 0 ? body.home : undefined;
+
+        // Re-validated here, not trusted from an earlier `/validate` call by
+        // the same client: another device could have registered a
+        // colliding profile in between, and the client can't have checked
+        // login for a `homeOverride` it just typed without a round trip
+        // anyway.
+        let status: ClaudeAuthStatus;
+        try {
+          status = await runClaudeAuthStatus(homeOverride);
+        } catch (error) {
+          console.error("[relay] claude auth status check failed:", error);
+          res.writeHead(502);
+          res.end(JSON.stringify({ error: "failed to check claude auth status" }));
+          return;
+        }
+        if (!status.loggedIn) {
+          res.writeHead(409);
+          res.end(JSON.stringify({ error: "not logged in" }));
+          return;
+        }
+        const collidesWith = findHomeOverrideCollision(homeOverride);
+        if (collidesWith) {
+          res.writeHead(409);
+          res.end(JSON.stringify({ error: "home already registered", collidesWith }));
+          return;
+        }
+
+        const existingIds = (await listProfiles()).map((profile) => profile.id);
+        const id = slugify(body.label, existingIds);
+
+        const args = [id, "--label", body.label, "--mode", "prod"];
+        if (homeOverride) args.push("--home", homeOverride);
+
+        // Argv array, no shell: `id` is derived from user-supplied `label`
+        // text and becomes a filename and a systemd instance name — a
+        // shell would let a stray space or `/` in that text break out of
+        // the intended single argument.
+        const child = spawn(ADD_PROFILE_SCRIPT, args, { stdio: ["ignore", "pipe", "pipe"] });
+        let stdout = "";
+        let stderr = "";
+        child.stdout.on("data", (chunk: Buffer) => (stdout += chunk.toString("utf8")));
+        child.stderr.on("data", (chunk: Buffer) => (stderr += chunk.toString("utf8")));
+        child.on("error", (error) => {
+          console.error("[relay] failed to run add-profile.sh:", error);
+          res.writeHead(500);
+          res.end(JSON.stringify({ error: "failed to provision profile" }));
+        });
+        child.on("close", (code) => {
+          if (code !== 0) {
+            console.error("[relay] add-profile.sh exited with code", code, stderr || stdout);
+            res.writeHead(500);
+            res.end(JSON.stringify({ error: "failed to provision profile", details: stderr || stdout }));
+            return;
+          }
+          listProfiles()
+            .then((profiles) => {
+              const created = profiles.find((profile) => profile.id === id);
+              if (!created) {
+                res.writeHead(500);
+                res.end(JSON.stringify({ error: "profile provisioned but not found in registry" }));
+                return;
+              }
+              res.end(
+                JSON.stringify({
+                  id: created.id,
+                  label: created.label,
+                  host: created.host,
+                  port: created.port,
+                  colorIndex: created.colorIndex,
+                }),
+              );
+            })
+            .catch((error: unknown) => {
+              console.error("[relay] failed to re-read profiles after provisioning:", error);
+              res.writeHead(500);
+              res.end(JSON.stringify({ error: "profile provisioned but failed to read it back" }));
+            });
+        });
+      })
+      .catch(() => {
+        res.writeHead(400);
+        res.end(JSON.stringify({ error: "invalid body" }));
       });
     return;
   }
