@@ -11,22 +11,22 @@ RELAY_DIR="$(cd "$SCRIPT_DIR/../../relay" && pwd)"
 TEMPLATE="$SCRIPT_DIR/ultron-relay@.service.template"
 OUTPUT="$SCRIPT_DIR/ultron-relay@.service"
 
+# Resolved here (not left as the systemd specifier %h) because %h expands to
+# the *manager's* home (root, for a system-scope unit) rather than the
+# service's own User=, regardless of what that directive says.
+source "$SCRIPT_DIR/../lib.sh"
+
 NODE_BIN="$(command -v node || true)"
 if [[ -z "$NODE_BIN" ]]; then
   echo "error: node not found on PATH" >&2
   exit 1
 fi
 
-# Resolved here (not left as the systemd specifier %h) because %h expands to
-# the *manager's* home (root, for a system-scope unit) rather than the
-# service's own User=, regardless of what that directive says.
-ENV_DIR="$HOME/.config/ultron/env"
-
 sed \
   -e "s|{{USER}}|$(whoami)|g" \
   -e "s|{{WORKING_DIRECTORY}}|$RELAY_DIR|g" \
   -e "s|{{NODE_BIN}}|$NODE_BIN|g" \
-  -e "s|{{ENV_DIR}}|$ENV_DIR|g" \
+  -e "s|{{ENV_DIR}}|$ULTRON_ENV_DIR|g" \
   "$TEMPLATE" > "$OUTPUT"
 
 cat <<EOF
