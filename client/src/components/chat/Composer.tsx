@@ -473,6 +473,12 @@ export const Composer = forwardRef<ComposerHandle, ComposerProps>(function Compo
   // cycle, so they don't see the `suggestion` prop update on their own.
   const suggestionRef = useRef<string | null>(suggestion);
   suggestionRef.current = suggestion;
+  // Enter-to-send (below) runs outside React's render cycle, same reason as
+  // `suggestionRef` — without this it kept submitting while `disabled` (e.g.
+  // relay disconnected), silently dropping the message (`RelayClient.sendMessage`
+  // no-ops on a closed socket) since only the send *button* checked `canSend`.
+  const disabledRef = useRef(disabled);
+  disabledRef.current = disabled;
   const [placeholderExtension] = useState(() => createPlaceholderExtension(suggestionRef));
   // No autocomplete menu on iOS: `/model`/`/clear` still work when typed in
   // full (see the `parseSlashCommand` call in `ChatPanel.tsx`), just without
@@ -548,7 +554,7 @@ export const Composer = forwardRef<ComposerHandle, ComposerProps>(function Compo
         }
         if (event.key === "Enter" && !event.shiftKey && !isIOS()) {
           event.preventDefault();
-          submitRef.current();
+          if (!disabledRef.current) submitRef.current();
           return true;
         }
         // Empty field with a suggestion shown as a placeholder (see
