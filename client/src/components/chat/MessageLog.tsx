@@ -1,4 +1,4 @@
-import { memo, useCallback, useLayoutEffect, useMemo, useRef } from "react";
+import { memo, useCallback, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { Loader2 } from "lucide-react";
 import { useVirtualizer } from "@tanstack/react-virtual";
 import { LogEntryRow } from "@/components/chat/LogEntryRow";
@@ -225,6 +225,22 @@ export const MessageLog = memo(function MessageLog({
 
   const getItemKey = useCallback((index: number) => itemKey(allItems[index]), [allItems]);
 
+  // Guards against a flicker found while watching a growing tool card (e.g.
+  // Edit's diff still streaming in): @tanstack/react-virtual's own
+  // `resizeItem` re-pins the viewport to the end whenever an item resizes
+  // and the scroll is within `scrollEndThreshold` — but that check doesn't
+  // look at scroll direction (unlike the sibling branch that adjusts for an
+  // item resizing above the fold, which explicitly skips itself during
+  // backward scroll to avoid the same kind of cascade). So scrolling up
+  // while still inside the threshold gets fought, tick by tick, by every
+  // resize the streaming card triggers. Tracking direction ourselves in
+  // `handleScroll` below and collapsing the threshold to ~0 while the user
+  // is scrolling up closes that gap — it only re-arms once they're back
+  // essentially at the bottom.
+  const pinnedToBottomRef = useRef(true);
+  const [pinnedToBottom, setPinnedToBottom] = useState(true);
+  const prevScrollTopRef = useRef(0);
+
   // Virtualized — long conversations (hundreds of tool calls/code blocks
   // with syntax highlighting) got heavy even with the memoization above,
   // because the whole list stayed mounted in the DOM. `anchorTo: "end"` +
@@ -244,7 +260,7 @@ export const MessageLog = memo(function MessageLog({
     getItemKey,
     anchorTo: "end",
     followOnAppend: true,
-    scrollEndThreshold: 80,
+    scrollEndThreshold: pinnedToBottom ? 80 : 0,
     overscan: 8,
     useFlushSync: false,
   });
@@ -277,7 +293,7 @@ export const MessageLog = memo(function MessageLog({
   // history — fixes it without touching the virtualizer's own bookkeeping
   // (setting `scrollTop` fires a native `scroll` event it already listens to).
   useLayoutEffect(() => {
-    if (!turnActive) return;
+    if (!turnActive || !pinnedToBottomRef.current) return;
     const el = parentRef.current;
     if (!el) return;
     const distanceFromEnd = el.scrollHeight - el.scrollTop - el.clientHeight;
@@ -292,7 +308,21 @@ export const MessageLog = memo(function MessageLog({
 
   const handleScroll = useCallback(() => {
     const el = parentRef.current;
-    if (!el || el.scrollTop > 120 || loadingOlderHistory || !hasMoreHistory) return;
+    if (!el) return;
+
+    const scrollTop = el.scrollTop;
+    const scrolledUp = scrollTop < prevScrollTopRef.current - 1;
+    prevScrollTopRef.current = scrollTop;
+    const distanceFromEnd = el.scrollHeight - scrollTop - el.clientHeight;
+    if (pinnedToBottomRef.current && scrolledUp && distanceFromEnd > 4) {
+      pinnedToBottomRef.current = false;
+      setPinnedToBottom(false);
+    } else if (!pinnedToBottomRef.current && distanceFromEnd <= 4) {
+      pinnedToBottomRef.current = true;
+      setPinnedToBottom(true);
+    }
+
+    if (scrollTop > 120 || loadingOlderHistory || !hasMoreHistory) return;
     prependAnchorRef.current = virtualizer.getTotalSize();
     onLoadOlderHistory();
   }, [hasMoreHistory, loadingOlderHistory, onLoadOlderHistory, virtualizer]);
