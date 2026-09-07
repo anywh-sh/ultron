@@ -241,6 +241,40 @@ export const MessageLog = memo(function MessageLog({
   const [pinnedToBottom, setPinnedToBottom] = useState(true);
   const prevScrollTopRef = useRef(0);
 
+  // Tells apart a real user gesture from a programmatic scroll — both fire
+  // the same native `scroll` event, but only the former should be allowed to
+  // unpin. Found while chasing a report that auto-follow silently stopped
+  // mid-turn even though the user never scrolled: the virtualizer corrects
+  // `scrollTop` on its own the moment `measureElement` replaces an item's
+  // estimated height (88, see `estimateSize` below) with the real one — if
+  // the real height is smaller, that correction nudges `scrollTop` backward
+  // by a few px, which `handleScroll` below then can't distinguish from the
+  // user scrolling up. Without this gate that harmless nudge was enough to
+  // unpin permanently (dropping `scrollEndThreshold` to 0 disables react-
+  // virtual's own `followOnAppend` snap too, not just ours) until the user
+  // scrolled all the way back down by hand.
+  const userScrollingRef = useRef(false);
+  const userScrollingTimeoutRef = useRef<number | undefined>(undefined);
+
+  useLayoutEffect(() => {
+    const el = parentRef.current;
+    if (!el) return;
+    const markUserScrolling = () => {
+      userScrollingRef.current = true;
+      window.clearTimeout(userScrollingTimeoutRef.current);
+      userScrollingTimeoutRef.current = window.setTimeout(() => {
+        userScrollingRef.current = false;
+      }, 150);
+    };
+    el.addEventListener("wheel", markUserScrolling, { passive: true });
+    el.addEventListener("touchmove", markUserScrolling, { passive: true });
+    return () => {
+      el.removeEventListener("wheel", markUserScrolling);
+      el.removeEventListener("touchmove", markUserScrolling);
+      window.clearTimeout(userScrollingTimeoutRef.current);
+    };
+  }, []);
+
   // Virtualized — long conversations (hundreds of tool calls/code blocks
   // with syntax highlighting) got heavy even with the memoization above,
   // because the whole list stayed mounted in the DOM. `anchorTo: "end"` +
@@ -314,7 +348,7 @@ export const MessageLog = memo(function MessageLog({
     const scrolledUp = scrollTop < prevScrollTopRef.current - 1;
     prevScrollTopRef.current = scrollTop;
     const distanceFromEnd = el.scrollHeight - scrollTop - el.clientHeight;
-    if (pinnedToBottomRef.current && scrolledUp && distanceFromEnd > 4) {
+    if (pinnedToBottomRef.current && userScrollingRef.current && scrolledUp && distanceFromEnd > 4) {
       pinnedToBottomRef.current = false;
       setPinnedToBottom(false);
     } else if (!pinnedToBottomRef.current && distanceFromEnd <= 4) {
