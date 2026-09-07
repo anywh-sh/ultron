@@ -249,3 +249,14 @@ export interface CreatedProfile {
   port: number;
   colorIndex: number;
 }
+
+/** Response of `PATCH /control/profiles/:id` — the merged `profiles.json`
+ * entry. No `host`/`port` here (those live in the `.env`, untouched by a
+ * rename) — merge onto the existing local `Profile` instead of replacing it. */
+export interface ProfileMetaUpdate {
+  id: string;
+  label: string;
+  colorIndex: number;
+  createdAt: string;
+  updatedAt: string;
+}

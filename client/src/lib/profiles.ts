@@ -104,6 +104,10 @@ const PROFILE_COLOR_CLASSES = [
   "bg-profile-4", "bg-profile-5", "bg-profile-6",
 ];
 
+/** Size of the palette — for a color picker (`SettingsDialog`) to iterate
+ * over every swatch without duplicating the count. */
+export const PROFILE_COLOR_COUNT = PROFILE_COLOR_CLASSES.length;
+
 /** Raw index → color class, for a profile that isn't (yet) in the local
  * list — e.g. an importable `RemoteProfile` in `AddProfileDialog`, which
  * already carries its host-assigned `colorIndex` but would otherwise look

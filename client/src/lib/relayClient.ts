@@ -8,6 +8,7 @@ import type {
   HistoryPageMessage,
   ModelChoice,
   PermissionMode,
+  ProfileMetaUpdate,
   ProfileValidation,
   RelayMessage,
   RemoteProfile,
@@ -26,6 +27,7 @@ export type {
   HistoryPageMessage,
   ModelChoice,
   PermissionMode,
+  ProfileMetaUpdate,
   ProfileValidation,
   RemoteProfile,
   SessionSummary,
@@ -136,6 +138,43 @@ export async function createProfile(host: string, port: number, label: string, h
     throw new Error(body.error ?? `failed to create profile (${String(response.status)})`);
   }
   return body;
+}
+
+/** Renames/recolors a profile on its own relay — safe to call on the
+ * profile being edited (unlike `deleteProfile`): this only writes JSON, it
+ * never touches the running process. `id` is immutable, never part of the
+ * body. */
+export async function updateProfileMeta(
+  host: string,
+  port: number,
+  id: string,
+  patch: { label?: string; colorIndex?: number },
+): Promise<ProfileMetaUpdate> {
+  const response = await fetch(`http://${host}:${port}/control/profiles/${encodeURIComponent(id)}`, {
+    method: "PATCH",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(patch),
+  });
+  const body = (await response.json().catch(() => ({}))) as ProfileMetaUpdate & { error?: string };
+  if (!response.ok) {
+    throw new Error(body.error ?? `failed to update profile (${String(response.status)})`);
+  }
+  return body;
+}
+
+/** Deletes a profile from the host's registry (`.env` + `profiles.json` +
+ * systemd instance) — `host`/`port` here must be a *different* profile's
+ * relay than `id`, never `id`'s own (docs/45 Fase 6: it would have to
+ * disable its own systemd instance mid-request). Picking a safe executor is
+ * the caller's job — see `SettingsDialog`'s "Excluir do servidor". */
+export async function deleteProfile(host: string, port: number, id: string): Promise<void> {
+  const response = await fetch(`http://${host}:${port}/control/profiles/${encodeURIComponent(id)}`, {
+    method: "DELETE",
+  });
+  if (!response.ok) {
+    const body = (await response.json().catch(() => ({}))) as { error?: string };
+    throw new Error(body.error ?? `failed to delete profile (${String(response.status)})`);
+  }
 }
 
 export interface RelayClientCallbacks {

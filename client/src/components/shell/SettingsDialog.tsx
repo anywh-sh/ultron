@@ -1,6 +1,16 @@
 import { useEffect, useState } from "react";
 import { Folder, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { FolderPickerDialog } from "@/components/chat/FolderPickerDialog";
@@ -12,7 +22,8 @@ import {
   type ModelPreferenceMode,
 } from "@/hooks/useModelPreference";
 import { getKnownModels, labelForModel } from "@/lib/modelCatalog";
-import type { Profile } from "@/lib/profiles";
+import { addProfile, PROFILE_COLOR_COUNT, profileColorClassForIndex, removeProfile, type Profile } from "@/lib/profiles";
+import { deleteProfile, updateProfileMeta } from "@/lib/relayClient";
 import { useProfiles } from "@/hooks/useProfiles";
 import { cn } from "@/lib/utils";
 
@@ -20,6 +31,7 @@ interface SettingsDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   activeProfile: Profile;
+  onActiveProfileChange: (profileId: string) => void;
 }
 
 /** No real navigation yet (only "Geral" exists) — the list already exists
@@ -113,6 +125,187 @@ function ProfileModelRow({
   );
 }
 
+/** Name (propagates to other devices via `PATCH`) + color swatches for the
+ * scoped profile. `effectiveColorIndex` (not `profile.colorIndex` directly)
+ * so the currently-highlighted swatch matches what `profileColorClass`
+ * actually renders elsewhere for a profile that predates the field. */
+function ProfileIdentityRow({ profile, effectiveColorIndex }: { profile: Profile; effectiveColorIndex: number }) {
+  const [label, setLabel] = useState(profile.label);
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    setLabel(profile.label);
+    setError(null);
+  }, [profile.id, profile.label]);
+
+  async function applyPatch(patch: { label?: string; colorIndex?: number }): Promise<void> {
+    setError(null);
+    try {
+      const updated = await updateProfileMeta(profile.host, profile.relayPort, profile.id, patch);
+      addProfile({ ...profile, label: updated.label, colorIndex: updated.colorIndex });
+    } catch (err) {
+      setError(err instanceof Error ? err.message : String(err));
+    }
+  }
+
+  async function handleSaveLabel(): Promise<void> {
+    const trimmed = label.trim();
+    if (!trimmed || trimmed === profile.label) return;
+    setSaving(true);
+    await applyPatch({ label: trimmed });
+    setSaving(false);
+  }
+
+  return (
+    <div className="flex flex-col gap-2">
+      <div className="flex items-center gap-2">
+        <input
+          value={label}
+          onChange={(event) => setLabel(event.target.value)}
+          className="min-w-0 flex-1 rounded-md border border-border bg-transparent px-2.5 py-1.5 text-sm outline-none focus:border-ring"
+        />
+        <Button
+          variant="outline"
+          size="sm"
+          disabled={saving || !label.trim() || label.trim() === profile.label}
+          onClick={() => void handleSaveLabel()}
+        >
+          {saving ? "Salvando…" : "Salvar"}
+        </Button>
+      </div>
+      <div className="flex items-center gap-1.5">
+        {Array.from({ length: PROFILE_COLOR_COUNT }, (_, index) => (
+          <button
+            key={index}
+            type="button"
+            aria-label={`Cor ${String(index + 1)}`}
+            onClick={() => void applyPatch({ colorIndex: index })}
+            className={cn(
+              "size-5 shrink-0 cursor-pointer rounded-full outline outline-offset-2",
+              profileColorClassForIndex(index),
+              effectiveColorIndex === index ? "outline-foreground" : "outline-transparent",
+            )}
+          />
+        ))}
+      </div>
+      {error && <p className="text-sm text-destructive">{error}</p>}
+    </div>
+  );
+}
+
+function DangerZone({
+  scopedProfile,
+  allProfiles,
+  activeProfileId,
+  onActiveProfileChange,
+  onProfileRemoved,
+}: {
+  scopedProfile: Profile;
+  allProfiles: Profile[];
+  activeProfileId: string;
+  onActiveProfileChange: (id: string) => void;
+  onProfileRemoved: (removedId: string) => void;
+}) {
+  const [confirmOpen, setConfirmOpen] = useState(false);
+  const [deleting, setDeleting] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  const canRemoveLocally = allProfiles.length > 1;
+  // A different relay on the same host executes the deletion — sending it
+  // to the profile's own relay would make it disable its own systemd
+  // instance mid-request (docs/45 Fase 6).
+  const executor = allProfiles.find((p) => p.id !== scopedProfile.id && p.host === scopedProfile.host);
+
+  function switchActiveAwayIfNeeded(): void {
+    if (activeProfileId !== scopedProfile.id) return;
+    const fallback = allProfiles.find((p) => p.id !== scopedProfile.id);
+    if (fallback) onActiveProfileChange(fallback.id);
+  }
+
+  function handleRemoveLocally(): void {
+    switchActiveAwayIfNeeded();
+    if (removeProfile(scopedProfile.id)) onProfileRemoved(scopedProfile.id);
+  }
+
+  async function handleDeleteFromServer(): Promise<void> {
+    if (!executor) return;
+    setDeleting(true);
+    setError(null);
+    try {
+      await deleteProfile(executor.host, executor.relayPort, scopedProfile.id);
+      switchActiveAwayIfNeeded();
+      removeProfile(scopedProfile.id);
+      onProfileRemoved(scopedProfile.id);
+      setConfirmOpen(false);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : String(err));
+    } finally {
+      setDeleting(false);
+    }
+  }
+
+  return (
+    <div className="flex flex-col gap-3 rounded-md border border-destructive/40 p-3">
+      <h3 className="text-sm font-medium text-destructive">Zona de risco</h3>
+
+      <div className="flex items-center justify-between gap-3">
+        <div className="flex min-w-0 flex-col">
+          <span className="text-sm">Remover deste dispositivo</span>
+          <span className="text-xs text-muted-foreground">
+            {canRemoveLocally
+              ? "Some só daqui — reaparece na aba Importar quando quiser."
+              : "Não é possível remover o único perfil."}
+          </span>
+        </div>
+        <Button variant="outline" size="sm" disabled={!canRemoveLocally} onClick={handleRemoveLocally}>
+          Remover
+        </Button>
+      </div>
+
+      <div className="flex items-center justify-between gap-3">
+        <div className="flex min-w-0 flex-col">
+          <span className="text-sm">Excluir do servidor</span>
+          <span className="text-xs text-muted-foreground">
+            {executor
+              ? "Some de todos os dispositivos — a conta e o histórico continuam no host."
+              : "Precisa de outro perfil no mesmo host pra executar a exclusão."}
+          </span>
+        </div>
+        <Button variant="destructive" size="sm" disabled={!executor} onClick={() => setConfirmOpen(true)}>
+          Excluir
+        </Button>
+      </div>
+
+      {error && <p className="text-sm text-destructive">{error}</p>}
+
+      <AlertDialog open={confirmOpen} onOpenChange={setConfirmOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Excluir perfil "{scopedProfile.label}"?</AlertDialogTitle>
+            <AlertDialogDescription>
+              Remove esse perfil de todos os dispositivos que apontam pra esse host. A conta Claude e
+              o histórico de conversas continuam intactos na máquina.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancelar</AlertDialogCancel>
+            <AlertDialogAction
+              disabled={deleting}
+              onClick={(event) => {
+                event.preventDefault();
+                void handleDeleteFromServer();
+              }}
+            >
+              {deleting ? "Excluindo…" : "Excluir"}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+    </div>
+  );
+}
+
 /**
  * App settings dialog — opened from the `TitleBar` menu. Two-panel layout
  * (common pattern in desktop settings apps): dark nav on the left, lighter
@@ -122,7 +315,7 @@ function ProfileModelRow({
  * `activeProfile` whenever the dialog opens, so reopening after switching
  * profiles in the main UI lands on the profile you're actually looking at.
  */
-export function SettingsDialog({ open, onOpenChange, activeProfile }: SettingsDialogProps) {
+export function SettingsDialog({ open, onOpenChange, activeProfile, onActiveProfileChange }: SettingsDialogProps) {
   const [section, setSection] = useState<Section>("geral");
   const profiles = useProfiles();
   const [scopedProfileId, setScopedProfileId] = useState(activeProfile.id);
@@ -133,7 +326,17 @@ export function SettingsDialog({ open, onOpenChange, activeProfile }: SettingsDi
     if (open) setScopedProfileId(activeProfile.id);
   }, [open, activeProfile.id]);
 
-  const scopedProfile = profiles.find((profile) => profile.id === scopedProfileId) ?? activeProfile;
+  const scopedProfileIndex = profiles.findIndex((profile) => profile.id === scopedProfileId);
+  const scopedProfile = scopedProfileIndex >= 0 ? profiles[scopedProfileIndex] : activeProfile;
+  const effectiveColorIndex = scopedProfile.colorIndex ?? Math.max(scopedProfileIndex, 0);
+
+  function handleProfileRemoved(removedId: string): void {
+    setScopedProfileId((current) => {
+      if (current !== removedId) return current;
+      const fallback = profiles.find((profile) => profile.id !== removedId);
+      return fallback ? fallback.id : current;
+    });
+  }
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -156,7 +359,7 @@ export function SettingsDialog({ open, onOpenChange, activeProfile }: SettingsDi
             </button>
           </div>
 
-          <div className="flex-1 bg-bg-elevated p-4">
+          <div className="flex-1 overflow-y-auto bg-bg-elevated p-4">
             {section === "geral" && (
               <div className="flex flex-col gap-3">
                 <div>
@@ -174,6 +377,7 @@ export function SettingsDialog({ open, onOpenChange, activeProfile }: SettingsDi
                     </SelectContent>
                   </Select>
                 </div>
+                <ProfileIdentityRow profile={scopedProfile} effectiveColorIndex={effectiveColorIndex} />
 
                 <div>
                   <h3 className="text-sm font-medium">Pasta inicial</h3>
@@ -195,6 +399,14 @@ export function SettingsDialog({ open, onOpenChange, activeProfile }: SettingsDi
                 <ProfileModelRow
                   preference={preferences[scopedProfile.id] ?? DEFAULT_MODEL_PREFERENCE}
                   onChange={(preference) => setPreference(scopedProfile.id, preference)}
+                />
+
+                <DangerZone
+                  scopedProfile={scopedProfile}
+                  allProfiles={profiles}
+                  activeProfileId={activeProfile.id}
+                  onActiveProfileChange={onActiveProfileChange}
+                  onProfileRemoved={handleProfileRemoved}
                 />
               </div>
             )}

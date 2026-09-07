@@ -559,7 +559,12 @@ export default function App() {
       />
 
       <SessionSearch open={searchOpen} onOpenChange={setSearchOpen} onSelectSession={handleSearchSelectSession} />
-      <SettingsDialog open={settingsOpen} onOpenChange={setSettingsOpen} activeProfile={activeProfile} />
+      <SettingsDialog
+        open={settingsOpen}
+        onOpenChange={setSettingsOpen}
+        activeProfile={activeProfile}
+        onActiveProfileChange={setActiveProfileId}
+      />
 
       <div className="flex min-h-0 flex-1">
         {!isCompact && (
