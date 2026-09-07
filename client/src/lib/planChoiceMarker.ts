@@ -6,12 +6,14 @@
 // raw marker out of the displayed message text so the human doesn't also
 // see the sentinel syntax underneath the card.
 //
-// Note: only strips a COMPLETE block. While a response is still streaming,
-// an opened `>>>QUESTION:` with no closing `>>>END` yet is briefly visible
-// as raw text, then disappears once the closing marker arrives — a cosmetic
-// rough edge of relying on streamed text, not a bug.
-const MARKER_REGEX = />>>QUESTION:[\s\S]*?>>>END\s*/g;
+// A still-streaming response can end mid-block, with `>>>QUESTION:` opened
+// but no `>>>END` yet — since streamed text only ever grows, that partial
+// block is always at the tail of what's arrived so far. Stripping it too
+// (not just complete blocks) hides the raw sentinel from the very first
+// token instead of flashing it until the close arrives.
+const CLOSED_MARKER_REGEX = />>>QUESTION:[\s\S]*?>>>END\s*/g;
+const TRAILING_OPEN_MARKER_REGEX = />>>QUESTION:[\s\S]*$/;
 
 export function stripPlanChoiceMarkers(text: string): string {
-  return text.replace(MARKER_REGEX, "").trimEnd();
+  return text.replace(CLOSED_MARKER_REGEX, "").replace(TRAILING_OPEN_MARKER_REGEX, "").trimEnd();
 }
