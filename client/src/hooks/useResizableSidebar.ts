@@ -4,9 +4,16 @@ const MIN_WIDTH = 220;
 const MAX_WIDTH = 420;
 const DEFAULT_WIDTH = 280;
 const COLLAPSED_STORAGE_KEY = "ultron:sidebar-collapsed";
+const WIDTH_STORAGE_KEY = "ultron:sidebar-width";
 
 function readInitialCollapsed(): boolean {
   return localStorage.getItem(COLLAPSED_STORAGE_KEY) === "true";
+}
+
+function readInitialWidth(): number {
+  const raw = Number(localStorage.getItem(WIDTH_STORAGE_KEY));
+  if (!Number.isFinite(raw) || raw <= 0) return DEFAULT_WIDTH;
+  return Math.min(MAX_WIDTH, Math.max(MIN_WIDTH, raw));
 }
 
 export interface ResizableSidebar {
@@ -19,7 +26,7 @@ export interface ResizableSidebar {
 }
 
 export function useResizableSidebar(): ResizableSidebar {
-  const [width, setWidth] = useState(DEFAULT_WIDTH);
+  const [width, setWidth] = useState(readInitialWidth);
   const [collapsed, setCollapsed] = useState(readInitialCollapsed);
   const [isDragging, setIsDragging] = useState(false);
   const draggingRef = useRef(false);
@@ -45,6 +52,10 @@ export function useResizableSidebar(): ResizableSidebar {
         setIsDragging(false);
         window.removeEventListener("pointermove", onMove);
         window.removeEventListener("pointerup", onUp);
+        setWidth((value) => {
+          localStorage.setItem(WIDTH_STORAGE_KEY, String(value));
+          return value;
+        });
       }
 
       window.addEventListener("pointermove", onMove);
