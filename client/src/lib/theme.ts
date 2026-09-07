@@ -231,7 +231,11 @@ export function parseTheme(input: unknown): ThemeValidation {
 
   const allColorKeys: readonly string[] = [...REQUIRED_COLOR_KEYS, ...OPTIONAL_COLOR_KEYS];
   const colors = validateColorMap(raw.colors, "colors", allColorKeys, errors);
-  const missing = REQUIRED_COLOR_KEYS.filter((key) => colors[key] === undefined);
+  // Only keys that aren't in the file at all. A required key that IS there
+  // but holds an invalid color already produced its own, more specific
+  // error — listing it again as "missing" reads like two separate problems.
+  const declaredKeys = typeof raw.colors === "object" && raw.colors !== null ? Object.keys(raw.colors) : [];
+  const missing = REQUIRED_COLOR_KEYS.filter((key) => !declaredKeys.includes(key));
   if (missing.length > 0) {
     errors.push({ path: "colors", message: `faltando: ${missing.join(", ")}` });
   }

@@ -21,6 +21,8 @@ import {
   slugify,
   updateProfileMeta,
 } from "./profileRegistry.js";
+import { deleteTheme, listThemes, saveTheme, ThemeValidationFailure } from "./themeRegistry.js";
+import { isValidThemeId } from "./theme.js";
 import { McpChoiceBridge, type ChoiceAnswer } from "./mcpBridge.js";
 import { McpPermissionBridge } from "./permissionBridge.js";
 import { SessionManager } from "./sessionManager.js";
@@ -153,12 +155,15 @@ function isCreateProfileBody(value: unknown): value is { label: string; home?: s
   );
 }
 
-function isPatchProfileBody(value: unknown): value is { label?: string; colorIndex?: number } {
+/** `themeId: null` is a meaningful value here (clear the selection, back to
+ * the built-in theme), so it can't be folded into "field absent". */
+function isPatchProfileBody(value: unknown): value is { label?: string; colorIndex?: number; themeId?: string | null } {
   if (typeof value !== "object" || value === null) return false;
-  const candidate = value as { label?: unknown; colorIndex?: unknown };
+  const candidate = value as { label?: unknown; colorIndex?: unknown; themeId?: unknown };
   if (candidate.label !== undefined && typeof candidate.label !== "string") return false;
   if (candidate.colorIndex !== undefined && typeof candidate.colorIndex !== "number") return false;
-  return candidate.label !== undefined || candidate.colorIndex !== undefined;
+  if (candidate.themeId !== undefined && candidate.themeId !== null && typeof candidate.themeId !== "string") return false;
+  return candidate.label !== undefined || candidate.colorIndex !== undefined || candidate.themeId !== undefined;
 }
 
 function isTerminalCloseBody(value: unknown): value is { session: string; term: string } {
@@ -246,13 +251,31 @@ function isTerminalScrollMessage(value: unknown): value is { type: "scroll"; lin
   );
 }
 
+/** Every JSON route here took a body of a handful of fields, so a cap never
+ * mattered; a theme file is the first body that comes from a file the user
+ * picked, which is exactly the case where "accumulate until the client stops
+ * sending" is not acceptable. Generous enough that no real theme is near it
+ * (mirrors MAX_THEME_BYTES in themeRegistry.ts). */
+const MAX_JSON_BODY_BYTES = 64 * 1024;
+
 /** No body-parsing lib in the project (only the binary upload had a chunk
  * accumulator, `uploads.ts`) — the rename body is small enough (an id + a
  * title) that it doesn't justify pulling in a dependency just for this. */
 function readJsonBody(req: import("node:http").IncomingMessage): Promise<unknown> {
   return new Promise((resolve, reject) => {
     const chunks: Buffer[] = [];
-    req.on("data", (chunk: Buffer) => chunks.push(chunk));
+    let size = 0;
+    req.on("data", (chunk: Buffer) => {
+      size += chunk.length;
+      if (size > MAX_JSON_BODY_BYTES) {
+        // Destroying is what stops the upload; without it the sender keeps
+        // streaming into a request nobody is reading anymore.
+        req.destroy();
+        reject(new Error("request body too large"));
+        return;
+      }
+      chunks.push(chunk);
+    });
     req.on("end", () => {
       try {
         resolve(JSON.parse(Buffer.concat(chunks).toString("utf8")));
@@ -387,7 +410,7 @@ detectDefaultModel(HOME_OVERRIDE, defaultCwd(HOME_OVERRIDE))
 const httpServer = createServer((req, res) => {
   if (req.method === "OPTIONS") {
     res.setHeader("Access-Control-Allow-Origin", "*");
-    res.setHeader("Access-Control-Allow-Methods", "GET, POST, PATCH, DELETE, OPTIONS");
+    res.setHeader("Access-Control-Allow-Methods", "GET, POST, PUT, PATCH, DELETE, OPTIONS");
     res.setHeader("Access-Control-Allow-Headers", "*");
     res.writeHead(204);
     res.end();
@@ -481,6 +504,84 @@ const httpServer = createServer((req, res) => {
         res.writeHead(400);
         res.end(JSON.stringify({ error: "invalid body" }));
       });
+    return;
+  }
+
+  // Themes are registered per host, not per profile (themeRegistry.ts): the
+  // same custom theme has to be selectable from every profile, and every
+  // device that syncs against this host sees the same list. Which theme a
+  // given profile uses is `themeId` on its own metadata, patched through
+  // the profiles route below.
+  if (req.method === "GET" && req.url === "/control/themes") {
+    res.setHeader("Content-Type", "application/json");
+    res.setHeader("Access-Control-Allow-Origin", "*");
+    try {
+      res.end(JSON.stringify({ themes: listThemes() }));
+    } catch (error) {
+      console.error("[relay] failed to list themes:", error);
+      res.writeHead(500);
+      res.end(JSON.stringify({ error: "failed to list themes" }));
+    }
+    return;
+  }
+
+  if (req.method === "PUT" && req.url?.startsWith("/control/themes/")) {
+    res.setHeader("Content-Type", "application/json");
+    res.setHeader("Access-Control-Allow-Origin", "*");
+    const id = decodeURIComponent(req.url.slice("/control/themes/".length).split("?")[0]);
+    // The id becomes a filename, so it's checked before anything reaches the
+    // filesystem — `saveTheme` validates the body's own id again, but the
+    // path here would be built from this one either way.
+    if (!isValidThemeId(id)) {
+      res.writeHead(400);
+      res.end(JSON.stringify({ error: "invalid theme id" }));
+      return;
+    }
+    readJsonBody(req)
+      .then((body) => {
+        if (typeof body !== "object" || body === null || (body as { id?: unknown }).id !== id) {
+          res.writeHead(400);
+          res.end(JSON.stringify({ error: "theme id does not match the url" }));
+          return;
+        }
+        try {
+          res.end(JSON.stringify(saveTheme(body)));
+        } catch (error) {
+          if (error instanceof ThemeValidationFailure) {
+            // The per-field errors travel back so the import UI can point at
+            // the offending line instead of saying "invalid theme".
+            res.writeHead(422);
+            res.end(JSON.stringify({ error: "invalid theme", errors: error.errors }));
+            return;
+          }
+          console.error("[relay] failed to save theme:", error);
+          res.writeHead(500);
+          res.end(JSON.stringify({ error: "failed to save theme" }));
+        }
+      })
+      .catch(() => {
+        res.writeHead(400);
+        res.end(JSON.stringify({ error: "invalid body" }));
+      });
+    return;
+  }
+
+  if (req.method === "DELETE" && req.url?.startsWith("/control/themes/")) {
+    res.setHeader("Content-Type", "application/json");
+    res.setHeader("Access-Control-Allow-Origin", "*");
+    const id = decodeURIComponent(req.url.slice("/control/themes/".length).split("?")[0]);
+    try {
+      if (!deleteTheme(id)) {
+        res.writeHead(404);
+        res.end(JSON.stringify({ error: "theme not found" }));
+        return;
+      }
+      res.end(JSON.stringify({ ok: true }));
+    } catch (error) {
+      console.error("[relay] failed to delete theme:", error);
+      res.writeHead(500);
+      res.end(JSON.stringify({ error: "failed to delete theme" }));
+    }
     return;
   }
 

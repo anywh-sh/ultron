@@ -147,6 +147,29 @@ test("updateProfileMeta: fills in the other field from its current fallback (id/
   });
 });
 
+test("updateProfileMeta: themeId round-trips, and null clears it back to the built-in", async () => {
+  await withTempDir((envDir) => {
+    writeEnv(envDir, "pessoal", { RELAY_PORT: "9001" });
+
+    assert.equal(updateProfileMeta("pessoal", { themeId: "nord-ish" }, envDir).themeId, "nord-ish");
+    // Patching something else must not drop the theme along the way.
+    assert.equal(updateProfileMeta("pessoal", { label: "Pessoal" }, envDir).themeId, "nord-ish");
+    assert.equal(updateProfileMeta("pessoal", { themeId: null }, envDir).themeId, undefined);
+  });
+});
+
+test("listProfiles: reports the profile's themeId, absent when never set", async () => {
+  await withTempDir(async (envDir) => {
+    writeEnv(envDir, "pessoal", { RELAY_PORT: "9001" });
+    writeEnv(envDir, "trabalho", { RELAY_PORT: "9002" });
+    updateProfileMeta("trabalho", { themeId: "nord-ish" }, envDir);
+
+    const profiles = await listProfiles(envDir);
+    assert.equal(profiles.find((p) => p.id === "trabalho")?.themeId, "nord-ish");
+    assert.equal(profiles.find((p) => p.id === "pessoal")?.themeId, undefined);
+  });
+});
+
 test("updateProfileMeta: id never changes, second call merges onto the first instead of resetting it", async () => {
   await withTempDir((envDir) => {
     writeEnv(envDir, "pessoal", { RELAY_PORT: "9001" });

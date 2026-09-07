@@ -23,12 +23,17 @@ export interface HostProfile {
   port: number;
   hasHomeOverride: boolean;
   running: boolean;
+  /** Absent means the built-in theme. Lives here, in the host registry,
+   * rather than in the client's local settings, because the theme has to
+   * follow the profile across devices the same way its label does. */
+  themeId?: string;
 }
 
 export interface ProfileMeta {
   id: string;
   label: string;
   colorIndex?: number;
+  themeId?: string;
   createdAt: string;
   updatedAt: string;
 }
@@ -199,6 +204,7 @@ export async function listProfiles(envDir: string = ENV_DIR): Promise<HostProfil
         port,
         hasHomeOverride: Boolean(env.RELAY_HOME_OVERRIDE),
         running,
+        ...(meta?.themeId ? { themeId: meta.themeId } : {}),
       }));
     }),
   );
@@ -239,14 +245,18 @@ function writeProfilesJson(envDir: string, data: ProfilesJson): void {
 }
 
 /** `PATCH /control/profiles/:id` — `id` is immutable (see `Profile.id` on
- * the client), only `label`/`colorIndex` move. Works even for a profile
- * that predates `profiles.json` (fills in the other field from its current
- * fallback — id as label, position in the list as colorIndex — instead of
- * leaving it unset). Throws if `id` isn't a real profile, since there'd be
- * nothing to attach the metadata to. */
+ * the client), only `label`/`colorIndex`/`themeId` move. Works even for a
+ * profile that predates `profiles.json` (fills in the other fields from
+ * their current fallback — id as label, position in the list as colorIndex
+ * — instead of leaving them unset). Throws if `id` isn't a real profile,
+ * since there'd be nothing to attach the metadata to.
+ *
+ * `themeId: null` clears the selection back to the built-in theme —
+ * distinct from omitting the field, which leaves whatever is stored alone,
+ * the same way the other two behave. */
 export function updateProfileMeta(
   id: string,
-  patch: { label?: string; colorIndex?: number },
+  patch: { label?: string; colorIndex?: number; themeId?: string | null },
   envDir: string = ENV_DIR,
 ): ProfileMeta {
   const ids = listEnvIds(envDir);
@@ -258,10 +268,12 @@ export function updateProfileMeta(
   const current = readProfilesJson(envDir);
   const existing = current.profiles.find((meta) => meta.id === id);
   const now = new Date().toISOString();
+  const themeId = patch.themeId === null ? undefined : (patch.themeId ?? existing?.themeId);
   const merged: ProfileMeta = {
     id,
     label: patch.label ?? existing?.label ?? id,
     colorIndex: patch.colorIndex ?? existing?.colorIndex ?? position,
+    ...(themeId ? { themeId } : {}),
     createdAt: existing?.createdAt ?? now,
     updatedAt: now,
   };

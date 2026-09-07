@@ -47,13 +47,20 @@ test("reports every problem at once instead of stopping at the first", () => {
   assert.deepEqual(paths.sort(), ["appearance", "colors", "id", "name", "version"]);
 });
 
+test("an invalid required color is reported once, not also as missing", () => {
+  const result = parseTheme(validTheme({ colors: { ...(validTheme().colors as object), background: "url(https://x)" } }));
+  assert.equal(result.ok, false);
+  if (result.ok) return;
+  assert.deepEqual(result.errors.map((error) => error.path), ["colors.background"]);
+});
+
 test("names the missing required colors", () => {
   const result = parseTheme(validTheme({ colors: { background: "#2e3440", primary: "#88c0d0" } }));
   assert.equal(result.ok, false);
   if (result.ok) return;
-  const missing = result.errors.find((error) => error.path === "colors");
-  assert.ok(missing?.message.includes("foreground"));
-  assert.ok(missing.message.includes("border"));
+  const missing = result.errors.find((error) => error.path === "colors")?.message ?? "";
+  assert.ok(missing.includes("foreground"));
+  assert.ok(missing.includes("border"));
 });
 
 test("rejects an unknown token rather than silently dropping it", () => {
