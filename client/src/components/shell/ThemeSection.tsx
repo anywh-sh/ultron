@@ -111,12 +111,26 @@ function themeAsJson(theme: Theme, id: string, name: string): string {
 
 export function ThemeSection({
   scopedProfile,
+  activeProfile,
   allProfiles,
 }: {
   scopedProfile: Profile;
+  /** The profile this app is actually connected to — used as the relay for
+   * every request here whenever it shares the scoped profile's host. */
+  activeProfile: Profile;
   allProfiles: Profile[];
 }) {
-  const { supported } = useThemeSync(scopedProfile);
+  // Both registries this section touches are host-wide files that any relay
+  // on the machine reads and writes: the themes directory and profiles.json
+  // (see themeRegistry.ts / profileRegistry.ts). Talking to the scoped
+  // profile's own relay would mean a profile whose service is stopped can
+  // neither read the theme list nor have its theme changed, even though its
+  // data is sitting in a file another relay on the same host is already
+  // serving. Same reasoning as DangerZone's executor lookup, for the
+  // opposite reason: there, another relay is required; here, it's simply
+  // the one known to be reachable.
+  const registry = activeProfile.host === scopedProfile.host ? activeProfile : scopedProfile;
+  const { supported } = useThemeSync(registry);
   const { all } = useThemes(scopedProfile.host);
   const { theme: current, missing } = resolveProfileTheme(scopedProfile);
 
@@ -134,7 +148,7 @@ export function ThemeSection({
       // The built-in is stored as "no theme" rather than as its id: that's
       // what makes it the fallback for a profile whose custom theme is gone.
       const themeId = isBuiltinTheme(theme.id) ? null : theme.id;
-      await updateProfileMeta(scopedProfile.host, scopedProfile.relayPort, scopedProfile.id, { themeId });
+      await updateProfileMeta(registry.host, registry.relayPort, scopedProfile.id, { themeId });
       addProfile({ ...scopedProfile, themeId: themeId ?? undefined });
     } catch (err) {
       setError(err instanceof Error ? err.message : String(err));
@@ -153,7 +167,7 @@ export function ThemeSection({
     setBusy(true);
     setError(null);
     try {
-      await deleteTheme(scopedProfile.host, scopedProfile.relayPort, theme.id);
+      await deleteTheme(registry.host, registry.relayPort, theme.id);
       setThemesForHost(
         scopedProfile.host,
         customThemesForHost(scopedProfile.host).filter((entry) => entry.id !== theme.id),
@@ -187,8 +201,8 @@ export function ThemeSection({
 
       {!supported && (
         <p className="rounded-md border border-border px-3 py-2 text-xs text-muted-foreground">
-          Este servidor ainda não guarda temas personalizados (relay antigo). Só o tema embutido está
-          disponível aqui.
+          Não foi possível ler os temas de {registry.host} (servidor fora do ar ou relay antigo). A
+          lista abaixo é a última conhecida, e mudanças não vão salvar até ele responder.
         </p>
       )}
 
@@ -226,7 +240,7 @@ export function ThemeSection({
       <ThemeImportDialog
         open={importOpen}
         onOpenChange={setImportOpen}
-        profile={scopedProfile}
+        profile={registry}
         initialJson={importSeed}
         onImported={(theme) => void selectTheme(theme)}
       />

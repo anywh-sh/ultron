@@ -13,10 +13,15 @@ import {
 } from "@/lib/themes";
 
 /** Reactive view of one host's catalog: the built-ins plus whatever that
- * host has registered. */
+ * host has registered.
+ *
+ * The store snapshot is a dependency, not just a subscription: the selectors
+ * read the module-level store rather than taking it as an argument, so a memo
+ * keyed only on `host` would keep handing back the previous list after a
+ * theme is added — the component re-renders and shows stale content. */
 export function useThemes(host: string): { all: Theme[]; custom: Theme[] } {
-  useSyncExternalStore(subscribeThemes, getThemeStore);
-  return useMemo(() => ({ all: selectableThemes(host), custom: customThemesForHost(host) }), [host]);
+  const store = useSyncExternalStore(subscribeThemes, getThemeStore);
+  return useMemo(() => ({ all: selectableThemes(host), custom: customThemesForHost(host) }), [store, host]);
 }
 
 /**
