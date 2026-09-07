@@ -69,5 +69,5 @@ journalctl -u ultron-relay@default -f
 ## Remote access
 
 The systemd service binds wherever `RELAY_HOST` says (defaults to
-`127.0.0.1`, i.e. LAN clients on the same machine only). For access from
-another device, see `docs/43-acesso-remoto-manual.md`.
+`127.0.0.1`, i.e. clients on the same machine only). For access from another
+device, see "Remote access" in the root README.

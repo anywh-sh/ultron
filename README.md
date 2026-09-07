@@ -40,7 +40,7 @@ npm start               # or `npm run dev` during development
 
 By default it listens on `127.0.0.1:8765` (`RELAY_HOST`/`RELAY_PORT` in `.env.example`). It needs the `claude` CLI already installed and logged in on the same machine.
 
-**Advanced: running it as a systemd service** (survives reboots/crashes unattended) is documented in [`infra/systemd/README.md`](./infra/systemd/README.md). For access from outside your LAN, see [`docs/43-acesso-remoto-manual.md`](./docs/43-acesso-remoto-manual.md).
+**Advanced: running it as a systemd service** (survives reboots/crashes unattended) is documented in [`infra/systemd/README.md`](./infra/systemd/README.md).
 
 ### Client
 
@@ -76,9 +76,16 @@ The relay has no authentication and CORS is wide open — the threat model is "t
 
 This matters more than "no authentication" alone suggests: the relay's default permission mode is `bypassPermissions` (`--dangerously-skip-permissions`), so anyone who can reach the port can run arbitrary code as you, not just read your conversations.
 
-## Documentation
+## Remote access (outside your LAN)
 
-The full decision history — architecture, every feature's design rationale, and the reasoning behind trade-offs — lives in [`docs/`](./docs), in numeric order starting at [`docs/00-premissa.md`](./docs/00-premissa.md). It's written in Portuguese (the language the project was built in); UI strings stay in Portuguese too since there's no i18n yet. Code, comments, and commit messages are in English.
+Nothing here is automated — it's network setup you do once, with your own accounts, and ultron never sees it.
+
+1. Create a personal [Tailscale](https://tailscale.com/) account (the free tier covers individual use) and install the client on the relay machine and on every device you want to connect from.
+2. On the relay machine, run `tailscale ip -4` to get its tailnet address (a `100.x.y.z`).
+3. Point the relay at that interface: set `RELAY_HOST` in `relay/.env` to the tailnet IP, or to `0.0.0.0` to listen everywhere. Read the [Security model](#security-model) before choosing `0.0.0.0`.
+4. Point the client at that IP and port — see [Client](#client) above.
+
+**The catch nobody mentions: the relay machine has to stay powered on and awake.** Your session lives on that machine; if it sleeps, the app has nothing to connect to. This is true on your LAN too, but it only becomes obvious once you're away from home.
 
 ## License
 

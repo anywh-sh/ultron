@@ -15,10 +15,9 @@ client/src-tauri/gen/
 # e.g. a physical iOS device name, never meant to be shared
 client/*.local.sh
 
-# private planning docs — commercial strategy and a security audit of this
-# project; they stay on the author's machine, out of the public repo
-docs/42-monetizacao-e-open-source-plano.md
-docs/44-open-source-readiness-plano.md
+# decision history and planning docs — kept as local reference on the
+# author's machine, never published (see "Documentation" in CLAUDE.md)
+docs/
 
 # os
 .DS_Store

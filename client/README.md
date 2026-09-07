@@ -2,7 +2,7 @@
 
 Desktop (Windows/macOS/Linux) and iOS client, built with React + TypeScript + Tailwind CSS + shadcn/ui on top of Tauri 2.0. Talks to the relay (`../relay`) over WebSocket.
 
-See the root [README](../README.md) for how this fits into the rest of the project, and `../docs/` for the full decision history.
+See the root [README](../README.md) for how this fits into the rest of the project.
 
 ## Development
 
