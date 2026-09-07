@@ -859,6 +859,10 @@ export class SharedSession {
             configJson: JSON.stringify({ mcpServers }),
             allowedTools: choiceRegistration ? CHOICE_ALLOWED_TOOL : undefined,
             permissionPromptTool: permissionRegistration ? PERMISSION_PROMPT_TOOL : undefined,
+            // Force the model onto our `present_choice` instead of the CLI's
+            // own native `AskUserQuestion` — see the field's doc comment on
+            // `McpSpawnConfig` for why the native one silently fails here.
+            disallowedTools: choiceRegistration ? "AskUserQuestion" : undefined,
           }
         : undefined;
 

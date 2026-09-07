@@ -112,6 +112,15 @@ export interface McpSpawnConfig {
    * CLI calls this tool for every action that would otherwise need
    * approval, instead of auto-denying. */
   permissionPromptTool?: string;
+  /** Full `--disallowedTools` value. Used to block the CLI's own native
+   * `AskUserQuestion` whenever `present_choice` is registered as its
+   * replacement (`SharedSession.runTurn`) — without this the model is free
+   * to call either, and `AskUserQuestion` never gets a real answer channel
+   * in headless (docs/46, Descoberta 7), so a call to it silently fails and
+   * the model just paraphrases the question as plain text instead of
+   * rendering the picker UI (confirmed live: this is exactly what happened
+   * instead of the `present_choice` panel opening). */
+  disallowedTools?: string;
 }
 
 export interface SendTurnResult {
@@ -337,6 +346,7 @@ export class ClaudeSession {
             mcp.configJson,
             ...(mcp.allowedTools ? ["--allowedTools", mcp.allowedTools] : []),
             ...(mcp.permissionPromptTool ? ["--permission-prompt-tool", mcp.permissionPromptTool] : []),
+            ...(mcp.disallowedTools ? ["--disallowedTools", mcp.disallowedTools] : []),
           ]
         : []),
     ];
