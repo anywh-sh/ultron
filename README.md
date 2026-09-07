@@ -74,6 +74,8 @@ iOS has no DevTools, so an iOS build today assumes you're building from source w
 
 The relay has no authentication and CORS is wide open — the threat model is "trusted network" (your LAN, or a personal [Tailscale](https://tailscale.com/)/WireGuard network for remote access), not the public internet. Don't expose the relay's port directly to the internet.
 
+This matters more than "no authentication" alone suggests: the relay's default permission mode is `bypassPermissions` (`--dangerously-skip-permissions`), so anyone who can reach the port can run arbitrary code as you, not just read your conversations.
+
 ## Documentation
 
 The full decision history — architecture, every feature's design rationale, and the reasoning behind trade-offs — lives in [`docs/`](./docs), in numeric order starting at [`docs/00-premissa.md`](./docs/00-premissa.md). It's written in Portuguese (the language the project was built in); UI strings stay in Portuguese too since there's no i18n yet. Code, comments, and commit messages are in English.

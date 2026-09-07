@@ -21,8 +21,9 @@ type ResolveResult = { ok: true; root: string; path: string } | { ok: false; err
  * Confirms `rawPath` (or, if omitted, the root itself) resolves inside
  * `rawRoot` — `path.resolve` + `realpathSync` of both sides, so a `../` or a
  * symlink that escapes the root is rejected the same way. This is **not** a
- * security boundary (the embedded terminal already gives full shell access
- * on the same machine, and the relay only listens on Tailscale) — it's a
+ * security boundary — anyone who can reach the relay already has full shell
+ * access on this machine via the embedded terminal or `--dangerously-skip-permissions`
+ * itself (see README "Security model"), root confinement or not. It's a
  * contract: it guarantees the root really is the session's cwd, and that a
  * UI bug can't end up requesting something like `/etc`.
  */
