@@ -1,10 +1,16 @@
 // Confirma que cada relay roda com o $HOME/cwd isolado certo, olhando o
 // evento system/init que o Claude Code manda no começo de cada turno.
+// Uso: node test-profile-check.mjs <host> <porta> [label]
 import WebSocket from "ws";
 
-const port = process.argv[2];
-const label = process.argv[3] ?? `porta ${port}`;
-const socket = new WebSocket(`ws://100.64.0.1:${port}`);
+const host = process.argv[2];
+const port = process.argv[3];
+const label = process.argv[4] ?? `porta ${port}`;
+if (!host || !port) {
+  console.error("Uso: node test-profile-check.mjs <host> <porta> [label]");
+  process.exit(1);
+}
+const socket = new WebSocket(`ws://${host}:${port}`);
 
 socket.on("open", () => {
   socket.send(JSON.stringify({ type: "user_message", text: "responda apenas: OK" }));

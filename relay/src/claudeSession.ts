@@ -36,7 +36,7 @@ import type { ContextUsage, ModelChoice, PermissionMode } from "./sessionStore.j
  * wired in `sessionManager.ts`) watches for completion and triggers an
  * automatic follow-up turn (`SharedSession.submitBackgroundJobResult`,
  * docs/32 Phase D) — the promise below is now genuinely kept, validated
- * end-to-end against the real binary (`relay/test-background-job.mjs`).
+ * end-to-end against the real binary (`relay/scripts/manual/test-background-job.mjs`).
  */
 const APPEND_SYSTEM_PROMPT =
   "When writing prose meant to be pasted elsewhere (Slack, email), write each paragraph as one " +

@@ -1,6 +1,7 @@
 // Cliente de teste manual do relay — conecta, manda 2 turnos, confirma que
 // o session_id se mantém entre eles (continuidade de contexto de verdade).
-// Rodar com o relay já no ar (`npm run dev`): `node test-client.mjs`.
+// Rodar do diretório `relay/`, com o relay já no ar (`npm run dev`):
+// `node scripts/manual/test-client.mjs`.
 import WebSocket from "ws";
 
 const socket = new WebSocket("ws://127.0.0.1:8765");

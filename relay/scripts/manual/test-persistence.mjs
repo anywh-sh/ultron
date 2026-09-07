@@ -1,8 +1,9 @@
 // Testa persistência de sessão (Fase 7 / docs/18): o nome da sessão aparece
 // em GET /sessions assim que conecta (mesmo sem session_id ainda) e o
-// session_id fica gravado em disco depois de um turno completar. Rodar com
-// o relay já no ar (`npm run dev`, sem RELAY_SESSIONS_FILE definida — usa o
-// fallback ./sessions.local.json): `node test-persistence.mjs`.
+// session_id fica gravado em disco depois de um turno completar. Rodar do
+// diretório `relay/`, com o relay já no ar (`npm run dev`, sem
+// RELAY_SESSIONS_FILE definida — usa o fallback ./sessions.local.json):
+// `node scripts/manual/test-persistence.mjs`.
 import WebSocket from "ws";
 import http from "node:http";
 import { readFileSync } from "node:fs";
