@@ -36,6 +36,17 @@ import { saveUpload } from "./uploads.js";
 // level below `relay/`.
 const ADD_PROFILE_SCRIPT = resolvePath(dirname(fileURLToPath(import.meta.url)), "../../infra/systemd/add-profile.sh");
 
+// Same seam as `CLAUDE_BIN` (claudeCliConfig.ts) — defaults to the bare
+// command name (works wherever `systemctl --user` is genuinely available),
+// overridable so a test never has to shell out to the REAL systemd user
+// session, which has no notion of "this is just a test": a real incident
+// (2026-09-07) had an integration test's `DELETE /control/profiles/:id`
+// call disable+stop the operator's actual live `ultron-relay@trabalho`
+// service, SIGKILLing a real in-flight `claude` conversation. `CLAUDE_BIN`
+// already gets this treatment for the same reason; this route's `spawn`
+// needed the identical override, not a mock of `spawn` itself.
+const SYSTEMCTL_BIN = process.env.SYSTEMCTL_BIN ?? "systemctl";
+
 // Config via env — allows running one instance per profile (systemd,
 // infra/systemd/) without changing code, same as ttyd used to do (docs/08).
 const PORT = Number(process.env.RELAY_PORT ?? 8765);
@@ -769,7 +780,7 @@ export const httpServer = createServer((req, res) => {
         res.end(JSON.stringify({ error: "failed to delete profile files" }));
       }
     };
-    const disable = spawn("systemctl", ["--user", "disable", "--now", `ultron-relay@${id}`], {
+    const disable = spawn(SYSTEMCTL_BIN, ["--user", "disable", "--now", `ultron-relay@${id}`], {
       stdio: ["ignore", "pipe", "pipe"],
     });
     let disableStderr = "";

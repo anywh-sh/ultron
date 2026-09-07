@@ -6,6 +6,7 @@ import { fileURLToPath } from "node:url";
 
 const HERE = dirname(fileURLToPath(import.meta.url));
 export const FAKE_CLAUDE_BIN = resolvePath(HERE, "../fixtures/fake-claude.mjs");
+export const FAKE_SYSTEMCTL_BIN = resolvePath(HERE, "../fixtures/fake-systemctl.mjs");
 
 /** Asks the OS for a free ephemeral port by binding to port 0, then releases
  * it immediately — same "probably still free" tradeoff every test suite that
@@ -55,6 +56,11 @@ export interface TestServer {
   /** Root of the fake $HOME this instance runs under (`RELAY_HOME_OVERRIDE`)
    * — real filesystem, real isolation between test runs, no mocking. */
   homeDir: string;
+  /** `ULTRON_ENV_DIR` for this instance — real directory on disk, so a test
+   * exercising the profile registry (`GET/PATCH/DELETE /control/profiles`)
+   * can plant a second profile's `.env` file directly, the same shape
+   * `add-profile.sh` would have written, without needing systemd. */
+  envDir: string;
   close: () => Promise<void>;
 }
 
@@ -84,10 +90,16 @@ export async function startTestServer(): Promise<TestServer> {
   process.env.RELAY_PORT = String(port);
   process.env.RELAY_HOST = "127.0.0.1";
   process.env.RELAY_HOME_OVERRIDE = homeDir;
-  process.env.ULTRON_ENV_DIR = join(workDir, "env");
+  const envDir = join(workDir, "env");
+  process.env.ULTRON_ENV_DIR = envDir;
   process.env.RELAY_SESSIONS_FILE = join(workDir, "sessions.json");
   process.env.RELAY_BACKGROUND_JOBS_FILE = join(workDir, "background-jobs.json");
   process.env.CLAUDE_BIN = FAKE_CLAUDE_BIN;
+  // Real incident (2026-09-07): a test hitting `DELETE /control/profiles/:id`
+  // with the real `systemctl` disabled+stopped the operator's actual live
+  // `ultron-relay@trabalho` service. Never point this at the real binary in
+  // a test — see fixtures/fake-systemctl.mjs.
+  process.env.SYSTEMCTL_BIN = FAKE_SYSTEMCTL_BIN;
 
   const serverModule = await import("../../src/server.js");
   await waitForPort(port);
@@ -95,6 +107,7 @@ export async function startTestServer(): Promise<TestServer> {
   return {
     port,
     homeDir,
+    envDir,
     close: async () => {
       await new Promise<void>((resolveClose) => serverModule.wss.close(() => resolveClose()));
       await new Promise<void>((resolveClose) => serverModule.httpServer.close(() => resolveClose()));
