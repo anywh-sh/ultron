@@ -54,11 +54,17 @@ export default function App() {
   const [drawerOpen, setDrawerOpen] = useState(false);
   const [searchOpen, setSearchOpen] = useState(false);
   const [settingsOpen, setSettingsOpen] = useState(false);
-  // Connection state of the active session — only used by iOS's MobileTopBar
-  // (docs/24), which lives outside ChatPanel. Fed by `renderPanel`'s
-  // `onConnectedChange` below, kept using the same "is it still the visible
-  // tab" pattern that `onTurnComplete` already uses.
-  const [activeConnected, setActiveConnected] = useState(false);
+  // Connection state per tab — used by TitleBar/MobileTopBar (docs/24), which
+  // live outside ChatPanel. Fed by `renderPanel`'s `onConnectedChange` below.
+  // Keyed by tab id (not a single flag) because desktop's TabBar keeps every
+  // tab's ChatPanel mounted at once (forceMount, see the `key={tab.id}`
+  // comment in `renderPanel`): a background tab's `connected` can flip while
+  // it's not the active one, and nothing re-fires once it becomes active
+  // again. A single flag reset to `false` on every tab switch (the previous
+  // approach) got stuck showing "Reconectando…" forever for a tab that was
+  // already connected, since its `connected` value wasn't changing anymore
+  // to trigger another update.
+  const [connectedByTab, setConnectedByTab] = useState<Record<string, boolean>>({});
 
   useEffect(() => {
     void ensureNotificationPermission();
@@ -93,6 +99,7 @@ export default function App() {
   }, []);
 
   const activeTabId = tabsState.activeTabId;
+  const activeConnected = activeTabId ? (connectedByTab[activeTabId] ?? false) : false;
 
   // Clears the "turn complete" badge of the tab that's visible now.
   useEffect(() => {
@@ -100,12 +107,16 @@ export default function App() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [activeTabId]);
 
-  // Avoids briefly showing "Connected" inherited from the previous tab when
-  // switching sessions — the freshly mounted ChatPanel reports the real state
-  // as soon as its WebSocket connects (or not).
+  // Drops `connectedByTab` entries for tabs that no longer exist (closed via
+  // any of the several paths that call `closeTab`), so the map doesn't grow
+  // unbounded across a long session.
   useEffect(() => {
-    setActiveConnected(false);
-  }, [activeTabId]);
+    const openIds = new Set(tabsState.tabs.map((tab) => tab.id));
+    setConnectedByTab((prev) => {
+      const next = Object.fromEntries(Object.entries(prev).filter(([id]) => openIds.has(id)));
+      return Object.keys(next).length === Object.keys(prev).length ? prev : next;
+    });
+  }, [tabsState.tabs]);
 
   // Pushes a history entry (titlebar Back/Forward — docs/21) every time the
   // active tab changes, except when the change came from goBack/goForward
@@ -385,7 +396,7 @@ export default function App() {
           if (tab.profileId === activeProfile.id) removeSession(tab.id);
         }}
         onConnectedChange={(connected) => {
-          if (tab.id === tabsState.activeTabId) setActiveConnected(connected);
+          setConnectedByTab((prev) => (prev[tab.id] === connected ? prev : { ...prev, [tab.id]: connected }));
         }}
         terminal={
           isCompact || isIOS()
