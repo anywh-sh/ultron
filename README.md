@@ -24,7 +24,7 @@ If you run Claude Code on a headless machine (a home server, a NAS, an always-on
 
 Functional MVP, self-hosted and used daily by its author: chat, voice, image upload, multi-session, multi-profile, a terminal panel and a read-only file browser for the session's working directory — validated on Windows, macOS and iOS.
 
-**Open source readiness is in progress.** Today, running your own instance means editing a couple of config points by hand (below) — there's no pairing/QR flow or one-command setup yet. See `docs/42-monetizacao-e-open-source-plano.md` for the plan.
+Setting up your own instance means pointing the client at your relay by hand (below) — there's no pairing/QR flow or one-command setup yet.
 
 ## Getting started (self-host)
 
