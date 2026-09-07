@@ -1,6 +1,6 @@
 import { spawn } from "node:child_process";
 import { createReadStream, existsSync } from "node:fs";
-import { createServer } from "node:http";
+import { createServer, type IncomingMessage, type ServerResponse } from "node:http";
 import { dirname, resolve as resolvePath } from "node:path";
 import { fileURLToPath } from "node:url";
 import { WebSocketServer, type WebSocket } from "ws";
@@ -333,6 +333,32 @@ const sessionManager = new SessionManager(
   `http://127.0.0.1:${PORT}/permission`,
 );
 
+/**
+ * `/mcp/:token` and `/permission/:token` — the relay's own `claude` children
+ * call these to resolve `present_choice`/`ExitPlanMode` (docs/46). `token`
+ * is generated fresh per turn (SharedSession) and is each route's only
+ * auth — no session/profile check needed beyond it, since only a
+ * `--mcp-config`/`--permission-prompt-tool` we ourselves handed to a local
+ * child process ever knows it. Shared between `httpServer` (bound to
+ * `HOST`, whatever the operator configured for remote/Tailscale access) and
+ * `loopbackServer` below (always `127.0.0.1`, so these two routes stay
+ * reachable from local children even when `HOST` is a Tailscale-only
+ * address the loopback interface can't reach — see that server's comment).
+ */
+function handleBridgeRequest(req: IncomingMessage, res: ServerResponse): boolean {
+  const mcpMatch = req.url?.match(/^\/mcp\/([^/]+)$/);
+  if (mcpMatch) {
+    void mcpChoiceBridge.handleRequest(mcpMatch[1], req, res);
+    return true;
+  }
+  const permissionMatch = req.url?.match(/^\/permission\/([^/]+)$/);
+  if (permissionMatch) {
+    void mcpPermissionBridge.handleRequest(permissionMatch[1], req, res);
+    return true;
+  }
+  return false;
+}
+
 // `true` from the first SIGTERM/SIGINT received onward — rejects a new turn
 // (see `isUserMessage` above) while `gracefulShutdown` waits for turns
 // already in progress to finish, see the definition at the end of the file.
@@ -368,24 +394,7 @@ const httpServer = createServer((req, res) => {
     return;
   }
 
-  // docs/46 — MCP endpoint the relay's own `claude` children call into for
-  // `present_choice`. `token` is generated fresh per turn (SharedSession)
-  // and is this route's only auth — no session/profile check needed beyond
-  // it, since only a `--mcp-config` we ourselves handed to a local child
-  // process ever knows it.
-  const mcpMatch = req.url?.match(/^\/mcp\/([^/]+)$/);
-  if (mcpMatch) {
-    void mcpChoiceBridge.handleRequest(mcpMatch[1], req, res);
-    return;
-  }
-
-  // docs/46 Fase 4 — MCP endpoint for `--permission-prompt-tool`, same
-  // per-turn-token-as-auth reasoning as the route above.
-  const permissionMatch = req.url?.match(/^\/permission\/([^/]+)$/);
-  if (permissionMatch) {
-    void mcpPermissionBridge.handleRequest(permissionMatch[1], req, res);
-    return;
-  }
+  if (handleBridgeRequest(req, res)) return;
 
   if (req.method === "GET" && req.url?.startsWith("/sessions")) {
     res.setHeader("Content-Type", "application/json");
@@ -787,6 +796,37 @@ const wss = new WebSocketServer({ server: httpServer });
 httpServer.listen(PORT, HOST, () => {
   console.log(`[relay] listening on ws://${HOST}:${PORT}`, HOME_OVERRIDE ? `(HOME=${HOME_OVERRIDE})` : "");
 });
+
+// Real-world bug (docs/46): `httpServer` above binds ONLY to `HOST`, which
+// for every profile except the self-registered "default" one is a Tailscale
+// IP, not `127.0.0.1` (`RELAY_HOST` in each profile's `.env` — an operator
+// choice, same trust boundary as the rest of the relay's auth-less HTTP/WS
+// surface, not something this file should second-guess). A socket bound to
+// a specific non-loopback address does NOT also answer on `127.0.0.1` — so
+// `--mcp-config`/`--permission-prompt-tool` (both hardcoded to
+// `http://127.0.0.1:${PORT}/...`, since the child is always local to this
+// machine regardless of what remote address the relay itself listens on)
+// got connection-refused, and the CLI silently dropped the tool. Confirmed
+// with `ss -tlnp` + `curl` against a live profile: `present_choice` most
+// likely never actually worked end-to-end in production despite shipping
+// in Fase 1-3, only in isolated tests against a bare `127.0.0.1`-bound
+// server — this is the fix.
+//
+// This second listener changes NONE of the operator-facing network surface
+// (`httpServer`/`HOST` above is untouched) — `127.0.0.1` is unreachable
+// from any other host by definition, so it adds no exposure, it just makes
+// the "always local" promise already made in the URLs above actually true.
+// Skipped when `HOST` already IS `127.0.0.1` (the "default" profile,
+// profileRegistry.ts) to avoid `EADDRINUSE` binding the same address twice.
+if (HOST !== "127.0.0.1") {
+  const loopbackServer = createServer((req, res) => {
+    if (handleBridgeRequest(req, res)) return;
+    res.writeHead(404).end();
+  });
+  loopbackServer.listen(PORT, "127.0.0.1", () => {
+    console.log(`[relay] mcp/permission bridge also listening on http://127.0.0.1:${PORT} (local-only, for own children)`);
+  });
+}
 
 /** One interactive shell (tmux) per terminal tab — its own protocol, much
  * simpler than the chat's (no history replay: reattaching to tmux already
