@@ -1,0 +1,162 @@
+import { useEffect, useState } from "react";
+import { ArrowRight, Check, ChevronLeft, ChevronRight, X } from "lucide-react";
+import { Button } from "@/components/ui/button";
+import { cn } from "@/lib/utils";
+import { isIOS } from "@/lib/platform";
+import type { ChoiceAnswer, ChoiceQuestion } from "@/lib/relayClient";
+
+interface ChoiceCardProps {
+  promptId: string;
+  questions: ChoiceQuestion[];
+  onAnswer: (answers: ChoiceAnswer[]) => void;
+}
+
+/** docs/46 Phase 2 — picker for a `present_choice` MCP call blocked
+ * mid-turn, styled after Claude Desktop's own `AskUserQuestion` card
+ * (reference screenshot in the docs/46 write-up). Sits right above the
+ * composer, replacing the old row of dir/files/terminal buttons there (moved
+ * below the composer instead — see ChatPanel.tsx).
+ *
+ * One `choice_answer` is sent for the WHOLE prompt at once (not per
+ * question, see relay/src/sharedSession.ts::answerChoice) — this component
+ * accumulates an answer per question locally as the user steps through them
+ * and only calls `onAnswer` once the last one is confirmed or skipped, or
+ * the user closes the card early (filling in whatever wasn't reached yet
+ * with an empty selection, so the turn always genuinely unblocks). */
+export function ChoiceCard({ promptId, questions, onAnswer }: ChoiceCardProps) {
+  const [index, setIndex] = useState(0);
+  const [answers, setAnswers] = useState<Map<number, string[]>>(new Map());
+  const [selected, setSelected] = useState<string[]>([]);
+
+  // A fresh prompt (new `promptId`) always starts over — same instance can
+  // be reused across prompts since `ChatPanel` keys it by `choicePrompt`
+  // state, not by mount/unmount.
+  useEffect(() => {
+    setIndex(0);
+    setAnswers(new Map());
+    setSelected([]);
+  }, [promptId]);
+
+  const question = questions[index];
+  const isLast = index === questions.length - 1;
+
+  function goTo(nextIndex: number): void {
+    setIndex(nextIndex);
+    setSelected(answers.get(nextIndex) ?? []);
+  }
+
+  function toggleOption(label: string): void {
+    if (question.multiSelect) {
+      setSelected((current) => (current.includes(label) ? current.filter((item) => item !== label) : [...current, label]));
+    } else {
+      setSelected((current) => (current.includes(label) ? [] : [label]));
+    }
+  }
+
+  function finish(finalAnswers: Map<number, string[]>): void {
+    onAnswer(questions.map((question, questionIndex) => ({ question: question.question, selected: finalAnswers.get(questionIndex) ?? [] })));
+  }
+
+  function confirmCurrent(withSelection: string[]): void {
+    const next = new Map(answers).set(index, withSelection);
+    if (isLast) {
+      finish(next);
+      return;
+    }
+    setAnswers(next);
+    goTo(index + 1);
+  }
+
+  return (
+    <div
+      className={cn(
+        "flex flex-col gap-2 rounded-xl border border-border bg-bg-elevated p-3",
+        // On iOS the parent stack already provides horizontal padding + gap
+        // between siblings (docs/24) — an extra margin here would misalign
+        // this card against the composer/edit-warning next to it.
+        isIOS() ? "shrink-0" : "mx-3 mt-3",
+      )}
+    >
+      <div className="flex items-start justify-between gap-2">
+        <div className="flex flex-col gap-0.5">
+          {question.header && <p className="text-xs font-medium tracking-wide text-muted-foreground uppercase">{question.header}</p>}
+          <p className="text-sm font-medium text-foreground">{question.question}</p>
+        </div>
+        <div className="flex shrink-0 items-center gap-1">
+          {questions.length > 1 && (
+            <>
+              <button
+                type="button"
+                onClick={() => goTo(index - 1)}
+                disabled={index === 0}
+                aria-label="Pergunta anterior"
+                className="cursor-pointer text-muted-foreground hover:text-foreground disabled:cursor-not-allowed disabled:opacity-30"
+              >
+                <ChevronLeft className="size-4" />
+              </button>
+              <span className="px-1 text-xs text-muted-foreground">
+                {index + 1} de {questions.length}
+              </span>
+              <button
+                type="button"
+                onClick={() => goTo(index + 1)}
+                disabled={isLast}
+                aria-label="Próxima pergunta"
+                className="cursor-pointer text-muted-foreground hover:text-foreground disabled:cursor-not-allowed disabled:opacity-30"
+              >
+                <ChevronRight className="size-4" />
+              </button>
+            </>
+          )}
+          <button
+            type="button"
+            onClick={() => finish(new Map(answers).set(index, selected))}
+            aria-label="Fechar e responder com o que já foi selecionado"
+            className="ml-1 cursor-pointer text-muted-foreground hover:text-foreground"
+          >
+            <X className="size-4" />
+          </button>
+        </div>
+      </div>
+
+      <div className="flex flex-col divide-y divide-border">
+        {question.options.map((option) => {
+          const isSelected = selected.includes(option.label);
+          return (
+            <button
+              type="button"
+              key={option.label}
+              onClick={() => toggleOption(option.label)}
+              className="flex cursor-pointer items-center gap-2.5 py-2 text-left"
+            >
+              <span
+                className={cn(
+                  "flex size-4 shrink-0 items-center justify-center rounded border",
+                  isSelected ? "border-primary bg-primary text-primary-foreground" : "border-border",
+                )}
+              >
+                <Check className={cn("size-3", !isSelected && "opacity-0")} />
+              </span>
+              <span className="flex flex-col">
+                <span className="text-sm text-foreground">{option.label}</span>
+                {option.description && <span className="text-xs text-muted-foreground">{option.description}</span>}
+              </span>
+            </button>
+          );
+        })}
+      </div>
+
+      <div className="flex items-center justify-between pt-1">
+        <span className="text-xs text-muted-foreground">{selected.length} selecionado(s)</span>
+        <div className="flex items-center gap-1.5">
+          <Button type="button" variant="secondary" size="sm" onClick={() => confirmCurrent([])}>
+            Pular
+          </Button>
+          <Button type="button" size="icon-sm" onClick={() => confirmCurrent(selected)} aria-label={isLast ? "Enviar respostas" : "Próxima pergunta"}>
+            <ArrowRight className="size-4" />
+          </Button>
+        </div>
+      </div>
+    </div>
+  );
+}

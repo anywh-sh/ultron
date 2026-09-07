@@ -2,6 +2,8 @@
 // see docs/11-decisao-pivo-stream-json.md and docs/12-prototipo-relay.md).
 import type {
   BackgroundJobSummary,
+  ChoiceAnswer,
+  ChoiceQuestion,
   ClaudeEvent,
   ContextUsage,
   CreatedProfile,
@@ -18,6 +20,9 @@ import { recordAvailableModels } from "@/lib/modelCatalog";
 
 export type {
   BackgroundJobSummary,
+  ChoiceAnswer,
+  ChoiceOption,
+  ChoiceQuestion,
   ClaudeContentBlock,
   ClaudeMessage,
   ClaudeEvent,
@@ -253,6 +258,15 @@ export interface RelayClientCallbacks {
    * draft changes, from any device — see sharedSession.ts::setDraft. Lets a
    * reopened/restarted app restore what was typed but not yet sent. */
   onDraftState: (draft: string) => void;
+  /** docs/46 — the model called `present_choice` mid-turn and is genuinely
+   * blocked waiting for an answer. "Current state" pattern, same as
+   * `onCwdState`/`onTurnState`: sent again to a device that (re)connects
+   * mid-wait, not just to whoever was already there. Answer via
+   * `RelayClient.answerChoice`. */
+  onChoicePrompt?: (promptId: string, questions: ChoiceQuestion[]) => void;
+  /** The prompt above was answered (by any device) or the turn that asked
+   * it ended before anyone answered — whoever shows it should dismiss it. */
+  onChoiceResolved?: (promptId: string) => void;
 }
 
 const RECONNECT_BASE_DELAY_MS = 500;
@@ -370,6 +384,10 @@ export class RelayClient {
         this.callbacks.onHistoryTruncated?.(parsed);
       } else if (parsed.type === "edit_message_error") {
         this.callbacks.onEditMessageError?.(parsed.message);
+      } else if (parsed.type === "choice_prompt") {
+        this.callbacks.onChoicePrompt?.(parsed.promptId, parsed.questions);
+      } else if (parsed.type === "choice_resolved") {
+        this.callbacks.onChoiceResolved?.(parsed.promptId);
       }
     });
   }
@@ -456,6 +474,15 @@ export class RelayClient {
   cancelBackgroundJob(id: string): void {
     if (this.socket?.readyState !== WebSocket.OPEN) return;
     this.socket.send(JSON.stringify({ type: "cancel_background_job", id }));
+  }
+
+  /** docs/46 — answers a pending `present_choice` prompt. Same reasoning as
+   * `setModel`/`clearConversation` about not needing a pending queue: the
+   * picker that exposes this only appears once `onChoicePrompt` already
+   * fired, which means the socket is already open. */
+  answerChoice(promptId: string, answers: ChoiceAnswer[]): void {
+    if (this.socket?.readyState !== WebSocket.OPEN) return;
+    this.socket.send(JSON.stringify({ type: "choice_answer", promptId, answers }));
   }
 
   disconnect(): void {

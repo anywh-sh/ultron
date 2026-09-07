@@ -14,6 +14,7 @@ import { MessageLogSkeleton } from "@/components/chat/MessageLogSkeleton";
 import { ChatIdleState } from "@/components/chat/ChatIdleState";
 import { TurnIndicator } from "@/components/chat/TurnIndicator";
 import { Composer, type ComposerHandle } from "@/components/chat/Composer";
+import { ChoiceCard } from "@/components/chat/ChoiceCard";
 import { WorkingDirectoryButton } from "@/components/chat/WorkingDirectoryButton";
 import { FilesToggleButton } from "@/components/chat/FilesToggleButton";
 import { TerminalToggleButton } from "@/components/chat/TerminalToggleButton";
@@ -284,6 +285,8 @@ export function ChatPanel({
     editMessage,
     draft,
     setDraft,
+    choicePrompt,
+    answerChoice,
   } = useRelayClient(profile, sessionId, {
     onEvent: (event) => logRef.current.handleEvent(event),
     onReconnecting: () => {
@@ -559,24 +562,26 @@ export function ChatPanel({
         )}
         style={isIOS() ? { bottom: keyboardInfo.shift } : undefined}
       >
-        <div className={isIOS() ? "flex items-center justify-between" : "mx-3 mt-3 flex items-center justify-between"}>
-          <div className="flex min-w-0 items-center gap-1.5">
-            <WorkingDirectoryButton
-              profile={profile}
-              cwd={cwd}
-              locked={cwdLocked}
-              connected={connected}
-              isNewConversation={isNewConversation}
-              onSetCwd={setCwd}
-              onFocusComposer={() => composerRef.current?.focus()}
-            />
-            <BackgroundJobIndicator jobs={backgroundJobs} onCancel={cancelBackgroundJob} />
+        {/* iOS keeps this row above the composer (unchanged) — on desktop it
+         * moved below (see after `Composer`) to make room for `ChoiceCard`
+         * sitting right above the input, like Claude Desktop's own
+         * `AskUserQuestion` card (docs/46 Phase 2). */}
+        {isIOS() && (
+          <div className="flex items-center justify-between">
+            <div className="flex min-w-0 items-center gap-1.5">
+              <WorkingDirectoryButton
+                profile={profile}
+                cwd={cwd}
+                locked={cwdLocked}
+                connected={connected}
+                isNewConversation={isNewConversation}
+                onSetCwd={setCwd}
+                onFocusComposer={() => composerRef.current?.focus()}
+              />
+              <BackgroundJobIndicator jobs={backgroundJobs} onCancel={cancelBackgroundJob} />
+            </div>
           </div>
-          <div className="flex shrink-0 items-center gap-1">
-            {files && <FilesToggleButton cwd={cwd} open={files.open} onToggle={files.onToggle} />}
-            {terminal && <TerminalToggleButton cwd={cwd} open={terminal.open} onToggle={terminal.onToggle} />}
-          </div>
-        </div>
+        )}
 
         {/* iOS (docs/33): editing doesn't turn into an inline `<textarea>`
          * in the bubble (see `editingMessageId` above) — fills the normal
@@ -603,6 +608,8 @@ export function ChatPanel({
          * the floating area and end up rendering below the composer (near
          * the keyboard) instead of above it. */}
         {isIOS() && turnStartedAt !== null && <TurnIndicator startedAt={turnStartedAt} />}
+
+        {choicePrompt && <ChoiceCard promptId={choicePrompt.promptId} questions={choicePrompt.questions} onAnswer={answerChoice} />}
 
         <Composer
           ref={composerRef}
@@ -659,6 +666,27 @@ export function ChatPanel({
             onActivity?.();
           }}
         />
+
+        {!isIOS() && (
+          <div className="mx-3 mb-3 flex items-center justify-between">
+            <div className="flex min-w-0 items-center gap-1.5">
+              <WorkingDirectoryButton
+                profile={profile}
+                cwd={cwd}
+                locked={cwdLocked}
+                connected={connected}
+                isNewConversation={isNewConversation}
+                onSetCwd={setCwd}
+                onFocusComposer={() => composerRef.current?.focus()}
+              />
+              <BackgroundJobIndicator jobs={backgroundJobs} onCancel={cancelBackgroundJob} />
+            </div>
+            <div className="flex shrink-0 items-center gap-1">
+              {files && <FilesToggleButton cwd={cwd} open={files.open} onToggle={files.onToggle} />}
+              {terminal && <TerminalToggleButton cwd={cwd} open={terminal.open} onToggle={terminal.onToggle} />}
+            </div>
+          </div>
+        )}
       </div>
     </div>
   );

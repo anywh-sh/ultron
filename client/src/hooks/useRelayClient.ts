@@ -2,6 +2,8 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import {
   RelayClient,
   type BackgroundJobSummary,
+  type ChoiceAnswer,
+  type ChoiceQuestion,
   type ClaudeEvent,
   type ContextUsage,
   type HistoryPageMessage,
@@ -18,6 +20,13 @@ export interface CompactBoundaryEvent {
   trigger: "auto" | "manual";
   preTokens: number;
   receivedAt: number;
+}
+
+/** docs/46 — a `present_choice` prompt currently blocked waiting for an
+ * answer, if any. See `RelayClientCallbacks.onChoicePrompt`. */
+export interface PendingChoice {
+  promptId: string;
+  questions: ChoiceQuestion[];
 }
 
 export interface UseRelayClientOptions {
@@ -113,6 +122,12 @@ export interface UseRelayClientResult {
    * arriving, same reasoning as `cwd`/`permissionMode` above. */
   draft: string | null;
   setDraft: (text: string) => void;
+  /** docs/46 — a `present_choice` prompt currently blocked waiting for an
+   * answer, `null` when there's none. */
+  choicePrompt: PendingChoice | null;
+  /** Answers the current `choicePrompt` — a no-op if it's already `null`
+   * (e.g. the turn ended and resolved it right as the user was answering). */
+  answerChoice: (answers: ChoiceAnswer[]) => void;
 }
 
 /**
@@ -138,7 +153,10 @@ export function useRelayClient(
   const [suggestion, setSuggestion] = useState<string | null>(null);
   const [backgroundJobs, setBackgroundJobs] = useState<BackgroundJobSummary[]>([]);
   const [draft, setDraftState] = useState<string | null>(null);
+  const [choicePrompt, setChoicePrompt] = useState<PendingChoice | null>(null);
   const clientRef = useRef<RelayClient | null>(null);
+  const choicePromptRef = useRef(choicePrompt);
+  choicePromptRef.current = choicePrompt;
 
   const optionsRef = useRef(options);
   optionsRef.current = options;
@@ -157,6 +175,7 @@ export function useRelayClient(
     setSuggestion(null);
     setBackgroundJobs([]);
     setDraftState(null);
+    setChoicePrompt(null);
 
     const client = new RelayClient(profile.host, profile.relayPort, sessionId, {
       onEvent: (event) => {
@@ -194,6 +213,14 @@ export function useRelayClient(
       onHistoryTruncated: (page) => optionsRef.current.onHistoryTruncated?.(page),
       onEditMessageError: (message) => optionsRef.current.onEditMessageError?.(message),
       onDraftState: setDraftState,
+      onChoicePrompt: (promptId, questions) => setChoicePrompt({ promptId, questions }),
+      // Only clears local state if it's still the SAME prompt — a new one
+      // could in principle already be pending by the time this arrives
+      // (unlikely given only one `present_choice` call is ever in flight per
+      // session, but cheap to guard against a stale resolve clobbering it).
+      onChoiceResolved: (promptId) => {
+        if (choicePromptRef.current?.promptId === promptId) setChoicePrompt(null);
+      },
     });
     clientRef.current = client;
     client.connect();
@@ -261,6 +288,16 @@ export function useRelayClient(
     clientRef.current?.setDraft(text);
   }, []);
 
+  const answerChoice = useCallback((answers: ChoiceAnswer[]) => {
+    const prompt = choicePromptRef.current;
+    if (!prompt) return;
+    clientRef.current?.answerChoice(prompt.promptId, answers);
+    // Optimistic, same spirit as `dismissSuggestion` — the relay's own
+    // `choice_resolved` will confirm it shortly, but clearing right away
+    // avoids a flash of the same picker between the click and that round-trip.
+    setChoicePrompt(null);
+  }, []);
+
   return {
     connected,
     cwd,
@@ -284,5 +321,7 @@ export function useRelayClient(
     editMessage,
     draft,
     setDraft,
+    choicePrompt,
+    answerChoice,
   };
 }
