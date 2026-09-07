@@ -70,6 +70,18 @@ By default the client points at a relay on the same machine (`127.0.0.1:8765`). 
 
 iOS has no DevTools, so an iOS build today assumes you're building from source with the env var set — see `client/README.md` for iOS-specific commands.
 
+## Profiles
+
+A profile is an isolated relay instance bound to one Claude Code login — not a new OS user, just a different `$HOME` the relay spawns `claude` under. The first profile is whatever you pointed the client at in [Client](#client) above; every profile after that is created from inside the app, on the same relay machine.
+
+To add another profile once you're already connected to a relay:
+
+1. On that machine, log into the second account once, out of band: `HOME=/path/to/new/home claude login`. This is deliberately manual and outside the app — there's no in-app login flow. A future paid tier will support logging in via `claude setup-token` (portable, no terminal); that's out of scope for the self-hosted path described here.
+2. In the client, open the profile switcher and choose **Adicionar perfil** → **Criar**, give it a label and that same path, then **Verificar** to confirm the login was picked up before creating it.
+3. On any other device already pointed at the same relay machine, **Adicionar perfil** → **Importar** lists the new profile automatically — one click to add it there too.
+
+The profile registry (`~/.config/ultron/env/*.env`, `~/.config/ultron/profiles.json`) lives entirely on the relay machine — creating or importing a profile never sends anything to a third party. `infra/systemd/add-profile.sh` does the same provisioning from the command line (what the "Criar" dialog calls behind the scenes) — see [`infra/systemd/README.md`](./infra/systemd/README.md) for running it directly.
+
 ## Security model
 
 The relay has no authentication and CORS is wide open — the threat model is "trusted network" (your LAN, or a personal [Tailscale](https://tailscale.com/)/WireGuard network for remote access), not the public internet. Don't expose the relay's port directly to the internet.

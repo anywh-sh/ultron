@@ -66,7 +66,10 @@ systemctl --user enable --now ultron-relay@pessoal
 ```
 
 Or use `add-profile.sh` (same directory) to generate the `.env` and enable
-the instance in one step — see its `--help` output.
+the instance in one step — see its `--help` output. This is the same script
+the client's own **Adicionar perfil** → **Criar** dialog calls behind the
+scenes (root README's "Profiles" section) — reach for it directly only when
+scripting a setup or working before the app is even connected.
 
 Repeat with a second file (different port, paths, and — if it's a fully
 separate Claude Code login — `RELAY_HOME_OVERRIDE`) for a second profile.
@@ -74,8 +77,8 @@ separate Claude Code login — `RELAY_HOME_OVERRIDE`) for a second profile.
 ## Checking it
 
 ```bash
-systemctl status ultron-relay@default
-journalctl -u ultron-relay@default -f
+systemctl --user status ultron-relay@default
+journalctl --user -u ultron-relay@default -f
 ```
 
 ## Remote access
