@@ -119,6 +119,15 @@ function isSetModelMessage(value: unknown): value is { type: "set_model"; model:
   );
 }
 
+function isSetDraftMessage(value: unknown): value is { type: "set_draft"; draft: string } {
+  return (
+    typeof value === "object" &&
+    value !== null &&
+    (value as { type?: unknown }).type === "set_draft" &&
+    typeof (value as { draft?: unknown }).draft === "string"
+  );
+}
+
 function isRenameBody(value: unknown): value is { id: string; title: string } {
   return (
     typeof value === "object" &&
@@ -883,6 +892,10 @@ wss.on("connection", (socket: WebSocket, request) => {
     }
     if (isSetModelMessage(parsed)) {
       session.setModel(parsed.model);
+      return;
+    }
+    if (isSetDraftMessage(parsed)) {
+      session.setDraft(parsed.draft);
       return;
     }
     if (isLoadOlderHistoryMessage(parsed)) {

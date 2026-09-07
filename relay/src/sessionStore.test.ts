@@ -248,3 +248,32 @@ test("old record without contextUsage (written before this feature existed) load
     },
   );
 });
+
+test("getDraft with no record yet: empty string, doesn't break (new tab, nothing typed)", () => {
+  withStoreFile(undefined, (filePath) => {
+    const store = new SessionStore(filePath, DEFAULT_CWD);
+    assert.equal(store.getDraft("nunca-visto"), "");
+  });
+});
+
+test("setDraft round-trips and persists to disk, surviving reopening the file", () => {
+  withStoreFile(undefined, (filePath) => {
+    const store = new SessionStore(filePath, DEFAULT_CWD);
+    store.recordId("s1");
+    store.setDraft("s1", "preciso lembrar de");
+    assert.equal(store.getDraft("s1"), "preciso lembrar de");
+
+    // Simulates a relay restart: the value survives without needing a new turn.
+    const reopened = new SessionStore(filePath, DEFAULT_CWD);
+    assert.equal(reopened.getDraft("s1"), "preciso lembrar de");
+  });
+});
+
+test("setDraft called before recordId still works (ensureEntry creates the record)", () => {
+  withStoreFile(undefined, (filePath) => {
+    const store = new SessionStore(filePath, DEFAULT_CWD);
+    store.setDraft("nova", "rascunho");
+    assert.equal(store.getDraft("nova"), "rascunho");
+  });
+});
+

@@ -122,6 +122,12 @@ export interface SharedSessionOptions {
    * doesn't know anything about `BackgroundJobTracker`, it just passes it
    * along for `SessionManager` to decide what to do. */
   onCancelBackgroundJob?: (jobId: string) => void;
+  /** Draft text already persisted for this session (composer content not
+   * yet sent), if any — prompt-draft feature. */
+  initialDraft?: string;
+  /** Called whenever the draft changes (debounced on the client side) —
+   * this is how SessionManager writes it to SessionStore. */
+  onDraftChange?: (draft: string) => void;
 }
 
 export type SetCwdResult = { ok: true } | { ok: false; error: string };
@@ -142,6 +148,7 @@ export class SharedSession {
   private title: string | null;
   private permissionMode: PermissionMode;
   private model: ModelChoice | undefined;
+  private draft: string;
   private contextUsage: ContextUsage | undefined;
   /** Next-message suggestion (generated asynchronously at the end of every
    * successful turn, see `runTurn`) — in-memory only, on purpose: it's a
@@ -180,6 +187,7 @@ export class SharedSession {
     this.permissionMode = options.initialPermissionMode;
     this.model = options.initialModel;
     this.contextUsage = options.initialContextUsage;
+    this.draft = options.initialDraft ?? "";
   }
 
   getCwdState(): { cwd: string; locked: boolean } {
@@ -213,6 +221,16 @@ export class SharedSession {
     this.model = model;
     this.options.onModelChange?.(model);
     this.broadcastModelState();
+  }
+
+  getDraft(): string {
+    return this.draft;
+  }
+
+  setDraft(text: string): void {
+    this.draft = text;
+    this.options.onDraftChange?.(text);
+    this.broadcastDraftState();
   }
 
   getTitle(): string | null {
@@ -269,6 +287,7 @@ export class SharedSession {
     this.sendModelState(socket);
     if (this.title !== null) this.sendTitle(socket, this.title);
     this.sendContextUsage(socket);
+    this.sendDraftState(socket);
     this.sendSuggestion(socket);
     this.sendTurnState(socket);
     this.sendBackgroundJobs(socket);
@@ -655,6 +674,17 @@ export class SharedSession {
 
   private broadcastModelState(): void {
     for (const client of this.clients) this.sendModelState(client);
+  }
+
+  private sendDraftState(target: WebSocket): void {
+    target.send(JSON.stringify({ type: "draft_state", draft: this.draft }));
+  }
+
+  /** Same reasoning as `broadcastCwdState`/`broadcastPermissionMode`: "current"
+   * state, not a `history` event — a reconnection picks up the current
+   * value via `addClient` (`sendDraftState`), not a replay of changes. */
+  private broadcastDraftState(): void {
+    for (const client of this.clients) this.sendDraftState(client);
   }
 
   private sendContextUsage(target: WebSocket): void {

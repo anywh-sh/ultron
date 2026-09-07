@@ -89,6 +89,11 @@ export interface SessionEntry {
    * every turn, otherwise it disappears for the client until the next turn
    * runs. */
   contextUsage?: ContextUsage;
+  /** Text typed into the composer but not yet sent, kept so it survives an
+   * app crash/restart — see the prompt-draft feature. Optional for the same
+   * reason as `permissionMode`/`model`: tolerates records written before
+   * this feature existed (read as `""` via `getDraft`). */
+  draft?: string;
 }
 
 export type SessionRecord = Record<string, SessionEntry>;
@@ -347,6 +352,21 @@ export class SessionStore {
   setContextUsage(id: string, usage: ContextUsage): void {
     this.ensureEntry(id);
     this.records[id].contextUsage = usage;
+    this.persist();
+  }
+
+  getDraft(id: string): string {
+    return this.records[id]?.draft ?? "";
+  }
+
+  /** No-op on an unchanged value — unlike the other setters, this one is
+   * expected to be called frequently (debounced per keystroke on the client
+   * side), and `persist()` is a synchronous full-file `writeFileSync` with
+   * no batching of its own. */
+  setDraft(id: string, text: string): void {
+    this.ensureEntry(id);
+    if (this.records[id].draft === text) return;
+    this.records[id].draft = text;
     this.persist();
   }
 
