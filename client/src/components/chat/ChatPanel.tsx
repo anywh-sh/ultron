@@ -535,8 +535,6 @@ export function ChatPanel({
         <MessageLogSkeleton />
       )}
 
-      {!isIOS() && turnStartedAt !== null && <TurnIndicator startedAt={turnStartedAt} />}
-
       {/* iOS (docs/24): cwd + composer float above the log, out of normal
        * flow — the log keeps scrolling, visible (blurred) beneath the
        * composer's glass, instead of stopping above a fixed block. `bottom`
@@ -615,6 +613,8 @@ export function ChatPanel({
          * cap anyway) is untouched. */}
         <div className={cn(isIOS() ? "contents" : "w-full px-4")}>
           <div className={cn(isIOS() ? "contents" : "mx-auto flex w-full max-w-3xl flex-col")}>
+            {!isIOS() && turnStartedAt !== null && <TurnIndicator startedAt={turnStartedAt} />}
+
             {choicePrompt && <ChoiceCard promptId={choicePrompt.promptId} questions={choicePrompt.questions} onAnswer={answerChoice} />}
 
             <Composer

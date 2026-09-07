@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
-import { formatDurationLong } from "@/lib/utils";
+import { cn, formatDurationLong } from "@/lib/utils";
 import { pickThinkingWord } from "@/lib/thinkingWords";
+import { isIOS } from "@/lib/platform";
 
 interface TurnIndicatorProps {
   /** Epoch ms of when the turn actually started — comes from the relay
@@ -32,7 +33,7 @@ export function TurnIndicator({ startedAt }: TurnIndicatorProps) {
   }, [startedAt]);
 
   return (
-    <div className="mx-3 mt-1 flex items-center gap-1.5 text-xs text-muted-foreground">
+    <div className={cn("mt-1 flex items-center gap-1.5 text-xs text-muted-foreground", isIOS() && "mx-3")}>
       <span className="flex items-center gap-0.5">
         <span className="size-1 animate-bounce rounded-full bg-text-faint [animation-delay:-0.3s]" />
         <span className="size-1 animate-bounce rounded-full bg-text-faint [animation-delay:-0.15s]" />
