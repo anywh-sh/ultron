@@ -4,6 +4,7 @@ import { FitAddon } from "@xterm/addon-fit";
 import { WebglAddon } from "@xterm/addon-webgl";
 import "@xterm/xterm/css/xterm.css";
 import type { Profile } from "@/lib/profiles";
+import { useResolvedProfileTheme } from "@/hooks/useThemes";
 
 interface TerminalViewProps {
   profile: Profile;
@@ -39,23 +40,19 @@ function isTerminalMessage(value: unknown): value is { type: "data"; data: strin
  */
 export function TerminalView({ profile, chatSessionId, terminalId }: TerminalViewProps) {
   const containerRef = useRef<HTMLDivElement>(null);
+  const termRef = useRef<XTerm | null>(null);
   const [reconnecting, setReconnecting] = useState(false);
+  // Literal colors, not CSS variables: xterm takes an object of real color
+  // values. Undeclared entries in a custom theme fall back to the built-in
+  // ANSI palette but still adopt that theme's own surface and cursor
+  // (see themeApply.ts).
+  const { terminal: terminalTheme } = useResolvedProfileTheme(profile);
+  const themeRef = useRef(terminalTheme);
+  themeRef.current = terminalTheme;
 
   useEffect(() => {
     const container = containerRef.current;
     if (!container) return;
-
-    // A previous attempt used `theme.background: "transparent"` +
-    // `allowTransparency` to let the panel's background (`SessionPanel`,
-    // `--bg-sidebar`) show through behind the canvas — in practice a
-    // visibly different dark rectangle still remained (tested in the real
-    // app). Simpler and more robust: instead of chasing real transparency
-    // through 2D canvas + WebGL addon + the package's own CSS, paint the
-    // terminal with the SAME solid color as the panel — read straight from
-    // `--bg-sidebar` (not hardcoded here) so it never drifts out of sync if
-    // the theme changes. Bonus: without `allowTransparency`, the canvases
-    // go back to not needing an alpha channel, slightly cheaper to composite.
-    const bgSidebar = getComputedStyle(document.documentElement).getPropertyValue("--bg-sidebar").trim() || "#1f1e1c";
 
     const term = new XTerm({
       fontFamily: "'JetBrains Mono Variable', ui-monospace, monospace",
@@ -68,30 +65,20 @@ export function TerminalView({ profile, chatSessionId, terminalId }: TerminalVie
       // running for hours.
       scrollback: 5000,
       allowProposedApi: true,
-      theme: {
-        background: bgSidebar,
-        foreground: "#f0eee6",
-        cursor: "#d97757",
-        cursorAccent: bgSidebar,
-        selectionBackground: "rgba(217, 119, 87, 0.35)",
-        black: "#1f1e1c",
-        red: "#c06456",
-        green: "#9cae7c",
-        yellow: "#d9a441",
-        blue: "#7c93ab",
-        magenta: "#b48ead",
-        cyan: "#8fbcbb",
-        white: "#f0eee6",
-        brightBlack: "#6f6a5f",
-        brightRed: "#d98282",
-        brightGreen: "#b3c69a",
-        brightYellow: "#e6bb63",
-        brightBlue: "#9db3c9",
-        brightMagenta: "#c9b6d4",
-        brightCyan: "#a8d3d1",
-        brightWhite: "#ffffff",
-      },
+      // A previous attempt used `theme.background: "transparent"` +
+      // `allowTransparency` to let the panel's background (`SessionPanel`,
+      // `--bg-sidebar`) show through behind the canvas — in practice a
+      // visibly different dark rectangle still remained (tested in the real
+      // app). Simpler and more robust: instead of chasing real transparency
+      // through 2D canvas + WebGL addon + the package's own CSS, paint the
+      // terminal with the SAME solid color as the panel. Read from the
+      // resolved theme (a ref, so a theme change doesn't tear down the
+      // terminal and its pty — the effect below updates it in place).
+      // Bonus: without `allowTransparency`, the canvases go back to not
+      // needing an alpha channel, slightly cheaper to composite.
+      theme: themeRef.current,
     });
+    termRef.current = term;
 
     const fitAddon = new FitAddon();
     term.loadAddon(fitAddon);
@@ -234,11 +221,24 @@ export function TerminalView({ profile, chatSessionId, terminalId }: TerminalVie
       inputDisposable.dispose();
       socket?.close();
       term.dispose();
+      termRef.current = null;
     };
   }, [profile.host, profile.relayPort, chatSessionId, terminalId]);
 
+  // Live theme swap. Assigning `options.theme` repaints the existing
+  // instance, so switching theme keeps the scrollback and the pty — which
+  // remounting the terminal would not.
+  useEffect(() => {
+    if (termRef.current) termRef.current.options.theme = terminalTheme;
+  }, [terminalTheme]);
+
   return (
-    <div className="relative h-full w-full">
+    // `--terminal-bg` feeds the `.xterm-viewport` override in index.css:
+    // the package's own CSS forces a solid black viewport behind the
+    // canvas, and it has to be the same color the terminal paints, which is
+    // the theme's terminal background rather than `--bg-sidebar` whenever a
+    // theme declares its own.
+    <div className="relative h-full w-full" style={{ "--terminal-bg": terminalTheme.background } as React.CSSProperties}>
       <div ref={containerRef} className="h-full w-full p-2" />
       {reconnecting && (
         <div className="absolute top-2 right-2 rounded-md bg-bg-elevated px-2 py-0.5 text-xs text-muted-foreground">

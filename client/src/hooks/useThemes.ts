@@ -2,7 +2,7 @@ import { useEffect, useLayoutEffect, useMemo, useState, useSyncExternalStore } f
 import { fetchThemes } from "@/lib/relayClient";
 import type { Profile } from "@/lib/profiles";
 import type { Theme } from "@/lib/theme";
-import { applyTheme, cacheResolvedTheme } from "@/lib/themeApply";
+import { applyTheme, cacheResolvedTheme, resolveTheme, type ResolvedTheme } from "@/lib/themeApply";
 import {
   customThemesForHost,
   getThemeStore,
@@ -63,6 +63,16 @@ export function useThemeSync(profile: Profile): { supported: boolean } {
   }, [profile.host, profile.relayPort]);
 
   return { supported };
+}
+
+/**
+ * A profile's theme with every token filled in, without painting anything —
+ * for consumers that need literal colors rather than CSS variables (xterm,
+ * the preview miniature in settings).
+ */
+export function useResolvedProfileTheme(profile: Profile): ResolvedTheme {
+  const store = useSyncExternalStore(subscribeThemes, getThemeStore);
+  return useMemo(() => resolveTheme(resolveProfileTheme(profile).theme), [store, profile]);
 }
 
 /**

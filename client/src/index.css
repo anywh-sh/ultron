@@ -479,9 +479,12 @@ body {
  * em TerminalView.tsx) em vez de tentar transparência de verdade — testado
  * no app real que perseguir transparência através de canvas 2D + addon
  * WebGL não fechava 100% (sobrava um retângulo escuro visível), pintar a
- * mesma cor sólida nos dois lugares é mais simples e robusto. */
+ * mesma cor sólida nos dois lugares é mais simples e robusto.
+ * `--terminal-bg` é escrito pelo TerminalView a partir do tema resolvido
+ * (um tema pode declarar um fundo de terminal próprio); `--bg-sidebar` fica
+ * como fallback pro caso de a variável não ter sido escrita ainda. */
 .xterm .xterm-viewport {
-  background-color: var(--bg-sidebar) !important;
+  background-color: var(--terminal-bg, var(--bg-sidebar)) !important;
 }
 
 /* Syntax highlight (rehype-highlight/hljs) — tema mínimo em cima da própria
