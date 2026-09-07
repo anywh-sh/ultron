@@ -103,15 +103,25 @@ export function removeProfile(id: string): boolean {
 
 /** Mirrors `host`'s `GET /control/profiles` onto the local list — the only
  * write path now that profiles are auto-synced instead of manually
- * imported (see `useProfileSync`). Only replaces entries for `host`; a
- * device can know profiles from more than one host at once (`DangerZone`'s
- * executor lookup already assumes this), so this must never touch entries
- * belonging to a different host. Guards against ever emptying the list
- * (same reasoning as `removeProfile` above) — a transient empty response
- * shouldn't wipe out every profile this device knows about. */
+ * imported (see `useProfileSync`). Replaces entries for `host`, plus any
+ * local entry whose `id` also appears in `remote` regardless of the host it
+ * was previously stored under — a profile's own advertised `host` (each
+ * entry's `RELAY_HOST`, read server-side) can legitimately differ from the
+ * host this device dialed to reach it (e.g. an `ensureSelfRegistered`
+ * `"default"` self-registration reports `127.0.0.1` while the machine's
+ * real profiles report a Tailscale IP). Deduping only by host let a stale
+ * `"default"` row survive every sync against a differently-hosted profile,
+ * and a fresh one from `remote` got appended alongside it each time —
+ * duplicate rows for the same id piling up in the switcher. A device can
+ * still know profiles from more than one host at once (`DangerZone`'s
+ * executor lookup already assumes this); only ids present in `remote` are
+ * touched. Guards against ever emptying the list (same reasoning as
+ * `removeProfile` above) — a transient empty response shouldn't wipe out
+ * every profile this device knows about. */
 export function syncProfilesForHost(host: string, remote: RemoteProfile[]): void {
+  const remoteIds = new Set(remote.map((entry) => entry.id));
   const merged = [
-    ...profiles.filter((p) => p.host !== host),
+    ...profiles.filter((p) => p.host !== host && !remoteIds.has(p.id)),
     ...remote.map((entry) => ({
       id: entry.id,
       label: entry.label,
