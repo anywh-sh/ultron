@@ -7,6 +7,7 @@ import { existsSync, readFileSync } from "node:fs";
 import {
   allocatePort,
   deleteProfileFiles,
+  ensureSelfRegistered,
   envFileFor,
   findHomeOverrideCollision,
   isValidProfileId,
@@ -182,5 +183,39 @@ test("deleteProfileFiles: a profile that was never in profiles.json is still a n
     writeEnv(envDir, "pessoal", { RELAY_PORT: "9001" });
     assert.doesNotThrow(() => deleteProfileFiles("pessoal", envDir));
     assert.equal(existsSync(envFileFor("pessoal", envDir)), false);
+  });
+});
+
+test("ensureSelfRegistered: fresh envDir writes default.env with the given port/host", async () => {
+  await withTempDir((envDir) => {
+    ensureSelfRegistered({ port: 8765, host: "127.0.0.1" }, envDir);
+    const env = readFileSync(envFileFor("default", envDir), "utf8");
+    assert.match(env, /RELAY_PORT=8765/);
+    assert.match(env, /RELAY_HOST=127\.0\.0\.1/);
+  });
+});
+
+test("ensureSelfRegistered: no-op when an existing profile already claims this port", async () => {
+  await withTempDir((envDir) => {
+    writeEnv(envDir, "pessoal", { RELAY_PORT: "8765" });
+    ensureSelfRegistered({ port: 8765, host: "127.0.0.1" }, envDir);
+    assert.equal(existsSync(envFileFor("default", envDir)), false);
+  });
+});
+
+test("ensureSelfRegistered: no-op when default.env already exists", async () => {
+  await withTempDir((envDir) => {
+    writeEnv(envDir, "default", { RELAY_PORT: "9999", RELAY_HOST: "0.0.0.0" });
+    ensureSelfRegistered({ port: 8765, host: "127.0.0.1" }, envDir);
+    const env = readFileSync(envFileFor("default", envDir), "utf8");
+    assert.match(env, /RELAY_PORT=9999/);
+  });
+});
+
+test("ensureSelfRegistered: makes updateProfileMeta('default', ...) succeed afterward", async () => {
+  await withTempDir((envDir) => {
+    ensureSelfRegistered({ port: 8765, host: "127.0.0.1" }, envDir);
+    const updated = updateProfileMeta("default", { label: "X" }, envDir);
+    assert.equal(updated.label, "X");
   });
 });

@@ -13,6 +13,7 @@ import { FilesWatchSession } from "./fsWatch.js";
 import { defaultCwd } from "./paths.js";
 import {
   deleteProfileFiles,
+  ensureSelfRegistered,
   envFileFor,
   findHomeOverrideCollision,
   isValidProfileId,
@@ -36,6 +37,7 @@ const ADD_PROFILE_SCRIPT = resolvePath(dirname(fileURLToPath(import.meta.url)), 
 const PORT = Number(process.env.RELAY_PORT ?? 8765);
 const HOST = process.env.RELAY_HOST ?? "127.0.0.1";
 const HOME_OVERRIDE = process.env.RELAY_HOME_OVERRIDE;
+ensureSelfRegistered({ port: PORT, host: HOST, homeOverride: HOME_OVERRIDE });
 const DEFAULT_SESSION = "default";
 
 // Same pattern as RELAY_UPLOAD_DIR: the two systemd services (personal/

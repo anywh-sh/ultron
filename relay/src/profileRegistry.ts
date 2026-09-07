@@ -132,6 +132,36 @@ export function findHomeOverrideCollision(homeOverride: string | undefined, envD
   return undefined;
 }
 
+/** Called once at boot (server.ts) so a relay started the plain `npm start`
+ * way — no `add-profile.sh`, no `<id>.env` at all, just `RELAY_PORT`/
+ * `RELAY_HOST` off the process env or their defaults — still shows up in its
+ * own control API under id `"default"`, the same id the client always seeds
+ * (client/src/lib/profiles.ts). Without this, `listEnvIds` never contains
+ * this instance and `PATCH /control/profiles/default` 404s on every
+ * fresh single-profile install.
+ *
+ * Two guards keep this from ever touching an already-provisioned setup:
+ * skip if this exact port is already claimed by some other `<id>.env`
+ * (this instance already has a real identity — writing `default.env` too
+ * would double-list the same host:port), and skip if `default.env` already
+ * exists (never clobber a prior self-registration or a deliberately
+ * `add-profile.sh`-created "default" profile). */
+export function ensureSelfRegistered(
+  config: { port: number; host: string; homeOverride?: string },
+  envDir: string = ENV_DIR,
+): void {
+  const portClaimed = listEnvIds(envDir).some((id) => Number(readEnvFile(id, envDir)?.RELAY_PORT) === config.port);
+  if (portClaimed) return;
+
+  const path = envFileFor("default", envDir);
+  if (existsSync(path)) return;
+
+  mkdirSync(envDir, { recursive: true });
+  const lines = [`RELAY_PORT=${config.port}`, `RELAY_HOST=${config.host}`];
+  if (config.homeOverride) lines.push(`RELAY_HOME_OVERRIDE=${config.homeOverride}`);
+  writeFileSync(path, `${lines.join("\n")}\n`);
+}
+
 function isPortOpen(host: string, port: number): Promise<boolean> {
   return new Promise((resolveProbe) => {
     const socket = connect({ host, port, timeout: 300 });
