@@ -1,6 +1,6 @@
 import { existsSync, readFileSync, realpathSync } from "node:fs";
 import { join } from "node:path";
-import type { ClaudeEvent } from "./claudeSession.js";
+import { isToolResultOnly, type ClaudeEvent } from "./claudeSession.js";
 import type { BroadcastMessage } from "./sharedSession.js";
 
 /**
@@ -25,16 +25,6 @@ function isTextBlock(value: unknown): value is { type: "text"; text: string } {
     value !== null &&
     (value as { type?: unknown }).type === "text" &&
     typeof (value as { text?: unknown }).text === "string"
-  );
-}
-
-/** Exported — reused by `transcriptFork.ts` to find the same "genuine human
- * message" line while counting turns for truncation (docs/33). */
-export function isToolResultOnly(content: unknown): boolean {
-  return (
-    Array.isArray(content) &&
-    content.length > 0 &&
-    content.every((block) => typeof block === "object" && block !== null && (block as { type?: unknown }).type === "tool_result")
   );
 }
 

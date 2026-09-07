@@ -123,6 +123,25 @@ interface ContentBlock {
   text?: string;
 }
 
+/** `true` when every block in `content` is a `tool_result` — used to tell a
+ * genuine tool-result-bearing `user` event apart from synthetic noise that
+ * the CLI also emits with `type: "user"` on the same stdout: `isMeta`
+ * reminders/caveats, and (notably) a skill's full instructions being loaded
+ * into context — the `Skill` tool's own `tool_result` is a short ack
+ * ("Launching skill: X"), immediately followed by a SEPARATE `user` event
+ * carrying the skill's whole body as a plain `text` block. Exported —
+ * `transcriptReader.ts` uses the same criterion when rebuilding history from
+ * disk (where this shape is already dropped); `sendTurn` below applies it
+ * live so a skill invocation doesn't get displayed as if it were the agent's
+ * own message. */
+export function isToolResultOnly(content: unknown): boolean {
+  return (
+    Array.isArray(content) &&
+    content.length > 0 &&
+    content.every((block) => typeof block === "object" && block !== null && (block as { type?: unknown }).type === "tool_result")
+  );
+}
+
 interface ResultUsage {
   input_tokens?: number;
   cache_creation_input_tokens?: number;
@@ -330,6 +349,9 @@ export class ClaudeSession {
           if (!line.trim()) continue;
           const event = JSON.parse(line) as ClaudeEvent;
           eventCount++;
+          if (event.type === "user" && !isToolResultOnly((event.message as { content?: unknown } | undefined)?.content)) {
+            continue;
+          }
           if (event.type === "system" && event.subtype === "init" && typeof event.model === "string") {
             lastModel = event.model;
           }
