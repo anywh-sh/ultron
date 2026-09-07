@@ -101,6 +101,20 @@ export function removeProfile(id: string): boolean {
   return true;
 }
 
+// A profile can only ever legitimately report one of these as its own
+// `RELAY_HOST` if the device syncing it is on the very same machine —
+// loopback is unreachable from anywhere else. `ensureSelfRegistered`
+// (relay/src/profileRegistry.ts) falls back to `127.0.0.1` for exactly this
+// reason when it self-registers a `"default"` profile, so any locally
+// stored entry still carrying one of these hosts is either that ghost or
+// equally unreachable junk — safe to drop the moment a sync against a real
+// (non-loopback) host succeeds, even if the id no longer shows up in that
+// sync's response at all (the id-based cleanup below only catches a ghost
+// that's still being re-registered under a *different* port each time; one
+// that stopped existing entirely — e.g. its `.env` got deleted — needs this
+// instead).
+const LOOPBACK_HOSTS = new Set(["127.0.0.1", "localhost", "::1"]);
+
 /** Mirrors `host`'s `GET /control/profiles` onto the local list — the only
  * write path now that profiles are auto-synced instead of manually
  * imported (see `useProfileSync`). Replaces entries for `host`, plus any
@@ -112,16 +126,21 @@ export function removeProfile(id: string): boolean {
  * real profiles report a Tailscale IP). Deduping only by host let a stale
  * `"default"` row survive every sync against a differently-hosted profile,
  * and a fresh one from `remote` got appended alongside it each time —
- * duplicate rows for the same id piling up in the switcher. A device can
- * still know profiles from more than one host at once (`DangerZone`'s
- * executor lookup already assumes this); only ids present in `remote` are
- * touched. Guards against ever emptying the list (same reasoning as
- * `removeProfile` above) — a transient empty response shouldn't wipe out
- * every profile this device knows about. */
+ * duplicate rows for the same id piling up in the switcher. Also drops any
+ * locally stored loopback-hosted entry once a sync against a real host
+ * succeeds, even one whose id disappeared from the registry entirely (see
+ * `LOOPBACK_HOSTS`). A device can still know profiles from more than one
+ * real host at once (`DangerZone`'s executor lookup already assumes this).
+ * Guards against ever emptying the list (same reasoning as `removeProfile`
+ * above) — a transient empty response shouldn't wipe out every profile this
+ * device knows about. */
 export function syncProfilesForHost(host: string, remote: RemoteProfile[]): void {
   const remoteIds = new Set(remote.map((entry) => entry.id));
+  const dropStale = LOOPBACK_HOSTS.has(host)
+    ? (p: Profile) => p.host !== host && !remoteIds.has(p.id)
+    : (p: Profile) => p.host !== host && !remoteIds.has(p.id) && !LOOPBACK_HOSTS.has(p.host);
   const merged = [
-    ...profiles.filter((p) => p.host !== host && !remoteIds.has(p.id)),
+    ...profiles.filter(dropStale),
     ...remote.map((entry) => ({
       id: entry.id,
       label: entry.label,
