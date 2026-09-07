@@ -1,5 +1,5 @@
 import { connect, createServer } from "node:net";
-import { existsSync, readdirSync, readFileSync } from "node:fs";
+import { existsSync, mkdirSync, readdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { homedir } from "node:os";
 import { dirname, join, resolve } from "node:path";
 
@@ -25,7 +25,7 @@ export interface HostProfile {
   running: boolean;
 }
 
-interface ProfileMeta {
+export interface ProfileMeta {
   id: string;
   label: string;
   colorIndex?: number;
@@ -200,5 +200,60 @@ export async function allocatePort(envDir: string = ENV_DIR): Promise<number> {
     if (await canBind(port)) return port;
   }
   throw new Error(`no free relay port available in ${PORT_RANGE_START}-${PORT_RANGE_END}`);
+}
+
+function writeProfilesJson(envDir: string, data: ProfilesJson): void {
+  const path = join(dirname(envDir), "profiles.json");
+  mkdirSync(dirname(path), { recursive: true });
+  writeFileSync(path, JSON.stringify(data, null, 2));
+}
+
+/** `PATCH /control/profiles/:id` — `id` is immutable (see `Profile.id` on
+ * the client), only `label`/`colorIndex` move. Works even for a profile
+ * that predates `profiles.json` (fills in the other field from its current
+ * fallback — id as label, position in the list as colorIndex — instead of
+ * leaving it unset). Throws if `id` isn't a real profile, since there'd be
+ * nothing to attach the metadata to. */
+export function updateProfileMeta(
+  id: string,
+  patch: { label?: string; colorIndex?: number },
+  envDir: string = ENV_DIR,
+): ProfileMeta {
+  const ids = listEnvIds(envDir);
+  const position = ids.indexOf(id);
+  if (position === -1) {
+    throw new Error(`profile '${id}' not found`);
+  }
+
+  const current = readProfilesJson(envDir);
+  const existing = current.profiles.find((meta) => meta.id === id);
+  const now = new Date().toISOString();
+  const merged: ProfileMeta = {
+    id,
+    label: patch.label ?? existing?.label ?? id,
+    colorIndex: patch.colorIndex ?? existing?.colorIndex ?? position,
+    createdAt: existing?.createdAt ?? now,
+    updatedAt: now,
+  };
+
+  writeProfilesJson(envDir, { version: 1, profiles: [...current.profiles.filter((meta) => meta.id !== id), merged] });
+  return merged;
+}
+
+/** `DELETE /control/profiles/:id` — removes the `.env` and the
+ * `profiles.json` entry only. Deliberately never touches the profile's
+ * `$HOME` or its `RELAY_SESSIONS_FILE`/transcripts: those are the actual
+ * Claude account and conversation history, teardown undoes provisioning,
+ * not the account (docs/45). Stopping/disabling the systemd instance is the
+ * caller's job (`server.ts`), since that's a process concern, not a
+ * registry one. */
+export function deleteProfileFiles(id: string, envDir: string = ENV_DIR): void {
+  const envPath = envFileFor(id, envDir);
+  if (existsSync(envPath)) rmSync(envPath);
+
+  const current = readProfilesJson(envDir);
+  if (current.profiles.some((meta) => meta.id === id)) {
+    writeProfilesJson(envDir, { version: 1, profiles: current.profiles.filter((meta) => meta.id !== id) });
+  }
 }
 

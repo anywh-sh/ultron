@@ -3,13 +3,16 @@ import assert from "node:assert/strict";
 import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
+import { existsSync, readFileSync } from "node:fs";
 import {
   allocatePort,
+  deleteProfileFiles,
   envFileFor,
   findHomeOverrideCollision,
   isValidProfileId,
   listProfiles,
   slugify,
+  updateProfileMeta,
 } from "./profileRegistry.js";
 
 // `envDir` nested one level under the unique tmp root (mirrors the real
@@ -123,5 +126,61 @@ test("allocatePort: skips a port already claimed by an existing .env file", asyn
     writeEnv(envDir, "pessoal", { RELAY_PORT: "8765" });
     const port = await allocatePort(envDir);
     assert.notEqual(port, 8765);
+  });
+});
+
+test("updateProfileMeta: throws for a profile with no .env file", async () => {
+  await withTempDir((envDir) => {
+    assert.throws(() => updateProfileMeta("ghost", { label: "Ghost" }, envDir));
+  });
+});
+
+test("updateProfileMeta: fills in the other field from its current fallback (id/position), not from a blank", async () => {
+  await withTempDir((envDir) => {
+    writeEnv(envDir, "pessoal", { RELAY_PORT: "9001" });
+    writeEnv(envDir, "trabalho", { RELAY_PORT: "9002" });
+
+    const updated = updateProfileMeta("trabalho", { label: "Trabalho" }, envDir);
+    assert.equal(updated.label, "Trabalho");
+    assert.equal(updated.colorIndex, 1); // position in the list, since no entry existed yet
+  });
+});
+
+test("updateProfileMeta: id never changes, second call merges onto the first instead of resetting it", async () => {
+  await withTempDir((envDir) => {
+    writeEnv(envDir, "pessoal", { RELAY_PORT: "9001" });
+
+    const first = updateProfileMeta("pessoal", { colorIndex: 4 }, envDir);
+    assert.equal(first.colorIndex, 4);
+    assert.equal(first.label, "pessoal");
+
+    const second = updateProfileMeta("pessoal", { label: "Pessoal" }, envDir);
+    assert.equal(second.id, "pessoal");
+    assert.equal(second.label, "Pessoal");
+    assert.equal(second.colorIndex, 4); // preserved from the first call, not reset to a fallback
+    assert.equal(second.createdAt, first.createdAt);
+  });
+});
+
+test("deleteProfileFiles: removes the .env and the profiles.json entry, nothing else", async () => {
+  await withTempDir((envDir) => {
+    writeEnv(envDir, "pessoal", { RELAY_PORT: "9001" });
+    updateProfileMeta("pessoal", { label: "Pessoal" }, envDir);
+
+    deleteProfileFiles("pessoal", envDir);
+
+    assert.equal(existsSync(envFileFor("pessoal", envDir)), false);
+    const registry = JSON.parse(readFileSync(join(envDir, "..", "profiles.json"), "utf8")) as {
+      profiles: unknown[];
+    };
+    assert.equal(registry.profiles.length, 0);
+  });
+});
+
+test("deleteProfileFiles: a profile that was never in profiles.json is still a no-op, not an error", async () => {
+  await withTempDir((envDir) => {
+    writeEnv(envDir, "pessoal", { RELAY_PORT: "9001" });
+    assert.doesNotThrow(() => deleteProfileFiles("pessoal", envDir));
+    assert.equal(existsSync(envFileFor("pessoal", envDir)), false);
   });
 });

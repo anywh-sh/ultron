@@ -1,5 +1,5 @@
 import { spawn } from "node:child_process";
-import { createReadStream } from "node:fs";
+import { createReadStream, existsSync } from "node:fs";
 import { createServer } from "node:http";
 import { dirname, resolve as resolvePath } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -11,7 +11,15 @@ import { listDirectories } from "./fsBrowse.js";
 import { listFiles, readFileForViewer, resolveRawFile, type FilesError } from "./fsFiles.js";
 import { FilesWatchSession } from "./fsWatch.js";
 import { defaultCwd } from "./paths.js";
-import { findHomeOverrideCollision, listProfiles, slugify } from "./profileRegistry.js";
+import {
+  deleteProfileFiles,
+  envFileFor,
+  findHomeOverrideCollision,
+  isValidProfileId,
+  listProfiles,
+  slugify,
+  updateProfileMeta,
+} from "./profileRegistry.js";
 import { SessionManager } from "./sessionManager.js";
 import { SessionStore, type ModelChoice, type PermissionMode } from "./sessionStore.js";
 import { killAllTerminalsForSession, killTerminal, scrollTerminal, spawnTerminal } from "./terminalSession.js";
@@ -130,6 +138,14 @@ function isCreateProfileBody(value: unknown): value is { label: string; home?: s
     candidate.label.trim().length > 0 &&
     (candidate.home === undefined || typeof candidate.home === "string")
   );
+}
+
+function isPatchProfileBody(value: unknown): value is { label?: string; colorIndex?: number } {
+  if (typeof value !== "object" || value === null) return false;
+  const candidate = value as { label?: unknown; colorIndex?: unknown };
+  if (candidate.label !== undefined && typeof candidate.label !== "string") return false;
+  if (candidate.colorIndex !== undefined && typeof candidate.colorIndex !== "number") return false;
+  return candidate.label !== undefined || candidate.colorIndex !== undefined;
 }
 
 function isTerminalCloseBody(value: unknown): value is { session: string; term: string } {
@@ -526,6 +542,72 @@ const httpServer = createServer((req, res) => {
       }
       const collidesWith = findHomeOverrideCollision(homeOverride);
       res.end(JSON.stringify(collidesWith ? { ...status, collidesWith } : status));
+    });
+    return;
+  }
+
+  if (req.method === "PATCH" && req.url?.startsWith("/control/profiles/")) {
+    res.setHeader("Content-Type", "application/json");
+    res.setHeader("Access-Control-Allow-Origin", "*");
+    const id = decodeURIComponent(req.url.slice("/control/profiles/".length).split("?")[0]);
+    readJsonBody(req)
+      .then((body) => {
+        if (!isPatchProfileBody(body)) {
+          res.writeHead(400);
+          res.end(JSON.stringify({ error: "label or colorIndex is required" }));
+          return;
+        }
+        try {
+          res.end(JSON.stringify(updateProfileMeta(id, body)));
+        } catch (error) {
+          res.writeHead(404);
+          res.end(JSON.stringify({ error: error instanceof Error ? error.message : "profile not found" }));
+        }
+      })
+      .catch(() => {
+        res.writeHead(400);
+        res.end(JSON.stringify({ error: "invalid body" }));
+      });
+    return;
+  }
+
+  if (req.method === "DELETE" && req.url?.startsWith("/control/profiles/")) {
+    res.setHeader("Content-Type", "application/json");
+    res.setHeader("Access-Control-Allow-Origin", "*");
+    const id = decodeURIComponent(req.url.slice("/control/profiles/".length).split("?")[0]);
+    if (!isValidProfileId(id) || !existsSync(envFileFor(id))) {
+      res.writeHead(404);
+      res.end(JSON.stringify({ error: "profile not found" }));
+      return;
+    }
+
+    // The caller is responsible for never sending this to the profile it's
+    // deleting (docs/45 Fase 6) — `systemctl --user disable --now` would
+    // stop this very process mid-request. Best-effort: a profile created
+    // with `add-profile.sh --mode dev` was never a systemd instance, so a
+    // failure here doesn't block cleaning up the registry below.
+    const finishDelete = () => {
+      try {
+        deleteProfileFiles(id);
+        res.end(JSON.stringify({ ok: true }));
+      } catch (error) {
+        console.error("[relay] failed to delete profile files:", error);
+        res.writeHead(500);
+        res.end(JSON.stringify({ error: "failed to delete profile files" }));
+      }
+    };
+    const disable = spawn("systemctl", ["--user", "disable", "--now", `ultron-relay@${id}`], {
+      stdio: ["ignore", "pipe", "pipe"],
+    });
+    let disableStderr = "";
+    disable.stderr.on("data", (chunk: Buffer) => (disableStderr += chunk.toString("utf8")));
+    disable.on("error", (error) => {
+      console.error("[relay] failed to run systemctl disable for", id, ":", error);
+      finishDelete();
+    });
+    disable.on("close", (code) => {
+      if (code !== 0) console.error("[relay] systemctl disable for", id, "exited", code, disableStderr.trim());
+      finishDelete();
     });
     return;
   }
