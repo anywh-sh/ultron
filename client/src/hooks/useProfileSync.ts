@@ -1,5 +1,6 @@
-import { useEffect, useState } from "react";
+import { useCallback, useRef, useState } from "react";
 import { fetchControlProfiles } from "@/lib/relayClient";
+import { useForegroundSync } from "@/hooks/useForegroundSync";
 import { syncProfilesForHost, type Profile } from "@/lib/profiles";
 
 interface ProfileSyncResult {
@@ -13,11 +14,16 @@ interface ProfileSyncResult {
 
 /**
  * Keeps the local profile list mirrored to `profile.host`'s
- * `GET /control/profiles` — no manual "Importar" step. A profile created or
- * deleted from any other device shows up (or disappears) here the next time
- * this effect runs, which is on mount and whenever the app regains
- * foreground (`visibilitychange`, same signal `useRelayClient` already uses
- * for reconnection — not the Tauri focus API, which false-positives on iOS).
+ * `GET /control/profiles` — no manual "Importar" step. A profile created,
+ * deleted, renamed or re-themed from any other device shows up here on the
+ * triggers `useForegroundSync` provides.
+ *
+ * Call this once, high in the tree (`App`), never from a component that can
+ * unmount: it used to live in `ProfileSwitcher`, which is inside the
+ * collapsible sidebar and absent entirely on iOS, so collapsing the sidebar
+ * silently turned the sync off and the phone never ran it at all. That was
+ * invisible while profiles rarely changed, and became obvious once the
+ * theme started riding along on this same payload.
  *
  * A failed fetch (host unreachable, or an older relay without this route)
  * only flips `supported` to `false` — it deliberately never touches the
@@ -26,34 +32,26 @@ interface ProfileSyncResult {
  */
 export function useProfileSync(profile: Profile): ProfileSyncResult {
   const [supported, setSupported] = useState(true);
+  // Guards against a response from the previous host landing after a
+  // profile switch — the effect identity no longer changes per fetch now
+  // that the triggers live outside it.
+  const currentHost = useRef(profile.host);
+  currentHost.current = profile.host;
 
-  useEffect(() => {
-    let cancelled = false;
+  const sync = useCallback(() => {
+    const host = profile.host;
+    fetchControlProfiles(host, profile.relayPort)
+      .then((remote) => {
+        if (currentHost.current !== host) return;
+        syncProfilesForHost(host, remote);
+        setSupported(true);
+      })
+      .catch(() => {
+        if (currentHost.current === host) setSupported(false);
+      });
+  }, [profile.host, profile.relayPort]);
 
-    function sync(): void {
-      fetchControlProfiles(profile.host, profile.relayPort)
-        .then((remote) => {
-          if (cancelled) return;
-          syncProfilesForHost(profile.host, remote);
-          setSupported(true);
-        })
-        .catch(() => {
-          if (!cancelled) setSupported(false);
-        });
-    }
-
-    sync();
-
-    function handleVisibilityChange(): void {
-      if (document.visibilityState === "visible") sync();
-    }
-    document.addEventListener("visibilitychange", handleVisibilityChange);
-
-    return () => {
-      cancelled = true;
-      document.removeEventListener("visibilitychange", handleVisibilityChange);
-    };
-  }, [profile.id, profile.host, profile.relayPort]);
+  useForegroundSync(sync);
 
   return { supported };
 }

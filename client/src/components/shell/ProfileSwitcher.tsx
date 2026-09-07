@@ -10,17 +10,18 @@ import {
 import { cn } from "@/lib/utils";
 import { profileColorClass, type Profile } from "@/lib/profiles";
 import { useProfiles } from "@/hooks/useProfiles";
-import { useProfileSync } from "@/hooks/useProfileSync";
 import { AddProfileDialog } from "@/components/shell/AddProfileDialog";
 
 interface ProfileSwitcherProps {
   activeProfile: Profile;
+  /** Passed in rather than resolved here: the sync that answers it has to
+   * keep running with this component unmounted (see `App`). */
+  supported: boolean;
   onChange: (profileId: string) => void;
 }
 
-export function ProfileSwitcher({ activeProfile, onChange }: ProfileSwitcherProps) {
+export function ProfileSwitcher({ activeProfile, supported, onChange }: ProfileSwitcherProps) {
   const profiles = useProfiles();
-  const { supported } = useProfileSync(activeProfile);
   const [addOpen, setAddOpen] = useState(false);
 
   return (

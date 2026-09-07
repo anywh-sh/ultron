@@ -11,6 +11,9 @@ import { shortcutLabel } from "@/lib/platform";
 
 interface SidebarProps {
   activeProfile: Profile;
+  /** Whether the host answers the control API — resolved by the profile
+   * sync in `App`, which owns it because this component can unmount. */
+  profilesSupported: boolean;
   onProfileChange: (profileId: string) => void;
   sessions: SessionSummary[];
   sessionsLoading: boolean;
@@ -25,6 +28,7 @@ interface SidebarProps {
 
 export function Sidebar({
   activeProfile,
+  profilesSupported,
   onProfileChange,
   sessions,
   sessionsLoading,
@@ -67,7 +71,7 @@ export function Sidebar({
       />
 
       <div className="border-t border-border-soft p-2">
-        <ProfileSwitcher activeProfile={activeProfile} onChange={onProfileChange} />
+        <ProfileSwitcher activeProfile={activeProfile} supported={profilesSupported} onChange={onProfileChange} />
       </div>
 
       <RenameSessionDialog

@@ -1,5 +1,6 @@
-import { useEffect, useLayoutEffect, useMemo, useState, useSyncExternalStore } from "react";
+import { useCallback, useLayoutEffect, useMemo, useRef, useState, useSyncExternalStore } from "react";
 import { fetchThemes } from "@/lib/relayClient";
+import { useForegroundSync } from "@/hooks/useForegroundSync";
 import type { Profile } from "@/lib/profiles";
 import type { Theme } from "@/lib/theme";
 import { applyTheme, cacheResolvedTheme, resolveTheme, type ResolvedTheme } from "@/lib/themeApply";
@@ -25,11 +26,11 @@ export function useThemes(host: string): { all: Theme[]; custom: Theme[] } {
 }
 
 /**
- * Mirrors `host`'s `GET /control/themes` into the local catalog, on mount
- * and whenever the app comes back to the foreground — deliberately the same
- * trigger and the same failure posture as `useProfileSync`: a failed fetch
- * only reports `supported: false` and never touches what's already stored,
- * so an unreachable host doesn't make its themes disappear mid-use.
+ * Mirrors `host`'s `GET /control/themes` into the local catalog on the
+ * triggers `useForegroundSync` provides — deliberately the same triggers and
+ * the same failure posture as `useProfileSync`: a failed fetch only reports
+ * `supported: false` and never touches what's already stored, so an
+ * unreachable host doesn't make its themes disappear mid-use.
  *
  * `supported` is false on a relay too old to have the route, which is what
  * the settings UI uses to explain that this host can't store custom themes
@@ -38,34 +39,23 @@ export function useThemes(host: string): { all: Theme[]; custom: Theme[] } {
  */
 export function useThemeSync(profile: Profile): { supported: boolean } {
   const [supported, setSupported] = useState(true);
+  const currentHost = useRef(profile.host);
+  currentHost.current = profile.host;
 
-  useEffect(() => {
-    let cancelled = false;
-
-    function sync(): void {
-      fetchThemes(profile.host, profile.relayPort)
-        .then((themes) => {
-          if (cancelled) return;
-          setThemesForHost(profile.host, themes);
-          setSupported(true);
-        })
-        .catch(() => {
-          if (!cancelled) setSupported(false);
-        });
-    }
-
-    sync();
-
-    function handleVisibilityChange(): void {
-      if (document.visibilityState === "visible") sync();
-    }
-    document.addEventListener("visibilitychange", handleVisibilityChange);
-
-    return () => {
-      cancelled = true;
-      document.removeEventListener("visibilitychange", handleVisibilityChange);
-    };
+  const sync = useCallback(() => {
+    const host = profile.host;
+    fetchThemes(host, profile.relayPort)
+      .then((themes) => {
+        if (currentHost.current !== host) return;
+        setThemesForHost(host, themes);
+        setSupported(true);
+      })
+      .catch(() => {
+        if (currentHost.current === host) setSupported(false);
+      });
   }, [profile.host, profile.relayPort]);
+
+  useForegroundSync(sync);
 
   return { supported };
 }
