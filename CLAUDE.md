@@ -45,6 +45,10 @@ Tudo que não for texto de UI precisa estar em inglês, mesmo quando a conversa 
 - **Texto do commit (título + corpo) sempre em inglês**, mesmo com o resto da conversa em português — ver seção "Idioma" acima.
 - Ao terminar um trabalho (bug corrigido, feature implementada, o que foi pedido na sessão), o passo de conclusão inclui commitar (nos moldes acima) e dar `git push` pro repo remoto — isso faz parte de "terminar a tarefa", não é uma ação extra que precisa ser pedida à parte toda vez.
 
+## Testes
+
+Doutrina completa (o quê testar, onde cada tipo de teste mora, a única exceção sancionada a "sem mock" — o processo `claude`) está em `.ultron/skills/tests/SKILL.md`, symlinkado em `.claude/skills/tests` pra ficar auto-descoberto pelo Claude Code. Canônico fica em `.ultron/` de propósito (não `.claude/`) porque o roadmap já prevê suporte a múltiplos coding agents além do Claude Code — o dia que isso acontecer, o padrão a seguir é o mesmo `AGENTS.md`/`CLAUDE.md` symlinkados pro mesmo arquivo canônico (não duplicar conteúdo entre convenções de nome de cada provider).
+
 ## Documentação
 
 O `README.md` da raiz cobre o que é preciso pra rodar e contribuir. O histórico de decisão detalhado do projeto (o porquê de cada escolha de arquitetura) é mantido fora do repositório.
