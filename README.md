@@ -82,6 +82,33 @@ To add another profile once you're already connected to a relay:
 
 The profile registry (`~/.config/ultron/env/*.env`, `~/.config/ultron/profiles.json`) lives entirely on the relay machine — creating or importing a profile never sends anything to a third party. `infra/systemd/add-profile.sh` does the same provisioning from the command line (what the "Criar" dialog calls behind the scenes) — see [`infra/systemd/README.md`](./infra/systemd/README.md) for running it directly.
 
+## Themes
+
+Each profile picks its own theme, stored in the host registry next to the profile's label, so choosing one on your laptop shows up on your phone the next time it syncs.
+
+The built-in theme ships with the app and always works, even with the relay unreachable. Custom themes are JSON files added from **Configurações → Personalização → Adicionar tema** (paste or pick a file) and live on the relay machine under `~/.config/ultron/themes/*.json`, host-wide: a theme added once is selectable from every profile on that machine.
+
+A theme only has to declare six colors; everything else is derived from them (surface stack, faint text, terminal palette) and can be overridden token by token:
+
+```json
+{
+  "version": 1,
+  "id": "meu-tema",
+  "name": "Meu tema",
+  "appearance": "dark",
+  "colors": {
+    "background": "#2e3440",
+    "foreground": "#eceff4",
+    "muted-foreground": "#8f9bb0",
+    "primary": "#88c0d0",
+    "destructive": "#bf616a",
+    "border": "#434c5e"
+  }
+}
+```
+
+The import dialog validates before saving and reports one message per field, so a broken file says exactly what's wrong. Use **Duplicar** on any theme to get its full JSON — every token spelled out — as a starting point.
+
 ## Security model
 
 The relay has no authentication and CORS is wide open — the threat model is "trusted network" (your LAN, or a personal [Tailscale](https://tailscale.com/)/WireGuard network for remote access), not the public internet. Don't expose the relay's port directly to the internet.
