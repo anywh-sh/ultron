@@ -23,11 +23,22 @@ path = "src/main.rs"
 [build-dependencies]
 tauri-build = { version = "2", features = [] }
 
+[features]
+# Off by default in every normal build (`tauri dev`/`tauri build`, no flag
+# needed) — opt-in only via `--features e2e` (client/tests/e2e, WebdriverIO +
+# @wdio/tauri-service's embedded provider). `optional = true` below means
+# neither crate even gets fetched/compiled unless this feature is on, not
+# just "present but inert" — stronger than a debug_assertions gate, which
+# would still pull them into every everyday `tauri dev` session.
+e2e = ["dep:tauri-plugin-wdio", "dep:tauri-plugin-wdio-webdriver"]
+
 [dependencies]
 tauri = { version = "2", features = ["devtools"] }
 tauri-plugin-opener = "2"
 tauri-plugin-notification = "2"
 tauri-plugin-os = "2"
+tauri-plugin-wdio = { version = "1", optional = true }
+tauri-plugin-wdio-webdriver = { version = "1", optional = true }
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
 

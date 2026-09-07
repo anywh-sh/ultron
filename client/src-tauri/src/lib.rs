@@ -47,6 +47,18 @@ pub fn run() {
     #[cfg(target_os = "ios")]
     let builder = builder.plugin(tauri_plugin_native_chrome::init());
 
+    // e2e (client/tests/e2e, .ultron/skills/tests/SKILL.md) — embeds a
+    // WebDriver server inside the app itself so WebdriverIO's
+    // @wdio/tauri-service can drive the real window/webview without an
+    // external driver on any platform. Both crates are `optional` in
+    // Cargo.toml, so they're not even compiled in unless this feature is
+    // explicitly requested (`--features e2e`) — never present in a normal
+    // `tauri dev`/`tauri build`.
+    #[cfg(feature = "e2e")]
+    let builder = builder
+        .plugin(tauri_plugin_wdio::init())
+        .plugin(tauri_plugin_wdio_webdriver::init());
+
     #[cfg(not(target_os = "ios"))]
     let builder = builder
         .manage(voice::VoiceState::default())

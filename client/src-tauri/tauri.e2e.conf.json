@@ -1,0 +1,17 @@
+{
+  "$schema": "https://schema.tauri.app/config/2",
+  "app": {
+    "security": {
+      "capabilities": [
+        "default",
+        "desktop",
+        {
+          "identifier": "e2e",
+          "description": "WebDriverIO test automation (client/tests/e2e) — only merged in via --config tauri.e2e.conf.json, never part of a normal tauri dev/build.",
+          "windows": ["*"],
+          "permissions": ["wdio:default"]
+        }
+      ]
+    }
+  }
+}
