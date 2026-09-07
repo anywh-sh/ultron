@@ -7,14 +7,19 @@ export interface Profile {
 
 const STORAGE_KEY = "ultron:profiles";
 
-// Seed data — the only two profiles this deployment has ever had, kept here
-// so a fresh install still works with zero setup. A future pairing flow (or
-// a settings UI) can call `setProfiles` to replace/extend this list at
-// runtime; every consumer already reads through `getProfiles`/`useProfiles`,
-// so none of them need to change again when that flow shows up.
+// Seed data, built from build-time env vars (see client/.env.example) so a
+// distributed binary doesn't hardcode any one deployment's address. A future
+// pairing flow (or a settings UI) can call `setProfiles` to replace/extend
+// this list at runtime; every consumer already reads through
+// `getProfiles`/`useProfiles`, so none of them need to change again when
+// that flow shows up.
 const DEFAULT_PROFILES: Profile[] = [
-  { id: "pessoal", label: "Pessoal", host: "100.64.0.1", relayPort: 8765 },
-  { id: "trabalho", label: "Trabalho", host: "100.64.0.1", relayPort: 8766 },
+  {
+    id: "default",
+    label: "Default",
+    host: import.meta.env.VITE_ULTRON_HOST ?? "127.0.0.1",
+    relayPort: Number(import.meta.env.VITE_ULTRON_PORT ?? 8765),
+  },
 ];
 
 function isProfile(value: unknown): value is Profile {

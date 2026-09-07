@@ -52,15 +52,23 @@ npm install
 npm run tauri dev       # desktop app
 ```
 
-The client ships with two example profiles pointing at a specific Tailscale IP (the author's own setup). Until the pairing flow mentioned in [Status](#status) exists, point it at your own relay instead by opening the app's DevTools console and running:
+By default the client points at a relay on the same machine (`127.0.0.1:8765`). Until the pairing flow mentioned in [Status](#status) exists, there are two ways to point it at your own relay instead:
 
-```js
-localStorage.setItem("ultron:profiles", JSON.stringify([
-  { id: "default", label: "Default", host: "127.0.0.1", relayPort: 8765 },
-]));
-```
+- **Build-time env var** — works on both desktop and iOS:
+  ```bash
+  cd client
+  cp .env.example .env   # set VITE_ULTRON_HOST / VITE_ULTRON_PORT
+  npm run tauri dev
+  ```
+- **`localStorage` override** — desktop only (needs DevTools), no rebuild required:
+  ```js
+  localStorage.setItem("ultron:profiles", JSON.stringify([
+    { id: "default", label: "Default", host: "127.0.0.1", relayPort: 8765 },
+  ]));
+  ```
+  then reload.
 
-then reload. See `client/README.md` for iOS-specific commands.
+iOS has no DevTools, so an iOS build today assumes you're building from source with the env var set — see `client/README.md` for iOS-specific commands.
 
 ## Security model
 
