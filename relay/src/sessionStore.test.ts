@@ -277,3 +277,35 @@ test("setDraft called before recordId still works (ensureEntry creates the recor
   });
 });
 
+test("getSuggestion with no record yet: null, doesn't break", () => {
+  withStoreFile(undefined, (filePath) => {
+    const store = new SessionStore(filePath, DEFAULT_CWD);
+    assert.equal(store.getSuggestion("nunca-visto"), null);
+  });
+});
+
+test("setSuggestion round-trips and persists to disk, surviving reopening the file", () => {
+  withStoreFile(undefined, (filePath) => {
+    const store = new SessionStore(filePath, DEFAULT_CWD);
+    store.recordId("s1");
+    store.setSuggestion("s1", "Quer que eu revise o resto do arquivo?");
+    assert.equal(store.getSuggestion("s1"), "Quer que eu revise o resto do arquivo?");
+
+    // Simulates a relay restart: the suggestion survives without a new turn.
+    const reopened = new SessionStore(filePath, DEFAULT_CWD);
+    assert.equal(reopened.getSuggestion("s1"), "Quer que eu revise o resto do arquivo?");
+  });
+});
+
+test("setSuggestion(null) persists the clear, surviving reopening the file", () => {
+  withStoreFile(undefined, (filePath) => {
+    const store = new SessionStore(filePath, DEFAULT_CWD);
+    store.recordId("s1");
+    store.setSuggestion("s1", "sugestao");
+    store.setSuggestion("s1", null);
+
+    const reopened = new SessionStore(filePath, DEFAULT_CWD);
+    assert.equal(reopened.getSuggestion("s1"), null);
+  });
+});
+

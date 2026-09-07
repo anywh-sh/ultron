@@ -159,6 +159,8 @@ export class SessionManager {
       onContextUsageChange: (usage) => this.sessionStore.setContextUsage(id, usage),
       initialDraft: this.sessionStore.getDraft(id),
       onDraftChange: (text) => this.sessionStore.setDraft(id, text),
+      initialSuggestion: this.sessionStore.getSuggestion(id),
+      onSuggestionChange: (text) => this.sessionStore.setSuggestion(id, text),
       onActivity: () => this.sessionStore.touch(id),
       onEvent: (event) => this.backgroundJobs.observeEvent(id, event),
       onCancelBackgroundJob: (jobId) => {

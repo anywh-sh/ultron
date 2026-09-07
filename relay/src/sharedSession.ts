@@ -128,6 +128,14 @@ export interface SharedSessionOptions {
   /** Called whenever the draft changes (debounced on the client side) —
    * this is how SessionManager writes it to SessionStore. */
   onDraftChange?: (draft: string) => void;
+  /** Next-message suggestion already persisted for this session, if any —
+   * survives a relay restart the same way `initialDraft` does (see
+   * `suggestion` below for why this changed from in-memory-only). */
+  initialSuggestion?: string | null;
+  /** Called whenever the suggestion changes (new one generated, or cleared
+   * by a new turn/`/clear`/edit) — this is how SessionManager writes it to
+   * SessionStore. */
+  onSuggestionChange?: (suggestion: string | null) => void;
 }
 
 export type SetCwdResult = { ok: true } | { ok: false; error: string };
@@ -151,10 +159,13 @@ export class SharedSession {
   private draft: string;
   private contextUsage: ContextUsage | undefined;
   /** Next-message suggestion (generated asynchronously at the end of every
-   * successful turn, see `runTurn`) — in-memory only, on purpose: it's a
-   * low-risk convenience, doesn't need to survive a relay restart (unlike
-   * `contextUsage`, which is persisted in SessionStore). */
-  private suggestion: string | null = null;
+   * successful turn, see `runTurn`) — persisted like `draft` (via
+   * `onSuggestionChange`/`initialSuggestion`): originally in-memory only,
+   * but that meant a relay restart (or rebuild+restart while iterating on
+   * the relay itself, a routine occurrence per CLAUDE.md) silently dropped
+   * a suggestion that was already showing in the composer's placeholder,
+   * with no way to get it back short of a whole new turn. */
+  private suggestion: string | null;
   /** Separate from `locked`: a session can lock the cwd on the first turn
    * (e.g. an opening `/model opus`) without yet having a real message for
    * the title — see `onFirstPrompt` above. */
@@ -188,6 +199,7 @@ export class SharedSession {
     this.model = options.initialModel;
     this.contextUsage = options.initialContextUsage;
     this.draft = options.initialDraft ?? "";
+    this.suggestion = options.initialSuggestion ?? null;
   }
 
   getCwdState(): { cwd: string; locked: boolean } {
@@ -612,6 +624,7 @@ export class SharedSession {
         generateSuggestion(this.homeOverride, this.cwd, text, lastAssistantText)
           .then((suggestion) => {
             this.suggestion = suggestion ?? null;
+            this.options.onSuggestionChange?.(this.suggestion);
             this.broadcastSuggestion();
           })
           .catch((error: unknown) => {
@@ -737,6 +750,7 @@ export class SharedSession {
   private clearSuggestion(): void {
     if (this.suggestion === null) return;
     this.suggestion = null;
+    this.options.onSuggestionChange?.(null);
     this.broadcastSuggestion();
   }
 

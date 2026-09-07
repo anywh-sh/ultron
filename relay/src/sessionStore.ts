@@ -94,6 +94,14 @@ export interface SessionEntry {
    * reason as `permissionMode`/`model`: tolerates records written before
    * this feature existed (read as `""` via `getDraft`). */
   draft?: string;
+  /** Next-message suggestion generated after the last turn, kept so it
+   * survives a relay restart — see the prompt-draft feature's `draft` above
+   * and SharedSession's `suggestion` for why this stopped being in-memory
+   * only. `null` means "generated, but cleared" (a new turn/`/clear`/edit
+   * happened since); `undefined`/absent means "never had one" — both read
+   * as `null` via `getSuggestion`, the distinction doesn't matter to a
+   * reconnecting client either way. */
+  suggestion?: string | null;
 }
 
 export type SessionRecord = Record<string, SessionEntry>;
@@ -367,6 +375,17 @@ export class SessionStore {
     this.ensureEntry(id);
     if (this.records[id].draft === text) return;
     this.records[id].draft = text;
+    this.persist();
+  }
+
+  getSuggestion(id: string): string | null {
+    return this.records[id]?.suggestion ?? null;
+  }
+
+  setSuggestion(id: string, text: string | null): void {
+    this.ensureEntry(id);
+    if (this.records[id].suggestion === text) return;
+    this.records[id].suggestion = text;
     this.persist();
   }
 
