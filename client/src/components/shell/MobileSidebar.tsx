@@ -3,7 +3,7 @@ import { Search } from "lucide-react";
 import { SessionList } from "@/components/shell/SessionList";
 import { RenameSessionDialog } from "@/components/shell/RenameSessionDialog";
 import { cn } from "@/lib/utils";
-import type { Profile } from "@/lib/profiles";
+import { profileColorClass, type Profile } from "@/lib/profiles";
 import { useProfiles } from "@/hooks/useProfiles";
 import type { SessionSummary } from "@/lib/relay-types";
 
@@ -71,7 +71,7 @@ export function MobileSidebar({
             <span
               className={cn(
                 "size-1.5 shrink-0 rounded-full",
-                profile.id === "trabalho" ? "bg-profile-work" : "bg-profile-personal",
+                profileColorClass(profile.id),
               )}
             />
             {profile.label}

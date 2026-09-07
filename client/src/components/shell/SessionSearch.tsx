@@ -1,6 +1,7 @@
 import { CommandDialog, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from "@/components/ui/command";
 import { useAllSessionNames } from "@/hooks/useAllSessionNames";
 import { useProfiles } from "@/hooks/useProfiles";
+import { profileColorClass } from "@/lib/profiles";
 import { cn } from "@/lib/utils";
 
 interface SessionSearchProps {
@@ -41,7 +42,7 @@ export function SessionSearch({ open, onOpenChange, onSelectSession }: SessionSe
                   <span
                     className={cn(
                       "size-1.5 shrink-0 rounded-full",
-                      profile.id === "trabalho" ? "bg-profile-work" : "bg-profile-personal",
+                      profileColorClass(profile.id),
                     )}
                   />
                   <span className="truncate font-mono">{session.title}</span>

@@ -6,7 +6,7 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { cn } from "@/lib/utils";
-import type { Profile } from "@/lib/profiles";
+import { profileColorClass, type Profile } from "@/lib/profiles";
 import { useProfiles } from "@/hooks/useProfiles";
 
 interface ProfileSwitcherProps {
@@ -27,7 +27,7 @@ export function ProfileSwitcher({ activeProfile, onChange }: ProfileSwitcherProp
           <span
             className={cn(
               "inline-block size-2 shrink-0 rounded-full",
-              activeProfile.id === "trabalho" ? "bg-profile-work" : "bg-profile-personal",
+              profileColorClass(activeProfile.id),
             )}
           />
           <span className="min-w-0 flex-1 truncate text-left">{activeProfile.label}</span>
@@ -41,7 +41,7 @@ export function ProfileSwitcher({ activeProfile, onChange }: ProfileSwitcherProp
             <span
               className={cn(
                 "inline-block size-2 shrink-0 rounded-full",
-                profile.id === "trabalho" ? "bg-profile-work" : "bg-profile-personal",
+                profileColorClass(profile.id),
               )}
             />
             {profile.label}

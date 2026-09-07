@@ -38,6 +38,12 @@
 
   --profile-personal: #d97757;
   --profile-work: #7c93ab;
+  --profile-1: var(--profile-personal);
+  --profile-2: var(--profile-work);
+  --profile-3: #8fa876;
+  --profile-4: #b08bbb;
+  --profile-5: #c9a45f;
+  --profile-6: #6fa3a3;
 
   --radius: 0.5rem;
 }
@@ -84,6 +90,12 @@
 
   --color-profile-personal: var(--profile-personal);
   --color-profile-work: var(--profile-work);
+  --color-profile-1: var(--profile-1);
+  --color-profile-2: var(--profile-2);
+  --color-profile-3: var(--profile-3);
+  --color-profile-4: var(--profile-4);
+  --color-profile-5: var(--profile-5);
+  --color-profile-6: var(--profile-6);
 
   --color-sidebar: var(--bg-sidebar);
   --color-sidebar-foreground: var(--foreground);

@@ -1,8 +1,18 @@
 export interface Profile {
+  /** Immutable slug — the key of every per-profile storage (tabs, recent
+   * folders, settings) and of the host-side artifacts (`<id>.env`,
+   * `ultron-relay@<id>`, sessions file). Generated once at creation from the
+   * label and never rewritten: renaming a profile must not orphan its
+   * settings. */
   id: string;
+  /** Free text, user-editable, UI only. */
   label: string;
   host: string;
   relayPort: number;
+  /** Index into the profile color palette (index.css), allocated against the
+   * whole list at creation time. Absent on profiles created before this
+   * field existed — fall back to the position in the list. */
+  colorIndex?: number;
 }
 
 const STORAGE_KEY = "ultron:profiles";
@@ -72,4 +82,35 @@ export function subscribeProfiles(listener: () => void): () => void {
 
 export function findProfile(id: string): Profile | undefined {
   return profiles.find((profile) => profile.id === id);
+}
+
+/** Appends a profile, or replaces the entry with the same id (the host
+ * registry is authoritative for label/color, so re-adding is an update). */
+export function addProfile(profile: Profile): void {
+  setProfiles([...profiles.filter((p) => p.id !== profile.id), profile]);
+}
+
+/** Refuses to empty the list: `readStoredProfiles` falls back to
+ * `DEFAULT_PROFILES` on an empty array, so removing the last profile would
+ * silently resurrect the seeded one instead of leaving the app profileless. */
+export function removeProfile(id: string): boolean {
+  if (profiles.length <= 1) return false;
+  setProfiles(profiles.filter((p) => p.id !== id));
+  return true;
+}
+
+const PROFILE_COLOR_CLASSES = [
+  "bg-profile-1", "bg-profile-2", "bg-profile-3",
+  "bg-profile-4", "bg-profile-5", "bg-profile-6",
+];
+
+/** Stable color for a profile's dot. Reads the index allocated at creation
+ * time; falls back to the position in the list for profiles stored before
+ * `colorIndex` existed (the two seeded ones keep their current colors that
+ * way, since `pessoal` is first and `trabalho` second). */
+export function profileColorClass(profileId: string): string {
+  const index = profiles.findIndex((p) => p.id === profileId);
+  const profile = index >= 0 ? profiles[index] : undefined;
+  const slot = profile?.colorIndex ?? (index >= 0 ? index : 0);
+  return PROFILE_COLOR_CLASSES[slot % PROFILE_COLOR_CLASSES.length];
 }

@@ -12,6 +12,7 @@ import { CSS } from "@dnd-kit/utilities";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { cn } from "@/lib/utils";
 import type { Tab } from "@/hooks/useTabs";
+import { profileColorClass } from "@/lib/profiles";
 import { useContextMenu } from "@/hooks/useContextMenu";
 import { SessionDeleteMenu } from "@/components/shell/SessionDeleteMenu";
 import { RenameSessionDialog } from "@/components/shell/RenameSessionDialog";
@@ -66,7 +67,7 @@ function SortableTab({ tab, onClose, onRename, onDelete }: SortableTabProps) {
         <span
           className={cn(
             "size-1.5 shrink-0 rounded-full",
-            tab.profileId === "trabalho" ? "bg-profile-work" : "bg-profile-personal",
+            profileColorClass(tab.profileId),
             tab.isRunning && "animate-pulse",
           )}
           aria-label={tab.isRunning ? "Agente trabalhando nesta sessão" : undefined}
