@@ -90,6 +90,18 @@ export interface ClaudeSessionOptions {
   initialSessionId?: string;
 }
 
+/** Pre-built by the caller (`SharedSession`, which owns the "skip in plan
+ * mode" decision from docs/46 and the actual MCP server registry) — kept as
+ * opaque already-formed CLI arg values here, same as every other spawn
+ * parameter, so this file stays a plain spawn wrapper that doesn't need to
+ * know anything about MCP or choice prompts. */
+export interface McpSpawnConfig {
+  /** Full `--mcp-config` JSON payload, ready to pass through. */
+  configJson: string;
+  /** Full `--allowedTools` value (comma-separated is accepted by the CLI). */
+  allowedTools: string;
+}
+
 export interface SendTurnResult {
   /** `true` when the turn ended because `stop()` was called, not because
    * `claude` actually finished or errored. */
@@ -247,6 +259,7 @@ export class ClaudeSession {
     permissionMode: PermissionMode,
     model: ModelChoice | undefined,
     onEvent: (event: ClaudeEvent) => void,
+    mcp?: McpSpawnConfig,
   ): Promise<SendTurnResult> {
     this.stopRequested = false;
     const args = [
@@ -272,6 +285,11 @@ export class ClaudeSession {
       ...(permissionMode === "bypassPermissions"
         ? ["--dangerously-skip-permissions"]
         : ["--permission-mode", permissionMode]),
+      // docs/46 — only present outside `plan` mode: tested against the real
+      // binary that plan mode blocks any non-native tool categorically, no
+      // `--allowedTools`/MCP annotation known works around it, so passing
+      // this there would just be dead weight on every spawn for nothing.
+      ...(mcp ? ["--mcp-config", mcp.configJson, "--allowedTools", mcp.allowedTools] : []),
     ];
     // If a previous `--resume` failed (invalid session, history not found,
     // etc.), sessionId was already cleared below — the next call

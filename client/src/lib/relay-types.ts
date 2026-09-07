@@ -199,7 +199,38 @@ export type RelayMessage =
   /** Response to an invalid `edit_message` (message not found — e.g. history
    * changed by another device) or one that failed to truncate the real
    * transcript. Only for the socket that requested it. */
-  | { type: "edit_message_error"; message: string };
+  | { type: "edit_message_error"; message: string }
+  /** docs/46 — the model called `present_choice` mid-turn and is genuinely
+   * blocked waiting for an answer. "Current state" pattern like
+   * `cwd_state`/`turn_state`: sent again to a device that (re)connects
+   * mid-wait, not just to whoever was already there. Answer with
+   * `choice_answer` (`{ type: "choice_answer", promptId, answers }`). */
+  | { type: "choice_prompt"; promptId: string; questions: ChoiceQuestion[] }
+  /** The prompt above was answered (by any device) or the turn that asked
+   * it ended before anyone answered — dismiss it everywhere it's shown. */
+  | { type: "choice_resolved"; promptId: string };
+
+/** Mirrors the relay's `ChoiceOption`/`ChoiceQuestion`/`ChoiceAnswer`
+ * (relay/src/mcpBridge.ts) — docs/46, same no-cross-package-import
+ * convention as `PermissionMode`/`ModelChoice` above. Schema mirrors the
+ * native `AskUserQuestion` tool's real input on purpose (see docs/46
+ * Descoberta 7) — the model has training affinity with this exact shape. */
+export interface ChoiceOption {
+  label: string;
+  description?: string;
+}
+
+export interface ChoiceQuestion {
+  question: string;
+  header?: string;
+  options: ChoiceOption[];
+  multiSelect?: boolean;
+}
+
+export interface ChoiceAnswer {
+  question: string;
+  selected: string[];
+}
 
 /** An `ultron-bg` job currently observed in this session — docs/32, Phase E.
  * Mirrors the relay's `BackgroundJobSummary` (relay/src/backgroundJobs.ts):

@@ -1,6 +1,8 @@
+import { randomUUID } from "node:crypto";
 import type { WebSocket } from "ws";
 import { ClaudeSession, type ClaudeEvent } from "./claudeSession.js";
 import { checkDirectory } from "./fsBrowse.js";
+import { CHOICE_ALLOWED_TOOL, CHOICE_MCP_SERVER_NAME, type ChoiceAnswer, type ChoiceQuestion, type McpChoiceBridge } from "./mcpBridge.js";
 import { defaultCwd } from "./paths.js";
 import { generateSuggestion } from "./suggestionGenerator.js";
 import { readHistoryFromTranscript, transcriptPath } from "./transcriptReader.js";
@@ -136,6 +138,18 @@ export interface SharedSessionOptions {
    * by a new turn/`/clear`/edit) — this is how SessionManager writes it to
    * SessionStore. */
   onSuggestionChange?: (suggestion: string | null) => void;
+  /** docs/46 — shared by every session in the process (like
+   * `SessionManager` itself); `undefined` only in tests that don't exercise
+   * this feature, in which case `present_choice` is simply never offered to
+   * the model (no `--mcp-config` passed), same as before this feature
+   * existed. */
+  mcpChoiceBridge?: McpChoiceBridge;
+  /** Base URL the relay's own HTTP server is reachable at from ITS OWN
+   * `claude` child process — always `127.0.0.1`, never the Tailscale address
+   * clients use to reach the relay remotely (the child is always local to
+   * the relay's machine, `spawn()` never crosses a network, see
+   * `claudeSession.ts`). `undefined` alongside `mcpChoiceBridge` in tests. */
+  mcpBridgeBaseUrl?: string;
 }
 
 export type SetCwdResult = { ok: true } | { ok: false; error: string };
@@ -186,6 +200,14 @@ export class SharedSession {
    * survives (or not) between restarts — this list is just a mirror of
    * what it knows RIGHT NOW. */
   private backgroundJobs: BackgroundJobSummary[] = [];
+  /** docs/46 — a `present_choice` tool call currently blocked waiting for a
+   * human answer, if any. In-memory only, same reasoning as `backgroundJobs`:
+   * on a relay restart the underlying `claude` child (and its MCP call) is
+   * gone too either way (see `McpChoiceBridge`'s per-turn `unregister`, tied
+   * to the same `runTurn` that owns this), so there's nothing meaningful to
+   * persist across that boundary — a fresh `SharedSession` simply has no
+   * pending prompt, which is correct. */
+  private pendingChoice: { promptId: string; questions: ChoiceQuestion[]; resolve: (answers: ChoiceAnswer[]) => void } | undefined;
 
   constructor(
     private readonly homeOverride: string | undefined,
@@ -291,6 +313,60 @@ export class SharedSession {
     this.options.onCancelBackgroundJob?.(jobId);
   }
 
+  /** docs/46 — called by the MCP bridge (`McpChoiceBridge`) when the model
+   * calls `present_choice` mid-turn. Only one at a time can be pending: a
+   * turn is a single `claude -p` process handling one tool call at a time,
+   * so there's no scenario where a second call would arrive before this one
+   * resolves. The returned promise only settles from `answerChoice` below —
+   * genuinely unbounded wait, by design (docs/46: matches how the real
+   * interactive CLI already behaves, and every lifecycle path that could
+   * leave this dangling — client disconnect, session delete, relay
+   * shutdown — already resolves through the SAME turn-in-progress machinery
+   * `stopTurn`/`waitForIdle` use, see the comment on `pendingChoice`). */
+  presentChoice(questions: ChoiceQuestion[]): Promise<ChoiceAnswer[]> {
+    return new Promise((resolve) => {
+      const promptId = randomUUID();
+      this.pendingChoice = { promptId, questions, resolve };
+      this.broadcastChoicePrompt();
+    });
+  }
+
+  /** Whatever's left pending when a turn ends, for ANY reason (normal
+   * completion, error, or `stopTurn`/SIGINT — `runTurn`'s `finally` calls
+   * this unconditionally), must be force-resolved: the `claude` child that
+   * would have received the answer no longer exists by the time this runs
+   * (`sendTurn`'s promise only resolves after the child's `close` event), so
+   * the actual answer content is moot — but without this, `pendingChoice`
+   * would linger forever (a reconnecting device would see a picker for a
+   * conversation that will never continue), and the `await` inside
+   * `McpChoiceBridge.handleRequest` for that call would never settle
+   * (`unregister` only removes it from future lookups, it doesn't reach
+   * into an already-in-flight call). */
+  private cancelPendingChoice(): void {
+    if (!this.pendingChoice) return;
+    const { promptId, resolve } = this.pendingChoice;
+    this.pendingChoice = undefined;
+    this.broadcastChoiceResolved(promptId);
+    resolve([]);
+  }
+
+  /** Called from the WS handler (`server.ts`) when any connected device
+   * answers. "First answer wins" (docs/46 multi-device requirement): once
+   * resolved, `pendingChoice` is cleared immediately, so a second device
+   * racing to answer the same prompt simply gets `false` back (its answer
+   * is a no-op) instead of a confusing double-resolution — and every device
+   * (including the one that didn't answer) is told the prompt is gone via
+   * `choice_resolved`, so a stale picker doesn't linger on a screen the
+   * user isn't looking at anymore. */
+  answerChoice(promptId: string, answers: ChoiceAnswer[]): boolean {
+    if (!this.pendingChoice || this.pendingChoice.promptId !== promptId) return false;
+    const { resolve } = this.pendingChoice;
+    this.pendingChoice = undefined;
+    this.broadcastChoiceResolved(promptId);
+    resolve(answers);
+    return true;
+  }
+
   addClient(socket: WebSocket): void {
     // First thing of all — a freshly opened tab knows the cwd/lock
     // immediately, without waiting for a turn or the history replay to finish.
@@ -303,6 +379,7 @@ export class SharedSession {
     this.sendSuggestion(socket);
     this.sendTurnState(socket);
     this.sendBackgroundJobs(socket);
+    if (this.pendingChoice) this.sendChoicePrompt(socket, this.pendingChoice);
 
     this.ensureHistoryLoaded();
     // Phase 2 (docs/30) — only the recent tail (`INITIAL_HISTORY_TAIL_TURNS`
@@ -590,6 +667,26 @@ export class SharedSession {
       }
     }
 
+    // docs/46 — registered fresh for every turn (not once per session):
+    // the token is the endpoint's only auth, and a turn that ends (however
+    // it ends — success, error, or `stopTurn`) must not leave a token alive
+    // that a since-exited `claude` child could no longer call anyway. Only
+    // built outside `plan` mode: the CLI blocks any non-native tool
+    // categorically there regardless of `--allowedTools` (docs/46,
+    // Descoberta 5) — passing this would be dead weight on every spawn.
+    const choiceRegistration =
+      this.options.mcpChoiceBridge && this.permissionMode !== "plan"
+        ? this.options.mcpChoiceBridge.registerTurn({ presentChoice: (questions) => this.presentChoice(questions) })
+        : undefined;
+    const mcp = choiceRegistration
+      ? {
+          configJson: JSON.stringify({
+            mcpServers: { [CHOICE_MCP_SERVER_NAME]: { type: "http", url: `${this.options.mcpBridgeBaseUrl}/${choiceRegistration.token}` } },
+          }),
+          allowedTools: CHOICE_ALLOWED_TOOL,
+        }
+      : undefined;
+
     try {
       const { stopped, contextUsage, lastAssistantText } = await this.claude.sendTurn(
         text,
@@ -604,6 +701,7 @@ export class SharedSession {
           // alters the turn's flow.
           this.options.onEvent?.(event);
         },
+        mcp,
       );
       const sessionId = this.claude.getSessionId();
       if (sessionId) this.options.onSessionIdChange?.(sessionId);
@@ -636,6 +734,8 @@ export class SharedSession {
       console.error("[relay] turn failed:", message);
       this.broadcast({ type: "turn_error", message });
     } finally {
+      choiceRegistration?.unregister();
+      this.cancelPendingChoice();
       this.turnStartedAt = null;
       this.broadcastTurnState();
     }
@@ -651,6 +751,26 @@ export class SharedSession {
 
   private broadcastBackgroundJobs(): void {
     for (const client of this.clients) this.sendBackgroundJobs(client);
+  }
+
+  /** docs/46 — same "current state" pattern as `sendCwdState`/`sendTurnState`:
+   * a device that reconnects (or connects for the first time) mid-wait needs
+   * to see the pending question immediately, not just devices that were
+   * already there when it was asked. */
+  private sendChoicePrompt(target: WebSocket, prompt: { promptId: string; questions: ChoiceQuestion[] }): void {
+    target.send(JSON.stringify({ type: "choice_prompt", promptId: prompt.promptId, questions: prompt.questions }));
+  }
+
+  private broadcastChoicePrompt(): void {
+    if (!this.pendingChoice) return;
+    for (const client of this.clients) this.sendChoicePrompt(client, this.pendingChoice);
+  }
+
+  /** Tells every connected device the prompt is gone — including whichever
+   * one(s) didn't answer, so a stale picker doesn't linger once another
+   * device already resolved it (docs/46 multi-device requirement). */
+  private broadcastChoiceResolved(promptId: string): void {
+    for (const client of this.clients) client.send(JSON.stringify({ type: "choice_resolved", promptId }));
   }
 
   private sendTurnState(target: WebSocket): void {

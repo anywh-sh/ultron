@@ -2,6 +2,7 @@ import { generateTitle } from "./titleGenerator.js";
 import { SharedSession } from "./sharedSession.js";
 import type { SessionStore } from "./sessionStore.js";
 import { BackgroundJobTracker, type FinishedBackgroundJob } from "./backgroundJobs.js";
+import type { McpChoiceBridge } from "./mcpBridge.js";
 
 // Multiple sessions identified by id within the same profile (= one relay
 // process) — equivalent to what tmux windows provided in the old
@@ -29,6 +30,11 @@ export class SessionManager {
      * that don't pass this), but in production `server.ts` always passes a
      * real path. */
     backgroundJobsFilePath?: string,
+    /** docs/46 — `undefined` in tests that don't exercise `present_choice`,
+     * same reasoning as `backgroundJobsFilePath`; in production `server.ts`
+     * always passes both. */
+    private readonly mcpChoiceBridge?: McpChoiceBridge,
+    private readonly mcpBridgeBaseUrl?: string,
   ) {
     // `this.sessions` needs to exist BEFORE `BackgroundJobTracker` is
     // constructed: if there are persisted jobs from a session that already
@@ -161,6 +167,8 @@ export class SessionManager {
       onDraftChange: (text) => this.sessionStore.setDraft(id, text),
       initialSuggestion: this.sessionStore.getSuggestion(id),
       onSuggestionChange: (text) => this.sessionStore.setSuggestion(id, text),
+      mcpChoiceBridge: this.mcpChoiceBridge,
+      mcpBridgeBaseUrl: this.mcpBridgeBaseUrl,
       onActivity: () => this.sessionStore.touch(id),
       onEvent: (event) => this.backgroundJobs.observeEvent(id, event),
       onCancelBackgroundJob: (jobId) => {

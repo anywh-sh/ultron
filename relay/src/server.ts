@@ -21,6 +21,7 @@ import {
   slugify,
   updateProfileMeta,
 } from "./profileRegistry.js";
+import { McpChoiceBridge, type ChoiceAnswer } from "./mcpBridge.js";
 import { SessionManager } from "./sessionManager.js";
 import { SessionStore, type ModelChoice, type PermissionMode } from "./sessionStore.js";
 import { killAllTerminalsForSession, killTerminal, scrollTerminal, spawnTerminal } from "./terminalSession.js";
@@ -198,6 +199,16 @@ function isCancelBackgroundJobMessage(value: unknown): value is { type: "cancel_
   );
 }
 
+function isChoiceAnswerMessage(value: unknown): value is { type: "choice_answer"; promptId: string; answers: ChoiceAnswer[] } {
+  return (
+    typeof value === "object" &&
+    value !== null &&
+    (value as { type?: unknown }).type === "choice_answer" &&
+    typeof (value as { promptId?: unknown }).promptId === "string" &&
+    Array.isArray((value as { answers?: unknown }).answers)
+  );
+}
+
 function isTerminalResizeMessage(value: unknown): value is { type: "resize"; cols: number; rows: number } {
   if (typeof value !== "object" || value === null || (value as { type?: unknown }).type !== "resize") return false;
   const cols = (value as { cols?: unknown }).cols;
@@ -302,7 +313,18 @@ function runClaudeAuthStatus(homeOverride: string | undefined): Promise<ClaudeAu
 }
 
 const sessionStore = new SessionStore(SESSIONS_FILE, defaultCwd(HOME_OVERRIDE));
-const sessionManager = new SessionManager(HOME_OVERRIDE, sessionStore, BACKGROUND_JOBS_FILE);
+// docs/46 — always `127.0.0.1`, never `HOST`: this is the address the
+// relay's OWN `claude` child processes reach it at, always local to this
+// machine (see the comment on `SharedSessionOptions.mcpBridgeBaseUrl`), not
+// the address remote clients (possibly over Tailscale) use.
+const mcpChoiceBridge = new McpChoiceBridge();
+const sessionManager = new SessionManager(
+  HOME_OVERRIDE,
+  sessionStore,
+  BACKGROUND_JOBS_FILE,
+  mcpChoiceBridge,
+  `http://127.0.0.1:${PORT}/mcp`,
+);
 
 // `true` from the first SIGTERM/SIGINT received onward — rejects a new turn
 // (see `isUserMessage` above) while `gracefulShutdown` waits for turns
@@ -336,6 +358,17 @@ const httpServer = createServer((req, res) => {
     res.setHeader("Access-Control-Allow-Headers", "*");
     res.writeHead(204);
     res.end();
+    return;
+  }
+
+  // docs/46 — MCP endpoint the relay's own `claude` children call into for
+  // `present_choice`. `token` is generated fresh per turn (SharedSession)
+  // and is this route's only auth — no session/profile check needed beyond
+  // it, since only a `--mcp-config` we ourselves handed to a local child
+  // process ever knows it.
+  const mcpMatch = req.url?.match(/^\/mcp\/([^/]+)$/);
+  if (mcpMatch) {
+    void mcpChoiceBridge.handleRequest(mcpMatch[1], req, res);
     return;
   }
 
@@ -900,6 +933,10 @@ wss.on("connection", (socket: WebSocket, request) => {
     }
     if (isLoadOlderHistoryMessage(parsed)) {
       session.loadOlderHistory(socket, parsed.beforeCursor);
+      return;
+    }
+    if (isChoiceAnswerMessage(parsed)) {
+      session.answerChoice(parsed.promptId, parsed.answers);
       return;
     }
     if (isCancelBackgroundJobMessage(parsed)) {
