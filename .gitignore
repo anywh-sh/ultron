@@ -11,6 +11,10 @@ infra/systemd/ultron-relay@.service
 client/src-tauri/target/
 client/src-tauri/gen/
 
+# personal convenience scripts (see client/README.md) — machine-specific,
+# e.g. a physical iOS device name, never meant to be shared
+client/*.local.sh
+
 # os
 .DS_Store
 Screenshot*.png
