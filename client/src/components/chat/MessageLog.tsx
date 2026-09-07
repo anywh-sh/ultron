@@ -27,11 +27,6 @@ interface MessageLogProps {
    * (docs/24), so the content needs extra breathing room to avoid ending up
    * hidden behind it. */
   className?: string;
-  /** Whether a turn is in flight — `TurnIndicator` (rendered by `ChatPanel`,
-   * outside this component) mounts at the same moment, shrinking this
-   * container's height without changing the virtualized item list itself.
-   * See the layout effect below for why that needs a manual correction. */
-  turnActive: boolean;
   /** Message editing (docs/33) — `id` of the `kind: "user"` entry that's
    * currently turning into a `<textarea>` (desktop only; on iOS `ChatPanel`
    * never sets this, editing there happens via the composer, not inline).
@@ -207,7 +202,6 @@ export const MessageLog = memo(function MessageLog({
   loadingOlderHistory,
   onLoadOlderHistory,
   className,
-  turnActive,
   editingMessageId,
   onStartEdit,
   onCancelEdit,
@@ -318,27 +312,6 @@ export const MessageLog = memo(function MessageLog({
   useLayoutEffect(() => {
     virtualizer.scrollToEnd();
   }, [virtualizer]);
-
-  // `TurnIndicator` mounts as a sibling below this log (in `ChatPanel`) the
-  // instant a turn starts, shrinking this container's flex-1 height without
-  // touching the virtualized item list — `followOnAppend` only re-checks the
-  // end offset when the item count/keys change, and even then it reads the
-  // virtualizer's own cached rect, which is only refreshed asynchronously by
-  // a `ResizeObserver` and so is still the pre-shrink (taller) height at that
-  // instant. The result: the scroll lands short of the true bottom and the
-  // last bubble is clipped under the indicator. Re-measuring here, straight
-  // from the live DOM (`scrollHeight`/`clientHeight`, always in sync, unlike
-  // the virtualizer's cached rect) and only nudging when already close to the
-  // end — not when a turn starts elsewhere while reading back through
-  // history — fixes it without touching the virtualizer's own bookkeeping
-  // (setting `scrollTop` fires a native `scroll` event it already listens to).
-  useLayoutEffect(() => {
-    if (!turnActive || !pinnedToBottomRef.current) return;
-    const el = parentRef.current;
-    if (!el) return;
-    const distanceFromEnd = el.scrollHeight - el.scrollTop - el.clientHeight;
-    if (distanceFromEnd < 80) el.scrollTop = el.scrollHeight;
-  }, [turnActive]);
 
   // Reported bug: pinned to bottom, switch to another tab, new turns arrive
   // in the background, switch back — the log came back at the OLD bottom

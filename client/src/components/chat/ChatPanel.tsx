@@ -520,7 +520,6 @@ export function ChatPanel({
           loadingOlderHistory={log.loadingOlderHistory}
           onLoadOlderHistory={handleLoadOlderHistory}
           className={isIOS() ? "pt-[calc(env(safe-area-inset-top)+64px)] pb-32" : undefined}
-          turnActive={turnStartedAt !== null}
           // On iOS editing never turns into an inline `<textarea>` (docs/33)
           // — `ChatPanel` never passes an id along on that platform, even
           // with `editTarget` set (see warning in the composer below).
@@ -613,7 +612,10 @@ export function ChatPanel({
          * cap anyway) is untouched. */}
         <div className={cn(isIOS() ? "contents" : "w-full px-4")}>
           <div className={cn(isIOS() ? "contents" : "mx-auto flex w-full max-w-3xl flex-col")}>
-            {!isIOS() && turnStartedAt !== null && <TurnIndicator startedAt={turnStartedAt} />}
+            {/* Always mounted on desktop (docs/48) — see `TurnIndicator`'s
+             * own doc comment for why this can't be conditional on
+             * `turnStartedAt !== null` like the iOS one below. */}
+            {!isIOS() && <TurnIndicator startedAt={turnStartedAt} />}
 
             {choicePrompt && <ChoiceCard promptId={choicePrompt.promptId} questions={choicePrompt.questions} onAnswer={answerChoice} />}
 
