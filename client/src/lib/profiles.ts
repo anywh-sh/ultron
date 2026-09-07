@@ -1,3 +1,5 @@
+import type { RemoteProfile } from "@/lib/relay-types";
+
 export interface Profile {
   /** Immutable slug — the key of every per-profile storage (tabs, recent
    * folders, settings) and of the host-side artifacts (`<id>.env`,
@@ -99,6 +101,29 @@ export function removeProfile(id: string): boolean {
   return true;
 }
 
+/** Mirrors `host`'s `GET /control/profiles` onto the local list — the only
+ * write path now that profiles are auto-synced instead of manually
+ * imported (see `useProfileSync`). Only replaces entries for `host`; a
+ * device can know profiles from more than one host at once (`DangerZone`'s
+ * executor lookup already assumes this), so this must never touch entries
+ * belonging to a different host. Guards against ever emptying the list
+ * (same reasoning as `removeProfile` above) — a transient empty response
+ * shouldn't wipe out every profile this device knows about. */
+export function syncProfilesForHost(host: string, remote: RemoteProfile[]): void {
+  const merged = [
+    ...profiles.filter((p) => p.host !== host),
+    ...remote.map((entry) => ({
+      id: entry.id,
+      label: entry.label,
+      host: entry.host,
+      relayPort: entry.port,
+      colorIndex: entry.colorIndex,
+    })),
+  ];
+  if (merged.length === 0) return;
+  setProfiles(merged);
+}
+
 const PROFILE_COLOR_CLASSES = [
   "bg-profile-1", "bg-profile-2", "bg-profile-3",
   "bg-profile-4", "bg-profile-5", "bg-profile-6",
@@ -108,10 +133,8 @@ const PROFILE_COLOR_CLASSES = [
  * over every swatch without duplicating the count. */
 export const PROFILE_COLOR_COUNT = PROFILE_COLOR_CLASSES.length;
 
-/** Raw index → color class, for a profile that isn't (yet) in the local
- * list — e.g. an importable `RemoteProfile` in `AddProfileDialog`, which
- * already carries its host-assigned `colorIndex` but would otherwise look
- * up as "not found" in `profileColorClass` below. */
+/** Raw index → color class — the color picker in `SettingsDialog` renders
+ * every swatch by index directly, without going through a `Profile` at all. */
 export function profileColorClassForIndex(index: number): string {
   return PROFILE_COLOR_CLASSES[index % PROFILE_COLOR_CLASSES.length];
 }

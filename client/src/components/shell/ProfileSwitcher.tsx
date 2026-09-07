@@ -10,7 +10,7 @@ import {
 import { cn } from "@/lib/utils";
 import { profileColorClass, type Profile } from "@/lib/profiles";
 import { useProfiles } from "@/hooks/useProfiles";
-import { useControlProfiles } from "@/hooks/useControlProfiles";
+import { useProfileSync } from "@/hooks/useProfileSync";
 import { AddProfileDialog } from "@/components/shell/AddProfileDialog";
 
 interface ProfileSwitcherProps {
@@ -20,7 +20,7 @@ interface ProfileSwitcherProps {
 
 export function ProfileSwitcher({ activeProfile, onChange }: ProfileSwitcherProps) {
   const profiles = useProfiles();
-  const { importable, supported } = useControlProfiles(activeProfile);
+  const { supported } = useProfileSync(activeProfile);
   const [addOpen, setAddOpen] = useState(false);
 
   return (
@@ -72,12 +72,7 @@ export function ProfileSwitcher({ activeProfile, onChange }: ProfileSwitcherProp
       </DropdownMenu>
 
       {supported && (
-        <AddProfileDialog
-          open={addOpen}
-          onOpenChange={setAddOpen}
-          activeProfile={activeProfile}
-          importable={importable}
-        />
+        <AddProfileDialog open={addOpen} onOpenChange={setAddOpen} activeProfile={activeProfile} />
       )}
     </>
   );

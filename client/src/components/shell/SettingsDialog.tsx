@@ -31,7 +31,6 @@ interface SettingsDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   activeProfile: Profile;
-  onActiveProfileChange: (profileId: string) => void;
 }
 
 /** No real navigation yet (only "Geral" exists) — the list already exists
@@ -197,36 +196,20 @@ function ProfileIdentityRow({ profile, effectiveColorIndex }: { profile: Profile
 function DangerZone({
   scopedProfile,
   allProfiles,
-  activeProfileId,
-  onActiveProfileChange,
   onProfileRemoved,
 }: {
   scopedProfile: Profile;
   allProfiles: Profile[];
-  activeProfileId: string;
-  onActiveProfileChange: (id: string) => void;
   onProfileRemoved: (removedId: string) => void;
 }) {
   const [confirmOpen, setConfirmOpen] = useState(false);
   const [deleting, setDeleting] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  const canRemoveLocally = allProfiles.length > 1;
   // A different relay on the same host executes the deletion — sending it
   // to the profile's own relay would make it disable its own systemd
   // instance mid-request (docs/45 Fase 6).
   const executor = allProfiles.find((p) => p.id !== scopedProfile.id && p.host === scopedProfile.host);
-
-  function switchActiveAwayIfNeeded(): void {
-    if (activeProfileId !== scopedProfile.id) return;
-    const fallback = allProfiles.find((p) => p.id !== scopedProfile.id);
-    if (fallback) onActiveProfileChange(fallback.id);
-  }
-
-  function handleRemoveLocally(): void {
-    switchActiveAwayIfNeeded();
-    if (removeProfile(scopedProfile.id)) onProfileRemoved(scopedProfile.id);
-  }
 
   async function handleDeleteFromServer(): Promise<void> {
     if (!executor) return;
@@ -234,7 +217,10 @@ function DangerZone({
     setError(null);
     try {
       await deleteProfile(executor.host, executor.relayPort, scopedProfile.id);
-      switchActiveAwayIfNeeded();
+      // Optimistic local removal for immediate feedback on this device —
+      // `useActiveProfile`'s own reactive fallback handles switching away if
+      // this happened to be the active profile, and every other device
+      // picks up the removal on its next profile sync (useProfileSync).
       removeProfile(scopedProfile.id);
       onProfileRemoved(scopedProfile.id);
       setConfirmOpen(false);
@@ -248,20 +234,6 @@ function DangerZone({
   return (
     <div className="flex flex-col gap-3 rounded-md border border-destructive/40 p-3">
       <h3 className="text-sm font-medium text-destructive">Zona de risco</h3>
-
-      <div className="flex items-center justify-between gap-3">
-        <div className="flex min-w-0 flex-col">
-          <span className="text-sm">Remover deste dispositivo</span>
-          <span className="text-xs text-muted-foreground">
-            {canRemoveLocally
-              ? "Some só daqui — reaparece na aba Importar quando quiser."
-              : "Não é possível remover o único perfil."}
-          </span>
-        </div>
-        <Button variant="outline" size="sm" disabled={!canRemoveLocally} onClick={handleRemoveLocally}>
-          Remover
-        </Button>
-      </div>
 
       <div className="flex items-center justify-between gap-3">
         <div className="flex min-w-0 flex-col">
@@ -315,7 +287,7 @@ function DangerZone({
  * `activeProfile` whenever the dialog opens, so reopening after switching
  * profiles in the main UI lands on the profile you're actually looking at.
  */
-export function SettingsDialog({ open, onOpenChange, activeProfile, onActiveProfileChange }: SettingsDialogProps) {
+export function SettingsDialog({ open, onOpenChange, activeProfile }: SettingsDialogProps) {
   const [section, setSection] = useState<Section>("geral");
   const profiles = useProfiles();
   const [scopedProfileId, setScopedProfileId] = useState(activeProfile.id);
@@ -401,13 +373,7 @@ export function SettingsDialog({ open, onOpenChange, activeProfile, onActiveProf
                   onChange={(preference) => setPreference(scopedProfile.id, preference)}
                 />
 
-                <DangerZone
-                  scopedProfile={scopedProfile}
-                  allProfiles={profiles}
-                  activeProfileId={activeProfile.id}
-                  onActiveProfileChange={onActiveProfileChange}
-                  onProfileRemoved={handleProfileRemoved}
-                />
+                <DangerZone scopedProfile={scopedProfile} allProfiles={profiles} onProfileRemoved={handleProfileRemoved} />
               </div>
             )}
           </div>

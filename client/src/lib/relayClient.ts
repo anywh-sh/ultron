@@ -93,8 +93,8 @@ export async function closeTerminal(host: string, port: number, session: string,
  * empty array both when the host genuinely has none and when the host
  * doesn't run the control API at all (an older relay, `GET /control/*`
  * 404s). Callers that need to tell those two apart should catch instead of
- * relying on the returned length; see `useControlProfiles`, which is the
- * only caller and does exactly that. */
+ * relying on the returned length; see `useProfileSync`, which is the only
+ * caller and does exactly that. */
 export async function fetchControlProfiles(host: string, port: number): Promise<RemoteProfile[]> {
   const response = await fetch(`http://${host}:${port}/control/profiles`);
   if (!response.ok) {
