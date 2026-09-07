@@ -3,6 +3,7 @@ import { SharedSession } from "./sharedSession.js";
 import type { SessionStore } from "./sessionStore.js";
 import { BackgroundJobTracker, type FinishedBackgroundJob } from "./backgroundJobs.js";
 import type { McpChoiceBridge } from "./mcpBridge.js";
+import type { McpPermissionBridge } from "./permissionBridge.js";
 
 // Multiple sessions identified by id within the same profile (= one relay
 // process) — equivalent to what tmux windows provided in the old
@@ -35,6 +36,10 @@ export class SessionManager {
      * always passes both. */
     private readonly mcpChoiceBridge?: McpChoiceBridge,
     private readonly mcpBridgeBaseUrl?: string,
+    /** docs/46 Fase 4 — same "undefined only in tests" reasoning as
+     * `mcpChoiceBridge`/`mcpBridgeBaseUrl`. */
+    private readonly mcpPermissionBridge?: McpPermissionBridge,
+    private readonly mcpPermissionBridgeBaseUrl?: string,
   ) {
     // `this.sessions` needs to exist BEFORE `BackgroundJobTracker` is
     // constructed: if there are persisted jobs from a session that already
@@ -169,6 +174,8 @@ export class SessionManager {
       onSuggestionChange: (text) => this.sessionStore.setSuggestion(id, text),
       mcpChoiceBridge: this.mcpChoiceBridge,
       mcpBridgeBaseUrl: this.mcpBridgeBaseUrl,
+      mcpPermissionBridge: this.mcpPermissionBridge,
+      mcpPermissionBridgeBaseUrl: this.mcpPermissionBridgeBaseUrl,
       onActivity: () => this.sessionStore.touch(id),
       onEvent: (event) => this.backgroundJobs.observeEvent(id, event),
       onCancelBackgroundJob: (jobId) => {

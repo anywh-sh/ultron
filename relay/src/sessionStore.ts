@@ -27,6 +27,16 @@ export interface SessionCwdState {
  * for interactive chat. */
 export type PermissionMode = "default" | "acceptEdits" | "plan" | "bypassPermissions";
 
+const PERMISSION_MODES: readonly PermissionMode[] = ["default", "acceptEdits", "plan", "bypassPermissions"];
+
+/** Narrows an arbitrary string to `PermissionMode` — needed for docs/46 Fase
+ * 4, where the CLI reports its own mode transitions via a `system/status`
+ * event (`SharedSession`'s `applyPermissionModeFromCli`) and the value comes
+ * from the child process's stdout, not from our own typed UI. */
+export function isPermissionMode(value: string): value is PermissionMode {
+  return (PERMISSION_MODES as readonly string[]).includes(value);
+}
+
 /** Opaque `claude --model` value — no fixed union anymore: the real catalog
  * is fetched from the CLI itself (defaultModel.ts's `/model` probe) instead
  * of curated by hand, so it can include aliases we haven't special-cased

@@ -22,6 +22,7 @@ import {
   updateProfileMeta,
 } from "./profileRegistry.js";
 import { McpChoiceBridge, type ChoiceAnswer } from "./mcpBridge.js";
+import { McpPermissionBridge } from "./permissionBridge.js";
 import { SessionManager } from "./sessionManager.js";
 import { SessionStore, type ModelChoice, type PermissionMode } from "./sessionStore.js";
 import { killAllTerminalsForSession, killTerminal, scrollTerminal, spawnTerminal } from "./terminalSession.js";
@@ -318,12 +319,18 @@ const sessionStore = new SessionStore(SESSIONS_FILE, defaultCwd(HOME_OVERRIDE));
 // machine (see the comment on `SharedSessionOptions.mcpBridgeBaseUrl`), not
 // the address remote clients (possibly over Tailscale) use.
 const mcpChoiceBridge = new McpChoiceBridge();
+// docs/46 Fase 4 — separate bridge/path from `mcpChoiceBridge` (own token
+// namespace, own route below) even though both are the same "local-only MCP
+// server the relay's own `claude` children call into" idea.
+const mcpPermissionBridge = new McpPermissionBridge();
 const sessionManager = new SessionManager(
   HOME_OVERRIDE,
   sessionStore,
   BACKGROUND_JOBS_FILE,
   mcpChoiceBridge,
   `http://127.0.0.1:${PORT}/mcp`,
+  mcpPermissionBridge,
+  `http://127.0.0.1:${PORT}/permission`,
 );
 
 // `true` from the first SIGTERM/SIGINT received onward — rejects a new turn
@@ -369,6 +376,14 @@ const httpServer = createServer((req, res) => {
   const mcpMatch = req.url?.match(/^\/mcp\/([^/]+)$/);
   if (mcpMatch) {
     void mcpChoiceBridge.handleRequest(mcpMatch[1], req, res);
+    return;
+  }
+
+  // docs/46 Fase 4 — MCP endpoint for `--permission-prompt-tool`, same
+  // per-turn-token-as-auth reasoning as the route above.
+  const permissionMatch = req.url?.match(/^\/permission\/([^/]+)$/);
+  if (permissionMatch) {
+    void mcpPermissionBridge.handleRequest(permissionMatch[1], req, res);
     return;
   }
 

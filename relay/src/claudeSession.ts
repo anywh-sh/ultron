@@ -91,16 +91,25 @@ export interface ClaudeSessionOptions {
   initialSessionId?: string;
 }
 
-/** Pre-built by the caller (`SharedSession`, which owns the "skip in plan
- * mode" decision from docs/46 and the actual MCP server registry) — kept as
- * opaque already-formed CLI arg values here, same as every other spawn
- * parameter, so this file stays a plain spawn wrapper that doesn't need to
- * know anything about MCP or choice prompts. */
+/** Pre-built by the caller (`SharedSession`, which owns the "which mode gets
+ * which MCP server" decision from docs/46 and the actual MCP server
+ * registry) — kept as opaque already-formed CLI arg values here, same as
+ * every other spawn parameter, so this file stays a plain spawn wrapper that
+ * doesn't need to know anything about MCP, choice prompts, or permission
+ * approval. Serves two mutually-exclusive purposes depending on the turn's
+ * mode (never both at once, see `SharedSession.runTurn`): `allowedTools` for
+ * the `present_choice` tool outside `plan` mode (Fase 1-3), or
+ * `permissionPromptTool` for the `--permission-prompt-tool` bridge inside
+ * `plan` mode (Fase 4). */
 export interface McpSpawnConfig {
   /** Full `--mcp-config` JSON payload, ready to pass through. */
   configJson: string;
   /** Full `--allowedTools` value (comma-separated is accepted by the CLI). */
-  allowedTools: string;
+  allowedTools?: string;
+  /** Tool name to pass to `--permission-prompt-tool` (docs/46 Fase 4) — the
+   * CLI calls this tool for every action that would otherwise need
+   * approval, instead of auto-denying. */
+  permissionPromptTool?: string;
 }
 
 export interface SendTurnResult {
@@ -310,11 +319,23 @@ export class ClaudeSession {
       ...(permissionMode === "bypassPermissions"
         ? ["--dangerously-skip-permissions"]
         : ["--permission-mode", permissionMode]),
-      // docs/46 — only present outside `plan` mode: tested against the real
-      // binary that plan mode blocks any non-native tool categorically, no
-      // `--allowedTools`/MCP annotation known works around it, so passing
-      // this there would just be dead weight on every spawn for nothing.
-      ...(mcp ? ["--mcp-config", mcp.configJson, "--allowedTools", mcp.allowedTools] : []),
+      // docs/46 — `mcp` is only ever built for one of two cases (see
+      // `McpSpawnConfig`): `allowedTools` outside `plan` mode (the
+      // `present_choice` tool — tested that `plan` mode blocks any
+      // non-native tool categorically regardless of `--allowedTools`, so
+      // passing it there would be dead weight), or `permissionPromptTool`
+      // INSIDE `plan` mode (Fase 4 — the one case where a turn needs
+      // `--mcp-config` while in `plan` mode, since `--permission-prompt-tool`
+      // isn't a regular tool the model calls, it's the CLI's own approval
+      // hook).
+      ...(mcp
+        ? [
+            "--mcp-config",
+            mcp.configJson,
+            ...(mcp.allowedTools ? ["--allowedTools", mcp.allowedTools] : []),
+            ...(mcp.permissionPromptTool ? ["--permission-prompt-tool", mcp.permissionPromptTool] : []),
+          ]
+        : []),
     ];
     // If a previous `--resume` failed (invalid session, history not found,
     // etc.), sessionId was already cleared below — the next call

@@ -3,13 +3,14 @@ import type { WebSocket } from "ws";
 import { ClaudeSession, type ClaudeEvent } from "./claudeSession.js";
 import { checkDirectory } from "./fsBrowse.js";
 import { CHOICE_ALLOWED_TOOL, CHOICE_MCP_SERVER_NAME, type ChoiceAnswer, type ChoiceQuestion, type McpChoiceBridge } from "./mcpBridge.js";
+import { PERMISSION_MCP_SERVER_NAME, PERMISSION_PROMPT_TOOL, type McpPermissionBridge, type PermissionDecision } from "./permissionBridge.js";
 import { defaultCwd } from "./paths.js";
 import { formatPlanChoiceAnswerText, parsePlanChoiceMarkers } from "./planChoiceMarker.js";
 import { generateSuggestion } from "./suggestionGenerator.js";
 import { readHistoryFromTranscript, transcriptPath } from "./transcriptReader.js";
 import { forkTruncatedTranscript } from "./transcriptFork.js";
 import { INITIAL_HISTORY_TAIL_TURNS, findEditTarget, pageHistoryBefore, type EditTarget } from "./historyPaging.js";
-import type { ContextUsage, ModelChoice, PermissionMode } from "./sessionStore.js";
+import { isPermissionMode, type ContextUsage, type ModelChoice, type PermissionMode } from "./sessionStore.js";
 import { toBackgroundJobSummary, type BackgroundJobSummary, type FinishedBackgroundJob, type WatchedJob } from "./backgroundJobs.js";
 
 /** docs/32 Phase D — text of the synthetic turn fired when an `ultron-bg`
@@ -151,6 +152,14 @@ export interface SharedSessionOptions {
    * the relay's machine, `spawn()` never crosses a network, see
    * `claudeSession.ts`). `undefined` alongside `mcpChoiceBridge` in tests. */
   mcpBridgeBaseUrl?: string;
+  /** docs/46 Fase 4 — same lifecycle/sharing as `mcpChoiceBridge`, just for
+   * `--permission-prompt-tool` instead of `present_choice`. `undefined` in
+   * tests that don't exercise this feature, same reasoning. */
+  mcpPermissionBridge?: McpPermissionBridge;
+  /** Same "local-only, own HTTP server" reasoning as `mcpBridgeBaseUrl`, on
+   * its own path prefix (`/permission/:token`, mounted separately in
+   * `server.ts`) so the two bridges' tokens never share a namespace. */
+  mcpPermissionBridgeBaseUrl?: string;
 }
 
 export type SetCwdResult = { ok: true } | { ok: false; error: string };
@@ -349,6 +358,59 @@ export class SharedSession {
     const promptId = randomUUID();
     this.pendingChoice = { kind: "planText", promptId, questions };
     this.broadcastChoicePrompt();
+  }
+
+  /** docs/46 Fase 4 — called by the permission-prompt-tool bridge
+   * (`McpPermissionBridge`) for every tool call that would otherwise need
+   * approval in a `plan`-mode turn (see `runTurn`'s `permissionRegistration`
+   * — this is never wired outside `plan` mode). Deliberately narrow: only
+   * `ExitPlanMode` pauses for a human decision, everything else is
+   * auto-allowed. A general per-action approval flow for every mode is a
+   * bigger, deferred feature (docs/46 "Decisão de escopo") — this only
+   * exists to unblock the one transition that was actually requested
+   * (switching mode by text instead of the dropdown).
+   *
+   * Reuses `presentChoice` as-is instead of inventing a parallel pending-
+   * approval mechanism: a single yes/no `ChoiceQuestion` renders fine with
+   * the existing `ChoiceCard`, and `presentChoice`/`answerChoice` already
+   * handle every lifecycle edge case (multi-device "first answer wins",
+   * cancellation on any form of turn end) that a fresh mechanism would need
+   * to reimplement. Safe because the two are mutually exclusive per turn —
+   * `present_choice` is never registered for a `plan`-mode turn (`runTurn`),
+   * so there's no `"mcp"` pending choice already occupying the slot when this
+   * runs. */
+  private async checkPermission(toolName: string, input: unknown, _toolUseId: string | undefined): Promise<PermissionDecision> {
+    if (toolName !== "ExitPlanMode") return { behavior: "allow", updatedInput: input };
+    const answers = await this.presentChoice([
+      {
+        question: "O modelo quer sair do modo Plan e continuar a execução. Aprovar?",
+        options: [{ label: "Aprovar" }, { label: "Recusar" }],
+      },
+    ]);
+    const approved = answers[0]?.selected.includes("Aprovar") ?? false;
+    return approved
+      ? { behavior: "allow", updatedInput: input }
+      : { behavior: "deny", message: "O usuário optou por continuar no modo Plan." };
+  }
+
+  /** docs/46 Fase 4 — the CLI reports its own permission-mode transitions
+   * (e.g. right after approving `ExitPlanMode` mid-turn) via a
+   * `{"type":"system","subtype":"status","permissionMode":...}` event,
+   * observed immediately after the triggering `tool_use` and before its
+   * `tool_result` (confirmed against the real binary, docs/46). Without
+   * this, the dropdown would keep showing the mode the human picked before
+   * the turn started even though the CLI already moved on, AND the next
+   * spawn's `--resume` would pass the stale mode again and silently undo
+   * the transition. Guarded on an actual change so a turn with no mode
+   * switch doesn't do redundant work on every status event; not
+   * `setPermissionMode` (that one is for the human's own dropdown pick and
+   * always notifies) because this needs the exact same side effects driven
+   * by a different source of truth. */
+  private applyPermissionModeFromCli(mode: string): void {
+    if (!isPermissionMode(mode) || mode === this.permissionMode) return;
+    this.permissionMode = mode;
+    this.options.onPermissionModeChange?.(mode);
+    this.broadcastPermissionMode();
   }
 
   /** Whatever's left pending when a turn ends, for ANY reason (normal
@@ -737,6 +799,15 @@ export class SharedSession {
       this.options.mcpChoiceBridge && this.permissionMode !== "plan"
         ? this.options.mcpChoiceBridge.registerTurn({ presentChoice: (questions) => this.presentChoice(questions) })
         : undefined;
+    // docs/46 Fase 4 — the mirror image of `choiceRegistration`: only built
+    // INSIDE `plan` mode, where it's the only way to get `ExitPlanMode`
+    // offered at all (Descoberta 6). Same per-turn token lifecycle.
+    const permissionRegistration =
+      this.options.mcpPermissionBridge && this.permissionMode === "plan"
+        ? this.options.mcpPermissionBridge.registerTurn({
+            checkPermission: (toolName, input, toolUseId) => this.checkPermission(toolName, input, toolUseId),
+          })
+        : undefined;
     const mcp = choiceRegistration
       ? {
           configJson: JSON.stringify({
@@ -744,7 +815,16 @@ export class SharedSession {
           }),
           allowedTools: CHOICE_ALLOWED_TOOL,
         }
-      : undefined;
+      : permissionRegistration
+        ? {
+            configJson: JSON.stringify({
+              mcpServers: {
+                [PERMISSION_MCP_SERVER_NAME]: { type: "http", url: `${this.options.mcpPermissionBridgeBaseUrl}/${permissionRegistration.token}` },
+              },
+            }),
+            permissionPromptTool: PERMISSION_PROMPT_TOOL,
+          }
+        : undefined;
 
     // Hoisted out of the `try` below so the plan-mode marker check after it
     // can see the turn's outcome — needs to run AFTER `finally`'s
@@ -759,6 +839,15 @@ export class SharedSession {
         this.permissionMode,
         this.model,
         (event) => {
+          // docs/46 Fase 4 — must run BEFORE the broadcast below: a device
+          // reconnecting mid-turn right as this arrives should see the
+          // updated mode, not a stale one from before this same event was
+          // processed. Checked unconditionally (not just when
+          // `permissionRegistration` is active) since this event is a
+          // general CLI mechanism, not exclusive to the `ExitPlanMode` path.
+          if (event.type === "system" && event.subtype === "status" && typeof event.permissionMode === "string") {
+            this.applyPermissionModeFromCli(event.permissionMode);
+          }
           this.broadcast({ type: "claude_event", event });
           // docs/32 Phase D — lets the `ultron-bg` job tracker (owned by
           // `SessionManager`) see every event of every turn, looking for
@@ -802,6 +891,7 @@ export class SharedSession {
       this.broadcast({ type: "turn_error", message });
     } finally {
       choiceRegistration?.unregister();
+      permissionRegistration?.unregister();
       this.cancelPendingChoice();
       this.turnStartedAt = null;
       this.broadcastTurnState();
