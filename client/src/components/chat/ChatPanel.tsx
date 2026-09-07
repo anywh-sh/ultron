@@ -282,6 +282,8 @@ export function ChatPanel({
     backgroundJobs,
     cancelBackgroundJob,
     editMessage,
+    draft,
+    setDraft,
   } = useRelayClient(profile, sessionId, {
     onEvent: (event) => logRef.current.handleEvent(event),
     onReconnecting: () => {
@@ -365,6 +367,21 @@ export function ChatPanel({
       setCwd(defaultPath);
     }
   }, [isNewConversation, cwd, profile.id, setCwd]);
+
+  // Prompt-draft feature: restore whatever was saved for this tab, but only
+  // once — `draft` keeps arriving on every `draft_state` broadcast (e.g. an
+  // echo of our own debounced save, or a change from another device on the
+  // same session), and reapplying those into the composer would clobber text
+  // the user is actively typing here. Same "apply once" idiom as
+  // `appliedDefaultPathRef` above; never resets because `ChatPanel` is
+  // mounted once per tab for its whole lifetime (`key={tab.id}` in App.tsx,
+  // `forceMount` in TabBar).
+  const appliedDraftRef = useRef(false);
+  useEffect(() => {
+    if (draft === null || appliedDraftRef.current) return;
+    appliedDraftRef.current = true;
+    if (draft) composerRef.current?.setContent(draft);
+  }, [draft]);
 
   // Applies the profile's model preference (Settings) on a new conversation
   // — same reasoning as the default-folder effect above, but triggered on
@@ -604,6 +621,7 @@ export function ChatPanel({
           contextUsage={contextUsage}
           compactBoundary={compactBoundary}
           suggestion={isIOS() ? null : suggestion}
+          onChangeDraft={setDraft}
           onSend={(text, sentImages) => {
             // Editing via composer (docs/33, iOS) — the normal send (slash
             // commands, `addUserMessage`+`sendMessage`) doesn't apply here:

@@ -154,6 +154,10 @@ export type RelayMessage =
   | { type: "permission_mode_state"; mode: PermissionMode }
   | { type: "model_state"; model: ModelChoice | null }
   | { type: "context_usage_state"; usage: ContextUsage | null }
+  /** Composer text not yet sent — "current" state (same reasoning as
+   * `cwd_state`/`permission_mode_state`), sent again on every new connection
+   * so the draft survives an app crash/restart. */
+  | { type: "draft_state"; draft: string }
   /** Turn in progress in the session — "current" state (same reasoning as
    * `cwd_state`/`permission_mode_state`), sent again on every new connection
    * (docs/30). `startedAt` (epoch ms) lets `TurnIndicator`'s timer count from

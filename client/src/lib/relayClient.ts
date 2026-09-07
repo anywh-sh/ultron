@@ -249,6 +249,10 @@ export interface RelayClientCallbacks {
   /** `edit_message` that was invalid or failed to truncate the real transcript —
    * arrives only for whoever requested the edit. */
   onEditMessageError?: (message: string) => void;
+  /** Sent right on connection (before the replay) and again every time the
+   * draft changes, from any device — see sharedSession.ts::setDraft. Lets a
+   * reopened/restarted app restore what was typed but not yet sent. */
+  onDraftState: (draft: string) => void;
 }
 
 const RECONNECT_BASE_DELAY_MS = 500;
@@ -263,6 +267,9 @@ export class RelayClient {
   /** Same logic as `pendingCwd` — only the last choice before the socket
    * opens matters. */
   private pendingPermissionMode: PermissionMode | null = null;
+  /** Same logic as `pendingCwd` — only the latest debounced value before the
+   * socket opens matters, no queue of intermediate keystrokes. */
+  private pendingDraft: string | null = null;
   /** `false` only after a deliberate `disconnect()` (tab/session switch) —
    * while `true`, every unexpected `close` schedules a new attempt. */
   private shouldReconnect = true;
@@ -302,6 +309,11 @@ export class RelayClient {
         this.pendingPermissionMode = null;
         socket.send(JSON.stringify({ type: "set_permission_mode", mode }));
       }
+      if (this.pendingDraft !== null) {
+        const draft = this.pendingDraft;
+        this.pendingDraft = null;
+        socket.send(JSON.stringify({ type: "set_draft", draft }));
+      }
     });
     socket.addEventListener("close", () => {
       // Late event from a socket that `forceReconnect`/automatic reconnection
@@ -331,6 +343,8 @@ export class RelayClient {
         this.callbacks.onSessionTitle?.(parsed.title);
       } else if (parsed.type === "session_deleted") {
         this.callbacks.onSessionDeleted?.();
+      } else if (parsed.type === "draft_state") {
+        this.callbacks.onDraftState(parsed.draft);
       } else if (parsed.type === "permission_mode_state") {
         this.callbacks.onPermissionModeState(parsed.mode);
       } else if (parsed.type === "model_state") {
@@ -398,6 +412,14 @@ export class RelayClient {
       return;
     }
     this.socket.send(JSON.stringify({ type: "set_permission_mode", mode }));
+  }
+
+  setDraft(text: string): void {
+    if (this.socket?.readyState !== WebSocket.OPEN) {
+      this.pendingDraft = text;
+      return;
+    }
+    this.socket.send(JSON.stringify({ type: "set_draft", draft: text }));
   }
 
   /** No "pending before connecting" queue (unlike `setCwd`/

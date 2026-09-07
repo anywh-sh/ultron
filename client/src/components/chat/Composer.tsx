@@ -74,6 +74,11 @@ interface ComposerProps {
    * `editorProps.handleKeyDown` below). `null` falls back to the usual
    * generic placeholder. */
   suggestion: string | null;
+  /** Prompt-draft feature — called (debounced) whenever the typed text
+   * changes, so `useRelayClient` can persist it on the relay. Not called for
+   * programmatic content changes (`setContent` below) — see
+   * `suppressDraftRef`. */
+  onChangeDraft?: (text: string) => void;
 }
 
 export interface ComposerHandle {
@@ -425,6 +430,7 @@ export const Composer = forwardRef<ComposerHandle, ComposerProps>(function Compo
     contextUsage,
     compactBoundary,
     suggestion,
+    onChangeDraft,
   },
   ref,
 ) {
@@ -464,6 +470,29 @@ export const Composer = forwardRef<ComposerHandle, ComposerProps>(function Compo
   }, []);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const submitRef = useRef<() => void>(() => {});
+  // Prompt-draft feature: `onChangeDraft` runs outside React's render cycle
+  // (inside Tiptap's `onUpdate`), same reason as `submitRef`.
+  const onChangeDraftRef = useRef(onChangeDraft);
+  onChangeDraftRef.current = onChangeDraft;
+  const draftTimerRef = useRef<number | undefined>(undefined);
+  const DRAFT_DEBOUNCE_MS = 400;
+  function scheduleDraftSync(text: string): void {
+    window.clearTimeout(draftTimerRef.current);
+    draftTimerRef.current = window.setTimeout(() => onChangeDraftRef.current?.(text), DRAFT_DEBOUNCE_MS);
+  }
+  function flushDraftSync(text: string): void {
+    window.clearTimeout(draftTimerRef.current);
+    onChangeDraftRef.current?.(text);
+  }
+  useEffect(() => () => window.clearTimeout(draftTimerRef.current), []);
+  // `setContent` (edit-message flow, docs/33, and the draft restoration in
+  // ChatPanel) fires `onUpdate` just like real typing does (Tiptap's
+  // `emitUpdate` defaults to `true`) — without this flag, restoring a draft
+  // or populating the composer with a message being edited would
+  // immediately overwrite the persisted draft with that other text. Doesn't
+  // touch `emitUpdate` itself because `isEmpty`/`isMultiline` below still
+  // need `onUpdate` to fire for those programmatic changes.
+  const suppressDraftRef = useRef(false);
   // Suggestion's only channel back (outside React) to the editorProps below
   // — see the comment on `createSlashCommandExtension`.
   const slashMenuActiveRef = useRef(false);
@@ -491,10 +520,18 @@ export const Composer = forwardRef<ComposerHandle, ComposerProps>(function Compo
   const editor = useEditor({
     extensions,
     onFocus: () => setFocused(true),
-    onBlur: () => setFocused(false),
+    onBlur: ({ editor: current }) => {
+      setFocused(false);
+      flushDraftSync(serializeEditorContent(current.getJSON()).trim());
+    },
     onUpdate: ({ editor: current }) => {
       setIsEmpty(current.isEmpty);
       if (isIOS()) setIsMultiline(current.view.dom.scrollHeight > 34);
+      if (suppressDraftRef.current) {
+        suppressDraftRef.current = false;
+      } else {
+        scheduleDraftSync(serializeEditorContent(current.getJSON()).trim());
+      }
     },
     editorProps: {
       attributes: { class: "composer-prosemirror", "aria-label": "Escreva uma mensagem…" },
@@ -586,7 +623,11 @@ export const Composer = forwardRef<ComposerHandle, ComposerProps>(function Compo
 
   useImperativeHandle(ref, () => ({
     focus: () => editor?.commands.focus(),
-    setContent: (text) => editor?.commands.setContent(text ? buildComposerDoc(text) : ""),
+    setContent: (text) => {
+      if (!editor) return;
+      suppressDraftRef.current = true;
+      editor.commands.setContent(text ? buildComposerDoc(text) : "");
+    },
   }));
 
   const voice = useVoiceRecording({
@@ -607,6 +648,11 @@ export const Composer = forwardRef<ComposerHandle, ComposerProps>(function Compo
     if (!text && pendingImages.length === 0) return;
     onSend(text, pendingImages);
     editor.commands.clearContent(true);
+    // Explicit immediate flush (not the debounce scheduled by the
+    // `clearContent`-triggered `onUpdate`) — persists the empty draft right
+    // away so it can't reappear if the app crashes in the gap right after
+    // sending.
+    flushDraftSync("");
   }
   submitRef.current = submit;
 

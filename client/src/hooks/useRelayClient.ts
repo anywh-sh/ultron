@@ -107,6 +107,12 @@ export interface UseRelayClientResult {
   cancelBackgroundJob: (id: string) => void;
   /** Message edit (docs/33) — see `RelayClient.editMessage`. */
   editMessage: (fromEnd: number, text: string) => void;
+  /** Composer text not yet sent, persisted per tab so it survives an app
+   * crash/restart — see `RelayClientCallbacks.onDraftState`. `null` only in
+   * the brief window between connecting and the first `draft_state`
+   * arriving, same reasoning as `cwd`/`permissionMode` above. */
+  draft: string | null;
+  setDraft: (text: string) => void;
 }
 
 /**
@@ -131,6 +137,7 @@ export function useRelayClient(
   const [compactBoundary, setCompactBoundary] = useState<CompactBoundaryEvent | null>(null);
   const [suggestion, setSuggestion] = useState<string | null>(null);
   const [backgroundJobs, setBackgroundJobs] = useState<BackgroundJobSummary[]>([]);
+  const [draft, setDraftState] = useState<string | null>(null);
   const clientRef = useRef<RelayClient | null>(null);
 
   const optionsRef = useRef(options);
@@ -149,6 +156,7 @@ export function useRelayClient(
     setCompactBoundary(null);
     setSuggestion(null);
     setBackgroundJobs([]);
+    setDraftState(null);
 
     const client = new RelayClient(profile.host, profile.relayPort, sessionId, {
       onEvent: (event) => {
@@ -185,6 +193,7 @@ export function useRelayClient(
       onBackgroundJobState: setBackgroundJobs,
       onHistoryTruncated: (page) => optionsRef.current.onHistoryTruncated?.(page),
       onEditMessageError: (message) => optionsRef.current.onEditMessageError?.(message),
+      onDraftState: setDraftState,
     });
     clientRef.current = client;
     client.connect();
@@ -248,6 +257,10 @@ export function useRelayClient(
     clientRef.current?.editMessage(fromEnd, text);
   }, []);
 
+  const setDraft = useCallback((text: string) => {
+    clientRef.current?.setDraft(text);
+  }, []);
+
   return {
     connected,
     cwd,
@@ -269,5 +282,7 @@ export function useRelayClient(
     backgroundJobs,
     cancelBackgroundJob,
     editMessage,
+    draft,
+    setDraft,
   };
 }
