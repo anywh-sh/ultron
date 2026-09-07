@@ -526,6 +526,7 @@ export function ChatPanel({
           onCancelEdit={onCancelEdit}
           onSaveEdit={onSaveEdit}
           onCopy={onCopyMessage}
+          isActiveTab={isActiveTab}
         />
       ) : (
         <MessageLogSkeleton />

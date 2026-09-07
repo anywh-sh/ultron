@@ -43,6 +43,11 @@ interface MessageLogProps {
   onCancelEdit: () => void;
   onSaveEdit: (id: string, text: string) => void;
   onCopy: (text: string) => void;
+  /** Whether this tab is the one currently on screen — background tabs stay
+   * mounted (`forceMount`/`invisible` in `TabBar`, docs/18), so this is the
+   * only signal telling this instance it just came back into view. See the
+   * re-pin effect below for why that matters. */
+  isActiveTab: boolean;
 }
 
 type RenderItem =
@@ -208,6 +213,7 @@ export const MessageLog = memo(function MessageLog({
   onCancelEdit,
   onSaveEdit,
   onCopy,
+  isActiveTab,
 }: MessageLogProps) {
   const parentRef = useRef<HTMLDivElement>(null);
   const userActions: UserActionHandlers = { editingMessageId, onStartEdit, onCancelEdit, onSaveEdit, onCopy };
@@ -333,6 +339,28 @@ export const MessageLog = memo(function MessageLog({
     const distanceFromEnd = el.scrollHeight - el.scrollTop - el.clientHeight;
     if (distanceFromEnd < 80) el.scrollTop = el.scrollHeight;
   }, [turnActive]);
+
+  // Reported bug: pinned to bottom, switch to another tab, new turns arrive
+  // in the background, switch back — the log came back at the OLD bottom
+  // (now short of the real one) instead of following the new messages.
+  // `followOnAppend` is supposed to keep a backgrounded tab pinned on its
+  // own (the box isn't collapsed while hidden — see the `invisible` comment
+  // in `TabBar` — so its measurements stay live), but there's evidently a
+  // gap somewhere in that chain for a tab that isn't the one actually on
+  // screen. Rather than chase that gap, re-sync straight from the live DOM
+  // (same `scrollHeight`/`clientHeight` read as the effect above, not the
+  // virtualizer's own bookkeeping) the moment this tab becomes active again
+  // — but only if it was genuinely pinned before backgrounding; a tab left
+  // scrolled up into history should come back exactly where it was.
+  const wasActiveRef = useRef(isActiveTab);
+  useLayoutEffect(() => {
+    const becameActive = isActiveTab && !wasActiveRef.current;
+    wasActiveRef.current = isActiveTab;
+    if (!becameActive || !pinnedToBottomRef.current) return;
+    const el = parentRef.current;
+    if (!el) return;
+    el.scrollTop = el.scrollHeight;
+  }, [isActiveTab]);
 
   // Reverse scroll (Phase 5, docs/30): stores the total height at the
   // instant the request for older turns fires — there's no way to know in
