@@ -1,59 +1,49 @@
-import { useCallback, useEffect, useState } from "react";
-
-const STORAGE_KEY = "ultron:default-paths";
-
-type DefaultPaths = Record<string, string>;
-
-function readDefaultPaths(): DefaultPaths {
-  try {
-    const raw = localStorage.getItem(STORAGE_KEY);
-    if (!raw) return {};
-    const parsed: unknown = JSON.parse(raw);
-    if (typeof parsed !== "object" || parsed === null) return {};
-    return Object.fromEntries(
-      Object.entries(parsed as Record<string, unknown>).filter(
-        (entry): entry is [string, string] => typeof entry[1] === "string",
-      ),
-    );
-  } catch {
-    return {};
-  }
-}
+import { useCallback, useMemo, useSyncExternalStore } from "react";
+import { readSettings, resolveSetting, subscribeSettings, writeSettings } from "@/lib/settings";
 
 /** Standalone read (outside a React component) of a profile's default path
  * — used by `ChatPanel` at the moment a new tab receives its first
  * `cwd_state`, without needing to subscribe to the whole hook (which
  * re-renders on any change to any profile). */
 export function getDefaultPath(profileId: string): string | undefined {
-  return readDefaultPaths()[profileId];
+  return resolveSetting("defaultPath", profileId);
 }
 
 /**
  * Path that a new conversation for a profile should open in, configured in
- * Settings. A single key holding all profiles together (unlike
- * `useRecentFolders`, which already receives a concrete `profileId`)
- * because the Settings screen always edits the whole list at once. Missing
- * entry = never configured, falls back to that profile's relay default
+ * Settings. Missing entry = never configured, falls back to the global
+ * setting (if any) and then to that profile's relay default
  * (`relay/src/paths.ts::defaultCwd`).
  */
 export function useDefaultPaths() {
-  const [paths, setPaths] = useState<DefaultPaths>(() => readDefaultPaths());
+  const store = useSyncExternalStore(subscribeSettings, readSettings);
 
-  useEffect(() => {
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(paths));
-  }, [paths]);
+  const paths = useMemo(() => {
+    const result: Record<string, string> = {};
+    for (const [profileId, settings] of Object.entries(store.byProfile)) {
+      if (settings.defaultPath !== undefined) result[profileId] = settings.defaultPath;
+    }
+    return result;
+  }, [store]);
 
   const setDefaultPath = useCallback((profileId: string, path: string) => {
-    setPaths((prev) => ({ ...prev, [profileId]: path }));
+    const current = readSettings();
+    writeSettings({
+      ...current,
+      byProfile: {
+        ...current.byProfile,
+        [profileId]: { ...current.byProfile[profileId], defaultPath: path },
+      },
+    });
   }, []);
 
   const clearDefaultPath = useCallback((profileId: string) => {
-    setPaths((prev) => {
-      if (!(profileId in prev)) return prev;
-      const next = { ...prev };
-      delete next[profileId];
-      return next;
-    });
+    const current = readSettings();
+    const existing = current.byProfile[profileId];
+    if (!existing || existing.defaultPath === undefined) return;
+    const next = { ...existing };
+    delete next.defaultPath;
+    writeSettings({ ...current, byProfile: { ...current.byProfile, [profileId]: next } });
   }, []);
 
   return { paths, setDefaultPath, clearDefaultPath };

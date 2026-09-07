@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { Folder, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
@@ -19,6 +19,7 @@ import { cn } from "@/lib/utils";
 interface SettingsDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
+  activeProfile: Profile;
 }
 
 /** No real navigation yet (only "Geral" exists) — the list already exists
@@ -41,12 +42,9 @@ function ProfilePathRow({
 
   return (
     <div className="flex items-center justify-between gap-3 rounded-md border border-border px-3 py-2.5">
-      <div className="flex min-w-0 flex-col gap-0.5">
-        <span className="text-sm font-medium">{profile.label}</span>
-        <span className={cn("truncate font-mono text-xs", path ? "text-foreground" : "text-muted-foreground")}>
-          {path ?? "Padrão do sistema"}
-        </span>
-      </div>
+      <span className={cn("min-w-0 truncate font-mono text-xs", path ? "text-foreground" : "text-muted-foreground")}>
+        {path ?? "Padrão do sistema"}
+      </span>
       <div className="flex shrink-0 items-center gap-1">
         {path && (
           <Button variant="ghost" size="icon-sm" aria-label="Usar padrão do sistema" onClick={onClear}>
@@ -73,49 +71,44 @@ function ProfilePathRow({
 }
 
 function ProfileModelRow({
-  profile,
   preference,
   onChange,
 }: {
-  profile: Profile;
   preference: ModelPreference;
   onChange: (preference: ModelPreference) => void;
 }) {
   return (
     <div className="flex items-center justify-between gap-3 rounded-md border border-border px-3 py-2.5">
-      <span className="text-sm font-medium">{profile.label}</span>
-      <div className="flex shrink-0 items-center gap-2">
+      <Select
+        value={preference.mode}
+        onValueChange={(mode) => onChange({ ...preference, mode: mode as ModelPreferenceMode })}
+      >
+        <SelectTrigger size="sm">
+          <SelectValue />
+        </SelectTrigger>
+        <SelectContent>
+          <SelectItem value="lastUsed">Último usado</SelectItem>
+          <SelectItem value="fixed">Sempre o mesmo</SelectItem>
+        </SelectContent>
+      </Select>
+
+      {preference.mode === "fixed" && (
         <Select
-          value={preference.mode}
-          onValueChange={(mode) => onChange({ ...preference, mode: mode as ModelPreferenceMode })}
+          value={preference.fixedModel}
+          onValueChange={(fixedModel) => onChange({ ...preference, fixedModel: fixedModel as ModelPreference["fixedModel"] })}
         >
           <SelectTrigger size="sm">
             <SelectValue />
           </SelectTrigger>
           <SelectContent>
-            <SelectItem value="lastUsed">Último usado</SelectItem>
-            <SelectItem value="fixed">Sempre o mesmo</SelectItem>
+            {getKnownModels().map((choice) => (
+              <SelectItem key={choice} value={choice}>
+                {labelForModel(choice)}
+              </SelectItem>
+            ))}
           </SelectContent>
         </Select>
-
-        {preference.mode === "fixed" && (
-          <Select
-            value={preference.fixedModel}
-            onValueChange={(fixedModel) => onChange({ ...preference, fixedModel: fixedModel as ModelPreference["fixedModel"] })}
-          >
-            <SelectTrigger size="sm">
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent>
-              {getKnownModels().map((choice) => (
-                <SelectItem key={choice} value={choice}>
-                  {labelForModel(choice)}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-        )}
-      </div>
+      )}
     </div>
   );
 }
@@ -123,14 +116,24 @@ function ProfileModelRow({
 /**
  * App settings dialog — opened from the `TitleBar` menu. Two-panel layout
  * (common pattern in desktop settings apps): dark nav on the left, lighter
- * content on the right, separated by a border — only "Geral" for now, with
- * each profile's initial path (`useDefaultPaths`).
+ * content on the right, separated by a border — only "Geral" for now,
+ * scoped to one profile at a time (`scopedProfileId`) via the selector at
+ * the top, instead of listing every profile's row at once. Reset to
+ * `activeProfile` whenever the dialog opens, so reopening after switching
+ * profiles in the main UI lands on the profile you're actually looking at.
  */
-export function SettingsDialog({ open, onOpenChange }: SettingsDialogProps) {
+export function SettingsDialog({ open, onOpenChange, activeProfile }: SettingsDialogProps) {
   const [section, setSection] = useState<Section>("geral");
   const profiles = useProfiles();
+  const [scopedProfileId, setScopedProfileId] = useState(activeProfile.id);
   const { paths, setDefaultPath, clearDefaultPath } = useDefaultPaths();
   const { preferences, setPreference } = useModelPreference();
+
+  useEffect(() => {
+    if (open) setScopedProfileId(activeProfile.id);
+  }, [open, activeProfile.id]);
+
+  const scopedProfile = profiles.find((profile) => profile.id === scopedProfileId) ?? activeProfile;
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -157,39 +160,42 @@ export function SettingsDialog({ open, onOpenChange }: SettingsDialogProps) {
             {section === "geral" && (
               <div className="flex flex-col gap-3">
                 <div>
+                  <h3 className="text-sm font-medium">Perfil</h3>
+                  <Select value={scopedProfileId} onValueChange={setScopedProfileId}>
+                    <SelectTrigger size="sm" className="mt-1.5 w-full">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {profiles.map((profile) => (
+                        <SelectItem key={profile.id} value={profile.id}>
+                          {profile.label}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+
+                <div>
                   <h3 className="text-sm font-medium">Pasta inicial</h3>
-                  <p className="text-xs text-muted-foreground">
-                    Pasta em que uma conversa nova de cada perfil começa.
-                  </p>
+                  <p className="text-xs text-muted-foreground">Pasta em que uma conversa nova deste perfil começa.</p>
                 </div>
-                <div className="flex flex-col gap-2">
-                  {profiles.map((profile) => (
-                    <ProfilePathRow
-                      key={profile.id}
-                      profile={profile}
-                      path={paths[profile.id]}
-                      onSelect={(path) => setDefaultPath(profile.id, path)}
-                      onClear={() => clearDefaultPath(profile.id)}
-                    />
-                  ))}
-                </div>
+                <ProfilePathRow
+                  profile={scopedProfile}
+                  path={paths[scopedProfile.id]}
+                  onSelect={(path) => setDefaultPath(scopedProfile.id, path)}
+                  onClear={() => clearDefaultPath(scopedProfile.id)}
+                />
 
                 <div>
                   <h3 className="text-sm font-medium">Modelo padrão</h3>
                   <p className="text-xs text-muted-foreground">
-                    Modelo pré-selecionado quando uma conversa nova de cada perfil começa.
+                    Modelo pré-selecionado quando uma conversa nova deste perfil começa.
                   </p>
                 </div>
-                <div className="flex flex-col gap-2">
-                  {profiles.map((profile) => (
-                    <ProfileModelRow
-                      key={profile.id}
-                      profile={profile}
-                      preference={preferences[profile.id] ?? DEFAULT_MODEL_PREFERENCE}
-                      onChange={(preference) => setPreference(profile.id, preference)}
-                    />
-                  ))}
-                </div>
+                <ProfileModelRow
+                  preference={preferences[scopedProfile.id] ?? DEFAULT_MODEL_PREFERENCE}
+                  onChange={(preference) => setPreference(scopedProfile.id, preference)}
+                />
               </div>
             )}
           </div>

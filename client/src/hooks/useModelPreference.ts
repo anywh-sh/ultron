@@ -1,61 +1,21 @@
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useMemo, useSyncExternalStore } from "react";
 import type { ModelChoice } from "@/lib/relayClient";
+import {
+  DEFAULT_MODEL_PREFERENCE,
+  readSettings,
+  resolveSetting,
+  subscribeSettings,
+  writeSettings,
+  type FixedModelChoice,
+  type ModelPreference,
+  type ModelPreferenceMode,
+} from "@/lib/settings";
 
-const PREFERENCE_STORAGE_KEY = "ultron:model-preference";
+export { DEFAULT_MODEL_PREFERENCE, type FixedModelChoice, type ModelPreference, type ModelPreferenceMode };
+
 const LAST_MODEL_STORAGE_KEY = "ultron:last-model";
 
-export type ModelPreferenceMode = "lastUsed" | "fixed";
-
-/** Never "default" on purpose — the fixed model has to be a real model, not
- * a synonym for "don't choose anything" (see removal of the "Padrão"
- * option from `ModelButton`). No longer a closed union: the real catalog is
- * fetched from the CLI (`@/lib/modelCatalog`), see `SettingsDialog` for the
- * selector built from it. */
-export type FixedModelChoice = Exclude<ModelChoice, "default">;
-
-export interface ModelPreference {
-  mode: ModelPreferenceMode;
-  fixedModel: FixedModelChoice;
-}
-
-const VALID_MODES: ModelPreferenceMode[] = ["lastUsed", "fixed"];
-
-export const DEFAULT_MODEL_PREFERENCE: ModelPreference = { mode: "lastUsed", fixedModel: "sonnet" };
-
-type PreferenceMap = Record<string, ModelPreference>;
 type LastModelMap = Record<string, ModelChoice>;
-
-/** No membership check against the known catalog here on purpose — at the
- * time this runs (app cold start, before any relay connection reported the
- * real catalog back) a legitimately-stored value like "opusplan" would still
- * fail an `includes` check against the fallback list. Format sanity only,
- * same reasoning as the relay's `isSetModelMessage` (let the CLI be the
- * final arbiter of whether a model actually exists). */
-function isModelPreference(value: unknown): value is ModelPreference {
-  if (typeof value !== "object" || value === null) return false;
-  const candidate = value as Record<string, unknown>;
-  return (
-    VALID_MODES.includes(candidate.mode as ModelPreferenceMode) &&
-    typeof candidate.fixedModel === "string" &&
-    candidate.fixedModel.length > 0
-  );
-}
-
-function readPreferences(): PreferenceMap {
-  try {
-    const raw = localStorage.getItem(PREFERENCE_STORAGE_KEY);
-    if (!raw) return {};
-    const parsed: unknown = JSON.parse(raw);
-    if (typeof parsed !== "object" || parsed === null) return {};
-    return Object.fromEntries(
-      Object.entries(parsed as Record<string, unknown>).filter(
-        (entry): entry is [string, ModelPreference] => isModelPreference(entry[1]),
-      ),
-    );
-  } catch {
-    return {};
-  }
-}
 
 function readLastModels(): LastModelMap {
   try {
@@ -82,7 +42,7 @@ function readLastModels(): LastModelMap {
  * lowest-common-denominator default across profiles/accounts.
  */
 export function getPreferredModel(profileId: string): ModelChoice {
-  const preference = readPreferences()[profileId] ?? DEFAULT_MODEL_PREFERENCE;
+  const preference = resolveSetting("model", profileId) ?? DEFAULT_MODEL_PREFERENCE;
   if (preference.mode === "fixed") return preference.fixedModel;
   return readLastModels()[profileId] ?? "sonnet";
 }
@@ -92,7 +52,9 @@ export function getPreferredModel(profileId: string): ModelChoice {
  * `model` changes to a concrete value (`ChatPanel`), regardless of whether
  * it was the preselection itself, `ModelButton`, or a typed `/model`. Only
  * consumed by "lastUsed" mode, but always recorded: switching the mode back
- * to "lastUsed" later shouldn't lose what already ran in the meantime.
+ * to "lastUsed" later shouldn't lose what already ran in the meantime. Kept
+ * outside `SettingsStore` on purpose — it's automatic history, not a
+ * user-configured preference, so it doesn't belong in the synced store.
  */
 export function setLastModel(profileId: string, model: ModelChoice): void {
   const current = readLastModels();
@@ -101,17 +63,27 @@ export function setLastModel(profileId: string, model: ModelChoice): void {
 }
 
 /** Per-profile model preselection preference, configured in Settings —
- * same pattern as `useDefaultPaths` (single key with all profiles
- * together, the Settings screen always edits the whole list). */
+ * backed by the shared `SettingsStore` (`@/lib/settings`). */
 export function useModelPreference() {
-  const [preferences, setPreferences] = useState<PreferenceMap>(() => readPreferences());
+  const store = useSyncExternalStore(subscribeSettings, readSettings);
 
-  useEffect(() => {
-    localStorage.setItem(PREFERENCE_STORAGE_KEY, JSON.stringify(preferences));
-  }, [preferences]);
+  const preferences = useMemo(() => {
+    const result: Record<string, ModelPreference> = {};
+    for (const [profileId, settings] of Object.entries(store.byProfile)) {
+      if (settings.model !== undefined) result[profileId] = settings.model;
+    }
+    return result;
+  }, [store]);
 
   const setPreference = useCallback((profileId: string, preference: ModelPreference) => {
-    setPreferences((prev) => ({ ...prev, [profileId]: preference }));
+    const current = readSettings();
+    writeSettings({
+      ...current,
+      byProfile: {
+        ...current.byProfile,
+        [profileId]: { ...current.byProfile[profileId], model: preference },
+      },
+    });
   }, []);
 
   return { preferences, setPreference };
