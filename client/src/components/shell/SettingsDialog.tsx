@@ -14,6 +14,7 @@ import {
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { FolderPickerDialog } from "@/components/chat/FolderPickerDialog";
+import { ThemeSection } from "@/components/shell/ThemeSection";
 import { useDefaultPaths } from "@/hooks/useDefaultPaths";
 import {
   DEFAULT_MODEL_PREFERENCE,
@@ -33,10 +34,12 @@ interface SettingsDialogProps {
   activeProfile: Profile;
 }
 
-/** No real navigation yet (only "Geral" exists) — the list already exists
- * so the dialog's structure won't need to change when the second section
- * shows up. */
-type Section = "geral";
+type Section = "geral" | "personalizacao";
+
+const SECTIONS: { id: Section; label: string }[] = [
+  { id: "geral", label: "Geral" },
+  { id: "personalizacao", label: "Personalização" },
+];
 
 function ProfilePathRow({
   profile,
@@ -319,38 +322,56 @@ export function SettingsDialog({ open, onOpenChange, activeProfile }: SettingsDi
 
         <div className="flex min-h-96">
           <div className="flex w-40 shrink-0 flex-col gap-0.5 border-r border-border bg-bg-sidebar p-2">
-            <button
-              type="button"
-              onClick={() => setSection("geral")}
-              className={cn(
-                "cursor-pointer rounded-md px-2 py-1.5 text-left text-sm transition-colors",
-                section === "geral" ? "bg-bg-elevated text-foreground" : "text-muted-foreground hover:text-foreground",
-              )}
-            >
-              Geral
-            </button>
+            {SECTIONS.map((entry) => (
+              <button
+                key={entry.id}
+                type="button"
+                onClick={() => setSection(entry.id)}
+                className={cn(
+                  "cursor-pointer rounded-md px-2 py-1.5 text-left text-sm transition-colors",
+                  section === entry.id
+                    ? "bg-bg-elevated text-foreground"
+                    : "text-muted-foreground hover:text-foreground",
+                )}
+              >
+                {entry.label}
+              </button>
+            ))}
           </div>
 
           <div className="flex-1 overflow-y-auto bg-bg-elevated p-4">
-            {section === "geral" && (
+            {/* Every setting in this dialog belongs to one profile, so the
+                scoping selector sits above the sections instead of being
+                repeated inside each one. */}
+            <div className="mb-3">
+              <h3 className="text-sm font-medium">Perfil</h3>
+              <Select value={scopedProfileId} onValueChange={setScopedProfileId}>
+                <SelectTrigger size="sm" className="mt-1.5 w-full">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  {profiles.map((profile) => (
+                    <SelectItem key={profile.id} value={profile.id}>
+                      {profile.label}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+
+            {section === "personalizacao" && (
               <div className="flex flex-col gap-3">
                 <div>
-                  <h3 className="text-sm font-medium">Perfil</h3>
-                  <Select value={scopedProfileId} onValueChange={setScopedProfileId}>
-                    <SelectTrigger size="sm" className="mt-1.5 w-full">
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {profiles.map((profile) => (
-                        <SelectItem key={profile.id} value={profile.id}>
-                          {profile.label}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
+                  <h3 className="text-sm font-medium">Identificação</h3>
+                  <p className="text-xs text-muted-foreground">Nome e cor deste perfil no seletor.</p>
                 </div>
                 <ProfileIdentityRow profile={scopedProfile} effectiveColorIndex={effectiveColorIndex} />
+                <ThemeSection scopedProfile={scopedProfile} allProfiles={profiles} />
+              </div>
+            )}
 
+            {section === "geral" && (
+              <div className="flex flex-col gap-3">
                 <div>
                   <h3 className="text-sm font-medium">Pasta inicial</h3>
                   <p className="text-xs text-muted-foreground">Pasta em que uma conversa nova deste perfil começa.</p>
