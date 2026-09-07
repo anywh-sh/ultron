@@ -573,7 +573,12 @@ wss.on("connection", (socket: WebSocket, request) => {
   }
 
   socket.on("message", (raw: Buffer) => {
-    const parsed: unknown = JSON.parse(raw.toString());
+    let parsed: unknown;
+    try {
+      parsed = JSON.parse(raw.toString());
+    } catch {
+      return;
+    }
     if (isStopTurnMessage(parsed)) {
       session.stopTurn();
       return;
