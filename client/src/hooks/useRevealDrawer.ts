@@ -60,9 +60,12 @@ export function useRevealDrawer(): RevealDrawerHandle {
     const progress = t / REVEAL_PUSH_PX;
     el.style.transform = `translateX(${t}px)`;
     el.style.borderRadius = `${progress * 30}px`;
-    el.style.boxShadow = t > 4 ? "-18px 26px 60px -24px rgba(0,0,0,.65)" : "none";
+    // Same tokens the settled state uses (`.mobile-canvas.pushed`,
+    // index.css) — `var()` resolves against the element, so an inline style
+    // can reference them and the drag can't drift from the CSS anymore.
+    el.style.boxShadow = t > 4 ? "-18px 26px 60px -24px var(--shadow-color)" : "none";
     el.style.opacity = String(1 - progress * 0.45);
-    el.style.borderColor = `rgba(240,238,230,${progress * 0.16})`;
+    el.style.borderColor = `color-mix(in srgb, var(--glass-tint) ${String(progress * 16)}%, transparent)`;
   }, []);
 
   const clearInlineStyle = useCallback(() => {

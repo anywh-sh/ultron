@@ -680,7 +680,7 @@ export const Composer = forwardRef<ComposerHandle, ComposerProps>(function Compo
               isMultiline ? "rounded-[26px]" : "rounded-full",
             ]
           : "my-3 rounded-xl bg-bg-elevated",
-        focused ? "border-primary" : isIOS() ? "border-white/8" : "border-border",
+        focused ? "border-primary" : isIOS() ? "border-glass-tint/8" : "border-border",
       )}
     >
       <ComposerLinkHoverCard editor={editor} />
@@ -697,7 +697,7 @@ export const Composer = forwardRef<ComposerHandle, ComposerProps>(function Compo
                 </div>
               )}
               {image.kind === "video" && (
-                <div className="pointer-events-none absolute bottom-0.5 left-0.5 flex size-4 items-center justify-center rounded-full bg-black/60 text-white">
+                <div className="pointer-events-none absolute bottom-0.5 left-0.5 flex size-4 items-center justify-center rounded-full bg-media-scrim text-media-scrim-foreground">
                   <Video className="size-2.5" />
                 </div>
               )}

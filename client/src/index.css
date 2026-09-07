@@ -4,9 +4,21 @@
 
 /*
  * Paleta e tipografia travadas em docs/17-uiux-brainstorm-decisoes.md.
- * Dark-only na v1 — não existe bloco claro, só :root.
+ *
+ * `:root` é a definição do tema embutido "default" (escuro) e, ao mesmo
+ * tempo, o fallback de todo token que um tema customizado não declarar
+ * (lib/themeApply.ts sobrescreve estas mesmas custom properties no elemento
+ * raiz, sem remover nada). Um token só existe aqui se um tema pode trocá-lo
+ * — cor literal dentro de componente não é alcançável por tema nenhum, que
+ * é a razão de `--overlay`/`--glass-tint`/`--media-*`/`--syntax-*` abaixo
+ * existirem.
  */
 :root {
+  /* Acompanha o `appearance` do tema ativo (themeApply.ts reescreve os
+     dois). Controla o esquema dos controles nativos: scrollbar, caret,
+     autofill, menu de contexto da webview. */
+  color-scheme: dark;
+
   --background: #262624;
   --bg-sidebar: #1f1e1c;
   --bg-elevated: #2b2a27;
@@ -36,6 +48,44 @@
   --border: #3a382f;
   --border-soft: #302f2a;
 
+  /* Scrim atrás de dialog/sheet/alert — era `bg-black/50` literal nos três
+     overlays do shadcn. Preto opaco é uma escolha de tema escuro: um tema
+     claro costuma querer um scrim mais fraco (ou tingido), e não tinha como
+     pedir isso com a cor cravada no componente. */
+  --overlay: rgb(0 0 0 / 0.5);
+
+  /* Realce sobre superfície translúcida (a "glass" do iOS: MobileTopBar e o
+     Composer flutuante) — hairline da borda e feedback de toque. Era
+     `white/8`/`white/10`: branco só funciona sobre fundo escuro, num tema
+     claro esse realce some. Consumido sempre com modificador de alfa
+     (`border-glass-tint/8`), então aqui é a cor cheia. */
+  --glass-tint: #f0eee6;
+
+  /* Badge de vídeo por cima da miniatura anexada (Composer, Message).
+     Deliberadamente escuro nos dois appearances: fica sobre a imagem do
+     usuário, não sobre superfície do app — clarear junto com o tema faria
+     sumir em cima de qualquer foto clara. Um tema ainda pode sobrescrever;
+     o default é não acompanhar. */
+  --media-scrim: rgb(0 0 0 / 0.6);
+  --media-scrim-foreground: #ffffff;
+
+  /* Sombra projetada do canvas no drawer "reveal" do iOS — mesma cor no
+     estado assentado (.mobile-canvas.pushed) e no arraste ao vivo
+     (useRevealDrawer.ts), que antes repetiam o literal cada um do seu lado
+     e podiam divergir. */
+  --shadow-color: rgb(0 0 0 / 0.65);
+
+  /* Syntax highlight (hljs). Antes: `--primary` pra keyword, `#9cae7c`
+     literal pra string e `--profile-work` pra número — esse último um
+     acoplamento acidental de verdade, trocar a cor do perfil 2 repintava
+     literal numérico em todo bloco de código. Tokens próprios porque
+     sintaxe é uma dimensão do tema, não efeito colateral da paleta de UI. */
+  --syntax-comment: var(--text-faint);
+  --syntax-keyword: var(--primary);
+  --syntax-string: #9cae7c;
+  --syntax-number: #7c93ab;
+  --syntax-title: var(--foreground);
+
   --profile-personal: #d97757;
   --profile-work: #7c93ab;
   --profile-1: var(--profile-personal);
@@ -47,6 +97,16 @@
 
   --radius: 0.5rem;
 }
+
+/* Sem isto, `dark:` no Tailwind v4 cai no default `prefers-color-scheme` —
+ * ou seja, os overrides `dark:` que vieram junto com os componentes shadcn
+ * (button, badge, select, tabs, dropdown-menu) seguiam o esquema do SISTEMA
+ * OPERACIONAL, não o do app: a mesma tela renderizava diferente pra quem
+ * usa o SO no claro, mesmo o app sendo escuro nos dois casos. Amarrado ao
+ * appearance do tema ativo (`data-appearance` no <html>, semeado em
+ * index.html e reescrito por themeApply.ts), vira determinístico e passa a
+ * seguir o tema escolhido em vez do SO. */
+@custom-variant dark (&:where([data-appearance="dark"], [data-appearance="dark"] *));
 
 @theme inline {
   --color-background: var(--background);
@@ -82,6 +142,11 @@
   --color-destructive-foreground: var(--foreground);
   --color-diff-add: var(--diff-add);
   --color-context-ring-warn: var(--context-ring-warn);
+
+  --color-overlay: var(--overlay);
+  --color-glass-tint: var(--glass-tint);
+  --color-media-scrim: var(--media-scrim);
+  --color-media-scrim-foreground: var(--media-scrim-foreground);
 
   --color-border: var(--border);
   --color-border-soft: var(--border-soft);
@@ -236,11 +301,11 @@ body {
 .mobile-canvas.pushed {
   transform: translateX(var(--push));
   border-radius: 30px;
-  border-color: rgba(240, 238, 230, 0.16);
+  border-color: color-mix(in srgb, var(--glass-tint) 16%, transparent);
   opacity: 0.55;
   box-shadow:
-    -18px 26px 60px -24px rgba(0, 0, 0, 0.65),
-    0 0 0 1px rgba(255, 255, 255, 0.05);
+    -18px 26px 60px -24px var(--shadow-color),
+    0 0 0 1px color-mix(in srgb, var(--glass-tint) 5%, transparent);
 }
 
 /* Scrollbars finas/customizadas (sidebar + log de mensagens) — docs/17. */
@@ -420,33 +485,34 @@ body {
 }
 
 /* Syntax highlight (rehype-highlight/hljs) — tema mínimo em cima da própria
- * paleta em vez de importar um tema pronto do highlight.js. hljs-string e
- * hljs-number/built_in usam tons próprios (não fazem parte da paleta de UI
- * do docs/17, que não cobria sintaxe de código) pra dar contraste útil sem
- * introduzir cor nova na UI geral — só dentro de blocos de código. */
+ * paleta em vez de importar um tema pronto do highlight.js. Os tons vêm de
+ * tokens próprios (--syntax-*, ver :root): sintaxe não faz parte da paleta
+ * de UI do docs/17, que não cobria código, e precisa ser escolhida
+ * separadamente por um tema — o contraste que funciona pra texto de UI não
+ * é o mesmo que funciona dentro de um bloco de código. */
 .hljs-comment,
 .hljs-quote {
-  color: var(--text-faint);
+  color: var(--syntax-comment);
   font-style: italic;
 }
 .hljs-keyword,
 .hljs-selector-tag,
 .hljs-literal {
-  color: var(--primary);
+  color: var(--syntax-keyword);
 }
 .hljs-string,
 .hljs-attr,
 .hljs-regexp {
-  color: #9cae7c;
+  color: var(--syntax-string);
 }
 .hljs-number,
 .hljs-built_in,
 .hljs-type {
-  color: var(--profile-work);
+  color: var(--syntax-number);
 }
 .hljs-title,
 .hljs-section {
-  color: var(--foreground);
+  color: var(--syntax-title);
   font-weight: 600;
 }
 .hljs-deletion {

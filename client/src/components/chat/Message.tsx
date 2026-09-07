@@ -163,7 +163,7 @@ export const UserBubble = memo(function UserBubble({
                       </div>
                     )}
                     {image.kind === "video" && (
-                      <div className="pointer-events-none absolute bottom-1 left-1 flex size-5 items-center justify-center rounded-full bg-black/60 text-white">
+                      <div className="pointer-events-none absolute bottom-1 left-1 flex size-5 items-center justify-center rounded-full bg-media-scrim text-media-scrim-foreground">
                         <Video className="size-3" />
                       </div>
                     )}
