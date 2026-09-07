@@ -108,8 +108,17 @@ const WAVEFORM_BARS = [0, 1, 2, 3, 4];
  * linkifyjs-based detection (same mark type as paste-to-link, so styling,
  * the hover-card edit, and wire serialization all apply unchanged) — it
  * fires once the typed URL is followed by whitespace.
+ *
+ * `inclusive: false` overrides the extension's own default, which is
+ * `this.options.autolink` — i.e. `true` here. Inclusive means the mark
+ * still applies to text typed right at its right edge, so the space that
+ * triggers linkify (and everything typed after it) kept inheriting the
+ * link mark instead of ending it; the user had to press → to step past the
+ * boundary before typing plain text again. False matches how a finished
+ * link should behave: typing right after it, including the triggering
+ * space, starts as plain text with no extra keypress needed.
  */
-const ComposerLink = Link.configure({
+const ComposerLink = Link.extend({ inclusive: false }).configure({
   autolink: true,
   linkOnPaste: true,
   openOnClick: false,
