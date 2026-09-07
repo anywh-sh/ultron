@@ -35,7 +35,7 @@ interface Crumb {
   path: string;
 }
 
-/** `/home/user/mode/widgets` -> home > wil > mode > widgets, each with the path
+/** `/home/user/mode/widgets` -> home > user > mode > widgets, each with the path
  * accumulated up to that point. Root becomes a static "/" crumb. */
 function breadcrumbsFor(path: string): Crumb[] {
   const segments = path.split("/").filter(Boolean);
