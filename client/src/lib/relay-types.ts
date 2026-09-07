@@ -213,3 +213,39 @@ export interface SessionSummary {
   id: string;
   title: string;
 }
+
+/** A profile as the relay's control API exposes it on `GET /control/profiles`
+ * — one entry per `.env` file it finds on that host, live-probed for
+ * `running` (see `relay/src/profileRegistry.ts::HostProfile`). `host`/`port`
+ * here, unlike `Profile.relayPort` on the client's own store, mirror the
+ * relay's own field names. */
+export interface RemoteProfile {
+  id: string;
+  label: string;
+  colorIndex: number;
+  host: string;
+  port: number;
+  hasHomeOverride: boolean;
+  running: boolean;
+}
+
+/** Response of `POST /control/profiles/validate` — passes through whatever
+ * `claude auth status --json` reports (a real account has more fields than
+ * these, e.g. `authMethod`/`orgName`, safely ignored), plus `collidesWith`
+ * when the relay already has a profile pointed at the same `$HOME`. */
+export interface ProfileValidation {
+  loggedIn: boolean;
+  email?: string;
+  subscriptionType?: string;
+  collidesWith?: string;
+}
+
+/** Response of `POST /control/profiles` — enough to build the local
+ * `Profile` (`addProfile`) once the relay finishes provisioning. */
+export interface CreatedProfile {
+  id: string;
+  label: string;
+  host: string;
+  port: number;
+  colorIndex: number;
+}

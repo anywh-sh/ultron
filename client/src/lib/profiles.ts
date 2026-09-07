@@ -104,6 +104,14 @@ const PROFILE_COLOR_CLASSES = [
   "bg-profile-4", "bg-profile-5", "bg-profile-6",
 ];
 
+/** Raw index → color class, for a profile that isn't (yet) in the local
+ * list — e.g. an importable `RemoteProfile` in `AddProfileDialog`, which
+ * already carries its host-assigned `colorIndex` but would otherwise look
+ * up as "not found" in `profileColorClass` below. */
+export function profileColorClassForIndex(index: number): string {
+  return PROFILE_COLOR_CLASSES[index % PROFILE_COLOR_CLASSES.length];
+}
+
 /** Stable color for a profile's dot. Reads the index allocated at creation
  * time; falls back to the position in the list for profiles stored before
  * `colorIndex` existed (the two seeded ones keep their current colors that
@@ -112,5 +120,5 @@ export function profileColorClass(profileId: string): string {
   const index = profiles.findIndex((p) => p.id === profileId);
   const profile = index >= 0 ? profiles[index] : undefined;
   const slot = profile?.colorIndex ?? (index >= 0 ? index : 0);
-  return PROFILE_COLOR_CLASSES[slot % PROFILE_COLOR_CLASSES.length];
+  return profileColorClassForIndex(slot);
 }

@@ -4,10 +4,13 @@ import type {
   BackgroundJobSummary,
   ClaudeEvent,
   ContextUsage,
+  CreatedProfile,
   HistoryPageMessage,
   ModelChoice,
   PermissionMode,
+  ProfileValidation,
   RelayMessage,
+  RemoteProfile,
   SessionSummary,
 } from "@/lib/relay-types";
 import { recordAvailableModels } from "@/lib/modelCatalog";
@@ -18,10 +21,13 @@ export type {
   ClaudeMessage,
   ClaudeEvent,
   ContextUsage,
+  CreatedProfile,
   HistoryMessage,
   HistoryPageMessage,
   ModelChoice,
   PermissionMode,
+  ProfileValidation,
+  RemoteProfile,
   SessionSummary,
 } from "@/lib/relay-types";
 
@@ -79,6 +85,57 @@ export async function closeTerminal(host: string, port: number, session: string,
     const body = (await response.json().catch(() => ({}))) as { error?: string };
     throw new Error(body.error ?? `failed to close terminal (${String(response.status)})`);
   }
+}
+
+/** Every profile the given host's control API knows about (docs/45) — an
+ * empty array both when the host genuinely has none and when the host
+ * doesn't run the control API at all (an older relay, `GET /control/*`
+ * 404s). Callers that need to tell those two apart should catch instead of
+ * relying on the returned length; see `useControlProfiles`, which is the
+ * only caller and does exactly that. */
+export async function fetchControlProfiles(host: string, port: number): Promise<RemoteProfile[]> {
+  const response = await fetch(`http://${host}:${port}/control/profiles`);
+  if (!response.ok) {
+    throw new Error(`failed to list profiles (${String(response.status)})`);
+  }
+  const body = (await response.json()) as { profiles?: RemoteProfile[] };
+  return body.profiles ?? [];
+}
+
+/** Checks whether `homeOverride` (or the real `$HOME` if omitted) is
+ * already logged into Claude Code, and whether it collides with a profile
+ * this host already has. Always resolves with a body to interpret (`loggedIn`,
+ * `collidesWith`) rather than throwing for those cases — only a genuine
+ * failure to run the check (the relay's own 502) throws. */
+export async function validateProfile(host: string, port: number, homeOverride?: string): Promise<ProfileValidation> {
+  const response = await fetch(`http://${host}:${port}/control/profiles/validate`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(homeOverride ? { homeOverride } : {}),
+  });
+  const body = (await response.json().catch(() => ({}))) as ProfileValidation & { error?: string };
+  if (!response.ok) {
+    throw new Error(body.error ?? `failed to validate profile (${String(response.status)})`);
+  }
+  return body;
+}
+
+/** Provisions a new profile on `host`'s relay (`.env` + `profiles.json` +
+ * systemd instance — see `infra/systemd/add-profile.sh`). The relay
+ * re-validates login/collision itself before provisioning, so a stale
+ * `validateProfile` result from earlier in the dialog can't create a
+ * profile that would actually fail. */
+export async function createProfile(host: string, port: number, label: string, homeOverride?: string): Promise<CreatedProfile> {
+  const response = await fetch(`http://${host}:${port}/control/profiles`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(homeOverride ? { label, home: homeOverride } : { label }),
+  });
+  const body = (await response.json().catch(() => ({}))) as CreatedProfile & { error?: string };
+  if (!response.ok) {
+    throw new Error(body.error ?? `failed to create profile (${String(response.status)})`);
+  }
+  return body;
 }
 
 export interface RelayClientCallbacks {
