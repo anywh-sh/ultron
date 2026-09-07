@@ -12,11 +12,14 @@ back on its own after a reboot or a crash, with no one watching.
 [instantiated unit](https://www.freedesktop.org/software/systemd/man/latest/systemd.unit.html#Specifiers) —
 one file serves every profile you run (`pessoal`, `trabalho`, `default`,
 whatever you call them), each as its own systemd instance
-(`ultron-relay@<profile>`). It isn't committed with real paths in it: `User`,
-the relay's absolute directory, and the absolute `node` binary path are all
-specific to the machine it runs on, so `install.sh` fills those in and
-writes the rendered `ultron-relay@.service` next to the template (gitignored
-— it's a build artifact, regenerate it whenever paths change).
+(`ultron-relay@<profile>`). It's a user-scope unit (`systemctl --user`, no
+sudo) — running as *your* user was always the intent, since the relay only
+ever needed to run as whoever owns the Claude Code login it's isolating, not
+as root. It isn't committed with real paths in it: the relay's absolute
+directory and the absolute `node` binary path are specific to the machine it
+runs on, so `install.sh` fills those in and writes the rendered
+`ultron-relay@.service` next to the template (gitignored — it's a build
+artifact, regenerate it whenever paths change).
 
 Profile-specific config (`RELAY_PORT`, `RELAY_HOME_OVERRIDE`, ...) doesn't
 live in the unit at all — it comes from two `EnvironmentFile`s, loaded in
@@ -33,14 +36,20 @@ skip the second file, or even both, and run on the relay's own defaults.
 
 ```bash
 ./install.sh                          # renders ultron-relay@.service for this machine
-sudo cp ultron-relay@.service /etc/systemd/system/
-sudo systemctl daemon-reload
+mkdir -p ~/.config/systemd/user
+cp ultron-relay@.service ~/.config/systemd/user/
+systemctl --user daemon-reload
+
+# Once per machine — a user-scope unit stops the moment your last login
+# session ends unless linger is on, which defeats the point on a headless
+# box with no one logged in most of the time.
+loginctl enable-linger "$(whoami)"
 
 cd ../../relay
 npm install && npm run build
 cp .env.example .env                  # edit CLAUDE_BIN/EXTRA_PATH_DIRS etc. if needed
 
-sudo systemctl enable --now ultron-relay@default
+systemctl --user enable --now ultron-relay@default
 ```
 
 For more than one profile, give each its own env file before enabling it:
@@ -53,8 +62,11 @@ RELAY_SESSIONS_FILE=/home/you/.ultron-sessions/pessoal.json
 RELAY_BACKGROUND_JOBS_FILE=/home/you/.ultron-sessions/pessoal-bg-jobs.json
 RELAY_UPLOAD_DIR=/tmp/ultron-uploads-pessoal
 EOF
-sudo systemctl enable --now ultron-relay@pessoal
+systemctl --user enable --now ultron-relay@pessoal
 ```
+
+Or use `add-profile.sh` (same directory) to generate the `.env` and enable
+the instance in one step — see its `--help` output.
 
 Repeat with a second file (different port, paths, and — if it's a fully
 separate Claude Code login — `RELAY_HOME_OVERRIDE`) for a second profile.

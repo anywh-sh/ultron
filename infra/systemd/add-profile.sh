@@ -26,11 +26,13 @@ Usage: $(basename "$0") <id> [options]
   --mode dev|prod      dev prints the run command; prod enables the
                         systemd instance (default: prod)
 EOF
-  exit 1
+  # $1: exit code — 0 for an explicit --help, 1 for a usage error, so
+  # scripting against this doesn't see "help was shown" as a failure.
+  exit "${1:-1}"
 }
 
-if [[ $# -lt 1 ]]; then
-  usage
+if [[ $# -lt 1 || "$1" == "-h" || "$1" == "--help" ]]; then
+  usage "$([[ "${1:-}" == "-h" || "${1:-}" == "--help" ]] && echo 0 || echo 1)"
 fi
 ID="$1"
 shift

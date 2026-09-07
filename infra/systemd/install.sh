@@ -1,8 +1,8 @@
 #!/usr/bin/env bash
-# Renders ultron-relay@.service.template with this machine's paths (user,
-# absolute relay/ directory, absolute node binary — none of which belong in
-# a file committed to git). Run once per machine, not once per profile: the
-# same rendered unit template serves every profile via systemd's instance
+# Renders ultron-relay@.service.template with this machine's paths (absolute
+# relay/ directory, absolute node binary — none of which belong in a file
+# committed to git). Run once per machine, not once per profile: the same
+# rendered unit template serves every profile via systemd's instance
 # mechanism (`ultron-relay@<profile>`), see infra/systemd/README.md.
 set -euo pipefail
 
@@ -11,9 +11,6 @@ RELAY_DIR="$(cd "$SCRIPT_DIR/../../relay" && pwd)"
 TEMPLATE="$SCRIPT_DIR/ultron-relay@.service.template"
 OUTPUT="$SCRIPT_DIR/ultron-relay@.service"
 
-# Resolved here (not left as the systemd specifier %h) because %h expands to
-# the *manager's* home (root, for a system-scope unit) rather than the
-# service's own User=, regardless of what that directive says.
 source "$SCRIPT_DIR/../lib.sh"
 
 NODE_BIN="$(command -v node || true)"
@@ -23,7 +20,6 @@ if [[ -z "$NODE_BIN" ]]; then
 fi
 
 sed \
-  -e "s|{{USER}}|$(whoami)|g" \
   -e "s|{{WORKING_DIRECTORY}}|$RELAY_DIR|g" \
   -e "s|{{NODE_BIN}}|$NODE_BIN|g" \
   -e "s|{{ENV_DIR}}|$ULTRON_ENV_DIR|g" \
@@ -32,13 +28,19 @@ sed \
 cat <<EOF
 Rendered: $OUTPUT
 
-Install it once per machine:
-  sudo cp "$OUTPUT" /etc/systemd/system/ultron-relay@.service
-  sudo systemctl daemon-reload
+Install it once per machine (user-scope unit — no sudo):
+  mkdir -p "$HOME/.config/systemd/user"
+  cp "$OUTPUT" "$HOME/.config/systemd/user/ultron-relay@.service"
+  systemctl --user daemon-reload
+
+  # Needed once per machine so the unit keeps running without an active
+  # login session — the default for a user-scope unit on a headless box is
+  # to stop the moment the last session for that user ends.
+  loginctl enable-linger "$(whoami)"
 
 Then, per profile (e.g. "default", or "pessoal"/"trabalho" for more than
 one), point it at a built relay and enable the instance:
   cd "$RELAY_DIR" && npm install && npm run build
   cp .env.example .env   # edit as needed — see infra/systemd/README.md
-  sudo systemctl enable --now ultron-relay@default
+  systemctl --user enable --now ultron-relay@default
 EOF
