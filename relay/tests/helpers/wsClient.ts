@@ -1,0 +1,48 @@
+import WebSocket from "ws";
+
+/** Connects to the relay's chat WebSocket for one session and collects every
+ * message the relay sends until `until` returns true (inclusive). Talks the
+ * real wire protocol (`{"type":"user_message","text":...}` in,
+ * `{"type":"claude_event",...}` / `{"type":"turn_complete",...}` out —
+ * server.ts/sharedSession.ts) — no protocol mocking, only the `claude`
+ * process underneath is faked (see testServer.ts). */
+export function connectSession(port: number, sessionId: string): Promise<WebSocket> {
+  return new Promise((resolveConn, reject) => {
+    const socket = new WebSocket(`ws://127.0.0.1:${port}/?session=${encodeURIComponent(sessionId)}`);
+    socket.once("open", () => resolveConn(socket));
+    socket.once("error", reject);
+  });
+}
+
+export function sendUserMessage(socket: WebSocket, text: string): void {
+  socket.send(JSON.stringify({ type: "user_message", text }));
+}
+
+/** Collects parsed messages until `until(message)` returns true, or rejects
+ * after `timeoutMs` — explicit synchronization on the actual event stream,
+ * not an arbitrary sleep (see the skill's "Determinism" section). */
+export function collectUntil(
+  socket: WebSocket,
+  until: (message: Record<string, unknown>) => boolean,
+  timeoutMs = 5000,
+): Promise<Record<string, unknown>[]> {
+  return new Promise((resolveCollect, reject) => {
+    const collected: Record<string, unknown>[] = [];
+    const timeout = setTimeout(() => {
+      socket.off("message", onMessage);
+      reject(new Error(`collectUntil timed out after ${timeoutMs}ms, collected so far: ${JSON.stringify(collected)}`));
+    }, timeoutMs);
+
+    function onMessage(raw: Buffer): void {
+      const message = JSON.parse(raw.toString()) as Record<string, unknown>;
+      collected.push(message);
+      if (until(message)) {
+        clearTimeout(timeout);
+        socket.off("message", onMessage);
+        resolveCollect(collected);
+      }
+    }
+
+    socket.on("message", onMessage);
+  });
+}

@@ -407,7 +407,11 @@ detectDefaultModel(HOME_OVERRIDE, defaultCwd(HOME_OVERRIDE))
     console.error("[relay] failed to detect default model:", error);
   });
 
-const httpServer = createServer((req, res) => {
+// Exported so integration tests (relay/tests/) can close both servers in
+// teardown — this module runs its listen/connection wiring as a side effect
+// of being imported, so a test that imports it needs a handle to shut it
+// down again without killing the whole process.
+export const httpServer = createServer((req, res) => {
   if (req.method === "OPTIONS") {
     res.setHeader("Access-Control-Allow-Origin", "*");
     res.setHeader("Access-Control-Allow-Methods", "GET, POST, PUT, PATCH, DELETE, OPTIONS");
@@ -892,7 +896,7 @@ const httpServer = createServer((req, res) => {
   res.end();
 });
 
-const wss = new WebSocketServer({ server: httpServer });
+export const wss = new WebSocketServer({ server: httpServer });
 
 httpServer.listen(PORT, HOST, () => {
   console.log(`[relay] listening on ws://${HOST}:${PORT}`, HOME_OVERRIDE ? `(HOME=${HOME_OVERRIDE})` : "");

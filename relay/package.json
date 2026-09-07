@@ -12,7 +12,9 @@
     "build": "tsc",
     "start": "node --env-file-if-exists=.env dist/server.js",
     "start:profile": "node --env-file-if-exists=.env --env-file-if-exists=${ULTRON_ENV_DIR:-$HOME/.config/ultron/env}/$ULTRON_PROFILE.env dist/server.js",
-    "test": "tsx --test src/*.test.ts"
+    "test": "tsx --test src/*.test.ts",
+    "test:integration": "tsx --test tests/*.test.ts",
+    "test:all": "npm run test && npm run test:integration"
   },
   "dependencies": {
     "node-pty": "^1.1.0",
