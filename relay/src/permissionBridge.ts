@@ -1,21 +1,23 @@
 import type { IncomingMessage, ServerResponse } from "node:http";
 import { randomUUID } from "node:crypto";
 
-// docs/46 Fase 4 — `--permission-prompt-tool` lets an MCP tool of ours decide
-// every permission-prompt approval for a `claude -p` turn, instead of the
-// relay's normal headless default (auto-deny, see the comment on
+// docs/46 Fase 4/5 — `--permission-prompt-tool` lets an MCP tool of ours
+// decide every permission-prompt approval for a `claude -p` turn, instead of
+// the relay's normal headless default (auto-deny, see the comment on
 // `--permission-mode` in claudeSession.ts). Confirmed against the real
 // binary (docs/46, Descoberta 6) that this is what re-enables `ExitPlanMode`
 // in headless: it's not categorically removed, it only disappears when
 // nobody is configured to answer approval.
 //
-// Scoped narrowly on purpose: only wired for `plan`-mode turns, and the
-// host (`SharedSession.checkPermission`) only ever pauses for `ExitPlanMode`
-// — everything else is auto-allowed. A general per-action approval flow for
-// `default`/`acceptEdits` (Descoberta 6's larger finding) is real but a much
-// bigger surface (needs a distinct "awaiting approval" turn state, Stop
-// button semantics for it, etc.) — deliberately deferred, see docs/46
-// "Decisão de escopo".
+// Wired for every mode except `bypassPermissions` (`SharedSession.runTurn`).
+// Fase 4 scoped the host's policy (`SharedSession.checkPermission`) narrowly
+// to only `ExitPlanMode`, everything else auto-allowed — deliberately, to
+// ship the one thing actually requested first. Fase 5 widened that policy to
+// ask for every tool call that reaches here, after validating against the
+// real binary that the CLI itself — not the relay — already decides what
+// needs approval per mode (trivial reads/Bash never reach here in `default`;
+// a dangerous-looking `Bash` still reaches here even in `acceptEdits`), so
+// there was no risk classification left for the relay to invent.
 
 /** Mirrors the real `canUseTool` contract captured live in docs/46,
  * Descoberta 6: the CLI calls our tool with these three fields for every

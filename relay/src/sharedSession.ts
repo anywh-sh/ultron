@@ -37,6 +37,31 @@ function buildBackgroundJobFollowupPrompt(job: FinishedBackgroundJob): string {
   );
 }
 
+/** docs/46 Fase 5 — human-readable summary of a tool call for the generic
+ * approval question in `checkPermission` below. Only the field that best
+ * identifies the action is picked per tool; anything unrecognized falls
+ * back to a truncated JSON dump so no call is ever unreadable, just less
+ * nicely formatted than the common cases. */
+function describeToolCall(toolName: string, input: unknown): string {
+  const record = input && typeof input === "object" ? (input as Record<string, unknown>) : undefined;
+  const field = (name: string): string | undefined => {
+    const value = record?.[name];
+    return typeof value === "string" ? value : undefined;
+  };
+  switch (toolName) {
+    case "Bash":
+      return field("command") ?? JSON.stringify(input);
+    case "Write":
+    case "Edit":
+    case "NotebookEdit":
+      return field("file_path") ?? field("notebook_path") ?? JSON.stringify(input);
+    default: {
+      const json = JSON.stringify(input);
+      return json.length > 200 ? `${json.slice(0, 200)}…` : json;
+    }
+  }
+}
+
 export type BroadcastMessage =
   | { type: "claude_event"; event: ClaudeEvent }
   | { type: "turn_complete"; stopped?: boolean }
@@ -360,37 +385,43 @@ export class SharedSession {
     this.broadcastChoicePrompt();
   }
 
-  /** docs/46 Fase 4 — called by the permission-prompt-tool bridge
-   * (`McpPermissionBridge`) for every tool call that would otherwise need
-   * approval in a `plan`-mode turn (see `runTurn`'s `permissionRegistration`
-   * — this is never wired outside `plan` mode). Deliberately narrow: only
-   * `ExitPlanMode` pauses for a human decision, everything else is
-   * auto-allowed. A general per-action approval flow for every mode is a
-   * bigger, deferred feature (docs/46 "Decisão de escopo") — this only
-   * exists to unblock the one transition that was actually requested
-   * (switching mode by text instead of the dropdown).
+  /** docs/46 Fase 5 — called by the permission-prompt-tool bridge
+   * (`McpPermissionBridge`) for every tool call the CLI itself decided
+   * needs human approval given the turn's current mode (see
+   * `runTurn`'s `permissionRegistration` — wired for every mode except
+   * `bypassPermissions`). Validated against the real binary before writing
+   * this: the CLI, not the relay, already does the risk classification —
+   * trivial reads/Bash (e.g. `echo`) never reach here at all in `default`,
+   * and `acceptEdits` still routes a dangerous-looking `Bash` (`rm -rf`)
+   * here despite auto-allowing harmless file edits. So there's no risk
+   * policy left for us to invent: anything that reaches this function
+   * already needs a real yes/no, we just have to ask it instead of the old
+   * Fase 4 blanket auto-allow.
+   *
+   * `ExitPlanMode` keeps its own wording (a mode transition reads
+   * differently than "approve this action"), everything else gets a
+   * generic question built from `describeToolCall` below.
    *
    * Reuses `presentChoice` as-is instead of inventing a parallel pending-
    * approval mechanism: a single yes/no `ChoiceQuestion` renders fine with
    * the existing `ChoiceCard`, and `presentChoice`/`answerChoice` already
    * handle every lifecycle edge case (multi-device "first answer wins",
-   * cancellation on any form of turn end) that a fresh mechanism would need
-   * to reimplement. Safe because the two are mutually exclusive per turn —
-   * `present_choice` is never registered for a `plan`-mode turn (`runTurn`),
-   * so there's no `"mcp"` pending choice already occupying the slot when this
-   * runs. */
+   * cancellation on any form of turn end, Stop button) that a fresh
+   * mechanism would need to reimplement — this is why Fase 5 needed no new
+   * turn-state UI despite the scope in docs/46 "Ressalvas": the mechanism
+   * was already generic, only Fase 4's policy was narrow. */
   private async checkPermission(toolName: string, input: unknown, _toolUseId: string | undefined): Promise<PermissionDecision> {
-    if (toolName !== "ExitPlanMode") return { behavior: "allow", updatedInput: input };
-    const answers = await this.presentChoice([
-      {
-        question: "O modelo quer sair do modo Plan e continuar a execução. Aprovar?",
-        options: [{ label: "Aprovar" }, { label: "Recusar" }],
-      },
-    ]);
+    const isExitPlanMode = toolName === "ExitPlanMode";
+    const question = isExitPlanMode
+      ? "O modelo quer sair do modo Plan e continuar a execução. Aprovar?"
+      : `O modelo quer executar \`${toolName}\`: ${describeToolCall(toolName, input)}. Aprovar?`;
+    const answers = await this.presentChoice([{ question, options: [{ label: "Aprovar" }, { label: "Recusar" }] }]);
     const approved = answers[0]?.selected.includes("Aprovar") ?? false;
-    return approved
-      ? { behavior: "allow", updatedInput: input }
-      : { behavior: "deny", message: "O usuário optou por continuar no modo Plan." };
+    if (approved) return { behavior: "allow", updatedInput: input };
+    return {
+      behavior: "deny",
+      message: isExitPlanMode ? "O usuário optou por continuar no modo Plan." : "O usuário recusou a execução.",
+    };
   }
 
   /** docs/46 Fase 4 — the CLI reports its own permission-mode transitions
@@ -799,30 +830,35 @@ export class SharedSession {
       this.options.mcpChoiceBridge && this.permissionMode !== "plan"
         ? this.options.mcpChoiceBridge.registerTurn({ presentChoice: (questions) => this.presentChoice(questions) })
         : undefined;
-    // docs/46 Fase 4 — the mirror image of `choiceRegistration`: only built
-    // INSIDE `plan` mode, where it's the only way to get `ExitPlanMode`
-    // offered at all (Descoberta 6). Same per-turn token lifecycle.
+    // docs/46 Fase 4/5 — only skipped in `bypassPermissions`, the one mode
+    // whose entire point is "don't ask". Merged below with
+    // `choiceRegistration` into a single `--mcp-config` when both are active
+    // (every mode except `bypassPermissions` — `plan` only gets this one,
+    // `default`/`acceptEdits` get both): validated against the real binary
+    // that `--allowedTools` and `--permission-prompt-tool` coexist fine in
+    // the same spawn, so there's no need to pick one over the other here.
     const permissionRegistration =
-      this.options.mcpPermissionBridge && this.permissionMode === "plan"
+      this.options.mcpPermissionBridge && this.permissionMode !== "bypassPermissions"
         ? this.options.mcpPermissionBridge.registerTurn({
             checkPermission: (toolName, input, toolUseId) => this.checkPermission(toolName, input, toolUseId),
           })
         : undefined;
-    const mcp = choiceRegistration
-      ? {
-          configJson: JSON.stringify({
-            mcpServers: { [CHOICE_MCP_SERVER_NAME]: { type: "http", url: `${this.options.mcpBridgeBaseUrl}/${choiceRegistration.token}` } },
-          }),
-          allowedTools: CHOICE_ALLOWED_TOOL,
-        }
-      : permissionRegistration
+    const mcpServers: Record<string, { type: "http"; url: string }> = {};
+    if (choiceRegistration) {
+      mcpServers[CHOICE_MCP_SERVER_NAME] = { type: "http", url: `${this.options.mcpBridgeBaseUrl}/${choiceRegistration.token}` };
+    }
+    if (permissionRegistration) {
+      mcpServers[PERMISSION_MCP_SERVER_NAME] = {
+        type: "http",
+        url: `${this.options.mcpPermissionBridgeBaseUrl}/${permissionRegistration.token}`,
+      };
+    }
+    const mcp =
+      choiceRegistration || permissionRegistration
         ? {
-            configJson: JSON.stringify({
-              mcpServers: {
-                [PERMISSION_MCP_SERVER_NAME]: { type: "http", url: `${this.options.mcpPermissionBridgeBaseUrl}/${permissionRegistration.token}` },
-              },
-            }),
-            permissionPromptTool: PERMISSION_PROMPT_TOOL,
+            configJson: JSON.stringify({ mcpServers }),
+            allowedTools: choiceRegistration ? CHOICE_ALLOWED_TOOL : undefined,
+            permissionPromptTool: permissionRegistration ? PERMISSION_PROMPT_TOOL : undefined,
           }
         : undefined;
 

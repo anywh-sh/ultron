@@ -96,17 +96,19 @@ export interface ClaudeSessionOptions {
  * registry) — kept as opaque already-formed CLI arg values here, same as
  * every other spawn parameter, so this file stays a plain spawn wrapper that
  * doesn't need to know anything about MCP, choice prompts, or permission
- * approval. Serves two mutually-exclusive purposes depending on the turn's
- * mode (never both at once, see `SharedSession.runTurn`): `allowedTools` for
- * the `present_choice` tool outside `plan` mode (Fase 1-3), or
- * `permissionPromptTool` for the `--permission-prompt-tool` bridge inside
- * `plan` mode (Fase 4). */
+ * approval. `allowedTools` (the `present_choice` tool, active outside `plan`
+ * mode, Fase 1-3) and `permissionPromptTool` (the `--permission-prompt-tool`
+ * bridge, active outside `bypassPermissions`, Fase 4-5) are independent CLI
+ * flags and both fields may be set at once — validated against the real
+ * binary that the CLI accepts both together in the same spawn (the modes
+ * where both apply, `default`/`acceptEdits`, are exactly where both bridges
+ * are registered, see `SharedSession.runTurn`). */
 export interface McpSpawnConfig {
   /** Full `--mcp-config` JSON payload, ready to pass through. */
   configJson: string;
   /** Full `--allowedTools` value (comma-separated is accepted by the CLI). */
   allowedTools?: string;
-  /** Tool name to pass to `--permission-prompt-tool` (docs/46 Fase 4) — the
+  /** Tool name to pass to `--permission-prompt-tool` (docs/46 Fase 4/5) — the
    * CLI calls this tool for every action that would otherwise need
    * approval, instead of auto-denying. */
   permissionPromptTool?: string;
@@ -312,22 +314,23 @@ export class ClaudeSession {
       // the real binary, to avoid a tool touching a new path (e.g. a
       // freshly uploaded image) getting stuck asking for approval that
       // nobody can give in a non-interactive process (real finding while
-      // testing image upload, docs/15). The other modes go straight into
-      // the generic flag — headless without `--permission-prompt-tool`
-      // never hangs waiting for approval: the action is simply denied and
-      // Claude keeps working (official docs, see docs/25).
+      // testing image upload, docs/15). It's also the only mode that never
+      // gets `permissionPromptTool` below (`SharedSession.runTurn`) — every
+      // other mode, since Fase 5, genuinely can pause a turn waiting on a
+      // human's approval, by design; that's the whole point of the flag.
       ...(permissionMode === "bypassPermissions"
         ? ["--dangerously-skip-permissions"]
         : ["--permission-mode", permissionMode]),
-      // docs/46 — `mcp` is only ever built for one of two cases (see
-      // `McpSpawnConfig`): `allowedTools` outside `plan` mode (the
-      // `present_choice` tool — tested that `plan` mode blocks any
-      // non-native tool categorically regardless of `--allowedTools`, so
-      // passing it there would be dead weight), or `permissionPromptTool`
-      // INSIDE `plan` mode (Fase 4 — the one case where a turn needs
-      // `--mcp-config` while in `plan` mode, since `--permission-prompt-tool`
-      // isn't a regular tool the model calls, it's the CLI's own approval
-      // hook).
+      // docs/46 — `mcp` combines whichever of the two independent bridges
+      // `SharedSession.runTurn` decided to register for this turn's mode:
+      // `allowedTools` for the `present_choice` tool outside `plan` mode
+      // (tested that `plan` mode blocks any non-native tool categorically
+      // regardless of `--allowedTools`, so it's skipped there), and/or
+      // `permissionPromptTool` outside `bypassPermissions` (Fase 4 for
+      // `plan`'s `ExitPlanMode` only, widened in Fase 5 to `default`/
+      // `acceptEdits` for every action the CLI itself decides needs
+      // approval). Validated against the real binary that both flags
+      // coexist fine in the same spawn — `default`/`acceptEdits` pass both.
       ...(mcp
         ? [
             "--mcp-config",
