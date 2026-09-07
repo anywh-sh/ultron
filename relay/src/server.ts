@@ -323,7 +323,7 @@ detectDefaultModel(HOME_OVERRIDE, defaultCwd(HOME_OVERRIDE))
 const httpServer = createServer((req, res) => {
   if (req.method === "OPTIONS") {
     res.setHeader("Access-Control-Allow-Origin", "*");
-    res.setHeader("Access-Control-Allow-Methods", "GET, POST, OPTIONS");
+    res.setHeader("Access-Control-Allow-Methods", "GET, POST, PATCH, DELETE, OPTIONS");
     res.setHeader("Access-Control-Allow-Headers", "*");
     res.writeHead(204);
     res.end();
