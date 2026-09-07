@@ -68,14 +68,30 @@ function sendInput(socket: WebSocket, data: string): void {
  * swallowed instead of reaching the shell. Waiting for a quiet period (no
  * new `data` frames) before typing is what a real user effectively does too
  * — they don't start typing into a still-redrawing terminal. */
-function waitForQuiet(socket: WebSocket, quietMs = 300): Promise<void> {
-  return new Promise((resolveQuiet) => {
+// `maxWaitMs` is a hard ceiling on top of the quiet-period logic above, not
+// just this function's own timeout — a real incident running this suite in
+// CI (2026-09-07): on a slower/jitterier runner, tmux's redraw chatter never
+// left a genuine `quietMs` gap, so the unbounded version of this function
+// hung forever waiting for silence that never came, which hung the entire
+// `npm run test:all` job (and, by extension, every other test file queued
+// behind it) for over an hour before it was manually cancelled. A gap this
+// wide is unusual enough on its own to be worth surfacing as a failure
+// rather than silently proceeding to type into a possibly-still-redrawing
+// terminal, so this rejects instead of resolving once the ceiling is hit.
+function waitForQuiet(socket: WebSocket, quietMs = 300, maxWaitMs = 4000): Promise<void> {
+  return new Promise((resolveQuiet, reject) => {
     let timer: ReturnType<typeof setTimeout>;
+    const ceiling = setTimeout(() => {
+      socket.off("message", onMessage);
+      clearTimeout(timer);
+      reject(new Error(`waitForQuiet: terminal never went quiet for ${String(quietMs)}ms within ${String(maxWaitMs)}ms`));
+    }, maxWaitMs);
     function onMessage(): void {
       clearTimeout(timer);
       timer = setTimeout(finish, quietMs);
     }
     function finish(): void {
+      clearTimeout(ceiling);
       socket.off("message", onMessage);
       resolveQuiet();
     }

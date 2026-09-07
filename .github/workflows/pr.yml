@@ -47,6 +47,15 @@ jobs:
           node-version: "lts/*"
           cache: npm
           cache-dependency-path: relay/package-lock.json
+      # The embedded terminal integration test (terminalPanel.test.ts) spawns
+      # a real tmux via node-pty — explicit, not assumed preinstalled on the
+      # runner image, same reasoning as client-e2e's own system-deps step
+      # below (apt reports "already the newest version" harmlessly if it
+      # already was).
+      - name: Install tmux
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y tmux
       - run: npm ci
         working-directory: relay
       - run: npm run build
