@@ -555,6 +555,7 @@ export default function App() {
         onToggleSidebar={resizable.toggleCollapsed}
         onOpenSearch={() => setSearchOpen(true)}
         onOpenSettings={() => setSettingsOpen(true)}
+        connected={activeConnected}
       />
 
       <SessionSearch open={searchOpen} onOpenChange={setSearchOpen} onSelectSession={handleSearchSelectSession} />

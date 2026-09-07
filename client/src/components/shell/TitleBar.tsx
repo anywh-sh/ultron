@@ -50,6 +50,7 @@ export function TitleBar({
   onToggleSidebar,
   onOpenSearch,
   onOpenSettings,
+  connected,
 }: {
   canGoBack: boolean;
   canGoForward: boolean;
@@ -60,6 +61,12 @@ export function TitleBar({
   onToggleSidebar: () => void;
   onOpenSearch: () => void;
   onOpenSettings: () => void;
+  /** Unlike `MobileTopBar`, only rendered when `false` — desktop had no
+   * connection feedback at all: a relay that's unreachable from the start
+   * (wrong profile host/port, nothing running there) looked identical to
+   * "the app is just loading", with every panel (folder picker, model/mode,
+   * message send) failing silently or hanging instead. */
+  connected: boolean;
 }) {
   // macOS keeps the native traffic lights (Tauri's overlay mode — docs/21),
   // so we don't draw minimize/maximize/close there, we just reserve their
@@ -135,7 +142,14 @@ export function TitleBar({
         </Tooltip>
       </div>
 
-      <div data-tauri-drag-region className="h-full flex-1" />
+      <div data-tauri-drag-region className="flex h-full flex-1 items-center justify-center">
+        {!connected && (
+          <span className="flex items-center gap-1.5 font-mono text-[11px] text-destructive">
+            <span className="size-1.5 animate-pulse rounded-full bg-destructive" />
+            Reconectando…
+          </span>
+        )}
+      </div>
 
       {!mac && (
         <div className="flex h-full shrink-0">
