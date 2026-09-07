@@ -1,6 +1,7 @@
 import { spawn, type ChildProcessWithoutNullStreams } from "node:child_process";
 import { createInterface } from "node:readline";
 import { CLAUDE_BIN, EXTRA_PATH_DIRS } from "./claudeCliConfig.js";
+import { PLAN_MODE_CHOICE_MARKER_PROMPT } from "./planChoiceMarker.js";
 import type { ContextUsage, ModelChoice, PermissionMode } from "./sessionStore.js";
 
 // A turn = a `claude -p` process. Continuity across turns comes from
@@ -289,7 +290,12 @@ export class ClaudeSession {
       "--verbose",
       "--include-partial-messages",
       "--append-system-prompt",
-      APPEND_SYSTEM_PROMPT,
+      // docs/46 — the marker convention is only relevant (and only ever
+      // requested) in `plan` mode: it's the fallback for the one mode where
+      // the real `present_choice` MCP tool can't be offered at all (see the
+      // `mcp` arg below), so appending it in every other mode would just be
+      // dead weight on every spawn for nothing.
+      permissionMode === "plan" ? `${APPEND_SYSTEM_PROMPT}\n\n${PLAN_MODE_CHOICE_MARKER_PROMPT}` : APPEND_SYSTEM_PROMPT,
       ...(model ? ["--model", model] : []),
       // `bypassPermissions` is the historical default mode (the only one
       // that existed before the mode became selectable, see docs/25) — it

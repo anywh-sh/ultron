@@ -4,6 +4,7 @@ import type { PendingAttachment } from "@/hooks/useImageUpload";
 import { useLongPress } from "@/hooks/useLongPress";
 import { renderTextWithLinks } from "@/lib/composerLinks";
 import { isIOS } from "@/lib/platform";
+import { stripPlanChoiceMarkers } from "@/lib/planChoiceMarker";
 import { showNativeContextMenu } from "@/lib/nativeContextMenu";
 import { formatAbsoluteTime, formatRelativeTime } from "@/lib/relativeTime";
 import { cn } from "@/lib/utils";
@@ -246,7 +247,7 @@ export const UserBubble = memo(function UserBubble({
 export const AssistantText = memo(function AssistantText({ text }: { text: string }) {
   return (
     <div className="prose-chat text-sm text-foreground">
-      <MarkdownContent text={text} />
+      <MarkdownContent text={stripPlanChoiceMarkers(text)} />
     </div>
   );
 });

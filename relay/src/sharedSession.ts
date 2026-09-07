@@ -4,6 +4,7 @@ import { ClaudeSession, type ClaudeEvent } from "./claudeSession.js";
 import { checkDirectory } from "./fsBrowse.js";
 import { CHOICE_ALLOWED_TOOL, CHOICE_MCP_SERVER_NAME, type ChoiceAnswer, type ChoiceQuestion, type McpChoiceBridge } from "./mcpBridge.js";
 import { defaultCwd } from "./paths.js";
+import { formatPlanChoiceAnswerText, parsePlanChoiceMarkers } from "./planChoiceMarker.js";
 import { generateSuggestion } from "./suggestionGenerator.js";
 import { readHistoryFromTranscript, transcriptPath } from "./transcriptReader.js";
 import { forkTruncatedTranscript } from "./transcriptFork.js";
@@ -200,14 +201,22 @@ export class SharedSession {
    * survives (or not) between restarts — this list is just a mirror of
    * what it knows RIGHT NOW. */
   private backgroundJobs: BackgroundJobSummary[] = [];
-  /** docs/46 — a `present_choice` tool call currently blocked waiting for a
-   * human answer, if any. In-memory only, same reasoning as `backgroundJobs`:
-   * on a relay restart the underlying `claude` child (and its MCP call) is
-   * gone too either way (see `McpChoiceBridge`'s per-turn `unregister`, tied
-   * to the same `runTurn` that owns this), so there's nothing meaningful to
-   * persist across that boundary — a fresh `SharedSession` simply has no
-   * pending prompt, which is correct. */
-  private pendingChoice: { promptId: string; questions: ChoiceQuestion[]; resolve: (answers: ChoiceAnswer[]) => void } | undefined;
+  /** docs/46 — a choice prompt currently waiting for a human answer, if any.
+   * Two unrelated mechanisms feed this, told apart by `kind`: `"mcp"` is a
+   * real `present_choice` tool call blocked mid-turn (the CLI process is
+   * still alive, waiting on `resolve` to produce its `tool_result`); `"planText"`
+   * is the `plan`-mode text-marker fallback (`planChoiceMarker.ts`) — that
+   * turn already finished by the time this exists, so there's no live call
+   * to resolve, only a future turn to enqueue once the human answers (see
+   * `answerChoice`). In-memory only, same reasoning as `backgroundJobs`: on
+   * a relay restart there's nothing meaningful left to resume either way
+   * (the `"mcp"` case loses its underlying `claude` child too, see
+   * `McpChoiceBridge`'s per-turn `unregister`) — a fresh `SharedSession`
+   * simply has no pending prompt, which is correct. */
+  private pendingChoice:
+    | { kind: "mcp"; promptId: string; questions: ChoiceQuestion[]; resolve: (answers: ChoiceAnswer[]) => void }
+    | { kind: "planText"; promptId: string; questions: ChoiceQuestion[] }
+    | undefined;
 
   constructor(
     private readonly homeOverride: string | undefined,
@@ -326,28 +335,59 @@ export class SharedSession {
   presentChoice(questions: ChoiceQuestion[]): Promise<ChoiceAnswer[]> {
     return new Promise((resolve) => {
       const promptId = randomUUID();
-      this.pendingChoice = { promptId, questions, resolve };
+      this.pendingChoice = { kind: "mcp", promptId, questions, resolve };
       this.broadcastChoicePrompt();
     });
   }
 
+  /** docs/46 — plan-mode counterpart to `presentChoice`, called by `runTurn`
+   * after it sees a `>>>QUESTION:` marker in a turn that has ALREADY
+   * finished (unlike the MCP path, there's no live `claude` process to keep
+   * waiting). Just publishes the prompt for the UI — `answerChoice` is what
+   * turns the eventual answer into the next real turn. */
+  private presentPlanChoice(questions: ChoiceQuestion[]): void {
+    const promptId = randomUUID();
+    this.pendingChoice = { kind: "planText", promptId, questions };
+    this.broadcastChoicePrompt();
+  }
+
   /** Whatever's left pending when a turn ends, for ANY reason (normal
    * completion, error, or `stopTurn`/SIGINT — `runTurn`'s `finally` calls
-   * this unconditionally), must be force-resolved: the `claude` child that
-   * would have received the answer no longer exists by the time this runs
-   * (`sendTurn`'s promise only resolves after the child's `close` event), so
-   * the actual answer content is moot — but without this, `pendingChoice`
-   * would linger forever (a reconnecting device would see a picker for a
-   * conversation that will never continue), and the `await` inside
-   * `McpChoiceBridge.handleRequest` for that call would never settle
-   * (`unregister` only removes it from future lookups, it doesn't reach
-   * into an already-in-flight call). */
+   * this unconditionally), must be force-resolved for the `"mcp"` kind: the
+   * `claude` child that would have received the answer no longer exists by
+   * the time this runs (`sendTurn`'s promise only resolves after the
+   * child's `close` event), so the actual answer content is moot — but
+   * without this, `pendingChoice` would linger forever (a reconnecting
+   * device would see a picker for a conversation that will never continue),
+   * and the `await` inside `McpChoiceBridge.handleRequest` for that call
+   * would never settle (`unregister` only removes it from future lookups,
+   * it doesn't reach into an already-in-flight call). A `"planText"` prompt
+   * has nothing to resolve (no call is blocked on it) — this only runs for
+   * one anyway because `presentPlanChoice` is called AFTER `runTurn`'s own
+   * `finally`, on that same turn's tail, never before it. */
   private cancelPendingChoice(): void {
     if (!this.pendingChoice) return;
-    const { promptId, resolve } = this.pendingChoice;
+    const pending = this.pendingChoice;
+    this.pendingChoice = undefined;
+    this.broadcastChoiceResolved(pending.promptId);
+    if (pending.kind === "mcp") pending.resolve([]);
+  }
+
+  /** A `"planText"` prompt outlives the turn that created it (unlike
+   * `"mcp"`, which is tied to a live `claude` call and already gets cleaned
+   * up by `cancelPendingChoice` as soon as that turn ends, one way or
+   * another). If the human moves on without answering it — sends a new
+   * message directly, edits an earlier one, or clears the conversation —
+   * the stale card needs this explicit dismissal, called from those exact
+   * three sites, or it would keep showing a question for a plan the
+   * conversation has already left behind. A `"mcp"` prompt is never touched
+   * here: it's already covered by `stopTurn`/`SIGINT` unblocking it via
+   * `cancelPendingChoice`. */
+  private discardStalePlanChoice(): void {
+    if (this.pendingChoice?.kind !== "planText") return;
+    const { promptId } = this.pendingChoice;
     this.pendingChoice = undefined;
     this.broadcastChoiceResolved(promptId);
-    resolve([]);
   }
 
   /** Called from the WS handler (`server.ts`) when any connected device
@@ -357,13 +397,23 @@ export class SharedSession {
    * is a no-op) instead of a confusing double-resolution — and every device
    * (including the one that didn't answer) is told the prompt is gone via
    * `choice_resolved`, so a stale picker doesn't linger on a screen the
-   * user isn't looking at anymore. */
+   * user isn't looking at anymore. For `"mcp"`, the answer resolves the
+   * blocked tool call directly; for `"planText"` there's no call left to
+   * resolve, so the answer is enqueued as an ordinary new turn instead
+   * (`origin: undefined` — no client rendered a bubble for it locally the
+   * way `submitTurn` callers do, so everyone connected needs the synthetic
+   * `user_prompt` broadcast, not just "the others"). */
   answerChoice(promptId: string, answers: ChoiceAnswer[]): boolean {
     if (!this.pendingChoice || this.pendingChoice.promptId !== promptId) return false;
-    const { resolve } = this.pendingChoice;
+    const pending = this.pendingChoice;
     this.pendingChoice = undefined;
     this.broadcastChoiceResolved(promptId);
-    resolve(answers);
+    if (pending.kind === "mcp") {
+      pending.resolve(answers);
+    } else {
+      const text = formatPlanChoiceAnswerText(answers);
+      this.turnQueue = this.turnQueue.then(() => this.runTurn(undefined, text));
+    }
     return true;
   }
 
@@ -450,6 +500,10 @@ export class SharedSession {
     // clear it right away (don't wait for the turn to finish) so it doesn't
     // stay hanging around for the whole duration of the turn in progress.
     this.clearSuggestion();
+    // A `"planText"` prompt the human ignored in favor of typing a normal
+    // message directly is now stale — dismiss it rather than leave the card
+    // showing a question for a plan the conversation has already moved past.
+    this.discardStalePlanChoice();
     // Enqueue: only one `claude -p` turn runs at a time in this session.
     this.turnQueue = this.turnQueue.then(() => this.runTurn(origin, text));
   }
@@ -495,6 +549,10 @@ export class SharedSession {
       return;
     }
     this.clearSuggestion();
+    // `claude.stop()` below only unblocks a live `"mcp"` prompt (it's tied
+    // to the turn being interrupted) — a `"planText"` one outlives its turn
+    // and needs the same explicit dismissal as `submitTurn`.
+    this.discardStalePlanChoice();
     this.claude.stop();
     this.turnQueue = this.turnQueue.then(() => this.performEdit(origin, target, text));
   }
@@ -574,6 +632,7 @@ export class SharedSession {
    * lock in `runTurn`), so the session can pick another one again, just
    * like a new session. */
   clearConversation(): void {
+    this.discardStalePlanChoice();
     this.turnQueue = this.turnQueue.then(() => {
       this.claude.resetSessionId();
       this.history.length = 0;
@@ -687,6 +746,12 @@ export class SharedSession {
         }
       : undefined;
 
+    // Hoisted out of the `try` below so the plan-mode marker check after it
+    // can see the turn's outcome — needs to run AFTER `finally`'s
+    // `cancelPendingChoice`, not before, or that same cleanup would
+    // immediately cancel the `"planText"` prompt this is about to create.
+    let turnStopped = false;
+    let planChoiceText: string | undefined;
     try {
       const { stopped, contextUsage, lastAssistantText } = await this.claude.sendTurn(
         text,
@@ -703,6 +768,8 @@ export class SharedSession {
         },
         mcp,
       );
+      turnStopped = stopped;
+      planChoiceText = lastAssistantText;
       const sessionId = this.claude.getSessionId();
       if (sessionId) this.options.onSessionIdChange?.(sessionId);
       if (contextUsage) {
@@ -738,6 +805,17 @@ export class SharedSession {
       this.cancelPendingChoice();
       this.turnStartedAt = null;
       this.broadcastTurnState();
+    }
+
+    // docs/46 — plan mode's `present_choice` fallback: that mode never gets
+    // the MCP tool at all (`choiceRegistration` above is skipped for it), so
+    // a genuinely closed question only shows up as a text marker in the
+    // final response. Checked here, after the turn (and its `finally`
+    // cleanup) has fully finished, not inside the `try` — see the comment
+    // on `turnStopped`/`planChoiceText`.
+    if (!turnStopped && !synthetic && this.permissionMode === "plan" && planChoiceText) {
+      const questions = parsePlanChoiceMarkers(planChoiceText);
+      if (questions.length > 0) this.presentPlanChoice(questions);
     }
   }
 
