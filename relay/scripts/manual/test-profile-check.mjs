@@ -1,6 +1,6 @@
-// Confirma que cada relay roda com o $HOME/cwd isolado certo, olhando o
-// evento system/init que o Claude Code manda no começo de cada turno.
-// Uso: node test-profile-check.mjs <host> <porta> [label]
+// Confirms each relay runs with the right isolated $HOME/cwd, by reading the
+// system/init event Claude Code emits at the start of every turn.
+// Usage: node test-profile-check.mjs <host> <port> [label]
 import WebSocket from "ws";
 
 const host = process.argv[2];
