@@ -679,7 +679,7 @@ export const Composer = forwardRef<ComposerHandle, ComposerProps>(function Compo
               "transition-[border-radius,border-color] duration-150",
               isMultiline ? "rounded-[26px]" : "rounded-full",
             ]
-          : "m-3 rounded-xl bg-bg-elevated",
+          : "my-3 rounded-xl bg-bg-elevated",
         focused ? "border-primary" : isIOS() ? "border-white/8" : "border-border",
       )}
     >

@@ -609,84 +609,92 @@ export function ChatPanel({
          * the keyboard) instead of above it. */}
         {isIOS() && turnStartedAt !== null && <TurnIndicator startedAt={turnStartedAt} />}
 
-        {choicePrompt && <ChoiceCard promptId={choicePrompt.promptId} questions={choicePrompt.questions} onAnswer={answerChoice} />}
+        {/* Caps the composer column at the same width as MessageLog's content
+         * (docs/48) — `contents` on iOS keeps these two wrapper divs out of
+         * the box tree entirely, so the phone layout (which never hits the
+         * cap anyway) is untouched. */}
+        <div className={cn(isIOS() ? "contents" : "w-full px-4")}>
+          <div className={cn(isIOS() ? "contents" : "mx-auto flex w-full max-w-3xl flex-col")}>
+            {choicePrompt && <ChoiceCard promptId={choicePrompt.promptId} questions={choicePrompt.questions} onAnswer={answerChoice} />}
 
-        <Composer
-          ref={composerRef}
-          disabled={!connected}
-          turnInFlight={turnInFlight}
-          onStop={stopTurn}
-          pendingImages={images.pending}
-          uploadingImage={images.uploading}
-          onAddFiles={(files) => void images.addFiles(files)}
-          onRemoveImage={images.remove}
-          permissionMode={permissionMode}
-          onChangePermissionMode={setPermissionMode}
-          model={model}
-          defaultModel={defaultModel}
-          onChangeModel={setModel}
-          modelLocked={cwdLocked}
-          contextUsage={contextUsage}
-          compactBoundary={compactBoundary}
-          suggestion={isIOS() ? null : suggestion}
-          onChangeDraft={setDraft}
-          onSend={(text, sentImages) => {
-            // Editing via composer (docs/33, iOS) — the normal send (slash
-            // commands, `addUserMessage`+`sendMessage`) doesn't apply here:
-            // the text goes to `edit_message`, not `user_message`. Images
-            // attached in this state are ignored on purpose (editing a
-            // message with an image is out of scope for v1).
-            if (editTargetRef.current) {
-              performEditRef.current(editTargetRef.current.id, text);
-              return;
-            }
-            // `/model`/`/clear` (docs/26): recognized here, before becoming
-            // a turn — neither one gets passed as text to `claude -p` (see
-            // slashCommands.ts for the reason behind each). A command with
-            // an uncurated argument (`/model gpt4`) falls into the `else`,
-            // becomes a normal message and the CLI itself responds with its
-            // own error. Still recognized on iOS even without the
-            // autocomplete menu (see Composer.tsx) — there's no toolbar
-            // button there to change model/permission mode, so typing the
-            // command is the only way to do it on that platform.
-            const command = parseSlashCommand(text);
-            if (command?.name === "clear") {
-              clearConversation();
-              return;
-            }
-            if (command?.name === "model") {
-              setModel(command.model);
-              return;
-            }
-            log.addUserMessage(text, sentImages);
-            sendMessage(buildWireMessage(text, sentImages));
-            images.clearWithoutRevoke();
-            setTurnStartedAt(Date.now());
-            dismissSuggestion();
-            onActivity?.();
-          }}
-        />
+            <Composer
+              ref={composerRef}
+              disabled={!connected}
+              turnInFlight={turnInFlight}
+              onStop={stopTurn}
+              pendingImages={images.pending}
+              uploadingImage={images.uploading}
+              onAddFiles={(files) => void images.addFiles(files)}
+              onRemoveImage={images.remove}
+              permissionMode={permissionMode}
+              onChangePermissionMode={setPermissionMode}
+              model={model}
+              defaultModel={defaultModel}
+              onChangeModel={setModel}
+              modelLocked={cwdLocked}
+              contextUsage={contextUsage}
+              compactBoundary={compactBoundary}
+              suggestion={isIOS() ? null : suggestion}
+              onChangeDraft={setDraft}
+              onSend={(text, sentImages) => {
+                // Editing via composer (docs/33, iOS) — the normal send (slash
+                // commands, `addUserMessage`+`sendMessage`) doesn't apply here:
+                // the text goes to `edit_message`, not `user_message`. Images
+                // attached in this state are ignored on purpose (editing a
+                // message with an image is out of scope for v1).
+                if (editTargetRef.current) {
+                  performEditRef.current(editTargetRef.current.id, text);
+                  return;
+                }
+                // `/model`/`/clear` (docs/26): recognized here, before becoming
+                // a turn — neither one gets passed as text to `claude -p` (see
+                // slashCommands.ts for the reason behind each). A command with
+                // an uncurated argument (`/model gpt4`) falls into the `else`,
+                // becomes a normal message and the CLI itself responds with its
+                // own error. Still recognized on iOS even without the
+                // autocomplete menu (see Composer.tsx) — there's no toolbar
+                // button there to change model/permission mode, so typing the
+                // command is the only way to do it on that platform.
+                const command = parseSlashCommand(text);
+                if (command?.name === "clear") {
+                  clearConversation();
+                  return;
+                }
+                if (command?.name === "model") {
+                  setModel(command.model);
+                  return;
+                }
+                log.addUserMessage(text, sentImages);
+                sendMessage(buildWireMessage(text, sentImages));
+                images.clearWithoutRevoke();
+                setTurnStartedAt(Date.now());
+                dismissSuggestion();
+                onActivity?.();
+              }}
+            />
 
-        {!isIOS() && (
-          <div className="mx-3 mb-3 flex items-center justify-between">
-            <div className="flex min-w-0 items-center gap-1.5">
-              <WorkingDirectoryButton
-                profile={profile}
-                cwd={cwd}
-                locked={cwdLocked}
-                connected={connected}
-                isNewConversation={isNewConversation}
-                onSetCwd={setCwd}
-                onFocusComposer={() => composerRef.current?.focus()}
-              />
-              <BackgroundJobIndicator jobs={backgroundJobs} onCancel={cancelBackgroundJob} />
-            </div>
-            <div className="flex shrink-0 items-center gap-1">
-              {files && <FilesToggleButton cwd={cwd} open={files.open} onToggle={files.onToggle} />}
-              {terminal && <TerminalToggleButton cwd={cwd} open={terminal.open} onToggle={terminal.onToggle} />}
-            </div>
+            {!isIOS() && (
+              <div className="mb-3 flex items-center justify-between">
+                <div className="flex min-w-0 items-center gap-1.5">
+                  <WorkingDirectoryButton
+                    profile={profile}
+                    cwd={cwd}
+                    locked={cwdLocked}
+                    connected={connected}
+                    isNewConversation={isNewConversation}
+                    onSetCwd={setCwd}
+                    onFocusComposer={() => composerRef.current?.focus()}
+                  />
+                  <BackgroundJobIndicator jobs={backgroundJobs} onCancel={cancelBackgroundJob} />
+                </div>
+                <div className="flex shrink-0 items-center gap-1">
+                  {files && <FilesToggleButton cwd={cwd} open={files.open} onToggle={files.onToggle} />}
+                  {terminal && <TerminalToggleButton cwd={cwd} open={terminal.open} onToggle={terminal.onToggle} />}
+                </div>
+              </div>
+            )}
           </div>
-        )}
+        </div>
       </div>
     </div>
   );

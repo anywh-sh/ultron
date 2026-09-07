@@ -443,7 +443,7 @@ export const MessageLog = memo(function MessageLog({
           <Loader2 className="size-4 animate-spin text-muted-foreground" />
         </div>
       )}
-      <div style={{ position: "relative", width: "100%", height: virtualizer.getTotalSize() }}>
+      <div className="mx-auto max-w-3xl" style={{ position: "relative", width: "100%", height: virtualizer.getTotalSize() }}>
         {virtualizer.getVirtualItems().map((virtualItem) => {
           const item = allItems[virtualItem.index];
           if (!item) return null;
