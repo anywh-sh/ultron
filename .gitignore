@@ -17,7 +17,7 @@ client/*.local.sh
 
 # decision history and planning docs — kept as local reference on the
 # author's machine, never published (see "Documentation" in CLAUDE.md)
-docs/
+journal/
 
 # os
 .DS_Store

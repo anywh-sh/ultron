@@ -51,6 +51,6 @@ Doutrina completa (o quê testar, onde cada tipo de teste mora, a única exceç�
 
 ## Documentação
 
-O `README.md` da raiz cobre o que é preciso pra rodar e contribuir. O histórico de decisão detalhado do projeto (o porquê de cada escolha de arquitetura) é mantido fora do repositório.
+O `README.md` da raiz cobre o que é preciso pra rodar e contribuir. O histórico de decisão detalhado do projeto (o porquê de cada escolha de arquitetura) mora em `journal/`, local e gitignored — nunca vai pro remote.
 
-Comentários no código citam esse histórico por número — `docs/08`, `docs/23` e assim por diante. Esses marcadores apontam pra fora do repo: o comentário em volta deles sempre carrega o achado em si, a referência é só a procedência. Ao escrever comentário novo, explica o porquê ali mesmo em vez de só citar um número.
+Comentários no código citam esse histórico por número — `docs/08`, `docs/23` e assim por diante — convenção antiga de quando a pasta ainda se chamava `docs/` (renomeada pra `journal/` em 2026-09-07 pra liberar `/docs` como espaço reservado a documentação futura de verdade, ex. um guia de instalação). Os marcadores continuam como estavam: apontam pra fora do repo, o comentário em volta deles carrega o achado em si, a referência é só a procedência — não vale a pena reescrever as centenas de citações existentes só pra bater com o nome novo da pasta. Ao escrever comentário novo que cite esse histórico, usa `journal/NN`.
