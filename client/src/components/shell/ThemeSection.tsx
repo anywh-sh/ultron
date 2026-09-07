@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { Check, Copy, Plus, Trash2 } from "lucide-react";
+import { Check, Copy, Pencil, Plus, Trash2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
   AlertDialog,
@@ -11,7 +11,7 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
-import { ThemeImportDialog } from "@/components/shell/ThemeImportDialog";
+import { ThemeImportDialog, type ThemeDialogIntent } from "@/components/shell/ThemeImportDialog";
 import { useThemes, useThemeSync } from "@/hooks/useThemes";
 import { isBuiltinTheme } from "@/lib/builtinThemes";
 import { addProfile, type Profile } from "@/lib/profiles";
@@ -50,6 +50,7 @@ function ThemeRow({
   selected,
   busy,
   onSelect,
+  onEdit,
   onDuplicate,
   onDelete,
 }: {
@@ -57,6 +58,8 @@ function ThemeRow({
   selected: boolean;
   busy: boolean;
   onSelect: () => void;
+  /** Absent for a built-in, which has no file on the host to rewrite. */
+  onEdit?: () => void;
   onDuplicate: () => void;
   onDelete?: () => void;
 }) {
@@ -84,6 +87,11 @@ function ThemeRow({
 
       <div className="flex shrink-0 items-center gap-1">
         {selected && <Check className="size-4 text-primary" />}
+        {onEdit && (
+          <Button variant="ghost" size="icon-sm" aria-label={`Editar ${theme.name}`} onClick={onEdit}>
+            <Pencil className="size-3.5" />
+          </Button>
+        )}
         <Button variant="ghost" size="icon-sm" aria-label={`Duplicar ou exportar ${theme.name}`} onClick={onDuplicate}>
           <Copy className="size-3.5" />
         </Button>
@@ -138,6 +146,7 @@ export function ThemeSection({
   const [error, setError] = useState<string | null>(null);
   const [importOpen, setImportOpen] = useState(false);
   const [importSeed, setImportSeed] = useState<string | undefined>(undefined);
+  const [importIntent, setImportIntent] = useState<ThemeDialogIntent>("import");
   const [pendingDelete, setPendingDelete] = useState<Theme | null>(null);
 
   async function selectTheme(theme: Theme): Promise<void> {
@@ -157,9 +166,20 @@ export function ThemeSection({
     }
   }
 
+  // Editing and duplicating are the same dialog: saving under the same id
+  // overwrites the file (the relay treats create and update as one
+  // operation), saving under a new one creates a second theme. The only
+  // difference is which id/name the JSON arrives with.
+  function edit(theme: Theme): void {
+    setImportSeed(themeAsJson(theme, theme.id, theme.name));
+    setImportIntent("edit");
+    setImportOpen(true);
+  }
+
   function duplicate(theme: Theme): void {
     const id = `${theme.id === "default" ? "meu-tema" : theme.id}-copia`.slice(0, 32);
     setImportSeed(themeAsJson(theme, id, `${theme.name} (cópia)`));
+    setImportIntent("duplicate");
     setImportOpen(true);
   }
 
@@ -214,6 +234,7 @@ export function ThemeSection({
             selected={theme.id === current.id && !missing}
             busy={busy}
             onSelect={() => void selectTheme(theme)}
+            onEdit={isBuiltinTheme(theme.id) ? undefined : () => edit(theme)}
             onDuplicate={() => duplicate(theme)}
             onDelete={isBuiltinTheme(theme.id) ? undefined : () => setPendingDelete(theme)}
           />
@@ -229,6 +250,7 @@ export function ThemeSection({
           className="self-start"
           onClick={() => {
             setImportSeed(undefined);
+            setImportIntent("import");
             setImportOpen(true);
           }}
         >
@@ -242,6 +264,7 @@ export function ThemeSection({
         onOpenChange={setImportOpen}
         profile={registry}
         initialJson={importSeed}
+        intent={importIntent}
         onImported={(theme) => void selectTheme(theme)}
       />
 

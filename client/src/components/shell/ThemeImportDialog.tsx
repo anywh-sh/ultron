@@ -16,10 +16,34 @@ interface ThemeImportDialogProps {
   onOpenChange: (open: boolean) => void;
   /** Whose host receives the theme — the registry is per machine. */
   profile: Profile;
-  /** Pre-filled JSON, for "duplicate this theme" — the realistic way to
-   * author one is to start from a theme that already works. */
+  /** Pre-filled JSON, for editing an existing theme or duplicating one —
+   * the realistic way to author a theme is to start from one that works. */
   initialJson?: string;
+  /** Only changes the wording. Editing and creating are the same request:
+   * saving under an existing id overwrites that theme, saving under a new
+   * one creates a second. */
+  intent?: ThemeDialogIntent;
   onImported: (theme: Theme) => void;
+}
+
+export type ThemeDialogIntent = "import" | "edit" | "duplicate";
+
+const COPY: Record<ThemeDialogIntent, { title: string; submit: string; hint: string }> = {
+  import: {
+    title: "Adicionar tema",
+    submit: "Adicionar",
+    hint: "Cole o JSON do tema ou escolha um arquivo.",
+  },
+  edit: {
+    title: "Editar tema",
+    submit: "Salvar",
+    hint: "Edite os valores e salve. Mudar o `id` cria um tema novo em vez de alterar este.",
+  },
+  duplicate: {
+    title: "Duplicar tema",
+    submit: "Criar cópia",
+    hint: "Cópia do tema com todos os tokens escritos. Ajuste o que quiser antes de salvar.",
+  },
 }
 
 /**
@@ -32,7 +56,15 @@ interface ThemeImportDialogProps {
  * round trip; the relay validates again and its errors land in the same
  * list, since it's the side that writes the file.
  */
-export function ThemeImportDialog({ open, onOpenChange, profile, initialJson, onImported }: ThemeImportDialogProps) {
+export function ThemeImportDialog({
+  open,
+  onOpenChange,
+  profile,
+  initialJson,
+  intent = "import",
+  onImported,
+}: ThemeImportDialogProps) {
+  const copy = COPY[intent];
   const [json, setJson] = useState(initialJson ?? "");
   const [errors, setErrors] = useState<ThemeValidationError[]>([]);
   const [saving, setSaving] = useState(false);
@@ -96,13 +128,13 @@ export function ThemeImportDialog({ open, onOpenChange, profile, initialJson, on
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="sm:max-w-lg">
         <DialogHeader>
-          <DialogTitle>Adicionar tema</DialogTitle>
+          <DialogTitle>{copy.title}</DialogTitle>
         </DialogHeader>
 
         <div className="flex flex-col gap-3">
           <p className="text-xs text-muted-foreground">
-            Cole o JSON do tema ou escolha um arquivo. O tema fica salvo em {profile.host} e pode ser
-            usado por qualquer perfil desse servidor.
+            {copy.hint} O tema fica salvo em {profile.host} e pode ser usado por qualquer perfil desse
+            servidor.
           </p>
 
           <textarea
@@ -170,7 +202,7 @@ export function ThemeImportDialog({ open, onOpenChange, profile, initialJson, on
                 Cancelar
               </Button>
               <Button size="sm" disabled={saving || json.trim().length === 0} onClick={() => void handleSubmit()}>
-                {saving ? "Salvando…" : "Adicionar"}
+                {saving ? "Salvando…" : copy.submit}
               </Button>
             </div>
           </div>
