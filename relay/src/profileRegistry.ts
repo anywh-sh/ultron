@@ -1,0 +1,204 @@
+import { connect, createServer } from "node:net";
+import { existsSync, readdirSync, readFileSync } from "node:fs";
+import { homedir } from "node:os";
+import { dirname, join, resolve } from "node:path";
+
+// Host-side registry of relay profiles (docs/45) — every profile this
+// machine can run, independent of which one the current process happens to
+// be. `homedir()`, never `process.env.HOME`: the current process may itself
+// be running with an overridden `$HOME` (a `trabalho` instance), but the
+// registry always lives under the real user's home.
+//
+// Mirror of ENV_DIR in infra/lib.sh — keep both in sync (systemd's
+// `EnvironmentFile` can't share this constant across the language boundary).
+export const ENV_DIR = process.env.ULTRON_ENV_DIR ?? join(homedir(), ".config/ultron/env");
+
+const PROFILE_ID_PATTERN = /^[a-z0-9][a-z0-9-]*$/;
+
+export interface HostProfile {
+  id: string;
+  label: string;
+  colorIndex: number;
+  host: string;
+  port: number;
+  hasHomeOverride: boolean;
+  running: boolean;
+}
+
+interface ProfileMeta {
+  id: string;
+  label: string;
+  colorIndex?: number;
+  createdAt: string;
+  updatedAt: string;
+}
+
+interface ProfilesJson {
+  version: 1;
+  profiles: ProfileMeta[];
+}
+
+export function envFileFor(id: string, envDir: string = ENV_DIR): string {
+  return join(envDir, `${id}.env`);
+}
+
+export function isValidProfileId(id: string): boolean {
+  return id.length > 0 && id.length <= 32 && PROFILE_ID_PATTERN.test(id);
+}
+
+/** NFD + strip accents, lowercase, non-alphanumeric collapsed to `-`, capped
+ * at 32 chars, suffixed with `-2`/`-3`... on collision with `taken`. Runs on
+ * the relay, not the client: the relay owns the filesystem namespace and is
+ * the only side that can check collisions without a race. */
+export function slugify(label: string, taken: string[]): string {
+  const base =
+    label
+      .normalize("NFD")
+      .replace(/[\u0300-\u036f]/g, "")
+      .toLowerCase()
+      .replace(/[^a-z0-9]+/g, "-")
+      .replace(/^-+|-+$/g, "")
+      .slice(0, 32) || "profile";
+
+  if (!taken.includes(base)) return base;
+  for (let suffix = 2; ; suffix++) {
+    const candidate = `${base}-${suffix}`;
+    if (!taken.includes(candidate)) return candidate;
+  }
+}
+
+function parseEnvFile(content: string): Record<string, string> {
+  const values: Record<string, string> = {};
+  for (const line of content.split("\n")) {
+    const trimmed = line.trim();
+    if (!trimmed || trimmed.startsWith("#")) continue;
+    const separator = trimmed.indexOf("=");
+    if (separator === -1) continue;
+    values[trimmed.slice(0, separator)] = trimmed.slice(separator + 1);
+  }
+  return values;
+}
+
+function listEnvIds(envDir: string): string[] {
+  if (!existsSync(envDir)) return [];
+  return readdirSync(envDir)
+    .filter((name) => name.endsWith(".env"))
+    .map((name) => name.slice(0, -".env".length));
+}
+
+function readEnvFile(id: string, envDir: string): Record<string, string> | undefined {
+  const path = envFileFor(id, envDir);
+  if (!existsSync(path)) return undefined;
+  return parseEnvFile(readFileSync(path, "utf8"));
+}
+
+function readProfilesJson(envDir: string): ProfilesJson {
+  const path = join(dirname(envDir), "profiles.json");
+  if (!existsSync(path)) return { version: 1, profiles: [] };
+  try {
+    const parsed: unknown = JSON.parse(readFileSync(path, "utf8"));
+    if (
+      typeof parsed === "object" &&
+      parsed !== null &&
+      (parsed as { version?: unknown }).version === 1 &&
+      Array.isArray((parsed as { profiles?: unknown }).profiles)
+    ) {
+      return parsed as ProfilesJson;
+    }
+  } catch {
+    // Falls through to the empty registry below — a corrupt profiles.json
+    // shouldn't take down `GET /control/profiles` for every profile.
+  }
+  return { version: 1, profiles: [] };
+}
+
+/** Absolute path, `~` expanded, trailing slash stripped — so the same real
+ * `$HOME` written two different ways in two `.env` files still compares
+ * equal. Absence of `RELAY_HOME_OVERRIDE` means the real `$HOME`, which is a
+ * concrete value for this comparison, not "no override to compare". */
+function normalizeHomeOverride(homeOverride: string | undefined): string {
+  if (!homeOverride) return resolve(homedir());
+  const expanded = homeOverride.startsWith("~") ? join(homedir(), homeOverride.slice(1)) : homeOverride;
+  return resolve(expanded);
+}
+
+export function findHomeOverrideCollision(homeOverride: string | undefined, envDir: string = ENV_DIR): string | undefined {
+  const target = normalizeHomeOverride(homeOverride);
+  for (const id of listEnvIds(envDir)) {
+    const env = readEnvFile(id, envDir);
+    if (!env) continue;
+    if (normalizeHomeOverride(env.RELAY_HOME_OVERRIDE) === target) return id;
+  }
+  return undefined;
+}
+
+function isPortOpen(host: string, port: number): Promise<boolean> {
+  return new Promise((resolveProbe) => {
+    const socket = connect({ host, port, timeout: 300 });
+    const finish = (open: boolean) => {
+      socket.destroy();
+      resolveProbe(open);
+    };
+    socket.once("connect", () => finish(true));
+    socket.once("timeout", () => finish(false));
+    socket.once("error", () => finish(false));
+  });
+}
+
+/** `GET /control/profiles` — a profile that exists as a `.env` file but
+ * isn't in `profiles.json` yet (true of every profile until the first
+ * create/edit through this registry) is still valid: label falls back to
+ * `id`, `colorIndex` to position in the list. */
+export async function listProfiles(envDir: string = ENV_DIR): Promise<HostProfile[]> {
+  const ids = listEnvIds(envDir);
+  const metaById = new Map(readProfilesJson(envDir).profiles.map((meta) => [meta.id, meta]));
+
+  return Promise.all(
+    ids.flatMap((id, index) => {
+      const env = readEnvFile(id, envDir);
+      if (!env?.RELAY_PORT) return [];
+      const port = Number(env.RELAY_PORT);
+      if (!Number.isFinite(port)) return [];
+      const host = env.RELAY_HOST ?? "127.0.0.1";
+      const meta = metaById.get(id);
+      return isPortOpen(host, port).then((running) => ({
+        id,
+        label: meta?.label ?? id,
+        colorIndex: meta?.colorIndex ?? index,
+        host,
+        port,
+        hasHomeOverride: Boolean(env.RELAY_HOME_OVERRIDE),
+        running,
+      }));
+    }),
+  );
+}
+
+const PORT_RANGE_START = 8765;
+const PORT_RANGE_END = 8865;
+
+function canBind(port: number): Promise<boolean> {
+  return new Promise((resolveProbe) => {
+    const server = createServer();
+    server.once("error", () => resolveProbe(false));
+    server.listen(port, "127.0.0.1", () => server.close(() => resolveProbe(true)));
+  });
+}
+
+/** Scans existing `.env` files *and* test-binds the candidate — scanning
+ * alone would keep handing out the port of a profile that's just stopped
+ * right now; binding alone would re-hand-out the port of a profile that's
+ * merely stopped at the moment (see docs/45 "armadilhas confirmadas"). */
+export async function allocatePort(envDir: string = ENV_DIR): Promise<number> {
+  const claimed = new Set(
+    listEnvIds(envDir)
+      .map((id) => Number(readEnvFile(id, envDir)?.RELAY_PORT))
+      .filter((port) => Number.isFinite(port)),
+  );
+  for (let port = PORT_RANGE_START; port < PORT_RANGE_END; port++) {
+    if (claimed.has(port)) continue;
+    if (await canBind(port)) return port;
+  }
+  throw new Error(`no free relay port available in ${PORT_RANGE_START}-${PORT_RANGE_END}`);
+}
+

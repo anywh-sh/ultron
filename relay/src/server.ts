@@ -1,11 +1,15 @@
+import { spawn } from "node:child_process";
 import { createReadStream } from "node:fs";
 import { createServer } from "node:http";
 import { WebSocketServer, type WebSocket } from "ws";
+import { buildChildEnv } from "./claudeSession.js";
+import { CLAUDE_BIN } from "./claudeCliConfig.js";
 import { detectDefaultModel, type DefaultModelInfo } from "./defaultModel.js";
 import { listDirectories } from "./fsBrowse.js";
 import { listFiles, readFileForViewer, resolveRawFile, type FilesError } from "./fsFiles.js";
 import { FilesWatchSession } from "./fsWatch.js";
 import { defaultCwd } from "./paths.js";
+import { findHomeOverrideCollision, listProfiles } from "./profileRegistry.js";
 import { SessionManager } from "./sessionManager.js";
 import { SessionStore, type ModelChoice, type PermissionMode } from "./sessionStore.js";
 import { killAllTerminalsForSession, killTerminal, scrollTerminal, spawnTerminal } from "./terminalSession.js";
@@ -203,6 +207,55 @@ function readJsonBody(req: import("node:http").IncomingMessage): Promise<unknown
   });
 }
 
+/** Same as `readJsonBody`, but an empty/absent body is valid here (means
+ * "use the real $HOME") rather than a 400 — unlike every other route below,
+ * `/control/profiles/validate`'s whole body is optional. */
+function readOptionalJsonBody(req: import("node:http").IncomingMessage): Promise<Record<string, unknown>> {
+  return readJsonBody(req)
+    .then((value) => (typeof value === "object" && value !== null ? (value as Record<string, unknown>) : {}))
+    .catch(() => ({}));
+}
+
+const CLAUDE_AUTH_STATUS_TIMEOUT_MS = 5000;
+
+interface ClaudeAuthStatus {
+  loggedIn: boolean;
+  email?: string;
+  subscriptionType?: string;
+}
+
+/** Runs `claude auth status --json` under the given `$HOME` — reuses
+ * `buildChildEnv` (strips `ANTHROPIC_API_KEY`, patches `PATH`) for the exact
+ * reason a real turn does: without the `PATH` patch the binary isn't found
+ * under systemd's minimal `PATH`, and with `ANTHROPIC_API_KEY` present this
+ * would report `loggedIn: true` via API key — the false positive this check
+ * exists to prevent (docs/45). */
+function runClaudeAuthStatus(homeOverride: string | undefined): Promise<ClaudeAuthStatus> {
+  return new Promise((resolveStatus, rejectStatus) => {
+    const child = spawn(CLAUDE_BIN, ["auth", "status", "--json"], { env: buildChildEnv(homeOverride) });
+    let stdout = "";
+    const timeout = setTimeout(() => {
+      child.kill();
+      rejectStatus(new Error("claude auth status timed out"));
+    }, CLAUDE_AUTH_STATUS_TIMEOUT_MS);
+    child.stdout.on("data", (chunk: Buffer) => {
+      stdout += chunk.toString("utf8");
+    });
+    child.on("error", (error) => {
+      clearTimeout(timeout);
+      rejectStatus(error);
+    });
+    child.on("close", () => {
+      clearTimeout(timeout);
+      try {
+        resolveStatus(JSON.parse(stdout) as ClaudeAuthStatus);
+      } catch (error) {
+        rejectStatus(error instanceof Error ? error : new Error(String(error)));
+      }
+    });
+  });
+}
+
 const sessionStore = new SessionStore(SESSIONS_FILE, defaultCwd(HOME_OVERRIDE));
 const sessionManager = new SessionManager(HOME_OVERRIDE, sessionStore, BACKGROUND_JOBS_FILE);
 
@@ -326,6 +379,39 @@ const httpServer = createServer((req, res) => {
         res.writeHead(400);
         res.end(JSON.stringify({ error: "invalid body" }));
       });
+    return;
+  }
+
+  if (req.method === "GET" && req.url?.startsWith("/control/profiles")) {
+    res.setHeader("Content-Type", "application/json");
+    res.setHeader("Access-Control-Allow-Origin", "*");
+    listProfiles()
+      .then((profiles) => res.end(JSON.stringify({ profiles })))
+      .catch((error: unknown) => {
+        console.error("[relay] failed to list profiles:", error);
+        res.writeHead(500);
+        res.end(JSON.stringify({ error: "failed to list profiles" }));
+      });
+    return;
+  }
+
+  if (req.method === "POST" && req.url?.startsWith("/control/profiles/validate")) {
+    res.setHeader("Content-Type", "application/json");
+    res.setHeader("Access-Control-Allow-Origin", "*");
+    readOptionalJsonBody(req).then(async (body) => {
+      const homeOverride = typeof body.homeOverride === "string" && body.homeOverride.length > 0 ? body.homeOverride : undefined;
+      let status: ClaudeAuthStatus;
+      try {
+        status = await runClaudeAuthStatus(homeOverride);
+      } catch (error) {
+        console.error("[relay] claude auth status check failed:", error);
+        res.writeHead(502);
+        res.end(JSON.stringify({ error: "failed to check claude auth status" }));
+        return;
+      }
+      const collidesWith = findHomeOverrideCollision(homeOverride);
+      res.end(JSON.stringify(collidesWith ? { ...status, collidesWith } : status));
+    });
     return;
   }
 
