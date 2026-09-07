@@ -87,6 +87,10 @@ Nothing here is automated — it's network setup you do once, with your own acco
 
 **The catch nobody mentions: the relay machine has to stay powered on and awake.** Your session lives on that machine; if it sleeps, the app has nothing to connect to. This is true on your LAN too, but it only becomes obvious once you're away from home.
 
+## A note on `docs/NN` references
+
+Comments across the codebase cite the project's decision history by number (`docs/08`, `docs/23`, ...). That history isn't published — the markers are provenance, not links. The comment around each one carries the actual finding.
+
 ## License
 
 [Apache License 2.0](./LICENSE).

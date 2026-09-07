@@ -43,3 +43,5 @@ Tudo que não for texto de UI precisa estar em inglês, mesmo quando a conversa 
 ## Documentação
 
 O `README.md` da raiz cobre o que é preciso pra rodar e contribuir. O histórico de decisão detalhado do projeto (o porquê de cada escolha de arquitetura) é mantido fora do repositório.
+
+Comentários no código citam esse histórico por número — `docs/08`, `docs/23` e assim por diante. Esses marcadores apontam pra fora do repo: o comentário em volta deles sempre carrega o achado em si, a referência é só a procedência. Ao escrever comentário novo, explica o porquê ali mesmo em vez de só citar um número.
