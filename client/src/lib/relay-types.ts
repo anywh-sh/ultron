@@ -262,6 +262,10 @@ export interface RemoteProfile {
   port: number;
   hasHomeOverride: boolean;
   running: boolean;
+  /** Custom theme this profile uses, absent for the built-in one. Comes
+   * from the host registry rather than local settings so the choice follows
+   * the profile to every device (relay/src/profileRegistry.ts). */
+  themeId?: string;
 }
 
 /** Response of `POST /control/profiles/validate` — passes through whatever

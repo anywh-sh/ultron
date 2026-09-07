@@ -16,6 +16,7 @@ import type {
   RemoteProfile,
   SessionSummary,
 } from "@/lib/relay-types";
+import type { Theme, ThemeValidationError } from "@/lib/theme";
 import { recordAvailableModels } from "@/lib/modelCatalog";
 
 export type {
@@ -145,15 +146,16 @@ export async function createProfile(host: string, port: number, label: string, h
   return body;
 }
 
-/** Renames/recolors a profile on its own relay — safe to call on the
- * profile being edited (unlike `deleteProfile`): this only writes JSON, it
- * never touches the running process. `id` is immutable, never part of the
- * body. */
+/** Renames/recolors/re-themes a profile on its own relay — safe to call on
+ * the profile being edited (unlike `deleteProfile`): this only writes JSON,
+ * it never touches the running process. `id` is immutable, never part of
+ * the body. `themeId: null` clears the theme back to the built-in, which is
+ * why it isn't just omitted. */
 export async function updateProfileMeta(
   host: string,
   port: number,
   id: string,
-  patch: { label?: string; colorIndex?: number },
+  patch: { label?: string; colorIndex?: number; themeId?: string | null },
 ): Promise<ProfileMetaUpdate> {
   const response = await fetch(`http://${host}:${port}/control/profiles/${encodeURIComponent(id)}`, {
     method: "PATCH",
@@ -165,6 +167,63 @@ export async function updateProfileMeta(
     throw new Error(body.error ?? `failed to update profile (${String(response.status)})`);
   }
   return body;
+}
+
+/** Every custom theme registered on this host. Host-wide, not per-profile:
+ * the same theme is selectable from any profile on the machine
+ * (relay/src/themeRegistry.ts). Throws on an older relay that doesn't have
+ * the route, which is how `useThemeSync` tells "no custom themes" apart
+ * from "this host can't store them". */
+export async function fetchThemes(host: string, port: number): Promise<Theme[]> {
+  const response = await fetch(`http://${host}:${port}/control/themes`);
+  if (!response.ok) {
+    throw new Error(`failed to list themes (${String(response.status)})`);
+  }
+  const body = (await response.json()) as { themes?: Theme[] };
+  return body.themes ?? [];
+}
+
+/** Creates or overwrites a theme on `host`. The relay revalidates and, on a
+ * broken file, answers with one error per field — surfaced here as
+ * `ThemeSaveError.errors` so the import UI can point at the offending line
+ * instead of showing one flat message. */
+export async function saveTheme(host: string, port: number, theme: Theme): Promise<Theme> {
+  const response = await fetch(`http://${host}:${port}/control/themes/${encodeURIComponent(theme.id)}`, {
+    method: "PUT",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(theme),
+  });
+  const body = (await response.json().catch(() => ({}))) as Theme & {
+    error?: string;
+    errors?: ThemeValidationError[];
+  };
+  if (!response.ok) {
+    throw new ThemeSaveError(body.error ?? `failed to save theme (${String(response.status)})`, body.errors ?? []);
+  }
+  return body;
+}
+
+export class ThemeSaveError extends Error {
+  constructor(
+    message: string,
+    readonly errors: ThemeValidationError[],
+  ) {
+    super(message);
+    this.name = "ThemeSaveError";
+  }
+}
+
+/** Removes a theme from the host registry. Profiles still pointing at it
+ * keep the dangling `themeId` on purpose (see themeRegistry.ts) — they fall
+ * back to the built-in theme and recover the choice if it's added back. */
+export async function deleteTheme(host: string, port: number, id: string): Promise<void> {
+  const response = await fetch(`http://${host}:${port}/control/themes/${encodeURIComponent(id)}`, {
+    method: "DELETE",
+  });
+  if (!response.ok) {
+    const body = (await response.json().catch(() => ({}))) as { error?: string };
+    throw new Error(body.error ?? `failed to delete theme (${String(response.status)})`);
+  }
 }
 
 /** Deletes a profile from the host's registry (`.env` + `profiles.json` +

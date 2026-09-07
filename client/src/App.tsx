@@ -25,6 +25,7 @@ import { useTerminalTabs } from "@/hooks/useTerminalTabs";
 import { useFileTabs } from "@/hooks/useFileTabs";
 import { useWindowFocus } from "@/hooks/useWindowFocus";
 import { useNotificationClick } from "@/hooks/useNotificationClick";
+import { useActiveTheme, useThemeSync } from "@/hooks/useThemes";
 import { findProfile, getProfiles } from "@/lib/profiles";
 import { ensureNotificationPermission, notifyTurnComplete } from "@/lib/notifications";
 import { deleteSession, renameSession } from "@/lib/relayClient";
@@ -50,6 +51,12 @@ export default function App() {
   const fileTabs = useFileTabs();
   const nav = useNavigationHistory();
   const windowFocused = useWindowFocus();
+  // The theme is app-wide, so it's painted here rather than anywhere that
+  // renders a profile: which theme applies is a property of the profile in
+  // front of you (`Profile.themeId`, mirrored from the host registry), and
+  // the catalog it resolves against is that profile's host.
+  useThemeSync(activeProfile);
+  useActiveTheme(activeProfile);
 
   const [drawerOpen, setDrawerOpen] = useState(false);
   const [searchOpen, setSearchOpen] = useState(false);

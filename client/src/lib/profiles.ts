@@ -15,6 +15,10 @@ export interface Profile {
    * whole list at creation time. Absent on profiles created before this
    * field existed — fall back to the position in the list. */
   colorIndex?: number;
+  /** Custom theme this profile uses, absent for the built-in one. Mirrored
+   * from the host registry on every sync (never written locally on its own)
+   * so switching theme on one device shows up on the others. */
+  themeId?: string;
 }
 
 const STORAGE_KEY = "ultron:profiles";
@@ -147,6 +151,7 @@ export function syncProfilesForHost(host: string, remote: RemoteProfile[]): void
       host: entry.host,
       relayPort: entry.port,
       colorIndex: entry.colorIndex,
+      themeId: entry.themeId,
     })),
   ];
   if (merged.length === 0) return;
