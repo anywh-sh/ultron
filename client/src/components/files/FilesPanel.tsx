@@ -172,7 +172,12 @@ export function FilesPanel({ profile, chatSessionId, maximized, fileTabs, onTogg
   const { isDragging, startDrag } = useTreeWidthDrag(treeWidth, (width) => fileTabs.setTreeWidth(chatSessionId, width));
 
   const openPaths = useMemo(() => open.map((tab) => tab.path), [open]);
-  const { dirChanged, fileChanged } = useFilesWatch(profile, chatSessionId, expanded, openPaths);
+  // The root's children render unconditionally (FileTree) so it's always
+  // visible even though it's never itself an entry in `expanded` — the watch
+  // needs to cover it too, or changes made directly at the session's cwd
+  // (not inside any expanded subfolder) never surface without a full reopen.
+  const watchedDirs = useMemo(() => (root ? [root, ...expanded] : expanded), [root, expanded]);
+  const { dirChanged, fileChanged } = useFilesWatch(profile, chatSessionId, watchedDirs, openPaths);
 
   if (!root) {
     return (
