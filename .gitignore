@@ -15,10 +15,6 @@ client/src-tauri/gen/
 # e.g. a physical iOS device name, never meant to be shared
 client/*.local.sh
 
-# decision history and planning docs — kept as local reference on the
-# author's machine, never published (see "Documentation" in CLAUDE.md)
-journal/
-
 # os
 .DS_Store
 Screenshot*.png

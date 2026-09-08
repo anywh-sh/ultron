@@ -128,7 +128,7 @@ Nothing here is automated — it's network setup you do once, with your own acco
 
 ## A note on `docs/NN` references
 
-Comments across the codebase cite the project's decision history by number (`docs/08`, `docs/23`, ...). That history lives in `journal/` (renamed from `docs/` in 2026-09-07, freeing up `/docs` for future real documentation, e.g. an install guide) — it isn't published, and the existing citations were left as-is rather than rewritten to match. The markers are provenance, not links. The comment around each one carries the actual finding.
+Comments across the codebase cite the project's decision history by number (`docs/08`, `docs/23`, ...). That history lives in `journal/`, one level above this repo (renamed from `docs/` in 2026-09-07, freeing up `/docs` for future real documentation, e.g. an install guide; moved out of this repo in 2026-09-08 when the workspace grew sibling private repos) — it isn't published, and the existing citations were left as-is rather than rewritten to match. The markers are provenance, not links. The comment around each one carries the actual finding.
 
 ## License
 
