@@ -66,4 +66,22 @@ describe("syncProfilesForHost", () => {
 
     expect(getProfiles()).toEqual([only]);
   });
+
+  it("regression: a sync that reports the same data back is a no-op on the array/object identity, not just the values", () => {
+    // useForegroundSync (client/src/hooks/useForegroundSync.ts) reruns this
+    // every 30s and on window focus. Before this fix, every successful sync
+    // replaced the array and every Profile object with fresh identities even
+    // when nothing changed, so anything keyed on `profile` (e.g. FileViewer's
+    // fetch effect, client/src/components/files/FileViewer.tsx) re-ran and
+    // flashed its loading state, dropping scroll position, on every poll.
+    const existing: Profile = { id: "pessoal", label: "Pessoal", host: "100.64.0.1", relayPort: 8765, colorIndex: 2 };
+    setProfiles([existing]);
+    const listBefore = getProfiles();
+    const profileBefore = listBefore[0];
+
+    syncProfilesForHost("100.64.0.1", [remote({ id: "pessoal", host: "100.64.0.1", label: "Pessoal", colorIndex: 2, port: 8765 })]);
+
+    expect(getProfiles()).toBe(listBefore);
+    expect(getProfiles()[0]).toBe(profileBefore);
+  });
 });

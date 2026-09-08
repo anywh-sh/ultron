@@ -119,6 +119,30 @@ export function removeProfile(id: string): boolean {
 // instead).
 const LOOPBACK_HOSTS = new Set(["127.0.0.1", "localhost", "::1"]);
 
+function profileFieldsEqual(a: Profile, b: Profile): boolean {
+  return (
+    a.id === b.id &&
+    a.label === b.label &&
+    a.host === b.host &&
+    a.relayPort === b.relayPort &&
+    a.colorIndex === b.colorIndex &&
+    a.themeId === b.themeId
+  );
+}
+
+/** Order-insensitive comparison — `merged` below (`syncProfilesForHost`) can
+ * reorder entries (the remote-host slice is always appended last) even when
+ * nothing actually changed, so a positional comparison would false-positive
+ * on every sync. */
+function profileListsEqual(a: Profile[], b: Profile[]): boolean {
+  if (a.length !== b.length) return false;
+  const byId = new Map(a.map((p) => [p.id, p]));
+  return b.every((p) => {
+    const existing = byId.get(p.id);
+    return existing !== undefined && profileFieldsEqual(existing, p);
+  });
+}
+
 /** Mirrors `host`'s `GET /control/profiles` onto the local list — the only
  * write path now that profiles are auto-synced instead of manually
  * imported (see `useProfileSync`). Replaces entries for `host`, plus any
@@ -155,6 +179,13 @@ export function syncProfilesForHost(host: string, remote: RemoteProfile[]): void
     })),
   ];
   if (merged.length === 0) return;
+  // Every sync builds a brand-new array/objects regardless of whether the
+  // host actually reported anything different — without this check,
+  // `setProfiles` would hand every consumer a fresh `Profile` reference on
+  // each poll (`useForegroundSync`, every 30s or on window focus), and
+  // anything keyed on that reference (e.g. `FileViewer`'s fetch effect)
+  // would re-run and flash even though nothing changed.
+  if (profileListsEqual(profiles, merged)) return;
   setProfiles(merged);
 }
 
