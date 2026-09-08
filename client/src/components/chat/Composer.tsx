@@ -117,11 +117,21 @@ const WAVEFORM_BARS = [0, 1, 2, 3, 4];
  * boundary before typing plain text again. False matches how a finished
  * link should behave: typing right after it, including the triggering
  * space, starts as plain text with no extra keypress needed.
+ *
+ * `shouldAutoLink` narrows both autolink-while-typing and paste-to-link
+ * (same callback, called with linkifyjs's raw match — the typed/pasted
+ * text before `defaultProtocol` gets prepended for the href) to matches
+ * that already spell out a scheme. Without it, linkifyjs's bare-domain
+ * detection turns plain text like `test.md` into a link to `http://test.md`
+ * on nothing more than `.md` being a registered TLD (Moldova) — surprising
+ * for a filename that just happens to share an extension with one.
  */
+const REQUIRES_EXPLICIT_PROTOCOL = /^[a-zA-Z][a-zA-Z\d+.-]*:/;
 const ComposerLink = Link.extend({ inclusive: false }).configure({
   autolink: true,
   linkOnPaste: true,
   openOnClick: false,
+  shouldAutoLink: (url) => REQUIRES_EXPLICIT_PROTOCOL.test(url),
   HTMLAttributes: { class: "composer-link", rel: "noopener noreferrer nofollow" },
 });
 
