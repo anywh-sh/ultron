@@ -923,6 +923,22 @@ export const httpServer = createServer((req, res) => {
   res.end();
 });
 
+// Real-session finding (2026-09-09): the `present_choice`/permission-approval
+// MCP bridges (mcpBridge.ts, permissionBridge.ts) hold a `tools/call` POST
+// open for as long as a human takes to answer — genuinely minutes, not
+// milliseconds. Node's `http.Server` has defaulted `requestTimeout` to
+// 300000ms (5 minutes) since Node 18: past that, Node itself would abort
+// the request on its own, regardless of anything passed to the `claude`
+// child's own `--mcp-config`. Kept disabled here as a reasonable safety
+// measure (every other route on this server responds in milliseconds, so
+// this costs nothing) — but live testing (journal/46 Descoberta 8) showed
+// this was NOT the actual cause of the real "The operation timed out"
+// failure a session hit at ~5m53s: an isolated reproduction with this exact
+// override applied still failed at ~6 minutes. The real culprit is still
+// unidentified, tracked as an open upstream CLI limitation — see
+// `sharedSession.ts`'s `mcpServers` comment for the full investigation.
+httpServer.requestTimeout = 0;
+
 export const wss = new WebSocketServer({ server: httpServer });
 
 httpServer.listen(PORT, HOST, () => {
@@ -955,6 +971,12 @@ if (HOST !== "127.0.0.1") {
     if (handleBridgeRequest(req, res)) return;
     res.writeHead(404).end();
   });
+  // This is the server that actually carries `present_choice`/permission
+  // `tools/call` traffic for every profile where it exists (`HOST !==
+  // "127.0.0.1"` — i.e. every real deployed profile, journal/46) — see the
+  // matching comment on `httpServer.requestTimeout` above for why this is
+  // disabled here too (and why it turned out not to be the real fix).
+  loopbackServer.requestTimeout = 0;
   loopbackServer.listen(PORT, "127.0.0.1", () => {
     console.log(`[relay] mcp/permission bridge also listening on http://127.0.0.1:${PORT} (local-only, for own children)`);
   });

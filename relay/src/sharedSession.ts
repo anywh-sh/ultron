@@ -857,25 +857,41 @@ export class SharedSession {
     // MCP servers is 5 minutes (undocumented in `--help`, confirmed against
     // the CLI's own docs), well inside how long a human can plausibly take
     // to notice a prompt and answer it — the panel was observed disappearing
-    // out from under the human mid-decision. `timeout` here overrides that
-    // per server (also acts as a floor under the idle timeout, per the same
-    // docs) instead of the blanket `CLAUDE_CODE_MCP_TOOL_IDLE_TIMEOUT` env
-    // var, which would also loosen the timeout for any unrelated MCP server
-    // the user has configured on their own account.
+    // out from under the human mid-decision. `timeout` here is meant to
+    // override that per server (also acts as a floor under the idle
+    // timeout, per the same docs).
     //
-    // `alwaysLoad` is the other half of the same real-session finding: the
-    // CLI's MCP tool search can leave `present_choice` listed by name only,
-    // schema deferred, and a follow-up system-prompt reminder telling the
-    // model to `ToolSearch` for it before calling it was observed live to
-    // still get skipped (docs/46) — the model had that exact instruction in
-    // context and didn't reach for it anyway, a prompt-adherence gap no
-    // wording reliably closes. `alwaysLoad: true` sidesteps the model's
-    // choice entirely: the CLI docs confirm it keeps a server's tools out of
-    // deferral regardless of `ENABLE_TOOL_SEARCH`, so both tools arrive with
-    // full schema already loaded, same as a built-in tool — nothing to
-    // discover, nothing to forget to search for. Both servers qualify for
-    // the doc's own stated use case ("a small number of tools that Claude
-    // needs on every turn").
+    // UPDATE (2026-09-09, journal/46 Descoberta 8): this override does NOT
+    // actually work — confirmed live, a `present_choice` call that never
+    // resolves still errors out with "The operation timed out" at ~6
+    // minutes with this field set to 24h, matching a known upstream
+    // regression (per-server `timeout` silently ignored for HTTP transport
+    // since CLI v2.1.113). Two more mitigations were tried and also failed
+    // live at the same ~6-minute mark: `requestTimeout = 0` on both of this
+    // relay's own HTTP servers (server.ts, ruling out our own server as the
+    // culprit) and `CLAUDE_CODE_MCP_TOOL_IDLE_TIMEOUT=0` as an env var on
+    // the child (claudeSession.ts's `buildChildEnv`, a separate code path
+    // from this JSON field, confirmed reaching the child's env and still
+    // not preventing the timeout). All three are kept here anyway — they
+    // cost nothing and may start working if Anthropic fixes the underlying
+    // CLI bug(s) — but treat this as an OPEN, unfixed limitation of the CLI
+    // itself, not a solved problem: `present_choice` and permission-approval
+    // will still degrade to a plain-text question after ~6 minutes of no
+    // human answer. See journal/46 Descoberta 8 for the full investigation.
+    //
+    // `alwaysLoad` is a separate, CONFIRMED-working fix for a different bug
+    // in the same area: the CLI's MCP tool search can leave `present_choice`
+    // listed by name only, schema deferred, and a follow-up system-prompt
+    // reminder telling the model to `ToolSearch` for it before calling it
+    // was observed live to still get skipped (journal/46) — the model had
+    // that exact instruction in context and didn't reach for it anyway, a
+    // prompt-adherence gap no wording reliably closes. `alwaysLoad: true`
+    // sidesteps the model's choice entirely: the CLI docs confirm it keeps
+    // a server's tools out of deferral regardless of `ENABLE_TOOL_SEARCH`,
+    // so both tools arrive with full schema already loaded, same as a
+    // built-in tool — nothing to discover, nothing to forget to search for.
+    // Both servers qualify for the doc's own stated use case ("a small
+    // number of tools that Claude needs on every turn").
     const HUMAN_RESPONSE_TIMEOUT_MS = 24 * 60 * 60 * 1000;
     const mcpServers: Record<string, { type: "http"; url: string; timeout: number; alwaysLoad: true }> = {};
     if (choiceRegistration) {

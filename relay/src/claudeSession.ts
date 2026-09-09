@@ -64,6 +64,26 @@ export function buildChildEnv(homeOverride: string | undefined): NodeJS.ProcessE
     env.HOME = homeOverride;
   }
   env.PATH = [...EXTRA_PATH_DIRS, env.PATH ?? ""].join(":");
+  // Real-session finding (2026-09-09): the per-server `timeout` field in
+  // `--mcp-config` (sharedSession.ts, mcpServers) is a documented, confirmed
+  // regression in this CLI generation — silently ignored for `"http"`-type
+  // servers, which is exactly `ultron-choice`/`ultron-permission`'s
+  // transport (mcpBridge.ts, permissionBridge.ts). Verified live: a
+  // never-resolving `present_choice` call still errored with "The operation
+  // timed out" at ~6 minutes with that field set to 24h.
+  // `CLAUDE_CODE_MCP_TOOL_IDLE_TIMEOUT` isn't documented as broken the same
+  // way, so set to `0` here too (disables the check entirely, not just
+  // raises it) as an env var instead — a separate code path in the CLI from
+  // the JSON field, and confirmed via a debug log to actually reach the
+  // child's env this time. It STILL didn't help: same live test, same ~6
+  // minute failure. Kept anyway (harmless, forward-compatible if the
+  // underlying CLI bug ever gets fixed) but this is an open, unresolved
+  // upstream limitation, not something this env var actually fixes today —
+  // full investigation in journal/46 Descoberta 8. Applies to every child
+  // this function builds env for (this turn's `claude -p`, and the
+  // interactive terminal in terminalSession.ts) — harmless outside an MCP
+  // tool call actually waiting on a human, so no reason to scope it tighter.
+  env.CLAUDE_CODE_MCP_TOOL_IDLE_TIMEOUT = "0";
   return env;
 }
 
