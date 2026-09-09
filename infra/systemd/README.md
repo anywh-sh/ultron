@@ -61,6 +61,7 @@ RELAY_PORT=8765
 RELAY_SESSIONS_FILE=/home/you/.ultron-sessions/pessoal.json
 RELAY_BACKGROUND_JOBS_FILE=/home/you/.ultron-sessions/pessoal-bg-jobs.json
 RELAY_UPLOAD_DIR=/tmp/ultron-uploads-pessoal
+ULTRON_EDITOR_LOCAL=1
 EOF
 systemctl --user enable --now ultron-relay@pessoal
 ```

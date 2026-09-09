@@ -142,6 +142,16 @@ mkdir -p "$HOME/.ultron-sessions"
   echo "RELAY_UPLOAD_DIR=/tmp/ultron-uploads-$ID"
   echo "RELAY_SESSIONS_FILE=$HOME/.ultron-sessions/$ID.json"
   echo "RELAY_BACKGROUND_JOBS_FILE=$HOME/.ultron-sessions/$ID-bg-jobs.json"
+  # "Open in editor" (journal/60) on by default for every profile this
+  # script provisions — safe because editorHostInfo.ts's peer check only
+  # ever downgrades this to ssh/null for a client connecting from a
+  # different machine, never promotes it; it can't leak "local" to a
+  # remote client. Remove this line (or set it to anything other than "1")
+  # to opt out. The paid sandbox never runs this script — its own image
+  # build pre-seeds this same variable explicitly empty (journal/60 part 5,
+  # journal/51), a completely separate mechanism, so this default has no
+  # effect on that path.
+  echo "ULTRON_EDITOR_LOCAL=1"
 } > "$ENV_FILE"
 
 # `profiles.json` read-modify-write done in Node (already a hard
