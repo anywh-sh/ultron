@@ -10,7 +10,7 @@ Wrapper multiplataforma para o Claude Code CLI. O `claude` continua rodando numa
 
 ## Estado atual
 
-MVP funcional e usado diariamente: chat, voz, upload de imagem, multi-sessão, multi-perfil, barra de título customizada, painel de terminal e navegador de arquivos do diretório da sessão (listar/ler/baixar, e desde 2026-09-09 também renomear/excluir via menu de contexto — "abrir em editor externo" como VS Code/Cursor/Zed ainda não existe, porque os arquivos vivem na máquina do relay, não na do client). Validado em Windows, macOS e iOS.
+MVP funcional e usado diariamente: chat, voz, upload de imagem, multi-sessão, multi-perfil, barra de título customizada, painel de terminal e navegador de arquivos do diretório da sessão (listar/ler/baixar, renomear/excluir via menu de contexto desde 2026-09-09, e desde 2026-09-09 também "abrir no editor" — Zed/VS Code/Cursor/Windsurf, local ou via SSH remoto, com locality declarada por env no relay em vez de inferida, já que os arquivos vivem na máquina do relay, não na do client — ver journal/60). Validado em Windows, macOS e iOS.
 
 O port iOS está completo menos a distribuição — TestFlight/App Store dependem de conta Apple Developer paga. Sem ela, o app é totalmente iterável no Simulator e instalável em device físico via Xcode local.
 
