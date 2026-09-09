@@ -394,7 +394,10 @@ body {
 }
 .prose-chat h1,
 .prose-chat h2,
-.prose-chat h3 {
+.prose-chat h3,
+.prose-chat h4,
+.prose-chat h5,
+.prose-chat h6 {
   font-weight: 600;
   margin-top: 1em;
   margin-bottom: 0.3em;
@@ -405,7 +408,10 @@ body {
 .prose-chat h2 {
   font-size: 1.125em;
 }
-.prose-chat h3 {
+.prose-chat h3,
+.prose-chat h4,
+.prose-chat h5,
+.prose-chat h6 {
   font-size: 1em;
 }
 .prose-chat ul {
@@ -463,6 +469,14 @@ body {
   border-left: 2px solid var(--border);
   padding-left: 0.8em;
   color: var(--muted-foreground);
+}
+/* `.prose-chat > * + *` above only covers direct children — a multi-paragraph
+ * blockquote or a "loose" list item (a bullet with more than one paragraph
+ * under it) has its inner paragraphs with no spacing at all otherwise, since
+ * Tailwind's preflight zeroes every element's margin by default. */
+.prose-chat blockquote > * + *,
+.prose-chat li > * + * {
+  margin-top: 0.4em;
 }
 .prose-chat table {
   border-collapse: collapse;
