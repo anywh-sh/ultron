@@ -122,11 +122,11 @@ export interface McpSpawnConfig {
    * instead of the `present_choice` panel opening). */
   disallowedTools?: string;
   /** Extra text folded into `--append-system-prompt` for this turn only —
-   * currently just `CHOICE_TOOL_SEARCH_HINT` (`mcpBridge.ts`) when
-   * `present_choice` is registered, so the model knows to `ToolSearch` for
-   * it instead of silently never calling it. Kept opaque here for the same
-   * reason as the rest of this interface: this file stays a plain spawn
-   * wrapper, `SharedSession` owns what the text actually says. */
+   * currently just `CHOICE_USAGE_HINT` (`mcpBridge.ts`) when `present_choice`
+   * is registered, nudging the model to actually reach for it instead of
+   * defaulting to plain-text prose for a closed question. Kept opaque here
+   * for the same reason as the rest of this interface: this file stays a
+   * plain spawn wrapper, `SharedSession` owns what the text actually says. */
   extraSystemPrompt?: string;
 }
 

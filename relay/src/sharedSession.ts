@@ -5,7 +5,7 @@ import { checkDirectory } from "./fsBrowse.js";
 import {
   CHOICE_ALLOWED_TOOL,
   CHOICE_MCP_SERVER_NAME,
-  CHOICE_TOOL_SEARCH_HINT,
+  CHOICE_USAGE_HINT,
   type ChoiceAnswer,
   type ChoiceQuestion,
   type McpChoiceBridge,
@@ -862,13 +862,28 @@ export class SharedSession {
     // docs) instead of the blanket `CLAUDE_CODE_MCP_TOOL_IDLE_TIMEOUT` env
     // var, which would also loosen the timeout for any unrelated MCP server
     // the user has configured on their own account.
+    //
+    // `alwaysLoad` is the other half of the same real-session finding: the
+    // CLI's MCP tool search can leave `present_choice` listed by name only,
+    // schema deferred, and a follow-up system-prompt reminder telling the
+    // model to `ToolSearch` for it before calling it was observed live to
+    // still get skipped (docs/46) — the model had that exact instruction in
+    // context and didn't reach for it anyway, a prompt-adherence gap no
+    // wording reliably closes. `alwaysLoad: true` sidesteps the model's
+    // choice entirely: the CLI docs confirm it keeps a server's tools out of
+    // deferral regardless of `ENABLE_TOOL_SEARCH`, so both tools arrive with
+    // full schema already loaded, same as a built-in tool — nothing to
+    // discover, nothing to forget to search for. Both servers qualify for
+    // the doc's own stated use case ("a small number of tools that Claude
+    // needs on every turn").
     const HUMAN_RESPONSE_TIMEOUT_MS = 24 * 60 * 60 * 1000;
-    const mcpServers: Record<string, { type: "http"; url: string; timeout: number }> = {};
+    const mcpServers: Record<string, { type: "http"; url: string; timeout: number; alwaysLoad: true }> = {};
     if (choiceRegistration) {
       mcpServers[CHOICE_MCP_SERVER_NAME] = {
         type: "http",
         url: `${this.options.mcpBridgeBaseUrl}/${choiceRegistration.token}`,
         timeout: HUMAN_RESPONSE_TIMEOUT_MS,
+        alwaysLoad: true,
       };
     }
     if (permissionRegistration) {
@@ -876,6 +891,7 @@ export class SharedSession {
         type: "http",
         url: `${this.options.mcpPermissionBridgeBaseUrl}/${permissionRegistration.token}`,
         timeout: HUMAN_RESPONSE_TIMEOUT_MS,
+        alwaysLoad: true,
       };
     }
     const mcp =
@@ -888,7 +904,7 @@ export class SharedSession {
             // own native `AskUserQuestion` — see the field's doc comment on
             // `McpSpawnConfig` for why the native one silently fails here.
             disallowedTools: choiceRegistration ? "AskUserQuestion" : undefined,
-            extraSystemPrompt: choiceRegistration ? CHOICE_TOOL_SEARCH_HINT : undefined,
+            extraSystemPrompt: choiceRegistration ? CHOICE_USAGE_HINT : undefined,
           }
         : undefined;
 

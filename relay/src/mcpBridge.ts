@@ -47,16 +47,31 @@ export const CHOICE_ALLOWED_TOOL = `mcp__${CHOICE_MCP_SERVER_NAME}__${TOOL_NAME}
 // can actually fill in and, seeing nothing usable, never calls it at all
 // (confirmed live: it fell back to describing the options in prose and
 // asked the human to just answer in chat, defeating the whole point of this
-// tool). Fed into `--append-system-prompt` only for turns where
-// `present_choice` is actually registered (`SharedSession.runTurn`) — a
-// blanket append would be dead weight, and wrong, on turns where the tool
-// isn't offered at all.
-export const CHOICE_TOOL_SEARCH_HINT =
-  `The ${TOOL_NAME} tool (server ${CHOICE_MCP_SERVER_NAME}) may be listed by name only, with its ` +
-  "input schema not yet loaded. If you don't already have its full schema, call ToolSearch with " +
-  `{"query": "select:${CHOICE_ALLOWED_TOOL}", "max_results": 1} first, then call ${TOOL_NAME} ` +
-  "normally. This is the only real channel for a closed multiple-choice question outside plan mode " +
-  "— never fall back to asking in prose just because the schema isn't loaded yet.";
+// tool). Fixed via `alwaysLoad: true` on this server's `SharedSession.runTurn`
+// entry: the CLI docs confirm that keeps a server's tools out of deferral
+// entirely, regardless of `ENABLE_TOOL_SEARCH` — `present_choice` now always
+// arrives with its full schema already loaded, same status as a built-in
+// tool, no model decision to search required at all.
+//
+// That alone turned out not to be enough, also confirmed live against the
+// real binary (2026-09-09): with the schema always loaded, `AskUserQuestion`
+// disallowed, and nothing else competing, the model still answered a
+// genuinely closed question in plain prose instead of calling
+// `present_choice` — this was never a discoverability gap on its own, the
+// model just has no trained reflex toward an MCP tool the way it does
+// toward the *native* `AskUserQuestion` (which can't be used here at all —
+// it never gets a real answer channel in headless, docs/46 Descoberta 7).
+// An explicit imperative line fixed it in that same test. `CHOICE_USAGE_HINT`
+// below is that line, folded into `--append-system-prompt` only for turns
+// where `present_choice` is registered (`SharedSession.runTurn`). It's a
+// probabilistic nudge, not a guarantee — a long, saturated context can still
+// bury it — but it's the closest thing available short of a real first-party
+// tool with a working answer channel in headless mode.
+export const CHOICE_USAGE_HINT =
+  `Use the ${TOOL_NAME} tool (server ${CHOICE_MCP_SERVER_NAME}) to ask the human any genuinely ` +
+  "closed multiple-choice question — never write the options out as plain text instead, even when " +
+  `that feels like the natural way to ask. ${TOOL_NAME} is the only way the human's answer becomes ` +
+  "a real UI selection instead of a message they have to type by hand.";
 
 const TOOL_SCHEMA = {
   name: TOOL_NAME,
