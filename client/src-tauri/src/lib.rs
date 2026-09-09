@@ -32,7 +32,9 @@ pub fn run() {
     let builder = tauri::Builder::default()
         .plugin(tauri_plugin_opener::init())
         .plugin(tauri_plugin_notification::init())
-        .plugin(tauri_plugin_os::init());
+        .plugin(tauri_plugin_os::init())
+        .plugin(tauri_plugin_dialog::init())
+        .plugin(tauri_plugin_fs::init());
 
     // cpal accesses CoreAudio directly (without going through AVFoundation),
     // which in practice doesn't trigger macOS's permission dialog — the app

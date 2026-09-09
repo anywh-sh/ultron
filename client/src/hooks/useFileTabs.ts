@@ -96,6 +96,19 @@ export function useFileTabs() {
     });
   }, []);
 
+  /** A file open in a tab got renamed via the context menu — moves its tab
+   * (and the active/expanded state pointing at it) to the new path instead
+   * of just closing it, so the user doesn't lose their place. */
+  const renamePath = useCallback((tabId: string, oldPath: string, newPath: string) => {
+    setState((prev) => {
+      const existing = prev[tabId];
+      if (!existing) return prev;
+      const open = existing.open.map((tab) => (tab.path === oldPath ? { ...tab, path: newPath } : tab));
+      const activePath = existing.activePath === oldPath ? newPath : existing.activePath;
+      return { ...prev, [tabId]: { ...existing, open, activePath } };
+    });
+  }, []);
+
   const setActiveFile = useCallback((tabId: string, path: string) => {
     setState((prev) => {
       const existing = prev[tabId];
@@ -147,5 +160,5 @@ export function useFileTabs() {
     });
   }, []);
 
-  return { getTabs, openPreview, openPinned, closeTab, setActiveFile, toggleExpanded, setTreeWidth, syncRoot, removeSession };
+  return { getTabs, openPreview, openPinned, closeTab, renamePath, setActiveFile, toggleExpanded, setTreeWidth, syncRoot, removeSession };
 }

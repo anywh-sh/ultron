@@ -8,7 +8,7 @@ import { buildChildEnv } from "./claudeSession.js";
 import { CLAUDE_BIN } from "./claudeCliConfig.js";
 import { detectDefaultModel, type DefaultModelInfo } from "./defaultModel.js";
 import { listDirectories } from "./fsBrowse.js";
-import { listFiles, readFileForViewer, resolveRawFile, type FilesError } from "./fsFiles.js";
+import { deleteFile, listFiles, readFileForViewer, renameFile, resolveRawFile, type FilesError } from "./fsFiles.js";
 import { FilesWatchSession } from "./fsWatch.js";
 import { defaultCwd } from "./paths.js";
 import {
@@ -177,6 +177,19 @@ function isPatchProfileBody(value: unknown): value is { label?: string; colorInd
   return candidate.label !== undefined || candidate.colorIndex !== undefined || candidate.themeId !== undefined;
 }
 
+function isFilesDeleteBody(value: unknown): value is { session?: string; path: string } {
+  return typeof value === "object" && value !== null && typeof (value as { path?: unknown }).path === "string";
+}
+
+function isFilesRenameBody(value: unknown): value is { session?: string; path: string; newName: string } {
+  return (
+    typeof value === "object" &&
+    value !== null &&
+    typeof (value as { path?: unknown }).path === "string" &&
+    typeof (value as { newName?: unknown }).newName === "string"
+  );
+}
+
 function isTerminalCloseBody(value: unknown): value is { session: string; term: string } {
   return (
     typeof value === "object" &&
@@ -237,10 +250,11 @@ function isTerminalResizeMessage(value: unknown): value is { type: "resize"; col
  * terminalSession.ts for why this drives tmux's `copy-mode` directly instead
  * of just being handled by xterm.js locally. `lines` is signed: positive
  * scrolls up (older content), negative scrolls down. */
-function statusForFilesError(error: FilesError): number {
+function statusForFilesError(error: FilesError | "invalid_name" | "already_exists"): number {
   if (error === "permission_denied") return 403;
   if (error === "not_found") return 404;
-  return 400; // invalid_path, outside_root
+  if (error === "already_exists") return 409;
+  return 400; // invalid_path, outside_root, invalid_name
 }
 
 /** Work dir file panel's watch (docs/41 phase 5) — always the client's full
@@ -898,6 +912,58 @@ export const httpServer = createServer((req, res) => {
     }
     res.setHeader("Content-Type", result.mime);
     createReadStream(result.path).on("error", () => res.end()).pipe(res);
+    return;
+  }
+
+  if (req.method === "POST" && req.url?.startsWith("/files/delete")) {
+    res.setHeader("Content-Type", "application/json");
+    res.setHeader("Access-Control-Allow-Origin", "*");
+    readJsonBody(req)
+      .then((body) => {
+        if (!isFilesDeleteBody(body)) {
+          res.writeHead(400);
+          res.end(JSON.stringify({ error: "invalid_path" }));
+          return;
+        }
+        const root = sessionStore.getCwdState(body.session?.trim() || DEFAULT_SESSION).cwd;
+        const result = deleteFile(root, body.path);
+        if (!result.ok) {
+          res.writeHead(statusForFilesError(result.error));
+          res.end(JSON.stringify({ error: result.error }));
+          return;
+        }
+        res.end(JSON.stringify({ ok: true }));
+      })
+      .catch(() => {
+        res.writeHead(400);
+        res.end(JSON.stringify({ error: "invalid body" }));
+      });
+    return;
+  }
+
+  if (req.method === "POST" && req.url?.startsWith("/files/rename")) {
+    res.setHeader("Content-Type", "application/json");
+    res.setHeader("Access-Control-Allow-Origin", "*");
+    readJsonBody(req)
+      .then((body) => {
+        if (!isFilesRenameBody(body)) {
+          res.writeHead(400);
+          res.end(JSON.stringify({ error: "invalid_path" }));
+          return;
+        }
+        const root = sessionStore.getCwdState(body.session?.trim() || DEFAULT_SESSION).cwd;
+        const result = renameFile(root, body.path, body.newName);
+        if (!result.ok) {
+          res.writeHead(statusForFilesError(result.error));
+          res.end(JSON.stringify({ error: result.error }));
+          return;
+        }
+        res.end(JSON.stringify({ ok: true, path: result.path }));
+      })
+      .catch(() => {
+        res.writeHead(400);
+        res.end(JSON.stringify({ error: "invalid body" }));
+      });
     return;
   }
 

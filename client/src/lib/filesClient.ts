@@ -37,6 +37,19 @@ async function getJson<T>(url: string): Promise<T> {
   return response.json() as Promise<T>;
 }
 
+async function postJson<T>(url: string, payload: unknown): Promise<T> {
+  const response = await fetch(url, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(payload),
+  });
+  if (!response.ok) {
+    const body = (await response.json().catch(() => ({}))) as { error?: string };
+    throw new Error(body.error ?? `HTTP ${String(response.status)}`);
+  }
+  return response.json() as Promise<T>;
+}
+
 /** `path` omitted lists the session's root. Lazy by design — the caller
  * (`FileTree`) only ever asks for one folder at a time, never recursively. */
 export async function listFiles(profile: Profile, sessionId: string, path?: string, showHidden?: boolean): Promise<FilesListResult> {
@@ -57,4 +70,17 @@ export async function readFile(profile: Profile, sessionId: string, path: string
 export function rawFileUrl(profile: Profile, sessionId: string, path: string, mtimeMs: number): string {
   const params = new URLSearchParams({ session: sessionId, path, v: String(mtimeMs) });
   return `${baseUrl(profile)}/files/raw?${params.toString()}`;
+}
+
+/** File-only write surface — the context menu that drives these (`FileTree`)
+ * never shows delete/rename for a directory row. */
+export async function deleteFile(profile: Profile, sessionId: string, path: string): Promise<void> {
+  await postJson(`${baseUrl(profile)}/files/delete`, { session: sessionId, path });
+}
+
+/** Renames within the same directory — `newName` is a bare filename, never
+ * a full path (see `relay/src/fsFiles.ts`). Returns the new absolute path
+ * so the caller can move an open tab to follow the file. */
+export async function renameFile(profile: Profile, sessionId: string, path: string, newName: string): Promise<{ path: string }> {
+  return postJson(`${baseUrl(profile)}/files/rename`, { session: sessionId, path, newName });
 }

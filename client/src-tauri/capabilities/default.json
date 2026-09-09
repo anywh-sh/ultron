@@ -8,6 +8,8 @@
     "opener:default",
     "notification:default",
     "os:default",
-    "core:window:allow-is-focused"
+    "core:window:allow-is-focused",
+    "dialog:allow-save",
+    "fs:allow-write-file"
   ]
 }

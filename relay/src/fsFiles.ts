@@ -1,5 +1,5 @@
-import { closeSync, openSync, readdirSync, readSync, realpathSync, statSync } from "node:fs";
-import { extname, isAbsolute, join, resolve, sep } from "node:path";
+import { closeSync, existsSync, openSync, readdirSync, readSync, realpathSync, renameSync, statSync, unlinkSync } from "node:fs";
+import { dirname, extname, isAbsolute, join, resolve, sep } from "node:path";
 
 // Backs the work dir file panel (docs/41) — list/read/raw for a session's
 // cwd. Deliberately separate from `fsBrowse.ts`, which keeps serving the
@@ -179,6 +179,66 @@ export function readFileForViewer(rawRoot: string, rawPath: string): ReadResult 
   } finally {
     closeSync(fd);
   }
+}
+
+export type DeleteResult = { ok: true } | { ok: false; error: FilesError };
+
+/** File-only, same as the rest of this module's write surface below — the
+ * context menu that drives this (docs/41's tree) never shows these actions
+ * for a directory row. */
+export function deleteFile(rawRoot: string, rawPath: string): DeleteResult {
+  const resolved = resolveWithinRoot(rawRoot, rawPath);
+  if (!resolved.ok) return resolved;
+
+  let stat;
+  try {
+    stat = statSync(resolved.path);
+  } catch (error) {
+    return { ok: false, error: errorFromErrno(error) };
+  }
+  if (!stat.isFile()) return { ok: false, error: "not_found" };
+
+  try {
+    unlinkSync(resolved.path);
+  } catch (error) {
+    return { ok: false, error: errorFromErrno(error) };
+  }
+  return { ok: true };
+}
+
+export type FilesWriteError = FilesError | "invalid_name" | "already_exists";
+export type RenameResult = { ok: true; path: string } | { ok: false; error: FilesWriteError };
+
+/** Renames within the same directory only — `newName` is validated to be a
+ * bare filename (no separator), so this can never move a file to a
+ * different directory or escape the root the way an arbitrary destination
+ * path could. */
+export function renameFile(rawRoot: string, rawPath: string, newName: string): RenameResult {
+  const resolved = resolveWithinRoot(rawRoot, rawPath);
+  if (!resolved.ok) return resolved;
+
+  let stat;
+  try {
+    stat = statSync(resolved.path);
+  } catch (error) {
+    return { ok: false, error: errorFromErrno(error) };
+  }
+  if (!stat.isFile()) return { ok: false, error: "not_found" };
+
+  const trimmed = newName.trim();
+  if (!trimmed || trimmed.includes("/") || trimmed.includes(sep) || trimmed === "." || trimmed === "..") {
+    return { ok: false, error: "invalid_name" };
+  }
+
+  const target = join(dirname(resolved.path), trimmed);
+  if (existsSync(target)) return { ok: false, error: "already_exists" };
+
+  try {
+    renameSync(resolved.path, target);
+  } catch (error) {
+    return { ok: false, error: errorFromErrno(error) };
+  }
+  return { ok: true, path: target };
 }
 
 export type RawResult = { ok: true; path: string; mime: string } | { ok: false; error: FilesError };

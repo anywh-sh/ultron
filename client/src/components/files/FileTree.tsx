@@ -1,9 +1,21 @@
 import { useCallback, useEffect, useRef, useState } from "react";
-import { ChevronDown, ChevronRight, File, Folder } from "lucide-react";
+import { ChevronDown, ChevronRight, Download, File, Folder, Pencil, Trash2 } from "lucide-react";
 import type { ChangeSignal } from "@/components/files/FilesPanel";
-import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
+import { RenameFileDialog } from "@/components/files/RenameFileDialog";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { useContextMenu } from "@/hooks/useContextMenu";
-import { listFiles, type FileEntry } from "@/lib/filesClient";
+import { deleteFile, listFiles, renameFile, type FileEntry } from "@/lib/filesClient";
+import { downloadFile } from "@/lib/fileDownload";
 import type { Profile } from "@/lib/profiles";
 import { cn } from "@/lib/utils";
 
@@ -23,6 +35,12 @@ interface FileTreeProps {
   onToggleExpand: (path: string) => void;
   onOpenPreview: (path: string) => void;
   onOpenPinned: (path: string) => void;
+  /** A tab open on the deleted/renamed path needs to close (delete) or
+   * follow the new path (rename) — the tree's own listing self-corrects via
+   * the watch (docs/41 phase 5) without any of this, but tab state lives in
+   * `useFileTabs`, one level up in `FilesPanel`. */
+  onFileDeleted: (path: string) => void;
+  onFileRenamed: (oldPath: string, newPath: string) => void;
 }
 
 const INDENT_PX = 14;
@@ -37,7 +55,20 @@ const INDENT_PX = 14;
  * against re-running the "load whatever's expanded but missing" effect on
  * every state update).
  */
-export function FileTree({ profile, sessionId, root, expanded, activePath, showHidden, changedDir, onToggleExpand, onOpenPreview, onOpenPinned }: FileTreeProps) {
+export function FileTree({
+  profile,
+  sessionId,
+  root,
+  expanded,
+  activePath,
+  showHidden,
+  changedDir,
+  onToggleExpand,
+  onOpenPreview,
+  onOpenPinned,
+  onFileDeleted,
+  onFileRenamed,
+}: FileTreeProps) {
   const [nodesByDir, setNodesByDir] = useState<Record<string, DirState>>({});
   const inFlightRef = useRef<Set<string>>(new Set());
 
@@ -91,12 +122,16 @@ export function FileTree({ profile, sessionId, root, expanded, activePath, showH
       <FileTreeChildren
         dir={root}
         depth={0}
+        profile={profile}
+        sessionId={sessionId}
         nodesByDir={nodesByDir}
         expanded={expanded}
         activePath={activePath}
         onToggleExpand={onToggleExpand}
         onOpenPreview={onOpenPreview}
         onOpenPinned={onOpenPinned}
+        onFileDeleted={onFileDeleted}
+        onFileRenamed={onFileRenamed}
       />
     </div>
   );
@@ -104,19 +139,36 @@ export function FileTree({ profile, sessionId, root, expanded, activePath, showH
 
 interface SharedTreeProps {
   depth: number;
+  profile: Profile;
+  sessionId: string;
   nodesByDir: Record<string, DirState>;
   expanded: string[];
   activePath: string | null;
   onToggleExpand: (path: string) => void;
   onOpenPreview: (path: string) => void;
   onOpenPinned: (path: string) => void;
+  onFileDeleted: (path: string) => void;
+  onFileRenamed: (oldPath: string, newPath: string) => void;
 }
 
 interface ChildrenProps extends SharedTreeProps {
   dir: string;
 }
 
-function FileTreeChildren({ dir, depth, nodesByDir, expanded, activePath, onToggleExpand, onOpenPreview, onOpenPinned }: ChildrenProps) {
+function FileTreeChildren({
+  dir,
+  depth,
+  profile,
+  sessionId,
+  nodesByDir,
+  expanded,
+  activePath,
+  onToggleExpand,
+  onOpenPreview,
+  onOpenPinned,
+  onFileDeleted,
+  onFileRenamed,
+}: ChildrenProps) {
   const nodes = nodesByDir[dir];
   const indent = `${depth * INDENT_PX + 8}px`;
 
@@ -149,12 +201,16 @@ function FileTreeChildren({ dir, depth, nodesByDir, expanded, activePath, onTogg
           key={entry.path}
           entry={entry}
           depth={depth}
+          profile={profile}
+          sessionId={sessionId}
           nodesByDir={nodesByDir}
           expanded={expanded}
           activePath={activePath}
           onToggleExpand={onToggleExpand}
           onOpenPreview={onOpenPreview}
           onOpenPinned={onOpenPinned}
+          onFileDeleted={onFileDeleted}
+          onFileRenamed={onFileRenamed}
         />
       ))}
     </>
@@ -165,13 +221,58 @@ interface NodeProps extends SharedTreeProps {
   entry: FileEntry;
 }
 
-function FileTreeNode({ entry, depth, nodesByDir, expanded, activePath, onToggleExpand, onOpenPreview, onOpenPinned }: NodeProps) {
+function FileTreeNode({
+  entry,
+  depth,
+  profile,
+  sessionId,
+  nodesByDir,
+  expanded,
+  activePath,
+  onToggleExpand,
+  onOpenPreview,
+  onOpenPinned,
+  onFileDeleted,
+  onFileRenamed,
+}: NodeProps) {
   const isDir = entry.kind === "dir";
   const isExpanded = isDir && expanded.includes(entry.path);
   const isActive = entry.path === activePath;
   // "Open in a new tab" (decision 6, docs/41) only makes sense for a file —
   // a directory's right-click doesn't get a menu at all.
   const menu = useContextMenu();
+  const [renameOpen, setRenameOpen] = useState(false);
+  const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false);
+
+  async function handleDownload(): Promise<void> {
+    try {
+      await downloadFile(profile, sessionId, entry.path, entry.name, entry.mtimeMs);
+    } catch (error) {
+      console.error("[ultron] failed to download file:", error);
+      window.alert("Não foi possível baixar o arquivo.");
+    }
+  }
+
+  async function handleRename(newName: string): Promise<void> {
+    try {
+      const result = await renameFile(profile, sessionId, entry.path, newName);
+      onFileRenamed(entry.path, result.path);
+      setRenameOpen(false);
+    } catch (error) {
+      console.error("[ultron] failed to rename file:", error);
+      window.alert("Não foi possível renomear o arquivo.");
+    }
+  }
+
+  async function handleDelete(): Promise<void> {
+    try {
+      await deleteFile(profile, sessionId, entry.path);
+      onFileDeleted(entry.path);
+    } catch (error) {
+      console.error("[ultron] failed to delete file:", error);
+      window.alert("Não foi possível excluir o arquivo.");
+    }
+  }
 
   return (
     <div>
@@ -218,20 +319,73 @@ function FileTreeNode({ entry, depth, nodesByDir, expanded, activePath, onToggle
               >
                 Abrir em nova aba
               </DropdownMenuItem>
+              <DropdownMenuSeparator />
+              <DropdownMenuItem
+                onSelect={(event) => {
+                  event.preventDefault();
+                  menu.setOpen(false);
+                  void handleDownload();
+                }}
+              >
+                <Download />
+                Baixar
+              </DropdownMenuItem>
+              <DropdownMenuItem
+                onSelect={(event) => {
+                  event.preventDefault();
+                  menu.setOpen(false);
+                  setRenameOpen(true);
+                }}
+              >
+                <Pencil />
+                Renomear
+              </DropdownMenuItem>
+              <DropdownMenuItem
+                variant="destructive"
+                onSelect={(event) => {
+                  event.preventDefault();
+                  menu.setOpen(false);
+                  setDeleteConfirmOpen(true);
+                }}
+              >
+                <Trash2 />
+                Excluir
+              </DropdownMenuItem>
             </DropdownMenuContent>
           </DropdownMenu>
         )}
       </div>
+      {!isDir && (
+        <>
+          <RenameFileDialog open={renameOpen} onOpenChange={setRenameOpen} initialName={entry.name} onSave={(name) => void handleRename(name)} />
+          <AlertDialog open={deleteConfirmOpen} onOpenChange={setDeleteConfirmOpen}>
+            <AlertDialogContent>
+              <AlertDialogHeader>
+                <AlertDialogTitle>Excluir arquivo</AlertDialogTitle>
+                <AlertDialogDescription>Excluir "{entry.name}"? Essa ação não pode ser desfeita.</AlertDialogDescription>
+              </AlertDialogHeader>
+              <AlertDialogFooter>
+                <AlertDialogCancel>Cancelar</AlertDialogCancel>
+                <AlertDialogAction onClick={() => void handleDelete()}>Excluir</AlertDialogAction>
+              </AlertDialogFooter>
+            </AlertDialogContent>
+          </AlertDialog>
+        </>
+      )}
       {isDir && isExpanded && (
         <FileTreeChildren
           dir={entry.path}
           depth={depth + 1}
+          profile={profile}
+          sessionId={sessionId}
           nodesByDir={nodesByDir}
           expanded={expanded}
           activePath={activePath}
           onToggleExpand={onToggleExpand}
           onOpenPreview={onOpenPreview}
           onOpenPinned={onOpenPinned}
+          onFileDeleted={onFileDeleted}
+          onFileRenamed={onFileRenamed}
         />
       )}
     </div>

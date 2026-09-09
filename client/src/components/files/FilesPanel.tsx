@@ -235,6 +235,8 @@ export function FilesPanel({ profile, chatSessionId, maximized, fileTabs, onTogg
             onToggleExpand={(path) => fileTabs.toggleExpanded(chatSessionId, path)}
             onOpenPreview={(path) => fileTabs.openPreview(chatSessionId, path)}
             onOpenPinned={(path) => fileTabs.openPinned(chatSessionId, path)}
+            onFileDeleted={(path) => fileTabs.closeTab(chatSessionId, path)}
+            onFileRenamed={(oldPath, newPath) => fileTabs.renamePath(chatSessionId, oldPath, newPath)}
           />
         </div>
         <div

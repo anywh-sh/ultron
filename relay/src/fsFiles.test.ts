@@ -1,9 +1,9 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { mkdirSync, mkdtempSync, rmSync, symlinkSync, writeFileSync } from "node:fs";
+import { existsSync, mkdirSync, mkdtempSync, rmSync, symlinkSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { listFiles, readFileForViewer, resolveRawFile, resolveWithinRoot } from "./fsFiles.js";
+import { deleteFile, listFiles, readFileForViewer, renameFile, resolveRawFile, resolveWithinRoot } from "./fsFiles.js";
 
 function withTempDir(run: (dir: string) => void): void {
   const dir = mkdtempSync(join(tmpdir(), "ultron-fsfiles-test-"));
@@ -199,5 +199,76 @@ test("resolveRawFile: nonexistent file propagates not_found", () => {
   withTempDir((dir) => {
     const result = resolveRawFile(dir, join(dir, "nao-existe.png"));
     assert.deepEqual(result, { ok: false, error: "not_found" });
+  });
+});
+
+test("deleteFile: removes the file", () => {
+  withTempDir((dir) => {
+    const file = join(dir, "descarte.txt");
+    writeFileSync(file, "lixo");
+
+    assert.deepEqual(deleteFile(dir, file), { ok: true });
+    assert.equal(existsSync(file), false);
+  });
+});
+
+test("deleteFile: a directory is rejected as not_found", () => {
+  withTempDir((dir) => {
+    const sub = join(dir, "pasta");
+    mkdirSync(sub);
+
+    const result = deleteFile(dir, sub);
+    assert.deepEqual(result, { ok: false, error: "not_found" });
+    assert.equal(existsSync(sub), true);
+  });
+});
+
+test("deleteFile: a path outside the root is rejected", () => {
+  withTempDir((outer) => {
+    withTempDir((root) => {
+      const file = join(outer, "fora.txt");
+      writeFileSync(file, "fora");
+
+      const result = deleteFile(root, file);
+      assert.equal(result.ok, false);
+      if (!result.ok) assert.equal(result.error, "outside_root");
+      assert.equal(existsSync(file), true);
+    });
+  });
+});
+
+test("renameFile: renames within the same directory", () => {
+  withTempDir((dir) => {
+    const file = join(dir, "antigo.txt");
+    writeFileSync(file, "conteúdo");
+
+    const result = renameFile(dir, file, "novo.txt");
+    assert.equal(result.ok, true);
+    if (result.ok) assert.equal(result.path, join(dir, "novo.txt"));
+    assert.equal(existsSync(file), false);
+    assert.equal(existsSync(join(dir, "novo.txt")), true);
+  });
+});
+
+test("renameFile: a name containing a path separator is rejected", () => {
+  withTempDir((dir) => {
+    const file = join(dir, "antigo.txt");
+    writeFileSync(file, "conteúdo");
+
+    const result = renameFile(dir, file, "../fora.txt");
+    assert.deepEqual(result, { ok: false, error: "invalid_name" });
+    assert.equal(existsSync(file), true);
+  });
+});
+
+test("renameFile: a name that already exists in the directory is rejected", () => {
+  withTempDir((dir) => {
+    const file = join(dir, "antigo.txt");
+    writeFileSync(file, "conteúdo");
+    writeFileSync(join(dir, "novo.txt"), "já existe");
+
+    const result = renameFile(dir, file, "novo.txt");
+    assert.deepEqual(result, { ok: false, error: "already_exists" });
+    assert.equal(existsSync(file), true);
   });
 });
