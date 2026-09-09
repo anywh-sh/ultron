@@ -1,6 +1,7 @@
 import { spawn } from "node:child_process";
 import { createReadStream, existsSync } from "node:fs";
 import { createServer, type IncomingMessage, type ServerResponse } from "node:http";
+import { hostname } from "node:os";
 import { dirname, resolve as resolvePath } from "node:path";
 import { fileURLToPath } from "node:url";
 import { WebSocketServer, type WebSocket } from "ws";
@@ -8,6 +9,7 @@ import { buildChildEnv } from "./claudeSession.js";
 import { CLAUDE_BIN } from "./claudeCliConfig.js";
 import { detectDefaultModel, type DefaultModelInfo } from "./defaultModel.js";
 import { listDirectories } from "./fsBrowse.js";
+import { resolveEditorDescriptor } from "./editorHostInfo.js";
 import { createFile, deleteFile, listFiles, readFileForViewer, renameFile, resolveRawFile, resolveWithinRoot, type FilesError } from "./fsFiles.js";
 import { FilesWatchSession } from "./fsWatch.js";
 import { defaultCwd } from "./paths.js";
@@ -996,6 +998,18 @@ export const httpServer = createServer((req, res) => {
         res.writeHead(400);
         res.end(JSON.stringify({ error: "invalid body" }));
       });
+    return;
+  }
+
+  // Tells the client whether/how it can open a file-panel path in a local
+  // editor (journal/60) — see editorHostInfo.ts for why locality is declared
+  // via env rather than inferred, and why the peer address is only a
+  // downgrade guard on top of that declaration.
+  if (req.method === "GET" && req.url === "/host-info") {
+    res.setHeader("Content-Type", "application/json");
+    res.setHeader("Access-Control-Allow-Origin", "*");
+    const editor = resolveEditorDescriptor(process.env, req.socket.remoteAddress);
+    res.end(JSON.stringify({ hostname: hostname(), platform: process.platform, editor }));
     return;
   }
 

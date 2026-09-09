@@ -1,0 +1,59 @@
+import { test, before, after, beforeEach, afterEach } from "node:test";
+import assert from "node:assert/strict";
+import { hostname } from "node:os";
+import { startTestServer, type TestServer } from "./helpers/testServer.js";
+
+// Real integration test (.ultron/skills/tests/SKILL.md): `GET /host-info`
+// (journal/60) served over a real HTTP connection, whose peer address is
+// therefore genuinely loopback — exactly the case editorHostInfo.test.ts's
+// unit tests can only simulate. The downgrade branch (declared LOCAL but a
+// non-loopback peer) isn't reachable through this harness, since a fetch
+// from the test process itself is always loopback; that branch is covered
+// by the pure-function unit tests instead.
+
+let server: TestServer;
+
+before(async () => {
+  server = await startTestServer();
+});
+
+after(async () => {
+  await server.close();
+});
+
+beforeEach(() => {
+  delete process.env.ULTRON_EDITOR_LOCAL;
+  delete process.env.ULTRON_EDITOR_SSH;
+});
+
+afterEach(() => {
+  delete process.env.ULTRON_EDITOR_LOCAL;
+  delete process.env.ULTRON_EDITOR_SSH;
+});
+
+function httpUrl(path: string): string {
+  return `http://127.0.0.1:${server.port}${path}`;
+}
+
+test("GET /host-info: both env vars absent hides the feature", async () => {
+  const body = (await (await fetch(httpUrl("/host-info"))).json()) as {
+    hostname: string;
+    platform: string;
+    editor: unknown;
+  };
+  assert.equal(body.hostname, hostname());
+  assert.equal(body.platform, process.platform);
+  assert.equal(body.editor, null);
+});
+
+test("GET /host-info: ULTRON_EDITOR_LOCAL=1 resolves to local for a real loopback peer", async () => {
+  process.env.ULTRON_EDITOR_LOCAL = "1";
+  const body = (await (await fetch(httpUrl("/host-info"))).json()) as { editor: unknown };
+  assert.deepEqual(body.editor, { kind: "local" });
+});
+
+test("GET /host-info: ULTRON_EDITOR_SSH describes the ssh target", async () => {
+  process.env.ULTRON_EDITOR_SSH = "wil@debian-headless:2222";
+  const body = (await (await fetch(httpUrl("/host-info"))).json()) as { editor: unknown };
+  assert.deepEqual(body.editor, { kind: "ssh", user: "wil", host: "debian-headless", port: 2222 });
+});
