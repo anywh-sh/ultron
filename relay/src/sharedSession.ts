@@ -2,7 +2,14 @@ import { randomUUID } from "node:crypto";
 import type { WebSocket } from "ws";
 import { ClaudeSession, type ClaudeEvent } from "./claudeSession.js";
 import { checkDirectory } from "./fsBrowse.js";
-import { CHOICE_ALLOWED_TOOL, CHOICE_MCP_SERVER_NAME, type ChoiceAnswer, type ChoiceQuestion, type McpChoiceBridge } from "./mcpBridge.js";
+import {
+  CHOICE_ALLOWED_TOOL,
+  CHOICE_MCP_SERVER_NAME,
+  CHOICE_TOOL_SEARCH_HINT,
+  type ChoiceAnswer,
+  type ChoiceQuestion,
+  type McpChoiceBridge,
+} from "./mcpBridge.js";
 import { PERMISSION_MCP_SERVER_NAME, PERMISSION_PROMPT_TOOL, type McpPermissionBridge, type PermissionDecision } from "./permissionBridge.js";
 import { defaultCwd } from "./paths.js";
 import { formatPlanChoiceAnswerText, parsePlanChoiceMarkers } from "./planChoiceMarker.js";
@@ -843,14 +850,32 @@ export class SharedSession {
             checkPermission: (toolName, input, toolUseId) => this.checkPermission(toolName, input, toolUseId),
           })
         : undefined;
-    const mcpServers: Record<string, { type: "http"; url: string }> = {};
+    // Both bridges wait on a real human (a picker click, an approve/deny
+    // decision) with no bytes sent back until that happens — from the CLI's
+    // point of view that's indistinguishable from a hung connection. Real
+    // finding (2026-09-09): the CLI's own default idle timeout for `"http"`
+    // MCP servers is 5 minutes (undocumented in `--help`, confirmed against
+    // the CLI's own docs), well inside how long a human can plausibly take
+    // to notice a prompt and answer it — the panel was observed disappearing
+    // out from under the human mid-decision. `timeout` here overrides that
+    // per server (also acts as a floor under the idle timeout, per the same
+    // docs) instead of the blanket `CLAUDE_CODE_MCP_TOOL_IDLE_TIMEOUT` env
+    // var, which would also loosen the timeout for any unrelated MCP server
+    // the user has configured on their own account.
+    const HUMAN_RESPONSE_TIMEOUT_MS = 24 * 60 * 60 * 1000;
+    const mcpServers: Record<string, { type: "http"; url: string; timeout: number }> = {};
     if (choiceRegistration) {
-      mcpServers[CHOICE_MCP_SERVER_NAME] = { type: "http", url: `${this.options.mcpBridgeBaseUrl}/${choiceRegistration.token}` };
+      mcpServers[CHOICE_MCP_SERVER_NAME] = {
+        type: "http",
+        url: `${this.options.mcpBridgeBaseUrl}/${choiceRegistration.token}`,
+        timeout: HUMAN_RESPONSE_TIMEOUT_MS,
+      };
     }
     if (permissionRegistration) {
       mcpServers[PERMISSION_MCP_SERVER_NAME] = {
         type: "http",
         url: `${this.options.mcpPermissionBridgeBaseUrl}/${permissionRegistration.token}`,
+        timeout: HUMAN_RESPONSE_TIMEOUT_MS,
       };
     }
     const mcp =
@@ -863,6 +888,7 @@ export class SharedSession {
             // own native `AskUserQuestion` — see the field's doc comment on
             // `McpSpawnConfig` for why the native one silently fails here.
             disallowedTools: choiceRegistration ? "AskUserQuestion" : undefined,
+            extraSystemPrompt: choiceRegistration ? CHOICE_TOOL_SEARCH_HINT : undefined,
           }
         : undefined;
 

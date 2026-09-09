@@ -41,6 +41,23 @@ export const CHOICE_MCP_SERVER_NAME = "ultron-choice";
 const TOOL_NAME = "present_choice";
 export const CHOICE_ALLOWED_TOOL = `mcp__${CHOICE_MCP_SERVER_NAME}__${TOOL_NAME}`;
 
+// Real-session finding (2026-09-09): the CLI's MCP tool search feature can
+// list `present_choice` by name only, with its schema deferred, even though
+// `--allowedTools` already grants it — the model then has no `tool_use` it
+// can actually fill in and, seeing nothing usable, never calls it at all
+// (confirmed live: it fell back to describing the options in prose and
+// asked the human to just answer in chat, defeating the whole point of this
+// tool). Fed into `--append-system-prompt` only for turns where
+// `present_choice` is actually registered (`SharedSession.runTurn`) — a
+// blanket append would be dead weight, and wrong, on turns where the tool
+// isn't offered at all.
+export const CHOICE_TOOL_SEARCH_HINT =
+  `The ${TOOL_NAME} tool (server ${CHOICE_MCP_SERVER_NAME}) may be listed by name only, with its ` +
+  "input schema not yet loaded. If you don't already have its full schema, call ToolSearch with " +
+  `{"query": "select:${CHOICE_ALLOWED_TOOL}", "max_results": 1} first, then call ${TOOL_NAME} ` +
+  "normally. This is the only real channel for a closed multiple-choice question outside plan mode " +
+  "— never fall back to asking in prose just because the schema isn't loaded yet.";
+
 const TOOL_SCHEMA = {
   name: TOOL_NAME,
   description:

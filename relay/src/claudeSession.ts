@@ -121,6 +121,13 @@ export interface McpSpawnConfig {
    * rendering the picker UI (confirmed live: this is exactly what happened
    * instead of the `present_choice` panel opening). */
   disallowedTools?: string;
+  /** Extra text folded into `--append-system-prompt` for this turn only —
+   * currently just `CHOICE_TOOL_SEARCH_HINT` (`mcpBridge.ts`) when
+   * `present_choice` is registered, so the model knows to `ToolSearch` for
+   * it instead of silently never calling it. Kept opaque here for the same
+   * reason as the rest of this interface: this file stays a plain spawn
+   * wrapper, `SharedSession` owns what the text actually says. */
+  extraSystemPrompt?: string;
 }
 
 export interface SendTurnResult {
@@ -314,8 +321,17 @@ export class ClaudeSession {
       // requested) in `plan` mode: it's the fallback for the one mode where
       // the real `present_choice` MCP tool can't be offered at all (see the
       // `mcp` arg below), so appending it in every other mode would just be
-      // dead weight on every spawn for nothing.
-      permissionMode === "plan" ? `${APPEND_SYSTEM_PROMPT}\n\n${PLAN_MODE_CHOICE_MARKER_PROMPT}` : APPEND_SYSTEM_PROMPT,
+      // dead weight on every spawn for nothing. `mcp.extraSystemPrompt` and
+      // the plan-mode marker never coexist in practice (`present_choice` is
+      // never registered in `plan` mode, `SharedSession.runTurn`), but both
+      // are folded in here regardless so this stays correct if that changes.
+      [
+        APPEND_SYSTEM_PROMPT,
+        permissionMode === "plan" ? PLAN_MODE_CHOICE_MARKER_PROMPT : undefined,
+        mcp?.extraSystemPrompt,
+      ]
+        .filter(Boolean)
+        .join("\n\n"),
       ...(model ? ["--model", model] : []),
       // `bypassPermissions` is the historical default mode (the only one
       // that existed before the mode became selectable, see docs/25) — it
