@@ -8,7 +8,7 @@ import { buildChildEnv } from "./claudeSession.js";
 import { CLAUDE_BIN } from "./claudeCliConfig.js";
 import { detectDefaultModel, type DefaultModelInfo } from "./defaultModel.js";
 import { listDirectories } from "./fsBrowse.js";
-import { deleteFile, listFiles, readFileForViewer, renameFile, resolveRawFile, type FilesError } from "./fsFiles.js";
+import { createFile, deleteFile, listFiles, readFileForViewer, renameFile, resolveRawFile, resolveWithinRoot, type FilesError } from "./fsFiles.js";
 import { FilesWatchSession } from "./fsWatch.js";
 import { defaultCwd } from "./paths.js";
 import {
@@ -175,6 +175,12 @@ function isPatchProfileBody(value: unknown): value is { label?: string; colorInd
   if (candidate.colorIndex !== undefined && typeof candidate.colorIndex !== "number") return false;
   if (candidate.themeId !== undefined && candidate.themeId !== null && typeof candidate.themeId !== "string") return false;
   return candidate.label !== undefined || candidate.colorIndex !== undefined || candidate.themeId !== undefined;
+}
+
+function isFilesCreateBody(value: unknown): value is { session?: string; dir?: string | null; name: string } {
+  if (typeof value !== "object" || value === null) return false;
+  const candidate = value as { name?: unknown; dir?: unknown };
+  return typeof candidate.name === "string" && (candidate.dir === undefined || candidate.dir === null || typeof candidate.dir === "string");
 }
 
 function isFilesDeleteBody(value: unknown): value is { session?: string; path: string } {
@@ -915,6 +921,32 @@ export const httpServer = createServer((req, res) => {
     return;
   }
 
+  if (req.method === "POST" && req.url?.startsWith("/files/create")) {
+    res.setHeader("Content-Type", "application/json");
+    res.setHeader("Access-Control-Allow-Origin", "*");
+    readJsonBody(req)
+      .then((body) => {
+        if (!isFilesCreateBody(body)) {
+          res.writeHead(400);
+          res.end(JSON.stringify({ error: "invalid_path" }));
+          return;
+        }
+        const root = sessionStore.getCwdState(body.session?.trim() || DEFAULT_SESSION).cwd;
+        const result = createFile(root, body.dir ?? null, body.name);
+        if (!result.ok) {
+          res.writeHead(statusForFilesError(result.error));
+          res.end(JSON.stringify({ error: result.error }));
+          return;
+        }
+        res.end(JSON.stringify({ ok: true, path: result.path }));
+      })
+      .catch(() => {
+        res.writeHead(400);
+        res.end(JSON.stringify({ error: "invalid body" }));
+      });
+    return;
+  }
+
   if (req.method === "POST" && req.url?.startsWith("/files/delete")) {
     res.setHeader("Content-Type", "application/json");
     res.setHeader("Access-Control-Allow-Origin", "*");
@@ -1065,7 +1097,19 @@ function handleTerminalConnection(socket: WebSocket, url: URL): void {
   const cols = Number(url.searchParams.get("cols"));
   const rows = Number(url.searchParams.get("rows"));
 
-  const cwd = sessionStore.getCwdState(chatSessionId).cwd;
+  const sessionCwd = sessionStore.getCwdState(chatSessionId).cwd;
+  // "Open in terminal" (docs/41's file tree) — an optional starting
+  // directory, confined to the session's own root the same way `/files/*`
+  // is (not a security boundary, see `resolveWithinRoot`'s own comment —
+  // just a contract that a UI bug can't point a fresh tmux session at
+  // something like `/etc`). Falls back to the session's cwd instead of
+  // erroring: only matters on first spawn (`spawnTerminal`'s own doc
+  // comment — reattaching via `-A` ignores `cwd` entirely), so failing the
+  // whole terminal connection over a stale/invalid path would be a worse
+  // experience than just landing in the usual place.
+  const rawCwd = url.searchParams.get("cwd");
+  const resolvedCwd = rawCwd ? resolveWithinRoot(sessionCwd, rawCwd) : null;
+  const cwd = resolvedCwd?.ok ? resolvedCwd.path : sessionCwd;
   const term = spawnTerminal({
     homeOverride: HOME_OVERRIDE,
     relayPort: PORT,

@@ -258,6 +258,17 @@ export default function App() {
     sessionDock.togglePane(activeTabId, "files");
   }
 
+  /** "Open in terminal" on a folder row in the file tree — always a fresh
+   * tab (never reuses/clobbers one the user might already be typing in),
+   * rooted at that folder. `openPane` (not `togglePane`) because this only
+   * ever means "show me this", never "close it" — same desktop-only gate as
+   * the terminal panel itself. */
+  function handleOpenTerminalAt(tabId: string, path: string): void {
+    if (isCompact || isIOS()) return;
+    sessionDock.openPane(tabId, "terminal");
+    terminalTabs.addTerminal(tabId, path);
+  }
+
   // Ctrl+Tab / Ctrl+Shift+Tab, like a browser — intentionally only `ctrlKey`,
   // not `metaKey || ctrlKey` like the other shortcuts below: on macOS Cmd+Tab
   // is the OS's own app switcher (never reaches the app), so the real
@@ -492,6 +503,7 @@ export default function App() {
                   fileTabs={fileTabs}
                   onToggleMaximized={() => sessionDock.toggleMaximized(tab.id, "files")}
                   onClose={() => sessionDock.closePane(tab.id, "files")}
+                  onOpenTerminal={(path) => handleOpenTerminalAt(tab.id, path)}
                 />
               ) : undefined,
             }}

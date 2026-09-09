@@ -10,6 +10,9 @@ interface TerminalViewProps {
   profile: Profile;
   chatSessionId: string;
   terminalId: string;
+  /** Starting directory, honored only the first time this tab's tmux
+   * session actually spawns (see `TerminalTab.cwd` in useTerminalTabs.ts). */
+  cwd?: string;
 }
 
 const RECONNECT_BASE_DELAY_MS = 500;
@@ -38,7 +41,7 @@ function isTerminalMessage(value: unknown): value is { type: "data"; data: strin
  * terminalSession.ts), so remounting reconnects and the screen reappears
  * the way it was, with no need for any client-side scrollback buffer.
  */
-export function TerminalView({ profile, chatSessionId, terminalId }: TerminalViewProps) {
+export function TerminalView({ profile, chatSessionId, terminalId, cwd }: TerminalViewProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const termRef = useRef<XTerm | null>(null);
   const [reconnecting, setReconnecting] = useState(false);
@@ -122,6 +125,7 @@ export function TerminalView({ profile, chatSessionId, terminalId }: TerminalVie
         cols: String(term.cols),
         rows: String(term.rows),
       });
+      if (cwd) params.set("cwd", cwd);
       const ws = new WebSocket(`ws://${profile.host}:${profile.relayPort}/terminal?${params.toString()}`);
       socket = ws;
 
@@ -223,7 +227,7 @@ export function TerminalView({ profile, chatSessionId, terminalId }: TerminalVie
       term.dispose();
       termRef.current = null;
     };
-  }, [profile.host, profile.relayPort, chatSessionId, terminalId]);
+  }, [profile.host, profile.relayPort, chatSessionId, terminalId, cwd]);
 
   // Live theme swap. Assigning `options.theme` repaints the existing
   // instance, so switching theme keeps the scrollback and the pty — which

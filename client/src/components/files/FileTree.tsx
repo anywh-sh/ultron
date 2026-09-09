@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
-import { ChevronDown, ChevronRight, Download, File, Folder, Pencil, Trash2 } from "lucide-react";
+import { ChevronDown, ChevronRight, Download, File, FilePlus, Folder, Pencil, SquareTerminal, Trash2 } from "lucide-react";
 import type { ChangeSignal } from "@/components/files/FilesPanel";
+import { CreateFileDialog } from "@/components/files/CreateFileDialog";
 import { RenameFileDialog } from "@/components/files/RenameFileDialog";
 import {
   AlertDialog,
@@ -14,7 +15,7 @@ import {
 } from "@/components/ui/alert-dialog";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { useContextMenu } from "@/hooks/useContextMenu";
-import { deleteFile, listFiles, renameFile, type FileEntry } from "@/lib/filesClient";
+import { createFile, deleteFile, listFiles, renameFile, type FileEntry } from "@/lib/filesClient";
 import { downloadFile } from "@/lib/fileDownload";
 import type { Profile } from "@/lib/profiles";
 import { cn } from "@/lib/utils";
@@ -41,6 +42,10 @@ interface FileTreeProps {
    * `useFileTabs`, one level up in `FilesPanel`. */
   onFileDeleted: (path: string) => void;
   onFileRenamed: (oldPath: string, newPath: string) => void;
+  /** Opens (or reuses, per `useSessionDock.openPane`) the terminal pane with
+   * a fresh tab rooted at this folder — wired all the way up to `App.tsx`,
+   * the only place that has both the terminal tabs and the dock state. */
+  onOpenTerminal: (path: string) => void;
 }
 
 const INDENT_PX = 14;
@@ -68,9 +73,23 @@ export function FileTree({
   onOpenPinned,
   onFileDeleted,
   onFileRenamed,
+  onOpenTerminal,
 }: FileTreeProps) {
   const [nodesByDir, setNodesByDir] = useState<Record<string, DirState>>({});
   const inFlightRef = useRef<Set<string>>(new Set());
+  const panelMenu = useContextMenu();
+  const [createOpen, setCreateOpen] = useState(false);
+
+  async function handleCreateFile(name: string): Promise<void> {
+    try {
+      const result = await createFile(profile, sessionId, name);
+      setCreateOpen(false);
+      onOpenPinned(result.path);
+    } catch (error) {
+      console.error("[ultron] failed to create file:", error);
+      window.alert("Não foi possível criar o arquivo.");
+    }
+  }
 
   const loadDir = useCallback(
     (dir: string) => {
@@ -118,7 +137,7 @@ export function FileTree({
   }, [changedDir]);
 
   return (
-    <div className="scrollbar-thin h-full overflow-auto py-1 text-xs">
+    <div className="scrollbar-thin h-full overflow-auto py-1 text-xs" onContextMenu={panelMenu.onContextMenu}>
       <FileTreeChildren
         dir={root}
         depth={0}
@@ -132,7 +151,26 @@ export function FileTree({
         onOpenPinned={onOpenPinned}
         onFileDeleted={onFileDeleted}
         onFileRenamed={onFileRenamed}
+        onOpenTerminal={onOpenTerminal}
       />
+      <DropdownMenu open={panelMenu.open} onOpenChange={panelMenu.setOpen}>
+        <DropdownMenuTrigger asChild>
+          <span className="pointer-events-none fixed" style={{ left: panelMenu.position.x, top: panelMenu.position.y }} />
+        </DropdownMenuTrigger>
+        <DropdownMenuContent align="start">
+          <DropdownMenuItem
+            onSelect={(event) => {
+              event.preventDefault();
+              panelMenu.setOpen(false);
+              setCreateOpen(true);
+            }}
+          >
+            <FilePlus />
+            Novo arquivo
+          </DropdownMenuItem>
+        </DropdownMenuContent>
+      </DropdownMenu>
+      <CreateFileDialog open={createOpen} onOpenChange={setCreateOpen} onSave={(name) => void handleCreateFile(name)} />
     </div>
   );
 }
@@ -149,6 +187,7 @@ interface SharedTreeProps {
   onOpenPinned: (path: string) => void;
   onFileDeleted: (path: string) => void;
   onFileRenamed: (oldPath: string, newPath: string) => void;
+  onOpenTerminal: (path: string) => void;
 }
 
 interface ChildrenProps extends SharedTreeProps {
@@ -168,6 +207,7 @@ function FileTreeChildren({
   onOpenPinned,
   onFileDeleted,
   onFileRenamed,
+  onOpenTerminal,
 }: ChildrenProps) {
   const nodes = nodesByDir[dir];
   const indent = `${depth * INDENT_PX + 8}px`;
@@ -211,6 +251,7 @@ function FileTreeChildren({
           onOpenPinned={onOpenPinned}
           onFileDeleted={onFileDeleted}
           onFileRenamed={onFileRenamed}
+          onOpenTerminal={onOpenTerminal}
         />
       ))}
     </>
@@ -234,12 +275,14 @@ function FileTreeNode({
   onOpenPinned,
   onFileDeleted,
   onFileRenamed,
+  onOpenTerminal,
 }: NodeProps) {
   const isDir = entry.kind === "dir";
   const isExpanded = isDir && expanded.includes(entry.path);
   const isActive = entry.path === activePath;
-  // "Open in a new tab" (decision 6, docs/41) only makes sense for a file —
-  // a directory's right-click doesn't get a menu at all.
+  // File and directory rows show different items below (decision 6, docs/41
+  // for the file ones) — both get a menu now, "open in terminal" only makes
+  // sense for a folder.
   const menu = useContextMenu();
   const [renameOpen, setRenameOpen] = useState(false);
   const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false);
@@ -281,7 +324,7 @@ function FileTreeNode({
         tabIndex={0}
         onClick={() => (isDir ? onToggleExpand(entry.path) : onOpenPreview(entry.path))}
         onDoubleClick={() => !isDir && onOpenPinned(entry.path)}
-        onContextMenu={isDir ? undefined : menu.onContextMenu}
+        onContextMenu={menu.onContextMenu}
         onKeyDown={(event) => {
           if (event.key !== "Enter" && event.key !== " ") return;
           if (isDir) onToggleExpand(entry.path);
@@ -354,6 +397,25 @@ function FileTreeNode({
             </DropdownMenuContent>
           </DropdownMenu>
         )}
+        {isDir && (
+          <DropdownMenu open={menu.open} onOpenChange={menu.setOpen}>
+            <DropdownMenuTrigger asChild>
+              <span className="pointer-events-none fixed" style={{ left: menu.position.x, top: menu.position.y }} />
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="start">
+              <DropdownMenuItem
+                onSelect={(event) => {
+                  event.preventDefault();
+                  menu.setOpen(false);
+                  onOpenTerminal(entry.path);
+                }}
+              >
+                <SquareTerminal />
+                Abrir no terminal
+              </DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
+        )}
       </div>
       {!isDir && (
         <>
@@ -386,6 +448,7 @@ function FileTreeNode({
           onOpenPinned={onOpenPinned}
           onFileDeleted={onFileDeleted}
           onFileRenamed={onFileRenamed}
+          onOpenTerminal={onOpenTerminal}
         />
       )}
     </div>

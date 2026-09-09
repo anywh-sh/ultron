@@ -22,6 +22,11 @@ export function useContextMenu(): ContextMenuState {
 
   function onContextMenu(event: MouseEvent): void {
     event.preventDefault();
+    // Stops a row's own menu (a file/folder in `FileTree`) from also
+    // triggering an ancestor's menu (the file panel's background "new
+    // file") — harmless for every other caller today, none of which nests
+    // one of these inside another.
+    event.stopPropagation();
     setPosition({ x: event.clientX, y: event.clientY });
     setOpen(true);
   }

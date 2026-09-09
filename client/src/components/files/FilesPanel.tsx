@@ -94,6 +94,9 @@ interface FilesPanelProps {
   fileTabs: ReturnType<typeof useFileTabs>;
   onToggleMaximized: () => void;
   onClose: () => void;
+  /** "Open in terminal" on a folder row — owned by `App.tsx`, the only place
+   * with both the terminal tabs and the dock state this needs to touch. */
+  onOpenTerminal: (path: string) => void;
 }
 
 function fileLabel(path: string): string {
@@ -147,7 +150,7 @@ function useTreeWidthDrag(width: number, onChange: (width: number) => void) {
  * right. Mirrors `TerminalPanel`'s mount lifecycle: only exists while the
  * chat tab is active and the pane is open (decided by the caller, App.tsx).
  */
-export function FilesPanel({ profile, chatSessionId, maximized, fileTabs, onToggleMaximized, onClose }: FilesPanelProps) {
+export function FilesPanel({ profile, chatSessionId, maximized, fileTabs, onToggleMaximized, onClose, onOpenTerminal }: FilesPanelProps) {
   const { open, activePath, expanded, treeWidth, root } = fileTabs.getTabs(chatSessionId);
   // Not persisted — same as the terminal's tab list, this is view state, not
   // worth surviving a restart. Defaults to filtered (decision 4, docs/41).
@@ -237,6 +240,7 @@ export function FilesPanel({ profile, chatSessionId, maximized, fileTabs, onTogg
             onOpenPinned={(path) => fileTabs.openPinned(chatSessionId, path)}
             onFileDeleted={(path) => fileTabs.closeTab(chatSessionId, path)}
             onFileRenamed={(oldPath, newPath) => fileTabs.renamePath(chatSessionId, oldPath, newPath)}
+            onOpenTerminal={onOpenTerminal}
           />
         </div>
         <div

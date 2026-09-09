@@ -1,4 +1,4 @@
-import { closeSync, existsSync, openSync, readdirSync, readSync, realpathSync, renameSync, statSync, unlinkSync } from "node:fs";
+import { closeSync, existsSync, openSync, readdirSync, readSync, realpathSync, renameSync, statSync, unlinkSync, writeFileSync } from "node:fs";
 import { dirname, extname, isAbsolute, join, resolve, sep } from "node:path";
 
 // Backs the work dir file panel (docs/41) — list/read/raw for a session's
@@ -235,6 +235,33 @@ export function renameFile(rawRoot: string, rawPath: string, newName: string): R
 
   try {
     renameSync(resolved.path, target);
+  } catch (error) {
+    return { ok: false, error: errorFromErrno(error) };
+  }
+  return { ok: true, path: target };
+}
+
+export type CreateResult = { ok: true; path: string } | { ok: false; error: FilesWriteError };
+
+/** Creates an empty file directly under `rawDir` (or the root itself when
+ * `rawDir` is `null` — the file tree's panel-level "new file" context menu
+ * always creates at the root today). `name` is validated the same way
+ * `renameFile`'s `newName` is, and creation fails closed if something
+ * already exists at the target path rather than silently truncating it. */
+export function createFile(rawRoot: string, rawDir: string | null, name: string): CreateResult {
+  const resolvedDir = resolveWithinRoot(rawRoot, rawDir);
+  if (!resolvedDir.ok) return resolvedDir;
+
+  const trimmed = name.trim();
+  if (!trimmed || trimmed.includes("/") || trimmed.includes(sep) || trimmed === "." || trimmed === "..") {
+    return { ok: false, error: "invalid_name" };
+  }
+
+  const target = join(resolvedDir.path, trimmed);
+  if (existsSync(target)) return { ok: false, error: "already_exists" };
+
+  try {
+    writeFileSync(target, "");
   } catch (error) {
     return { ok: false, error: errorFromErrno(error) };
   }

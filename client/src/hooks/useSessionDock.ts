@@ -105,6 +105,17 @@ export function useSessionDock() {
     });
   }, []);
 
+  /** Ensures `kind` is present, without `togglePane`'s close-if-already-open
+   * behavior — for actions that only ever mean "show me this pane" (the file
+   * tree's "open in terminal"), never "close it". */
+  const openPane = useCallback((tabId: string, kind: DockPaneKind) => {
+    setDocks((prev) => {
+      const existing = prev[tabId] ?? EMPTY_DOCK;
+      if (existing.panes.includes(kind)) return prev;
+      return { ...prev, [tabId]: { ...existing, panes: [...existing.panes, kind] } };
+    });
+  }, []);
+
   const closePane = useCallback((tabId: string, kind: DockPaneKind) => {
     setDocks((prev) => {
       const existing = prev[tabId];
@@ -150,5 +161,5 @@ export function useSessionDock() {
     });
   }, []);
 
-  return { getDock, togglePane, closePane, setWidth, setSplitRatio, toggleMaximized, removeSession };
+  return { getDock, togglePane, openPane, closePane, setWidth, setSplitRatio, toggleMaximized, removeSession };
 }

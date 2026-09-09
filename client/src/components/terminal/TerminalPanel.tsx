@@ -104,7 +104,7 @@ export function TerminalPanel({
       <div className="relative h-full min-h-0">
         {tabs.map((tab) => (
           <div key={tab.id} className={tab.id === activeTerminalId ? "absolute inset-0" : "invisible absolute inset-0"}>
-            <TerminalView profile={profile} chatSessionId={chatSessionId} terminalId={tab.id} />
+            <TerminalView profile={profile} chatSessionId={chatSessionId} terminalId={tab.id} cwd={tab.cwd} />
           </div>
         ))}
       </div>

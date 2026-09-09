@@ -1,7 +1,11 @@
 import { test, before, after } from "node:test";
 import assert from "node:assert/strict";
+import { mkdirSync, mkdtempSync, realpathSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 import WebSocket from "ws";
 import { startTestServer, type TestServer } from "./helpers/testServer.js";
+import { connectSession } from "./helpers/wsClient.js";
 
 // Real integration test (.ultron/skills/tests/SKILL.md): the embedded
 // terminal panel talks to a REAL tmux session via node-pty
@@ -19,14 +23,34 @@ after(async () => {
   await server.close();
 });
 
-function connectTerminal(chatSessionId: string, terminalId: string): Promise<WebSocket> {
+function connectTerminal(chatSessionId: string, terminalId: string, cwd?: string): Promise<WebSocket> {
   return new Promise((resolveConn, reject) => {
-    const socket = new WebSocket(
-      `ws://127.0.0.1:${server.port}/terminal?session=${encodeURIComponent(chatSessionId)}&term=${encodeURIComponent(terminalId)}&cols=80&rows=24`,
-    );
+    let url = `ws://127.0.0.1:${server.port}/terminal?session=${encodeURIComponent(chatSessionId)}&term=${encodeURIComponent(terminalId)}&cols=80&rows=24`;
+    if (cwd) url += `&cwd=${encodeURIComponent(cwd)}`;
+    const socket = new WebSocket(url);
     socket.once("open", () => resolveConn(socket));
     socket.once("error", reject);
   });
+}
+
+/** Sets the chat session's own cwd (same `set_cwd`/`cwd_state` handshake
+ * `fileBrowser.test.ts` uses) — `/terminal`'s own `cwd` query param
+ * (file tree's "open in terminal") is confined to this root, the same
+ * contract `/files/*` already has (`resolveWithinRoot`, fsFiles.ts). */
+async function setSessionCwd(chatSessionId: string, cwd: string): Promise<WebSocket> {
+  const socket = await connectSession(server.port, chatSessionId);
+  socket.send(JSON.stringify({ type: "set_cwd", path: cwd }));
+  await new Promise<void>((resolveCwd) => {
+    function onMessage(raw: Buffer): void {
+      const message = JSON.parse(raw.toString()) as { type: string; cwd?: string };
+      if (message.type === "cwd_state" && message.cwd === cwd) {
+        socket.off("message", onMessage);
+        resolveCwd();
+      }
+    }
+    socket.on("message", onMessage);
+  });
+  return socket;
 }
 
 /** Accumulates every `{"type":"data",...}` frame's payload until the
@@ -156,5 +180,45 @@ test("a terminal tab runs real shell commands, and its tmux session survives a d
     third.close();
   } finally {
     await closeTerminal("term-chat-session", "tab-1");
+  }
+});
+
+test("a cwd query param starts the shell there — the file tree's \"open in terminal\"", async () => {
+  const workDir = realpathSync(mkdtempSync(join(tmpdir(), "ultron-terminal-cwd-")));
+  const subDir = join(workDir, "sub");
+  mkdirSync(subDir);
+  const chatSessionId = "term-chat-session-cwd";
+  const chatSocket = await setSessionCwd(chatSessionId, workDir);
+
+  try {
+    const socket = await connectTerminal(chatSessionId, "tab-cwd", subDir);
+    await waitForQuiet(socket);
+    sendInput(socket, "pwd\r");
+    const output = await waitForOutput(socket, subDir);
+    assert.ok(output.includes(subDir));
+    socket.close();
+  } finally {
+    await closeTerminal(chatSessionId, "tab-cwd");
+    chatSocket.close();
+  }
+});
+
+test("a cwd outside the session's own root is ignored, falling back to the session's cwd", async () => {
+  const workDir = realpathSync(mkdtempSync(join(tmpdir(), "ultron-terminal-cwd-root-")));
+  const outsideDir = realpathSync(mkdtempSync(join(tmpdir(), "ultron-terminal-cwd-outside-")));
+  const chatSessionId = "term-chat-session-cwd-outside";
+  const chatSocket = await setSessionCwd(chatSessionId, workDir);
+
+  try {
+    const socket = await connectTerminal(chatSessionId, "tab-cwd-outside", outsideDir);
+    await waitForQuiet(socket);
+    sendInput(socket, "pwd\r");
+    const output = await waitForOutput(socket, workDir);
+    assert.ok(output.includes(workDir));
+    assert.ok(!output.includes(outsideDir), "a cwd outside the session's root must never be honored");
+    socket.close();
+  } finally {
+    await closeTerminal(chatSessionId, "tab-cwd-outside");
+    chatSocket.close();
   }
 });

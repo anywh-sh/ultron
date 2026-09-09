@@ -3,6 +3,13 @@ import { useCallback, useEffect, useState } from "react";
 export interface TerminalTab {
   id: string;
   label: string;
+  /** Starting directory for this tab's tmux session, set once at creation
+   * (e.g. the file tree's "open in terminal") — the relay only honors it the
+   * first time this tab's terminal actually spawns (see
+   * `relay/src/terminalSession.ts`: reattaching to an already-running tmux
+   * session ignores it, same as any real terminal). Absent means "the chat
+   * session's own cwd", the previous/default behavior. */
+  cwd?: string;
 }
 
 interface TerminalTabsState {
@@ -46,9 +53,11 @@ export function useTerminalTabs() {
   const getTabs = useCallback((tabId: string): TerminalTabsState => state[tabId] ?? EMPTY_STATE, [state]);
 
   /** Returns the id generated right away (doesn't wait for the next render) — the caller
-   * (the terminal button or the tab strip's "+") needs it immediately
-   * to mark the new tab as active. */
-  const addTerminal = useCallback((tabId: string): string => {
+   * (the terminal button, the tab strip's "+", or the file tree's "open in
+   * terminal") needs it immediately to mark the new tab as active.
+   * `startCwd` is only meaningful the first time this tab's tmux session
+   * actually spawns — see `TerminalTab.cwd`. */
+  const addTerminal = useCallback((tabId: string, startCwd?: string): string => {
     const id = crypto.randomUUID();
     setState((prev) => {
       const existing = prev[tabId] ?? EMPTY_STATE;
@@ -56,7 +65,7 @@ export function useTerminalTabs() {
       return {
         ...prev,
         [tabId]: {
-          tabs: [...existing.tabs, { id, label }],
+          tabs: [...existing.tabs, { id, label, cwd: startCwd }],
           activeTerminalId: id,
           nextNumber: existing.nextNumber + 1,
         },

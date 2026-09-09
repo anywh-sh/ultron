@@ -79,6 +79,43 @@ test("GET /files/list and /files/read are scoped to the session's own cwd, set v
   socket.close();
 });
 
+test("POST /files/create is scoped to the session's own cwd", async () => {
+  const socket = await connectSession(server.port, "session-files-create");
+  socket.send(JSON.stringify({ type: "set_cwd", path: workDir }));
+  await new Promise<void>((resolveCwd) => {
+    function onMessage(raw: Buffer): void {
+      const message = JSON.parse(raw.toString()) as { type: string; cwd?: string };
+      if (message.type === "cwd_state" && message.cwd === workDir) {
+        socket.off("message", onMessage);
+        resolveCwd();
+      }
+    }
+    socket.on("message", onMessage);
+  });
+
+  const created = await fetch(httpUrl("/files/create"), {
+    method: "POST",
+    body: JSON.stringify({ session: "session-files-create", name: "criado.txt" }),
+  });
+  assert.equal(created.status, 200);
+  const createdBody = (await created.json()) as { ok: boolean; path: string };
+  assert.equal(createdBody.path, join(workDir, "criado.txt"));
+
+  const listed = (await (await fetch(httpUrl(`/files/list?session=session-files-create`))).json()) as {
+    entries: { name: string }[];
+  };
+  assert.ok(listed.entries.some((entry) => entry.name === "criado.txt"));
+
+  // Same name again is a conflict, not a silent truncation.
+  const conflict = await fetch(httpUrl("/files/create"), {
+    method: "POST",
+    body: JSON.stringify({ session: "session-files-create", name: "criado.txt" }),
+  });
+  assert.equal(conflict.status, 409);
+
+  socket.close();
+});
+
 test("the /files WS watch reports a real filesystem change, debounced", async () => {
   const filesSocket = new WebSocket(`ws://127.0.0.1:${server.port}/files?session=session-files`);
   await new Promise<void>((resolveOpen, reject) => {

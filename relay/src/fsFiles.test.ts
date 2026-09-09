@@ -3,7 +3,7 @@ import assert from "node:assert/strict";
 import { existsSync, mkdirSync, mkdtempSync, rmSync, symlinkSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { deleteFile, listFiles, readFileForViewer, renameFile, resolveRawFile, resolveWithinRoot } from "./fsFiles.js";
+import { createFile, deleteFile, listFiles, readFileForViewer, renameFile, resolveRawFile, resolveWithinRoot } from "./fsFiles.js";
 
 function withTempDir(run: (dir: string) => void): void {
   const dir = mkdtempSync(join(tmpdir(), "ultron-fsfiles-test-"));
@@ -258,6 +258,54 @@ test("renameFile: a name containing a path separator is rejected", () => {
     const result = renameFile(dir, file, "../fora.txt");
     assert.deepEqual(result, { ok: false, error: "invalid_name" });
     assert.equal(existsSync(file), true);
+  });
+});
+
+test("createFile: creates an empty file at the root", () => {
+  withTempDir((dir) => {
+    const result = createFile(dir, null, "novo.txt");
+    assert.deepEqual(result, { ok: true, path: join(dir, "novo.txt") });
+    assert.equal(existsSync(join(dir, "novo.txt")), true);
+  });
+});
+
+test("createFile: creates inside a subdirectory", () => {
+  withTempDir((dir) => {
+    const sub = join(dir, "pasta");
+    mkdirSync(sub);
+
+    const result = createFile(dir, sub, "novo.txt");
+    assert.deepEqual(result, { ok: true, path: join(sub, "novo.txt") });
+  });
+});
+
+test("createFile: a name that already exists is rejected, never truncated", () => {
+  withTempDir((dir) => {
+    const file = join(dir, "existente.txt");
+    writeFileSync(file, "conteúdo original");
+
+    const result = createFile(dir, null, "existente.txt");
+    assert.deepEqual(result, { ok: false, error: "already_exists" });
+    const afterwards = readFileForViewer(dir, file);
+    assert.equal(afterwards.ok, true);
+    if (afterwards.ok && afterwards.kind === "text") assert.equal(afterwards.content, "conteúdo original");
+  });
+});
+
+test("createFile: a name containing a path separator is rejected", () => {
+  withTempDir((dir) => {
+    const result = createFile(dir, null, "../fora.txt");
+    assert.deepEqual(result, { ok: false, error: "invalid_name" });
+  });
+});
+
+test("createFile: a target directory outside the root is rejected", () => {
+  withTempDir((outer) => {
+    withTempDir((root) => {
+      const result = createFile(root, outer, "novo.txt");
+      assert.equal(result.ok, false);
+      if (!result.ok) assert.equal(result.error, "outside_root");
+    });
   });
 });
 

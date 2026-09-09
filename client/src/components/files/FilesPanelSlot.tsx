@@ -14,6 +14,7 @@ interface FilesPanelSlotProps {
   fileTabs: ReturnType<typeof useFileTabs>;
   onToggleMaximized: () => void;
   onClose: () => void;
+  onOpenTerminal: (path: string) => void;
 }
 
 /**
@@ -21,7 +22,7 @@ interface FilesPanelSlotProps {
  * decides sizing/animation/whether this even mounts (see comment there) —
  * this component only fills whatever space it's given.
  */
-export function FilesPanelSlot({ profile, chatSessionId, maximized, fileTabs, onToggleMaximized, onClose }: FilesPanelSlotProps) {
+export function FilesPanelSlot({ profile, chatSessionId, maximized, fileTabs, onToggleMaximized, onClose, onOpenTerminal }: FilesPanelSlotProps) {
   return (
     <Suspense fallback={<div className="h-full bg-bg-sidebar" />}>
       <FilesPanel
@@ -31,6 +32,7 @@ export function FilesPanelSlot({ profile, chatSessionId, maximized, fileTabs, on
         fileTabs={fileTabs}
         onToggleMaximized={onToggleMaximized}
         onClose={onClose}
+        onOpenTerminal={onOpenTerminal}
       />
     </Suspense>
   );

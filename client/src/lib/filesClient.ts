@@ -72,6 +72,13 @@ export function rawFileUrl(profile: Profile, sessionId: string, path: string, mt
   return `${baseUrl(profile)}/files/raw?${params.toString()}`;
 }
 
+/** `dir` omitted creates at the session's root — today the only caller
+ * (`FileTree`'s panel-level "new file" context menu) never creates inside a
+ * specific folder. */
+export async function createFile(profile: Profile, sessionId: string, name: string, dir?: string): Promise<{ path: string }> {
+  return postJson(`${baseUrl(profile)}/files/create`, { session: sessionId, dir: dir ?? null, name });
+}
+
 /** File-only write surface — the context menu that drives these (`FileTree`)
  * never shows delete/rename for a directory row. */
 export async function deleteFile(profile: Profile, sessionId: string, path: string): Promise<void> {
