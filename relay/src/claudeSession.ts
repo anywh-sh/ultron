@@ -423,9 +423,19 @@ export class ClaudeSession {
         }
       })();
 
-      const exitCode = await new Promise<number | null>((resolve) => {
-        child.on("close", (code) => resolve(code));
-      });
+      // Raced against `spawnError` from the start (not awaited on its own
+      // first) — a spawn failure (bad `cwd`, missing binary, ...) doesn't
+      // reliably emit `close` (a missing executable never does, see
+      // tests/spawnFailure.test.ts), so awaiting `close` alone here would
+      // leave `spawnError`'s rejection unconsumed for a window with no
+      // handler attached — an unhandled-rejection crash that used to take
+      // the whole relay process down instead of just failing this turn.
+      const exitCode = await Promise.race([
+        spawnError,
+        new Promise<number | null>((resolve) => {
+          child.on("close", (code) => resolve(code));
+        }),
+      ]);
 
       await Promise.race([spawnError, readLines]);
 
