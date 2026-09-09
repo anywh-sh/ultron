@@ -7,6 +7,10 @@ mod window_icon;
 // Cargo.toml.
 #[cfg(not(target_os = "ios"))]
 mod voice;
+// "Open in editor" (journal/60) needs a real filesystem/registry to detect
+// installed editors against — out of scope for iOS the same way voice is.
+#[cfg(not(target_os = "ios"))]
+mod editors;
 
 // Learn more about Tauri commands at https://tauri.app/develop/calling-rust/
 #[tauri::command]
@@ -70,7 +74,8 @@ pub fn run() {
             voice::list_input_devices,
             voice::start_recording,
             voice::stop_recording_and_transcribe,
-            read_dropped_file
+            read_dropped_file,
+            editors::detect_editors
         ]);
 
     #[cfg(target_os = "ios")]

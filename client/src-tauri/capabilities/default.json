@@ -10,6 +10,15 @@
     "os:default",
     "core:window:allow-is-focused",
     "dialog:allow-save",
-    "fs:allow-write-file"
+    "fs:allow-write-file",
+    {
+      "identifier": "opener:allow-open-url",
+      "allow": [
+        { "url": "zed://*" },
+        { "url": "vscode://*" },
+        { "url": "cursor://*" },
+        { "url": "windsurf://*" }
+      ]
+    }
   ]
 }
