@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from "react";
-import { ChevronDown, ChevronRight, Download, File, FilePlus, Folder, Pencil, SquareTerminal, Trash2 } from "lucide-react";
+import { openUrl } from "@tauri-apps/plugin-opener";
+import { ChevronDown, ChevronRight, Code2, Download, File, FilePlus, Folder, Pencil, SquareTerminal, Trash2 } from "lucide-react";
 import type { ChangeSignal } from "@/components/files/FilesPanel";
 import { CreateFileDialog } from "@/components/files/CreateFileDialog";
 import { RenameFileDialog } from "@/components/files/RenameFileDialog";
@@ -13,10 +14,23 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
-import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuPortal,
+  DropdownMenuSeparator,
+  DropdownMenuSub,
+  DropdownMenuSubContent,
+  DropdownMenuSubTrigger,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 import { useContextMenu } from "@/hooks/useContextMenu";
-import { createFile, deleteFile, listFiles, renameFile, type FileEntry } from "@/lib/filesClient";
+import { detectEditors, type DetectedEditor } from "@/lib/editors";
+import { buildEditorUrl, type EditorId, type EditorLocality } from "@/lib/editorLinks";
+import { createFile, deleteFile, getHostInfo, listFiles, renameFile, type FileEntry } from "@/lib/filesClient";
 import { downloadFile } from "@/lib/fileDownload";
+import { isIOS } from "@/lib/platform";
 import type { Profile } from "@/lib/profiles";
 import { cn } from "@/lib/utils";
 
@@ -50,6 +64,82 @@ interface FileTreeProps {
 
 const INDENT_PX = 14;
 
+interface EditorOpenMenuItemsProps {
+  editors: DetectedEditor[];
+  locality: EditorLocality;
+  path: string;
+  /** e.g. `(label) => \`Abrir no ${label}\`` for a file/folder row, or
+   * `\`Abrir projeto no ${label}\`` for the panel-level root action. */
+  itemLabel: (editorLabel: string) => string;
+  /** Submenu trigger label used only when more than one editor was
+   * detected — e.g. "Abrir com" / "Abrir projeto com". */
+  subTriggerLabel: string;
+  onSelected: () => void;
+}
+
+/**
+ * "Open in editor" (journal/60) — hidden entirely when there's no declared
+ * locality (both `ULTRON_EDITOR_LOCAL`/`ULTRON_EDITOR_SSH` unset
+ * relay-side), no detected editor, or on iOS (no deep link handler exists
+ * there). One editor renders a plain item; more than one nests under an
+ * "Abrir com" submenu, mirroring the file/folder row's existing pattern of
+ * plain item vs. nested choice.
+ */
+function EditorOpenMenuItems({ editors, locality, path, itemLabel, subTriggerLabel, onSelected }: EditorOpenMenuItemsProps) {
+  if (isIOS() || !locality || editors.length === 0) return null;
+
+  function openInEditor(editorId: EditorId): void {
+    onSelected();
+    const url = buildEditorUrl(editorId, locality, { path });
+    if (url) void openUrl(url);
+  }
+
+  if (editors.length === 1) {
+    const editor = editors[0];
+    return (
+      <>
+        <DropdownMenuSeparator />
+        <DropdownMenuItem
+          onSelect={(event) => {
+            event.preventDefault();
+            openInEditor(editor.id);
+          }}
+        >
+          <Code2 />
+          {itemLabel(editor.label)}
+        </DropdownMenuItem>
+      </>
+    );
+  }
+
+  return (
+    <>
+      <DropdownMenuSeparator />
+      <DropdownMenuSub>
+        <DropdownMenuSubTrigger>
+          <Code2 />
+          {subTriggerLabel}
+        </DropdownMenuSubTrigger>
+        <DropdownMenuPortal>
+          <DropdownMenuSubContent>
+            {editors.map((editor) => (
+              <DropdownMenuItem
+                key={editor.id}
+                onSelect={(event) => {
+                  event.preventDefault();
+                  openInEditor(editor.id);
+                }}
+              >
+                {editor.label}
+              </DropdownMenuItem>
+            ))}
+          </DropdownMenuSubContent>
+        </DropdownMenuPortal>
+      </DropdownMenuSub>
+    </>
+  );
+}
+
 /**
  * Lazy tree — only ever lists one folder at a time (docs/41: a recursive
  * scan doesn't scale once `node_modules` is in the picture), caching each
@@ -79,6 +169,27 @@ export function FileTree({
   const inFlightRef = useRef<Set<string>>(new Set());
   const panelMenu = useContextMenu();
   const [createOpen, setCreateOpen] = useState(false);
+  const [editorLocality, setEditorLocality] = useState<EditorLocality>(null);
+  const [detectedEditors, setDetectedEditors] = useState<DetectedEditor[]>([]);
+
+  // "Open in editor" (journal/60): locality comes from the relay (declared,
+  // never inferred — see editorHostInfo.ts), the editor list from a local
+  // OS-level scheme detection (editors.rs) — independent lookups, so
+  // neither needs to wait on the other before hiding/showing the feature.
+  useEffect(() => {
+    let cancelled = false;
+    getHostInfo(profile)
+      .then((info) => {
+        if (!cancelled) setEditorLocality(info.editor);
+      })
+      .catch(() => {});
+    detectEditors().then((editors) => {
+      if (!cancelled) setDetectedEditors(editors);
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [profile]);
 
   async function handleCreateFile(name: string): Promise<void> {
     try {
@@ -152,6 +263,8 @@ export function FileTree({
         onFileDeleted={onFileDeleted}
         onFileRenamed={onFileRenamed}
         onOpenTerminal={onOpenTerminal}
+        editorLocality={editorLocality}
+        detectedEditors={detectedEditors}
       />
       <DropdownMenu open={panelMenu.open} onOpenChange={panelMenu.setOpen}>
         <DropdownMenuTrigger asChild>
@@ -168,6 +281,14 @@ export function FileTree({
             <FilePlus />
             Novo arquivo
           </DropdownMenuItem>
+          <EditorOpenMenuItems
+            editors={detectedEditors}
+            locality={editorLocality}
+            path={root}
+            itemLabel={(label) => `Abrir projeto no ${label}`}
+            subTriggerLabel="Abrir projeto com"
+            onSelected={() => panelMenu.setOpen(false)}
+          />
         </DropdownMenuContent>
       </DropdownMenu>
       <CreateFileDialog open={createOpen} onOpenChange={setCreateOpen} onSave={(name) => void handleCreateFile(name)} />
@@ -188,6 +309,8 @@ interface SharedTreeProps {
   onFileDeleted: (path: string) => void;
   onFileRenamed: (oldPath: string, newPath: string) => void;
   onOpenTerminal: (path: string) => void;
+  editorLocality: EditorLocality;
+  detectedEditors: DetectedEditor[];
 }
 
 interface ChildrenProps extends SharedTreeProps {
@@ -208,6 +331,8 @@ function FileTreeChildren({
   onFileDeleted,
   onFileRenamed,
   onOpenTerminal,
+  editorLocality,
+  detectedEditors,
 }: ChildrenProps) {
   const nodes = nodesByDir[dir];
   const indent = `${depth * INDENT_PX + 8}px`;
@@ -252,6 +377,8 @@ function FileTreeChildren({
           onFileDeleted={onFileDeleted}
           onFileRenamed={onFileRenamed}
           onOpenTerminal={onOpenTerminal}
+          editorLocality={editorLocality}
+          detectedEditors={detectedEditors}
         />
       ))}
     </>
@@ -276,6 +403,8 @@ function FileTreeNode({
   onFileDeleted,
   onFileRenamed,
   onOpenTerminal,
+  editorLocality,
+  detectedEditors,
 }: NodeProps) {
   const isDir = entry.kind === "dir";
   const isExpanded = isDir && expanded.includes(entry.path);
@@ -362,6 +491,14 @@ function FileTreeNode({
               >
                 Abrir em nova aba
               </DropdownMenuItem>
+              <EditorOpenMenuItems
+                editors={detectedEditors}
+                locality={editorLocality}
+                path={entry.path}
+                itemLabel={(label) => `Abrir no ${label}`}
+                subTriggerLabel="Abrir com"
+                onSelected={() => menu.setOpen(false)}
+              />
               <DropdownMenuSeparator />
               <DropdownMenuItem
                 onSelect={(event) => {
@@ -413,6 +550,14 @@ function FileTreeNode({
                 <SquareTerminal />
                 Abrir no terminal
               </DropdownMenuItem>
+              <EditorOpenMenuItems
+                editors={detectedEditors}
+                locality={editorLocality}
+                path={entry.path}
+                itemLabel={(label) => `Abrir no ${label}`}
+                subTriggerLabel="Abrir com"
+                onSelected={() => menu.setOpen(false)}
+              />
             </DropdownMenuContent>
           </DropdownMenu>
         )}
@@ -449,6 +594,8 @@ function FileTreeNode({
           onFileDeleted={onFileDeleted}
           onFileRenamed={onFileRenamed}
           onOpenTerminal={onOpenTerminal}
+          editorLocality={editorLocality}
+          detectedEditors={detectedEditors}
         />
       )}
     </div>

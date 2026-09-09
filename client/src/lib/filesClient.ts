@@ -1,3 +1,4 @@
+import type { EditorLocality } from "@/lib/editorLinks";
 import type { Profile } from "@/lib/profiles";
 
 // Client for the work dir file panel's protocol (docs/41) — mirrors
@@ -90,4 +91,18 @@ export async function deleteFile(profile: Profile, sessionId: string, path: stri
  * so the caller can move an open tab to follow the file. */
 export async function renameFile(profile: Profile, sessionId: string, path: string, newName: string): Promise<{ path: string }> {
   return postJson(`${baseUrl(profile)}/files/rename`, { session: sessionId, path, newName });
+}
+
+export interface HostInfo {
+  hostname: string;
+  platform: string;
+  editor: EditorLocality;
+}
+
+/** Whether/how the client can open a file panel path in a local editor
+ * (journal/60) — `editor: null` means both `ULTRON_EDITOR_LOCAL` and
+ * `ULTRON_EDITOR_SSH` are unset relay-side, and the feature should be
+ * hidden entirely (see `relay/src/editorHostInfo.ts`). */
+export async function getHostInfo(profile: Profile): Promise<HostInfo> {
+  return getJson<HostInfo>(`${baseUrl(profile)}/host-info`);
 }

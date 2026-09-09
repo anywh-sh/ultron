@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { cleanup, render, screen, waitFor, within } from "@testing-library/react";
+import { cleanup, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { FileTree } from "./FileTree";
 import type { Profile } from "@/lib/profiles";
@@ -10,13 +10,22 @@ vi.mock("@/lib/filesClient", () => ({
   createFile: vi.fn(),
   deleteFile: vi.fn(),
   renameFile: vi.fn(),
+  getHostInfo: vi.fn(),
 }));
 vi.mock("@/lib/fileDownload", () => ({
   downloadFile: vi.fn(),
 }));
+vi.mock("@/lib/editors", () => ({
+  detectEditors: vi.fn(),
+}));
+vi.mock("@tauri-apps/plugin-opener", () => ({
+  openUrl: vi.fn(),
+}));
 
-import { createFile, deleteFile, listFiles, renameFile } from "@/lib/filesClient";
+import { createFile, deleteFile, getHostInfo, listFiles, renameFile } from "@/lib/filesClient";
 import { downloadFile } from "@/lib/fileDownload";
+import { detectEditors } from "@/lib/editors";
+import { openUrl } from "@tauri-apps/plugin-opener";
 
 const profile: Profile = { id: "p1", label: "Perfil", host: "localhost", relayPort: 4317 };
 const root = "/home/user/project";
@@ -34,6 +43,12 @@ function listing(): FilesListResult {
 
 beforeEach(() => {
   vi.mocked(listFiles).mockResolvedValue(listing());
+  // Default (both `ULTRON_EDITOR_LOCAL`/`ULTRON_EDITOR_SSH` unset relay-side,
+  // and no editor detected) hides the "open in editor" feature entirely —
+  // matches editorHostInfo.ts's documented default, so the pre-existing
+  // menu tests below don't need to know this feature exists at all.
+  vi.mocked(getHostInfo).mockResolvedValue({ hostname: "host", platform: "linux", editor: null });
+  vi.mocked(detectEditors).mockResolvedValue([]);
 });
 
 afterEach(() => {
@@ -164,5 +179,86 @@ describe("FileTree context menu", () => {
     await user.click(await screen.findByText("Abrir no terminal"));
 
     expect(onOpenTerminal).toHaveBeenCalledWith(`${root}/src`);
+  });
+});
+
+describe("FileTree 'open in editor' menu (journal/60)", () => {
+  it("hides the feature entirely when the relay declares no editor locality, even if an editor is detected", async () => {
+    vi.mocked(getHostInfo).mockResolvedValue({ hostname: "host", platform: "linux", editor: null });
+    vi.mocked(detectEditors).mockResolvedValue([{ id: "zed", label: "Zed" }]);
+    const user = userEvent.setup();
+    renderTree();
+    const row = await screen.findByText("notas.txt");
+
+    await user.pointer({ keys: "[MouseRight]", target: row });
+    expect(await screen.findByText("Baixar")).toBeInTheDocument();
+    expect(screen.queryByText(/Abrir no/)).toBeNull();
+    expect(screen.queryByText("Abrir com")).toBeNull();
+  });
+
+  it("hides the feature entirely when no editor was detected, even if the relay declares a local editor", async () => {
+    vi.mocked(getHostInfo).mockResolvedValue({ hostname: "host", platform: "linux", editor: { kind: "local" } });
+    vi.mocked(detectEditors).mockResolvedValue([]);
+    const user = userEvent.setup();
+    renderTree();
+    const row = await screen.findByText("notas.txt");
+
+    await user.pointer({ keys: "[MouseRight]", target: row });
+    expect(await screen.findByText("Baixar")).toBeInTheDocument();
+    expect(screen.queryByText(/Abrir no/)).toBeNull();
+  });
+
+  it("shows a plain 'Abrir no <Editor>' item for a file, a folder, and the panel background when exactly one editor is detected, opening the local deep link", async () => {
+    vi.mocked(getHostInfo).mockResolvedValue({ hostname: "host", platform: "linux", editor: { kind: "local" } });
+    vi.mocked(detectEditors).mockResolvedValue([{ id: "zed", label: "Zed" }]);
+    const user = userEvent.setup();
+    const { container } = renderTree();
+
+    const fileRow = await screen.findByText("notas.txt");
+    await user.pointer({ keys: "[MouseRight]", target: fileRow });
+    await user.click(await screen.findByText("Abrir no Zed"));
+    expect(openUrl).toHaveBeenCalledWith(`zed://file${root}/notas.txt`);
+
+    const folderRow = await screen.findByText("src");
+    await user.pointer({ keys: "[MouseRight]", target: folderRow });
+    expect(await screen.findByText("Abrir no terminal")).toBeInTheDocument();
+    await user.click(await screen.findByText("Abrir no Zed"));
+    expect(openUrl).toHaveBeenCalledWith(`zed://file${root}/src`);
+
+    const panel = container.firstElementChild as HTMLElement;
+    await user.pointer({ keys: "[MouseRight]", target: panel });
+    await user.click(await screen.findByText("Abrir projeto no Zed"));
+    expect(openUrl).toHaveBeenCalledWith(`zed://file${root}`);
+  });
+
+  it("nests more than one detected editor under an 'Abrir com' submenu, opening the deep link for the one picked", async () => {
+    vi.mocked(getHostInfo).mockResolvedValue({
+      hostname: "host",
+      platform: "linux",
+      editor: { kind: "ssh", user: "wil", host: "debian-headless" },
+    });
+    vi.mocked(detectEditors).mockResolvedValue([
+      { id: "zed", label: "Zed" },
+      { id: "vscode", label: "VS Code" },
+    ]);
+    const user = userEvent.setup();
+    renderTree();
+    const row = await screen.findByText("notas.txt");
+
+    await user.pointer({ keys: "[MouseRight]", target: row });
+    expect(screen.queryByText("Abrir no Zed")).toBeNull();
+    // Radix's `DropdownMenuSub` opens on hover, not click — a plain click on
+    // the trigger toggles the top-level menu closed instead.
+    await user.hover(await screen.findByText("Abrir com"));
+    const vsCodeItem = await within(document.body).findByText("VS Code");
+    // `userEvent.click` gives up on this element: happy-dom has no real
+    // layout engine, so its "is this element actually the topmost hit at
+    // its coordinates" check (which real pointer-events rely on) can't
+    // resolve for content rendered through a Sub's nested Portal. A plain
+    // DOM `click` dispatch is what Radix's item selection actually listens
+    // for, so this reaches the same handler a real click would.
+    fireEvent.click(vsCodeItem);
+
+    expect(openUrl).toHaveBeenCalledWith(`vscode://vscode-remote/ssh-remote+wil@debian-headless${root}/notas.txt`);
   });
 });

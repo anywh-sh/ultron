@@ -10,14 +10,10 @@
 // is the long-documented "Open in VS Code" URI handler, but its SSH-remote
 // form is community convention, not official docs — see journal/60 part 2.
 
+/** Doubles as the URL scheme (`{id}://...`) — the human-readable label for
+ * each editor comes from the Rust `detect_editors` command instead of a
+ * second map here, so there's only one place that spells "VS Code". */
 export type EditorId = "zed" | "vscode" | "cursor" | "windsurf";
-
-export const EDITOR_LABELS: Record<EditorId, string> = {
-  zed: "Zed",
-  vscode: "VS Code",
-  cursor: "Cursor",
-  windsurf: "Windsurf",
-};
 
 /** Mirrors the relay's `EditorDescriptor` (editorHostInfo.ts) — kept as a
  * separate type rather than a shared import since relay and client are
