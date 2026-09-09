@@ -5,6 +5,15 @@ import { BackgroundJobTracker, type FinishedBackgroundJob } from "./backgroundJo
 import type { McpChoiceBridge } from "./mcpBridge.js";
 import type { McpPermissionBridge } from "./permissionBridge.js";
 
+/** A change to the sidebar's session list (title assigned/changed, or
+ * session removed) — distinct from `SharedSession`'s own `session_title`/
+ * `session_deleted` broadcasts, which only reach clients that already have
+ * that specific session open. This one is for `server.ts` to relay to every
+ * device watching the list itself (`/sessions/watch`), even devices that
+ * never opened this session as a tab — e.g. a session created on mobile,
+ * appearing live in the desktop sidebar. */
+export type SessionListEvent = { type: "upsert"; id: string; title: string } | { type: "remove"; id: string };
+
 // Multiple sessions identified by id within the same profile (= one relay
 // process) — equivalent to what tmux windows provided in the old
 // architecture (docs/08), now on top of the relay. Names used to be
@@ -40,6 +49,10 @@ export class SessionManager {
      * `mcpChoiceBridge`/`mcpBridgeBaseUrl`. */
     private readonly mcpPermissionBridge?: McpPermissionBridge,
     private readonly mcpPermissionBridgeBaseUrl?: string,
+    /** `undefined` in tests that don't exercise `/sessions/watch` — same
+     * reasoning as `mcpChoiceBridge`; in production `server.ts` always
+     * passes it, wired to broadcast to every connected watcher socket. */
+    private readonly onListChanged?: (event: SessionListEvent) => void,
   ) {
     // `this.sessions` needs to exist BEFORE `BackgroundJobTracker` is
     // constructed: if there are persisted jobs from a session that already
@@ -131,6 +144,7 @@ export class SessionManager {
     if (this.sessionStore.getTitle(id) === null && !this.sessions.has(id)) return false;
     this.sessionStore.setTitle(id, title);
     this.sessions.get(id)?.setTitle(title);
+    this.onListChanged?.({ type: "upsert", id, title });
     return true;
   }
 
@@ -147,7 +161,9 @@ export class SessionManager {
       this.sessions.delete(id);
     }
     const existedInStore = this.sessionStore.deleteEntry(id);
-    return existedInStore || session !== undefined;
+    const existed = existedInStore || session !== undefined;
+    if (existed) this.onListChanged?.({ type: "remove", id });
+    return existed;
   }
 
   private createSession(id: string): SharedSession {
@@ -194,6 +210,7 @@ export class SessionManager {
           .then((title) => {
             this.sessionStore.setTitle(id, title);
             session.setTitle(title);
+            this.onListChanged?.({ type: "upsert", id, title });
           })
           .catch((error: unknown) => {
             console.error("[relay] failed to generate session title:", error);

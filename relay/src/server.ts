@@ -357,6 +357,12 @@ const mcpChoiceBridge = new McpChoiceBridge();
 // namespace, own route below) even though both are the same "local-only MCP
 // server the relay's own `claude` children call into" idea.
 const mcpPermissionBridge = new McpPermissionBridge();
+// Sockets connected to `/sessions/watch` (client/src/hooks/useSessionNames.ts)
+// — one per device showing the sidebar, independent of which session tabs
+// (if any) it has open. `SessionManager` doesn't know about WebSocket at
+// all; it just reports list changes through `onListChanged` below, and this
+// is where they get fanned out.
+const sessionListWatchers = new Set<WebSocket>();
 const sessionManager = new SessionManager(
   HOME_OVERRIDE,
   sessionStore,
@@ -365,6 +371,16 @@ const sessionManager = new SessionManager(
   `http://127.0.0.1:${PORT}/mcp`,
   mcpPermissionBridge,
   `http://127.0.0.1:${PORT}/permission`,
+  (event) => {
+    const payload = JSON.stringify(
+      event.type === "upsert"
+        ? { type: "session_list_upsert", id: event.id, title: event.title }
+        : { type: "session_list_removed", id: event.id },
+    );
+    for (const watcher of sessionListWatchers) {
+      if (watcher.readyState === watcher.OPEN) watcher.send(payload);
+    }
+  },
 );
 
 /**
@@ -1054,6 +1070,14 @@ wss.on("connection", (socket: WebSocket, request) => {
 
   if (url.pathname === "/files") {
     handleFilesConnection(socket, url);
+    return;
+  }
+
+  if (url.pathname === "/sessions/watch") {
+    sessionListWatchers.add(socket);
+    socket.on("close", () => {
+      sessionListWatchers.delete(socket);
+    });
     return;
   }
 

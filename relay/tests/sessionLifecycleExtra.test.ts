@@ -1,7 +1,7 @@
 import { test, before, after, beforeEach, afterEach } from "node:test";
 import assert from "node:assert/strict";
 import { startTestServer, type TestServer } from "./helpers/testServer.js";
-import { collectUntil, connectSession, sendUserMessage } from "./helpers/wsClient.js";
+import { collectUntil, connectSession, connectSessionListWatch, sendUserMessage } from "./helpers/wsClient.js";
 
 // Real integration test (.ultron/skills/tests/SKILL.md), continuing where
 // sessionLifecycle.test.ts leaves off: the "Stop" button (interrupt) and the
@@ -117,4 +117,52 @@ test("a session renamed and deleted over HTTP disappears from GET /sessions, and
 
   socket.close();
   secondSocket.close();
+});
+
+test("/sessions/watch broadcasts a new session's title, and its deletion, to a client that never opened it", async () => {
+  // Real bug this reproduces: a conversation started on one device (e.g.
+  // mobile) only reached another device's sidebar (e.g. desktop) after a
+  // reload, because the relay only pushed session_title/session_deleted to
+  // clients already connected to THAT specific session's own socket.
+  // `/sessions/watch` is a separate, session-agnostic channel meant to fix
+  // exactly that — this watcher never connects to "session-watched-by-other"
+  // at all.
+  const watcher = await connectSessionListWatch(server.port);
+
+  // Attach both collectors BEFORE triggering the action that causes the
+  // broadcast, not after awaiting it — the title-generation broadcast can
+  // arrive before `turn_complete` (they fire from parallel `-p` calls, see
+  // .ultron/skills/tests/SKILL.md), and the delete broadcast happens
+  // synchronously inside the HTTP handler before the response is even sent.
+  // Attaching the listener only after awaiting either would race exactly
+  // like the connection-time-burst trap the skill documents for `open`.
+  const upsertReceived = collectUntil(
+    watcher,
+    (message) => message.type === "session_list_upsert" && message.id === "session-watched-by-other",
+  );
+
+  const chatSocket = await connectSession(server.port, "session-watched-by-other");
+  sendUserMessage(chatSocket, "hello from another device");
+  await collectUntil(chatSocket, (message) => message.type === "turn_complete");
+
+  const upsert = (await upsertReceived).find((message) => message.type === "session_list_upsert");
+  assert.equal(upsert!.id, "session-watched-by-other");
+  assert.equal(typeof upsert!.title, "string");
+
+  const removedReceived = collectUntil(
+    watcher,
+    (message) => message.type === "session_list_removed" && message.id === "session-watched-by-other",
+  );
+
+  const deleteResponse = await fetch(httpUrl("/sessions/delete"), {
+    method: "POST",
+    body: JSON.stringify({ id: "session-watched-by-other" }),
+  });
+  assert.equal(deleteResponse.status, 200);
+
+  const removed = (await removedReceived).find((message) => message.type === "session_list_removed");
+  assert.deepEqual(removed, { type: "session_list_removed", id: "session-watched-by-other" });
+
+  chatSocket.close();
+  watcher.close();
 });

@@ -61,6 +61,17 @@ export function connectSessionAndCollectUntil(
   });
 }
 
+/** Connects to `/sessions/watch` — the sidebar's list-wide broadcast channel
+ * (`session_list_upsert`/`session_list_removed`), unscoped to any one
+ * session id. Reuses `collectUntil` below to read its frames. */
+export function connectSessionListWatch(port: number): Promise<WebSocket> {
+  return new Promise((resolveConn, reject) => {
+    const socket = new WebSocket(`ws://127.0.0.1:${port}/sessions/watch`);
+    socket.once("open", () => resolveConn(socket));
+    socket.once("error", reject);
+  });
+}
+
 export function sendUserMessage(socket: WebSocket, text: string): void {
   socket.send(JSON.stringify({ type: "user_message", text }));
 }

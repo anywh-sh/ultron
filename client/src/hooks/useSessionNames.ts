@@ -71,5 +71,48 @@ export function useSessionNames(profile: Profile): {
     });
   }, []);
 
+  // Keeps the list live across devices: a session created (and titled) or
+  // renamed/deleted on ANOTHER client connected to the same relay/profile
+  // (e.g. a conversation started on mobile) only reaches this device through
+  // this socket — `upsertTitle`/`removeSession` elsewhere in the app are
+  // wired to a specific open tab's `RelayClient`, which this device may not
+  // have for a session it never opened. Without this, the sidebar only
+  // picked up other devices' changes on the next profile switch or reload.
+  useEffect(() => {
+    let cancelled = false;
+    let socket: WebSocket | undefined;
+    let reconnectTimer: number | undefined;
+
+    function connect(): void {
+      if (cancelled) return;
+      const ws = new WebSocket(`ws://${profile.host}:${profile.relayPort}/sessions/watch`);
+      socket = ws;
+      ws.addEventListener("message", (event) => {
+        let parsed: unknown;
+        try {
+          parsed = JSON.parse(event.data as string);
+        } catch {
+          return;
+        }
+        if (typeof parsed !== "object" || parsed === null) return;
+        const { type, id, title } = parsed as { type?: unknown; id?: unknown; title?: unknown };
+        if (typeof id !== "string") return;
+        if (type === "session_list_upsert" && typeof title === "string") upsertTitle(id, title);
+        else if (type === "session_list_removed") removeSession(id);
+      });
+      ws.addEventListener("close", () => {
+        if (socket !== ws || cancelled) return;
+        reconnectTimer = window.setTimeout(connect, 2000);
+      });
+    }
+    connect();
+
+    return () => {
+      cancelled = true;
+      window.clearTimeout(reconnectTimer);
+      socket?.close();
+    };
+  }, [profile.id, profile.host, profile.relayPort, upsertTitle, removeSession]);
+
   return { sessions, loading, upsertTitle, removeSession, touch };
 }
