@@ -44,7 +44,7 @@ function ElapsedTime({ startedAt }: { startedAt: number }) {
 
 /**
  * Discreet chip above the composer, next to `WorkingDirectoryButton` — shows
- * `ultron-bg` jobs currently observed in this session (docs/32, Phase E) and
+ * `anywh-bg` jobs currently observed in this session (docs/32, Phase E) and
  * lets you cancel them (Phase F). Deliberately does NOT reuse
  * `TurnIndicator`'s look (dots + "Thinking…"): that communicates "the
  * assistant is busy right now", but a background job is the opposite — the

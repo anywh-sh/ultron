@@ -25,7 +25,7 @@ export type SessionListEvent = { type: "upsert"; id: string; title: string } | {
 // which is what the sidebar lists.
 export class SessionManager {
   private readonly sessions = new Map<string, SharedSession>();
-  /** A single tracker for the whole process (not one per session) — `ultron-bg`
+  /** A single tracker for the whole process (not one per session) — `anywh-bg`
    * jobs from different sessions have no relation to each other, but the
    * poller and the observation ceiling (docs/32, Phase C) make more sense
    * shared than duplicated N times. */

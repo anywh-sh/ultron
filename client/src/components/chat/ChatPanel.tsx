@@ -47,7 +47,7 @@ interface ChatPanelProps {
    * own (SharedSession.onActivity), this callback is just the local
    * optimistic update, no round-trip. */
   onActivity?: () => void;
-  /** `ultron-bg` jobs currently observed in this session, whenever the list
+  /** `anywh-bg` jobs currently observed in this session, whenever the list
    * changes — same pattern as `onTurnActiveChange` (docs/32, Phase E): `App`
    * uses this to feed the tab/sidebar badge, which needs to know even with
    * the tab out of focus (it stays mounted, WS alive, docs/18). */

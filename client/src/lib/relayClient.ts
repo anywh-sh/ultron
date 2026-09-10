@@ -304,7 +304,7 @@ export interface RelayClientCallbacks {
   /** Response to `loadOlderHistory` (Phase 2/3, docs/30) — turns older
    * than the initial tail, requested on demand (Phase 5: scroll up). */
   onOlderHistory?: (page: HistoryPageMessage) => void;
-  /** `ultron-bg` jobs currently observed in the session — sent right on connection
+  /** `anywh-bg` jobs currently observed in the session — sent right on connection
    * (even an empty array, if there are none) and again whenever the list
    * changes, from any device (docs/32, Phase E). */
   onBackgroundJobState?: (jobs: BackgroundJobSummary[]) => void;
@@ -564,7 +564,7 @@ export class RelayClient {
     this.socket.send(JSON.stringify({ type: "load_older_history", beforeCursor }));
   }
 
-  /** Cancels an `ultron-bg` job from the UI (docs/32, Phase F) — same reasoning
+  /** Cancels an `anywh-bg` job from the UI (docs/32, Phase F) — same reasoning
    * as `setModel`/`clearConversation` about not needing a pending
    * queue: the chip that exposes this only appears when a job already exists in the
    * list, which means `background_job_state` has already arrived, which

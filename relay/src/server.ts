@@ -74,7 +74,7 @@ const DEFAULT_SESSION = "default";
 const SESSIONS_FILE = process.env.RELAY_SESSIONS_FILE ?? "./sessions.local.json";
 
 // Same reasoning as SESSIONS_FILE — docs/32 Phase F, persistence of the
-// watched `ultron-bg` jobs (survives a relay restart).
+// watched `anywh-bg` jobs (survives a relay restart).
 const BACKGROUND_JOBS_FILE = process.env.RELAY_BACKGROUND_JOBS_FILE ?? "./background-jobs.local.json";
 
 interface UserMessage {
@@ -237,7 +237,7 @@ function isLoadOlderHistoryMessage(value: unknown): value is { type: "load_older
   );
 }
 
-/** docs/32 Phase F — cancellation of an `ultron-bg` job requested by the UI. */
+/** docs/32 Phase F — cancellation of an `anywh-bg` job requested by the UI. */
 function isCancelBackgroundJobMessage(value: unknown): value is { type: "cancel_background_job"; id: string } {
   return (
     typeof value === "object" &&

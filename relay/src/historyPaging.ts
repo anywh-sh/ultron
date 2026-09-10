@@ -52,7 +52,7 @@ export function pageHistoryBefore(history: BroadcastMessage[], beforeCursor: num
   return { messages: history.slice(cursor, beforeCursor), cursor, hasMore: cutoffIndex > 0 };
 }
 
-/** `true` only for the automatic follow-up turn of a finished `ultron-bg`
+/** `true` only for the automatic follow-up turn of a finished `anywh-bg`
  * job (docs/32, Phase D) — never appears to the user as an editable message
  * (the client renders it as a system note, `kind: "background-job-note"`,
  * not as a `kind: "user"` bubble). Old messages from before docs/30 Phase 1
@@ -80,7 +80,7 @@ export interface EditTarget {
 
 /**
  * Finds the cut point to edit the `fromEnd`-th user message counting from
- * the end (`1` = the last one) — skips synthetic `ultron-bg` turns while
+ * the end (`1` = the last one) — skips synthetic `anywh-bg` turns while
  * counting, since they don't appear to the user as an editable message
  * (docs/33). `undefined` if `fromEnd` is greater than the number of real
  * turns that exist (invalid/stale request — the caller should refuse

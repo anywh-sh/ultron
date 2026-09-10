@@ -8,8 +8,8 @@
 # (journal/32 Fase G).
 #
 # Uso:
-#   ultron-bg start --label "<descrição curta>" --cmd "<comando shell completo>"
-#   ultron-bg status <id>
+#   anywh-bg start --label "<descrição curta>" --cmd "<comando shell completo>"
+#   anywh-bg status <id>
 #
 # `--cmd` recebe UMA string (o comando inteiro, com `&&`/`|`/`;`/redirects
 # como o autor da chamada quiser) rodada via `bash -c`, nunca uma lista de
@@ -123,7 +123,7 @@ cmd_start() {
         shift 2
         ;;
       *)
-        echo "uso: ultron-bg start --label \"<descrição>\" --cmd \"<comando shell completo>\"" >&2
+        echo "uso: anywh-bg start --label \"<descrição>\" --cmd \"<comando shell completo>\"" >&2
         exit 1
         ;;
     esac
@@ -151,13 +151,13 @@ cmd_start() {
   local pid=$!
   disown 2>/dev/null || true
 
-  printf '{"ultron_bg":"started","id":"%s","pid":%d,"log":"%s","exitFile":"%s","alive":"%s","label":"%s"}\n' \
+  printf '{"anywh_bg":"started","id":"%s","pid":%d,"log":"%s","exitFile":"%s","alive":"%s","label":"%s"}\n' \
     "$(json_escape "$id")" "$pid" "$(json_escape "$log")" "$(json_escape "$exitfile")" \
     "$(json_escape "$alivefile")" "$(json_escape "$label")"
 }
 
 cmd_status() {
-  local id=${1:?uso: ultron-bg status <id>}
+  local id=${1:?uso: anywh-bg status <id>}
   local log="$JOBS_DIR/$id.log"
   local exitfile="$JOBS_DIR/$id.exit"
 
@@ -170,12 +170,12 @@ cmd_status() {
     local exit_code log_tail
     exit_code=$(<"$exitfile")
     log_tail=$(tail -c 4000 "$log" 2>/dev/null || true)
-    printf '{"ultron_bg":"status","id":"%s","done":true,"exitCode":%s,"logTail":"%s"}\n' \
+    printf '{"anywh_bg":"status","id":"%s","done":true,"exitCode":%s,"logTail":"%s"}\n' \
       "$(json_escape "$id")" "$exit_code" "$(json_escape "$log_tail")"
   else
     local log_tail
     log_tail=$(tail -c 4000 "$log" 2>/dev/null || true)
-    printf '{"ultron_bg":"status","id":"%s","done":false,"logTail":"%s"}\n' \
+    printf '{"anywh_bg":"status","id":"%s","done":false,"logTail":"%s"}\n' \
       "$(json_escape "$id")" "$(json_escape "$log_tail")"
   fi
 }
@@ -190,8 +190,8 @@ case "${1:-}" in
     cmd_status "$@"
     ;;
   *)
-    echo "uso: ultron-bg start --label \"<descrição>\" --cmd \"<comando shell completo>\"" >&2
-    echo "     ultron-bg status <id>" >&2
+    echo "uso: anywh-bg start --label \"<descrição>\" --cmd \"<comando shell completo>\"" >&2
+    echo "     anywh-bg status <id>" >&2
     exit 1
     ;;
 esac

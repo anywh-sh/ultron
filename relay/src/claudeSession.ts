@@ -31,7 +31,7 @@ import type { ContextUsage, ModelChoice, PermissionMode } from "./sessionStore.j
  * turn ends. Without this warning, the model promises "I'll run this in the
  * background and let you know when it's done" using that native mechanism
  * (or raw `&`/`nohup`) and the promise never gets kept — a real finding from
- * the user, root cause documented in docs/32. `ultron-bg` (script in
+ * the user, root cause documented in docs/32. `anywh-bg` (script in
  * `relay/scripts/`, included in the PATH above) solves this by staying
  * outside the turn's process; `BackgroundJobTracker` (`backgroundJobs.ts`,
  * wired in `sessionManager.ts`) watches for completion and triggers an
@@ -43,11 +43,11 @@ const APPEND_SYSTEM_PROMPT =
   "When writing prose meant to be pasted elsewhere (Slack, email), write each paragraph as one " +
   "continuous line, not manually wrapped at a fixed width.\n\n" +
   "For any command that will keep running after this turn ends (a build, a long test suite, " +
-  "anything whose result matters later) and is worth tracking, launch it with `ultron-bg start " +
+  "anything whose result matters later) and is worth tracking, launch it with `anywh-bg start " +
   '--label "<short description>" --cmd "<full shell command>"` — check on it within this same ' +
-  "turn with `ultron-bg status <id>` if useful. Never use `&`, `nohup`, or the Bash tool's own " +
+  "turn with `anywh-bg status <id>` if useful. Never use `&`, `nohup`, or the Bash tool's own " +
   "`run_in_background` for this: none of those survive past this turn, so any promise to 'check " +
-  "back' or 'let you know' made through them is always broken. Once launched with `ultron-bg`, " +
+  "back' or 'let you know' made through them is always broken. Once launched with `anywh-bg`, " +
   "you don't need to wait for it or keep polling before ending your turn — when it finishes, you " +
   "will automatically get a new turn reporting the result, which the user is notified about. You " +
   "can tell them that.";

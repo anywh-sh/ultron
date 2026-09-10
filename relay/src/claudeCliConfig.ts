@@ -21,7 +21,7 @@ const configuredExtraPathDirs = (process.env.EXTRA_PATH_DIRS ?? "")
 
 // `relay/scripts` (not `dist/` nor `src/`) — the helper is a standalone bash
 // script, doesn't need a build, and stays on PATH so a turn finds
-// `ultron-bg` by name alone (see docs/32). Resolved relative to this file
+// `anywh-bg` by name alone (see docs/32). Resolved relative to this file
 // (not hardcoded) so it works whether running from `src/` (tsx) or `dist/`
 // (tsc build) — both mirror the same layout one level below `relay/`.
 const SCRIPTS_DIR = resolve(dirname(fileURLToPath(import.meta.url)), "../scripts");

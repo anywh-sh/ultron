@@ -17,7 +17,7 @@ import { extractHumanText, type TranscriptLine } from "./transcriptReader.js";
  * `turnsToKeep` is the count of turns (`user` lines with genuine human text,
  * same criterion as `transcriptReader.ts`) that must survive the cut —
  * computed by the caller (`SharedSession`) from the in-memory `history`,
- * which is what knows how to distinguish a synthetic `ultron-bg` turn from a
+ * which is what knows how to distinguish a synthetic `anywh-bg` turn from a
  * real one (the file itself doesn't mark that difference). Since each turn,
  * real or synthetic, corresponds to exactly one `claude -p` call and
  * therefore exactly one line in the `.jsonl`, counting the same way on both

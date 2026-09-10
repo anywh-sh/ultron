@@ -1,6 +1,6 @@
 // Testa: docs/32 Fase D ponta-a-ponta contra um relay de verdade (`npm run
 // dev` rodando em outro terminal) — pede pro Claude rodar um comando via
-// `ultron-bg`, espera o primeiro turno responder "iniciei", e confirma que
+// `anywh-bg`, espera o primeiro turno responder "iniciei", e confirma que
 // um SEGUNDO turno chega sozinho (sem nenhuma mensagem nova do cliente)
 // quando o job termina, com o resultado certo e marcado como sintético.
 import WebSocket from "ws";
@@ -44,12 +44,12 @@ function userPrompts(client) {
 const client = connect(`test-bg-job-${Date.now()}`);
 await new Promise((resolve) => client.socket.on("open", resolve));
 
-console.log("[test] pedindo pra rodar um job em background via ultron-bg");
+console.log("[test] pedindo pra rodar um job em background via anywh-bg");
 client.socket.send(
   JSON.stringify({
     type: "user_message",
     text:
-      `Rode em background via ultron-bg (não espere terminar): sleep 6 && echo "${marker}". ` +
+      `Rode em background via anywh-bg (não espere terminar): sleep 6 && echo "${marker}". ` +
       "Só confirme que iniciou, numa frase curta.",
   }),
 );

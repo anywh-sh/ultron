@@ -2,7 +2,7 @@ import { closeSync, existsSync, mkdirSync, openSync, readFileSync, readSync, sta
 import { dirname } from "node:path";
 import type { ClaudeEvent } from "./claudeSession.js";
 
-// docs/32 Phase C — tracks jobs started via `ultron-bg` (relay/scripts)
+// docs/32 Phase C — tracks jobs started via `anywh-bg` (relay/scripts)
 // outside the turn's process, since the CLI's internal record for
 // `run_in_background`/`BashOutput` disappears along with that turn's
 // `claude -p`. Doesn't trigger any follow-up turn yet (Phase D) — it only
@@ -16,7 +16,7 @@ export interface BackgroundJobStarted {
   log: string;
   exitFile: string;
   /** Heartbeat file the wrapper touches every ~5s (journal/32 Phase G).
-   * Optional: a marker printed by an older `ultron-bg` doesn't have it, and
+   * Optional: a marker printed by an older `anywh-bg` doesn't have it, and
    * a job without a heartbeat simply falls back to the previous behavior
    * (only `.exit` or the ceiling ever end it). */
   alive?: string;
@@ -33,7 +33,7 @@ export interface WatchedJob {
   /** Path of the heartbeat file (journal/32 Phase G) — `undefined` for a
    * job persisted before this existed, which keeps the old behavior. */
   alivePath?: string;
-  /** PID reported by `ultron-bg start` (docs/32 Phase F) — only used for
+  /** PID reported by `anywh-bg start` (docs/32 Phase F) — only used for
    * cancellation (`cancel`, `kill -<pid>` on the whole process group),
    * NEVER to detect completion (that's the `.exit` file's job; PID reuse by
    * the OS would mask a dead job as "still running"). `setsid` makes this
@@ -71,10 +71,10 @@ export interface FinishedBackgroundJob extends WatchedJob {
 // Only the marker line (one of potentially several lines of a Bash call's
 // stdout) — doesn't assume it's the whole string, so it survives any extra
 // output before/after it.
-const MARKER_RE = /\{"ultron_bg":"started".*\}/;
+const MARKER_RE = /\{"anywh_bg":"started".*\}/;
 
 /**
- * Pure (no I/O) parser for the marker that `ultron-bg start` prints —
+ * Pure (no I/O) parser for the marker that `anywh-bg start` prints —
  * separated from `extractStartedJobFromEvent` so it can be tested against
  * loose strings without having to build a whole `ClaudeEvent`.
  */
@@ -88,9 +88,9 @@ export function parseStartedMarker(text: string): BackgroundJobStarted | undefin
     return undefined;
   }
   if (typeof parsed !== "object" || parsed === null) return undefined;
-  const { ultron_bg, id, pid, log, exitFile, alive, label } = parsed as Record<string, unknown>;
+  const { anywh_bg, id, pid, log, exitFile, alive, label } = parsed as Record<string, unknown>;
   if (
-    ultron_bg !== "started" ||
+    anywh_bg !== "started" ||
     typeof id !== "string" ||
     typeof pid !== "number" ||
     typeof log !== "string" ||
@@ -344,7 +344,7 @@ export class BackgroundJobTracker {
   }
 
   /** ms since the last heartbeat, or `undefined` for a job that doesn't
-   * have one (started by an `ultron-bg` from before journal/32 Phase G).
+   * have one (started by an `anywh-bg` from before journal/32 Phase G).
    * A declared-but-missing file counts as "never beat since it started":
    * the wrapper creates it in its first milliseconds, so its absence past
    * the staleness window means it died before writing one, not that it's

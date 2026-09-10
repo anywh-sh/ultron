@@ -10,7 +10,7 @@ export interface Tab {
   title: string | null;
   hasUnreadCompletion: boolean;
   isRunning: boolean;
-  /** Has an `ultron-bg` job currently observed in this session (docs/32, Phase E) —
+  /** Has an `anywh-bg` job currently observed in this session (docs/32, Phase E) —
    * same pattern as `isRunning`, but for "something running unsupervised in
    * parallel" instead of "the assistant is responding right now". */
   hasBackgroundJob: boolean;

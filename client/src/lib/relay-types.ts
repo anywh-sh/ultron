@@ -187,7 +187,7 @@ export type RelayMessage =
    * and for "the previous suggestion is no longer valid" (new turn
    * starting, `/clear`). */
   | { type: "suggestion"; text: string | null }
-  /** `ultron-bg` jobs currently observed in the session — "current" state
+  /** `anywh-bg` jobs currently observed in the session — "current" state
    * (same reasoning as `cwd_state`/`turn_state`), sent again on every new
    * connection and whenever the list changes (a job starting, ending or
    * expiring — see relay/src/sessionManager.ts::syncBackgroundJobState,
@@ -241,7 +241,7 @@ export interface ChoiceAnswer {
   selected: string[];
 }
 
-/** An `ultron-bg` job currently observed in this session — docs/32, Phase E.
+/** An `anywh-bg` job currently observed in this session — docs/32, Phase E.
  * Mirrors the relay's `BackgroundJobSummary` (relay/src/backgroundJobs.ts):
  * no file path or `sessionId` (the session is already the WS connection's). */
 export interface BackgroundJobSummary {

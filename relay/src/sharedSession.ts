@@ -20,9 +20,9 @@ import { INITIAL_HISTORY_TAIL_TURNS, findEditTarget, pageHistoryBefore, type Edi
 import { isPermissionMode, type ContextUsage, type ModelChoice, type PermissionMode } from "./sessionStore.js";
 import { toBackgroundJobSummary, type BackgroundJobSummary, type FinishedBackgroundJob, type WatchedJob } from "./backgroundJobs.js";
 
-/** docs/32 Phase D — text of the synthetic turn fired when an `ultron-bg`
+/** docs/32 Phase D — text of the synthetic turn fired when an `anywh-bg`
  * job finishes. Explicit instruction to only report (not start new work nor
- * another `ultron-bg`) — without this guard, an automatic turn that already
+ * another `anywh-bg`) — without this guard, an automatic turn that already
  * has tools unlocked (same `permissionMode` as the session) could turn into
  * a chain of actions the user never asked for.
  *
@@ -43,12 +43,12 @@ function buildBackgroundJobFollowupPrompt(job: FinishedBackgroundJob): string {
       : `terminou com erro (exit ${String(job.exitCode)})`;
   const logTail = job.logTail.trim() || "(sem saída)";
   return (
-    `[ultron-bg] O processo em background "${job.label}" que você iniciou ${status}. Log (cauda):\n` +
+    `[anywh-bg] O processo em background "${job.label}" que você iniciou ${status}. Log (cauda):\n` +
     "```\n" +
     logTail +
     "\n```\n\n" +
     "Resuma o resultado pro usuário, de forma concisa. Isto é só um relatório automático — não inicie " +
-    "trabalho novo nem rode outro ultron-bg a partir daqui; se o resultado pedir alguma ação, pergunte " +
+    "trabalho novo nem rode outro anywh-bg a partir daqui; se o resultado pedir alguma ação, pergunte " +
     "antes de agir."
   );
 }
@@ -160,9 +160,9 @@ export interface SharedSessionOptions {
   /** Called with every `ClaudeEvent` of every turn (real or a background
    * follow-up) — this is how `SessionManager` wires up the
    * `BackgroundJobTracker` without `SharedSession` needing to know anything
-   * about `ultron-bg` (docs/32, Phase D). Purely observational. */
+   * about `anywh-bg` (docs/32, Phase D). Purely observational. */
   onEvent?: (event: ClaudeEvent) => void;
-  /** docs/32 Phase F — called with the id of an `ultron-bg` job the user
+  /** docs/32 Phase F — called with the id of an `anywh-bg` job the user
    * asked to cancel from the UI. Same reasoning as `onEvent`: `SharedSession`
    * doesn't know anything about `BackgroundJobTracker`, it just passes it
    * along for `SessionManager` to decide what to do. */
@@ -245,7 +245,7 @@ export class SharedSession {
    * doesn't go into `history`: a client connecting (or reconnecting) picks
    * up the current value via `addClient`, same as `sendCwdState`. */
   private turnStartedAt: number | null = null;
-  /** `ultron-bg` jobs currently watched in this session — docs/32 Phase E.
+  /** `anywh-bg` jobs currently watched in this session — docs/32 Phase E.
    * Same as `contextUsage`/`suggestion`: in-memory only (doesn't persist
    * across a relay restart), it's `BackgroundJobTracker` itself that
    * survives (or not) between restarts — this list is just a mirror of
@@ -390,7 +390,7 @@ export class SharedSession {
 
   /** docs/32 Phase E — called by `SessionManager` (via
    * `BackgroundJobTracker.onChanged`) whenever this session's list of
-   * watched `ultron-bg` jobs changes. Same pattern as
+   * watched `anywh-bg` jobs changes. Same pattern as
    * `setTitle`/`setPermissionMode`: updates local state and notifies
    * whoever is connected right now. */
   setBackgroundJobs(jobs: WatchedJob[]): void {
@@ -715,9 +715,9 @@ export class SharedSession {
   }
 
   /** docs/32 Phase D — fired by `BackgroundJobTracker` (via
-   * `SessionManager`) when a job started with `ultron-bg` finishes AFTER
+   * `SessionManager`) when a job started with `anywh-bg` finishes AFTER
    * the original turn that launched it has already ended (the reason
-   * `ultron-bg` exists: that turn's `claude -p` process has already died,
+   * `anywh-bg` exists: that turn's `claude -p` process has already died,
    * so there's no one left to notify the user on its own). Same queue
    * (`turnQueue`) that serializes `/clear` against real turns — never runs
    * in parallel with a user turn nor corrupts `session_id`/history out of
@@ -1068,7 +1068,7 @@ export class SharedSession {
             this.applyPermissionModeFromCli(event.permissionMode);
           }
           this.broadcast({ type: "claude_event", event });
-          // docs/32 Phase D — lets the `ultron-bg` job tracker (owned by
+          // docs/32 Phase D — lets the `anywh-bg` job tracker (owned by
           // `SessionManager`) see every event of every turn, looking for
           // the start marker. Purely observational: never throws nor
           // alters the turn's flow.

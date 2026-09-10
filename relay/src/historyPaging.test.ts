@@ -109,7 +109,7 @@ test("findEditTarget: fromEnd beyond what exists returns undefined (invalid requ
   assert.equal(findEditTarget([], 1), undefined);
 });
 
-test("findEditTarget: skips synthetic ultron-bg turns when counting from the end", () => {
+test("findEditTarget: skips synthetic anywh-bg turns when counting from the end", () => {
   const history = [
     ...buildTurns(2), // real turn 0, real turn 1
     syntheticBackgroundJobPrompt("job x"),

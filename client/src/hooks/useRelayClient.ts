@@ -117,12 +117,12 @@ export interface UseRelayClientResult {
   /** Fetches turns older than `beforeCursor` — see
    * `RelayClient.loadOlderHistory` (Phase 2/3, docs/30). */
   loadOlderHistory: (beforeCursor: number) => void;
-  /** `ultron-bg` jobs currently observed in this session — empty array (never
+  /** `anywh-bg` jobs currently observed in this session — empty array (never
    * `null`) for both "no job" and "the first
    * `background_job_state` hasn't arrived yet" (docs/32, Phase E): the two don't have
    * different UI (indicator hidden in both cases), no need to distinguish. */
   backgroundJobs: BackgroundJobSummary[];
-  /** Asks the relay to kill an in-progress `ultron-bg` job (docs/32, Phase F)
+  /** Asks the relay to kill an in-progress `anywh-bg` job (docs/32, Phase F)
    * — `background_job_state` disappears from the list as soon as the relay processes it,
    * with no separate confirmation (the job disappearing from the chip is itself the signal). */
   cancelBackgroundJob: (id: string) => void;

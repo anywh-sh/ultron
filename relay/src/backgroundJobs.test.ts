@@ -13,7 +13,7 @@ import {
 } from "./backgroundJobs.js";
 
 const STARTED_JSON =
-  '{"ultron_bg":"started","id":"1788022610814662237-29477","pid":1200509,' +
+  '{"anywh_bg":"started","id":"1788022610814662237-29477","pid":1200509,' +
   '"log":"/home/user/.ultron/bg-jobs/1788022610814662237-29477.log",' +
   '"exitFile":"/home/user/.ultron/bg-jobs/1788022610814662237-29477.exit","label":"sleep-build-stub"}';
 
@@ -43,19 +43,19 @@ test("parseStartedMarker: text without the marker returns undefined", () => {
   assert.equal(parseStartedMarker("build ok\nexit 0"), undefined);
 });
 
-test("parseStartedMarker: JSON that looks similar but with ultron_bg other than \"started\" returns undefined", () => {
-  assert.equal(parseStartedMarker('{"ultron_bg":"status","id":"x","done":true}'), undefined);
+test("parseStartedMarker: JSON that looks similar but with anywh_bg other than \"started\" returns undefined", () => {
+  assert.equal(parseStartedMarker('{"anywh_bg":"status","id":"x","done":true}'), undefined);
 });
 
 test("parseStartedMarker: missing required field (pid) returns undefined instead of throwing", () => {
   assert.equal(
-    parseStartedMarker('{"ultron_bg":"started","id":"x","log":"a","exitFile":"b","label":"c"}'),
+    parseStartedMarker('{"anywh_bg":"started","id":"x","log":"a","exitFile":"b","label":"c"}'),
     undefined,
   );
 });
 
 test("parseStartedMarker: malformed (truncated) JSON returns undefined, doesn't throw", () => {
-  assert.equal(parseStartedMarker('{"ultron_bg":"started","id":"x"'), undefined);
+  assert.equal(parseStartedMarker('{"anywh_bg":"started","id":"x"'), undefined);
 });
 
 // ---- extractStartedJobFromEvent ----------------------------------------
@@ -95,7 +95,7 @@ test("extractStartedJobFromEvent: user event without a content array (e.g. {}) d
 // ---- BackgroundJobTracker -----------------------------------------------
 
 function withJobFiles(run: (dir: string, logPath: string, exitPath: string) => void): void {
-  const dir = mkdtempSync(join(tmpdir(), "ultron-bgjobs-test-"));
+  const dir = mkdtempSync(join(tmpdir(), "anywh-bgjobs-test-"));
   try {
     run(dir, join(dir, "job.log"), join(dir, "job.exit"));
   } finally {
@@ -105,7 +105,7 @@ function withJobFiles(run: (dir: string, logPath: string, exitPath: string) => v
 
 function startedEvent(id: string, log: string, exitFile: string, label = "test", pid = 12345, alive?: string): ClaudeEvent {
   return toolResultEvent(
-    JSON.stringify({ ultron_bg: "started", id, pid, log, exitFile, label, ...(alive ? { alive } : {}) }),
+    JSON.stringify({ anywh_bg: "started", id, pid, log, exitFile, label, ...(alive ? { alive } : {}) }),
   );
 }
 
@@ -182,7 +182,7 @@ test("BackgroundJobTracker: a job that exceeds the observation ceiling (maxWatch
   // Doesn't use `withJobFiles` here: needs to keep the directory alive across
   // a real `setTimeout` (the helper's synchronous cleanup in `finally` would
   // run before the poll, deleting the files too early).
-  const dir = mkdtempSync(join(tmpdir(), "ultron-bgjobs-test-"));
+  const dir = mkdtempSync(join(tmpdir(), "anywh-bgjobs-test-"));
   try {
     const logPath = join(dir, "job.log");
     const exitPath = join(dir, "job.exit");
@@ -277,7 +277,7 @@ test("BackgroundJobTracker: without persistPath, behavior stays in-memory-only (
 });
 
 test("BackgroundJobTracker: missing or corrupted persistPath starts empty, doesn't throw", () => {
-  const dir = mkdtempSync(join(tmpdir(), "ultron-bgjobs-test-"));
+  const dir = mkdtempSync(join(tmpdir(), "anywh-bgjobs-test-"));
   try {
     const missing = join(dir, "does-not-exist.json");
     const trackerMissing = new BackgroundJobTracker({ onFinished: () => undefined, persistPath: missing });
@@ -297,14 +297,14 @@ test("BackgroundJobTracker: missing or corrupted persistPath starts empty, doesn
 // ---- cancel (Phase F) ------------------------------------------------------
 
 test("BackgroundJobTracker: cancel really kills the process, removes it from the list and does NOT fire onFinished", async () => {
-  const dir = mkdtempSync(join(tmpdir(), "ultron-bgjobs-test-"));
+  const dir = mkdtempSync(join(tmpdir(), "anywh-bgjobs-test-"));
   try {
     const logPath = join(dir, "job.log");
     const exitPath = join(dir, "job.exit");
     writeFileSync(logPath, "");
 
     // `detached: true` makes Node call `setsid()` on the child — same
-    // topology as the real `ultron-bg` (the process's PID is already the
+    // topology as the real `anywh-bg` (the process's PID is already the
     // group's PGID/SID), so `process.kill(-pid, ...)` reaches it the same way.
     const child = spawn("sleep", ["30"], { detached: true, stdio: "ignore" });
     const pid = child.pid;
@@ -367,12 +367,12 @@ async function deadPid(): Promise<number> {
 
 test("parseStartedMarker: reads the alive (heartbeat) field when the wrapper sends it", () => {
   const parsed = parseStartedMarker(
-    '{"ultron_bg":"started","id":"x","pid":7,"log":"/l","exitFile":"/e","alive":"/a","label":"t"}',
+    '{"anywh_bg":"started","id":"x","pid":7,"log":"/l","exitFile":"/e","alive":"/a","label":"t"}',
   );
   assert.equal(parsed?.alive, "/a");
 });
 
-test("parseStartedMarker: marker without alive still parses (older ultron-bg than the relay)", () => {
+test("parseStartedMarker: marker without alive still parses (older anywh-bg than the relay)", () => {
   const parsed = parseStartedMarker(STARTED_JSON);
   assert.equal(parsed?.alive, undefined);
   assert.equal(parsed?.id, "1788022610814662237-29477");
@@ -394,7 +394,7 @@ test("BackgroundJobTracker: a live heartbeat keeps the job in the list even with
 });
 
 test("BackgroundJobTracker: stale heartbeat + dead PID reports the job as terminated and stops watching", async () => {
-  const dir = mkdtempSync(join(tmpdir(), "ultron-bgjobs-test-"));
+  const dir = mkdtempSync(join(tmpdir(), "anywh-bgjobs-test-"));
   try {
     const logPath = join(dir, "job.log");
     const exitPath = join(dir, "job.exit");
@@ -429,7 +429,7 @@ test("BackgroundJobTracker: stale heartbeat + dead PID reports the job as termin
 });
 
 test("BackgroundJobTracker: stale heartbeat but PID still alive keeps the job (suspended machine, not a dead job)", () => {
-  const dir = mkdtempSync(join(tmpdir(), "ultron-bgjobs-test-"));
+  const dir = mkdtempSync(join(tmpdir(), "anywh-bgjobs-test-"));
   try {
     const logPath = join(dir, "job.log");
     const exitPath = join(dir, "job.exit");
@@ -453,7 +453,7 @@ test("BackgroundJobTracker: stale heartbeat but PID still alive keeps the job (s
 });
 
 test("BackgroundJobTracker: heartbeat declared but never created (wrapper died at once) is also detected", async () => {
-  const dir = mkdtempSync(join(tmpdir(), "ultron-bgjobs-test-"));
+  const dir = mkdtempSync(join(tmpdir(), "anywh-bgjobs-test-"));
   try {
     const logPath = join(dir, "job.log");
     const exitPath = join(dir, "job.exit");
@@ -475,8 +475,8 @@ test("BackgroundJobTracker: heartbeat declared but never created (wrapper died a
   }
 });
 
-test("BackgroundJobTracker: a job without a heartbeat (older ultron-bg) keeps the previous behavior", async () => {
-  const dir = mkdtempSync(join(tmpdir(), "ultron-bgjobs-test-"));
+test("BackgroundJobTracker: a job without a heartbeat (older anywh-bg) keeps the previous behavior", async () => {
+  const dir = mkdtempSync(join(tmpdir(), "anywh-bgjobs-test-"));
   try {
     const logPath = join(dir, "job.log");
     const exitPath = join(dir, "job.exit");
@@ -523,7 +523,7 @@ test("BackgroundJobTracker: an .exit that exists but is still empty isn't read a
 });
 
 test("BackgroundJobTracker: cancel with a stale heartbeat drops the job WITHOUT signalling the PID (PID reused after a reboot)", async () => {
-  const dir = mkdtempSync(join(tmpdir(), "ultron-bgjobs-test-"));
+  const dir = mkdtempSync(join(tmpdir(), "anywh-bgjobs-test-"));
   try {
     const logPath = join(dir, "job.log");
     const exitPath = join(dir, "job.exit");
