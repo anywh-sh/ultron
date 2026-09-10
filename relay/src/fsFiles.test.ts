@@ -3,7 +3,7 @@ import assert from "node:assert/strict";
 import { existsSync, mkdirSync, mkdtempSync, rmSync, symlinkSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { createFile, deleteFile, listFiles, readFileForViewer, renameFile, resolveRawFile, resolveWithinRoot } from "./fsFiles.js";
+import { createFile, deleteFile, listFiles, readFileForViewer, renameFile, resolveChatPath, resolveRawFile, resolveWithinRoot } from "./fsFiles.js";
 
 function withTempDir(run: (dir: string) => void): void {
   const dir = mkdtempSync(join(tmpdir(), "ultron-fsfiles-test-"));
@@ -318,5 +318,135 @@ test("renameFile: a name that already exists in the directory is rejected", () =
     const result = renameFile(dir, file, "novo.txt");
     assert.deepEqual(result, { ok: false, error: "already_exists" });
     assert.equal(existsSync(file), true);
+  });
+});
+
+test("resolveChatPath: a full relative path that exists resolves to the absolute file, ancestors included", () => {
+  withTempDir((root) => {
+    mkdirSync(join(root, "screenshots", "PROJ-929"), { recursive: true });
+    writeFileSync(join(root, "screenshots", "PROJ-929", "foo.png"), "");
+
+    const result = resolveChatPath(root, "screenshots/PROJ-929/foo.png");
+    assert.deepEqual(result, {
+      target: join(root, "screenshots", "PROJ-929", "foo.png"),
+      isDirectory: false,
+      existingDirs: [join(root, "screenshots"), join(root, "screenshots", "PROJ-929")],
+    });
+  });
+});
+
+test("resolveChatPath: a wrong last segment still returns the best-guess target plus every confirmed ancestor", () => {
+  withTempDir((root) => {
+    mkdirSync(join(root, "relay", "scripts"), { recursive: true });
+    // No `ultron-bg` file at that path — the model got the filename (or the
+    // session's root) wrong, but `relay/scripts` is real.
+
+    const result = resolveChatPath(root, "relay/scripts/ultron-bg");
+    assert.deepEqual(result, {
+      target: join(root, "relay", "scripts", "ultron-bg"),
+      isDirectory: false,
+      existingDirs: [join(root, "relay"), join(root, "relay", "scripts")],
+    });
+  });
+});
+
+test("resolveChatPath: stops the ancestor walk at the first directory that doesn't exist", () => {
+  withTempDir((root) => {
+    mkdirSync(join(root, "relay"));
+
+    const result = resolveChatPath(root, "relay/scripts/ultron-bg");
+    assert.deepEqual(result, {
+      target: join(root, "relay", "scripts", "ultron-bg"),
+      isDirectory: false,
+      existingDirs: [join(root, "relay")],
+    });
+  });
+});
+
+test("resolveChatPath: a trailing slash is treated as a directory — expanded, never opened as a file", () => {
+  withTempDir((root) => {
+    mkdirSync(join(root, "prototypes", "voice-jarvis"), { recursive: true });
+
+    const result = resolveChatPath(root, "prototypes/voice-jarvis/");
+    assert.deepEqual(result, {
+      target: null,
+      isDirectory: true,
+      existingDirs: [join(root, "prototypes"), join(root, "prototypes", "voice-jarvis")],
+    });
+  });
+});
+
+test("resolveChatPath: a bare filename is found by search, ancestors included", () => {
+  withTempDir((root) => {
+    mkdirSync(join(root, "client", "src", "components", "chat"), { recursive: true });
+    writeFileSync(join(root, "client", "src", "components", "chat", "Message.tsx"), "");
+
+    const result = resolveChatPath(root, "Message.tsx");
+    assert.deepEqual(result, {
+      target: join(root, "client", "src", "components", "chat", "Message.tsx"),
+      isDirectory: false,
+      existingDirs: [
+        join(root, "client"),
+        join(root, "client", "src"),
+        join(root, "client", "src", "components"),
+        join(root, "client", "src", "components", "chat"),
+      ],
+    });
+  });
+});
+
+test("resolveChatPath: a bare filename search prefers the shallowest match", () => {
+  withTempDir((root) => {
+    mkdirSync(join(root, "a", "b"), { recursive: true });
+    writeFileSync(join(root, "a", "target.txt"), "shallow");
+    writeFileSync(join(root, "a", "b", "target.txt"), "deep");
+
+    const result = resolveChatPath(root, "target.txt");
+    assert.equal(result.target, join(root, "a", "target.txt"));
+  });
+});
+
+test("resolveChatPath: a bare filename search skips node_modules and dotfiles, same as listFiles", () => {
+  withTempDir((root) => {
+    mkdirSync(join(root, "node_modules"), { recursive: true });
+    writeFileSync(join(root, "node_modules", "ghost.txt"), "");
+    mkdirSync(join(root, ".hidden"), { recursive: true });
+    writeFileSync(join(root, ".hidden", "ghost2.txt"), "");
+
+    assert.equal(resolveChatPath(root, "ghost.txt").target, null);
+    assert.equal(resolveChatPath(root, "ghost2.txt").target, null);
+  });
+});
+
+test("resolveChatPath: a bare filename with no match anywhere resolves to nothing", () => {
+  withTempDir((root) => {
+    const result = resolveChatPath(root, "does-not-exist.txt");
+    assert.deepEqual(result, { target: null, isDirectory: false, existingDirs: [] });
+  });
+});
+
+test("resolveChatPath: an already-absolute path outside the root resolves to nothing", () => {
+  withTempDir((outer) => {
+    withTempDir((root) => {
+      const outerFile = join(outer, "secret.txt");
+      writeFileSync(outerFile, "");
+
+      const result = resolveChatPath(root, outerFile);
+      assert.deepEqual(result, { target: null, isDirectory: false, existingDirs: [] });
+    });
+  });
+});
+
+test("resolveChatPath: an already-absolute path under the root resolves the same as the relative form", () => {
+  withTempDir((root) => {
+    mkdirSync(join(root, "screenshots"));
+    writeFileSync(join(root, "screenshots", "foo.png"), "");
+
+    const result = resolveChatPath(root, join(root, "screenshots", "foo.png"));
+    assert.deepEqual(result, {
+      target: join(root, "screenshots", "foo.png"),
+      isDirectory: false,
+      existingDirs: [join(root, "screenshots")],
+    });
   });
 });

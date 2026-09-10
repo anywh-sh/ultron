@@ -10,7 +10,17 @@ import { CLAUDE_BIN } from "./claudeCliConfig.js";
 import { detectDefaultModel, type DefaultModelInfo } from "./defaultModel.js";
 import { listDirectories } from "./fsBrowse.js";
 import { resolveEditorDescriptor } from "./editorHostInfo.js";
-import { createFile, deleteFile, listFiles, readFileForViewer, renameFile, resolveRawFile, resolveWithinRoot, type FilesError } from "./fsFiles.js";
+import {
+  createFile,
+  deleteFile,
+  listFiles,
+  readFileForViewer,
+  renameFile,
+  resolveChatPath,
+  resolveRawFile,
+  resolveWithinRoot,
+  type FilesError,
+} from "./fsFiles.js";
 import { FilesWatchSession } from "./fsWatch.js";
 import { defaultCwd } from "./paths.js";
 import {
@@ -870,6 +880,29 @@ export const httpServer = createServer((req, res) => {
       return;
     }
     res.end(JSON.stringify({ root: result.root, path: result.path, entries: result.entries }));
+    return;
+  }
+
+  // Path mentioned in chat text (`MarkdownContent`'s `code` override) —
+  // unlike the other `/files/*` routes, `path` here is never something a
+  // previous response already confirmed lives under the root; it's the
+  // model's raw prose, which may be a bare filename, a wrong last segment,
+  // or already-absolute. Always 200 (never a `FilesError` status): even a
+  // path resolving to nothing is a normal outcome the client acts on
+  // (`existingDirs`), not an error condition.
+  if (req.method === "GET" && req.url?.startsWith("/files/resolve")) {
+    const url = new URL(req.url, `http://${req.headers.host ?? "localhost"}`);
+    const sessionId = url.searchParams.get("session")?.trim() || DEFAULT_SESSION;
+    const rawPath = url.searchParams.get("path");
+    res.setHeader("Content-Type", "application/json");
+    res.setHeader("Access-Control-Allow-Origin", "*");
+    if (!rawPath) {
+      res.writeHead(400);
+      res.end(JSON.stringify({ error: "invalid_path" }));
+      return;
+    }
+    const root = sessionStore.getCwdState(sessionId).cwd;
+    res.end(JSON.stringify(resolveChatPath(root, rawPath)));
     return;
   }
 

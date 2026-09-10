@@ -1,49 +1,29 @@
-import { listFiles } from "@/lib/filesClient";
-import type { Profile } from "@/lib/profiles";
+/** A bare filename (no `/` at all) still counts as path-like when it ends
+ * in a plausible extension — `App.tsx`, `README.md`. The extension must
+ * start with a letter (`[A-Za-z]`) to keep a version string (`v1.2`) or a
+ * decimal (`3.14`) from matching: real extensions don't start with a digit. */
+const BARE_FILENAME_RE = /^[^/\s]+\.[A-Za-z][A-Za-z0-9]{0,9}$/;
 
 /**
  * Detects whether an inline code span's text (the content of a single
- * backtick span, e.g. `` `screenshots/PROJ-929/foo.png` ``) looks like a
- * file path worth making clickable in the work dir file panel. Deliberately
- * cheap and permissive — false positives (an API route, a `journal/NN`
- * citation, a scoped npm package) fail closed at click time: `FileViewer`
- * already renders "Não foi possível abrir o arquivo." for anything that
- * doesn't resolve under the session's root (relay/src/fsFiles.ts). Pre-
- * validating existence here instead would cost one relay round trip per
- * code span per render — not worth it for a graceful-failure case.
+ * backtick span, e.g. `` `screenshots/PROJ-929/foo.png` `` or `` `App.tsx` ``)
+ * looks like a file path worth making clickable in the work dir file panel.
+ * Deliberately permissive — resolution (`filesClient.resolveChatPath`) runs
+ * server-side, on click, and already tolerates a bare filename or a wrong
+ * last segment (search + ancestor walk, relay/src/fsFiles.ts); a false
+ * positive here just fails closed there rather than costing anything at
+ * render time.
  *
- * Excludes: URLs (already handled by `MarkdownContent`'s `a` override),
- * anything without a `/` (too ambiguous — a bare filename in backticks is
- * as likely to be a generic mention as a real path), and directory-looking
- * paths (trailing `/` — `FileViewer` only opens files, not folders).
+ * Excludes: URLs (already handled by `MarkdownContent`'s `a` override), and
+ * anything that isn't a single token (whitespace/newline) — the backtick
+ * delimiter already gives a clean boundary, no need for a fragile regex over
+ * free-form prose.
  */
 export function looksLikeFilePath(text: string): boolean {
   const trimmed = text.trim();
   if (!trimmed || trimmed !== text) return false;
-  if (!trimmed.includes("/")) return false;
-  if (trimmed.endsWith("/")) return false;
-  if (/^[a-zA-Z][a-zA-Z0-9+.-]*:\/\//.test(trimmed)) return false; // scheme://... (URLs)
   if (trimmed.includes("\n") || trimmed.includes(" ")) return false;
-  return true;
-}
-
-/**
- * Resolves a path as written in chat text (relative to the session's cwd,
- * or already absolute — the relay always prints absolute paths for tool
- * results, but assistant prose commonly writes them relative) into the
- * absolute form `relay/src/fsFiles.ts`'s `resolveWithinRoot` requires.
- * `cachedRoot` avoids a redundant `/files/list` round trip when the file
- * panel has already been opened once for this session (`useFileTabs`'s
- * `root`); falls back to fetching it fresh otherwise, same call `FilesPanel`
- * itself makes on mount.
- */
-export async function resolveChatPath(
-  profile: Profile,
-  sessionId: string,
-  rawPath: string,
-  cachedRoot: string | null,
-): Promise<string> {
-  if (rawPath.startsWith("/")) return rawPath;
-  const root = cachedRoot ?? (await listFiles(profile, sessionId)).root;
-  return `${root}/${rawPath}`;
+  if (/^[a-zA-Z][a-zA-Z0-9+.-]*:\/\//.test(trimmed)) return false; // scheme://... (URLs)
+  if (trimmed.includes("/")) return trimmed !== "/";
+  return BARE_FILENAME_RE.test(trimmed);
 }

@@ -29,7 +29,7 @@ import { useProfileImport } from "@/hooks/useProfileImport";
 import { useActiveTheme, useThemeSync } from "@/hooks/useThemes";
 import { useProfileSync } from "@/hooks/useProfileSync";
 import { findProfile, getProfiles, type Profile } from "@/lib/profiles";
-import { resolveChatPath } from "@/lib/filePathLinks";
+import { resolveChatPath } from "@/lib/filesClient";
 import { ensureNotificationPermission, notifyTurnComplete } from "@/lib/notifications";
 import { deleteSession, renameSession } from "@/lib/relayClient";
 import { isIOS } from "@/lib/platform";
@@ -280,17 +280,19 @@ export default function App() {
 
   /** A path mentioned in assistant chat text (`Message.tsx`'s `AssistantText`)
    * — same "always show it" gate/`openPane` as `handleOpenTerminalAt` above.
-   * `rawPath` is whatever the model wrote (relative to the session's cwd, or
-   * already absolute); `resolveChatPath` turns it into the absolute form
-   * `relay/src/fsFiles.ts` requires, reusing the file panel's own cached
-   * root when it's already been opened once for this tab. A path that turns
-   * out not to exist isn't an error here — `FileViewer` renders that. */
+   * Resolution (bare-filename search, ancestor walk for a wrong last
+   * segment) runs server-side (`relay/src/fsFiles.ts::resolveChatPath`) —
+   * `existingDirs` gets expanded in the tree regardless of whether `target`
+   * panned out, so a path that's slightly off still lands the user
+   * somewhere browsable instead of just failing silently. */
   function handleOpenFilePath(profile: Profile, tabId: string, rawPath: string): void {
     if (isCompact || isIOS()) return;
     sessionDock.openPane(tabId, "files");
-    const cachedRoot = fileTabs.getTabs(tabId).root;
-    resolveChatPath(profile, tabId, rawPath, cachedRoot)
-      .then((absolutePath) => fileTabs.openPreview(tabId, absolutePath))
+    resolveChatPath(profile, tabId, rawPath)
+      .then(({ target, isDirectory, existingDirs }) => {
+        if (existingDirs.length > 0) fileTabs.expandDirs(tabId, existingDirs);
+        if (target && !isDirectory) fileTabs.openPreview(tabId, target);
+      })
       .catch(() => {});
   }
 

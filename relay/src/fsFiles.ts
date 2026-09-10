@@ -271,6 +271,130 @@ export function createFile(rawRoot: string, rawDir: string | null, name: string,
   return { ok: true, path: target };
 }
 
+/**
+ * Breadth-first search under `root` (already resolved by
+ * `resolveWithinRoot`) for a file whose basename is exactly `name`, same
+ * hidden/`node_modules` skip as `listFiles`. Used for a bare filename
+ * mentioned in chat text (`App.tsx`, no directory) — the model rarely
+ * writes the file's full path in prose, and joining it directly against the
+ * session root is almost always wrong once the file lives more than one
+ * level deep. BFS (not depth-first) so the *shallowest* match wins when the
+ * same filename exists at more than one depth. `maxVisited` bounds the
+ * total directories scanned — this is a one-shot, click-triggered search,
+ * not the recursive tree *rendering* `listFiles`'s own doc comment warns
+ * against (docs/41); a repo any real project's size stays far under the
+ * cap, and a huge non-hidden tree just gets a bounded, not unbounded, scan.
+ */
+function findFileByName(root: string, name: string, maxVisited = 20_000): string | null {
+  const queue: string[] = [root];
+  let visited = 0;
+
+  while (queue.length > 0 && visited < maxVisited) {
+    const dir = queue.shift()!;
+    visited++;
+    let dirents;
+    try {
+      dirents = readdirSync(dir, { withFileTypes: true });
+    } catch {
+      continue;
+    }
+    for (const dirent of dirents) {
+      if (!isHidden(dirent.name) && dirent.isFile() && dirent.name === name) return join(dir, dirent.name);
+    }
+    for (const dirent of dirents) {
+      if (!isHidden(dirent.name) && dirent.isDirectory()) queue.push(join(dir, dirent.name));
+    }
+  }
+  return null;
+}
+
+/** Ancestor directories of `absolute` (itself excluded), root-to-leaf,
+ * confined to `root` — `absolute` is assumed to already be a real path
+ * under `root` (only called with a `findFileByName` hit or a directory
+ * confirmed by `resolveChatPath`'s own walk), so every segment is known to
+ * exist without re-checking the filesystem. */
+function ancestorsOf(root: string, absolute: string): string[] {
+  const relative = absolute.slice(root.length).split(sep).filter(Boolean);
+  const dirs: string[] = [];
+  let current = root;
+  for (const segment of relative.slice(0, -1)) {
+    current = join(current, segment);
+    dirs.push(current);
+  }
+  return dirs;
+}
+
+export interface ChatPathResolution {
+  /** Absolute path to try opening in the viewer — `null` when nothing
+   * plausible exists (a bare filename found nowhere under the root) or
+   * `isDirectory` is true (nothing to open in a file viewer). Not itself
+   * guaranteed to be a real, readable file: the caller's follow-up
+   * `/files/read` still runs the full `resolveWithinRoot` check before ever
+   * serving bytes — this function only ever returns path *strings*, so a
+   * best-effort guess here carries no security weight of its own. */
+  target: string | null;
+  isDirectory: boolean;
+  /** Ancestor directories confirmed to exist under the root, root-to-leaf —
+   * a caller expands all of these in the file tree regardless of whether
+   * `target` panned out, so a chat mention that's slightly off (wrong
+   * filename, wrong last segment) still lands the user somewhere browsable
+   * instead of just failing silently. */
+  existingDirs: string[];
+}
+
+/**
+ * Resolves a path as written in chat text (relative to the session's cwd,
+ * already absolute, a bare filename, or a directory — trailing `/`) into
+ * something the file panel can act on. Two strategies, chosen by shape:
+ * a bare filename (no `/` at all) is searched for (`findFileByName`, most
+ * chat mentions of a single file don't include its directory); anything
+ * with a `/` is joined against the root (or used as-is if already absolute)
+ * and its ancestor chain is walked from the root down, stopping at the
+ * first segment that doesn't exist — so even a path the model got wrong
+ * past some point still resolves as far as it validly can.
+ */
+export function resolveChatPath(rawRoot: string, rawPath: string): ChatPathResolution {
+  const rootResolved = resolveWithinRoot(rawRoot, null);
+  if (!rootResolved.ok) return { target: null, isDirectory: false, existingDirs: [] };
+  const root = rootResolved.root;
+
+  const isDirectory = rawPath.endsWith("/");
+  const trimmed = isDirectory ? rawPath.replace(/\/+$/, "") : rawPath;
+  if (!trimmed) return { target: null, isDirectory: false, existingDirs: [] };
+
+  if (!trimmed.includes("/")) {
+    const found = findFileByName(root, trimmed);
+    if (!found) return { target: null, isDirectory: false, existingDirs: [] };
+    return { target: found, isDirectory: false, existingDirs: ancestorsOf(root, found) };
+  }
+
+  const absolute = isAbsolute(trimmed) ? trimmed : join(root, trimmed);
+  const normalizedRoot = root.endsWith(sep) ? root : root + sep;
+  if (absolute !== root && !absolute.startsWith(normalizedRoot)) {
+    return { target: null, isDirectory: false, existingDirs: [] };
+  }
+
+  const relativeSegments = absolute === root ? [] : absolute.slice(root.length).split(sep).filter(Boolean);
+  const dirSegments = isDirectory ? relativeSegments : relativeSegments.slice(0, -1);
+
+  const existingDirs: string[] = [];
+  let current = root;
+  for (const segment of dirSegments) {
+    const next = join(current, segment);
+    let stat;
+    try {
+      stat = statSync(next);
+    } catch {
+      break;
+    }
+    if (!stat.isDirectory()) break;
+    existingDirs.push(next);
+    current = next;
+  }
+
+  return { target: isDirectory ? null : absolute, isDirectory, existingDirs };
+}
+
 export type RawResult = { ok: true; path: string; mime: string } | { ok: false; error: FilesError };
 
 /** Resolution/validation only — `server.ts` owns the actual byte streaming

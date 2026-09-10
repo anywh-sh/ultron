@@ -127,6 +127,20 @@ export function useFileTabs() {
     });
   }, []);
 
+  /** Ensures every dir in `dirPaths` is expanded, additively — unlike
+   * `toggleExpanded`, never collapses one that's already open. Used when a
+   * chat path click resolves an ancestor chain (`App.tsx`'s
+   * `handleOpenFilePath`) and needs all of it visible at once, not just the
+   * single folder a tree click would target. */
+  const expandDirs = useCallback((tabId: string, dirPaths: string[]) => {
+    setState((prev) => {
+      const existing = prev[tabId] ?? EMPTY_STATE;
+      const merged = Array.from(new Set([...existing.expanded, ...dirPaths]));
+      if (merged.length === existing.expanded.length) return prev;
+      return { ...prev, [tabId]: { ...existing, expanded: merged } };
+    });
+  }, []);
+
   const setTreeWidth = useCallback((tabId: string, width: number) => {
     setState((prev) => {
       const existing = prev[tabId] ?? EMPTY_STATE;
@@ -160,5 +174,17 @@ export function useFileTabs() {
     });
   }, []);
 
-  return { getTabs, openPreview, openPinned, closeTab, renamePath, setActiveFile, toggleExpanded, setTreeWidth, syncRoot, removeSession };
+  return {
+    getTabs,
+    openPreview,
+    openPinned,
+    closeTab,
+    renamePath,
+    setActiveFile,
+    toggleExpanded,
+    expandDirs,
+    setTreeWidth,
+    syncRoot,
+    removeSession,
+  };
 }

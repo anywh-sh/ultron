@@ -65,6 +65,21 @@ export async function readFile(profile: Profile, sessionId: string, path: string
   return getJson<FileReadResult>(`${baseUrl(profile)}/files/read?${params.toString()}`);
 }
 
+export interface ChatPathResolution {
+  target: string | null;
+  isDirectory: boolean;
+  existingDirs: string[];
+}
+
+/** Resolves a path mentioned in chat text (`MarkdownContent`'s `code`
+ * override) — server-side, since a bare filename needs a search under the
+ * session's root and a wrong last segment needs an ancestor walk, neither
+ * of which the client can do cheaply (see relay/src/fsFiles.ts). */
+export async function resolveChatPath(profile: Profile, sessionId: string, path: string): Promise<ChatPathResolution> {
+  const params = new URLSearchParams({ session: sessionId, path });
+  return getJson<ChatPathResolution>(`${baseUrl(profile)}/files/resolve?${params.toString()}`);
+}
+
 /** `?v=<mtimeMs>` busts the webview's cache so a changed image (agent
  * overwrote it, or the watch — docs/41 phase 5 — noticed a change) actually
  * reloads instead of showing stale bytes. */
