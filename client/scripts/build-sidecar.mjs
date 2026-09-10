@@ -15,28 +15,38 @@ const here = dirname(fileURLToPath(import.meta.url));
 const clientDir = join(here, "..");
 
 // Only the platforms this app is actually built for (journal/62 risk 2 tracks
-// cross-platform CI for exactly this binary).
-const TRIPLES = {
-  "win32-x64": "x86_64-pc-windows-msvc",
-  "darwin-arm64": "aarch64-apple-darwin",
-  "darwin-x64": "x86_64-apple-darwin",
-  "linux-x64": "x86_64-unknown-linux-gnu",
-  "linux-arm64": "aarch64-unknown-linux-gnu",
+// cross-platform CI for exactly this binary). Keyed by Node's own
+// platform-arch so the host case needs no translation.
+const TARGETS = {
+  "win32-x64": { triple: "x86_64-pc-windows-msvc", goos: "windows", goarch: "amd64" },
+  "darwin-arm64": { triple: "aarch64-apple-darwin", goos: "darwin", goarch: "arm64" },
+  "darwin-x64": { triple: "x86_64-apple-darwin", goos: "darwin", goarch: "amd64" },
+  "linux-x64": { triple: "x86_64-unknown-linux-gnu", goos: "linux", goarch: "amd64" },
+  "linux-arm64": { triple: "aarch64-unknown-linux-gnu", goos: "linux", goarch: "arm64" },
 };
 
-const key = `${process.platform}-${process.arch}`;
-const triple = TRIPLES[key];
-if (!triple) {
-  console.error(`no known Rust target triple for ${key} — add it to scripts/build-sidecar.mjs`);
+// `--target win32-x64` builds for another platform than this one. The sidecar
+// is pure Go with no cgo, so this is a plain GOOS/GOARCH cross-build and
+// needs no toolchain beyond Go itself — which means the machine that has Go
+// can produce the binary for the machine that's doing the testing.
+const targetFlag = process.argv.indexOf("--target");
+const key = targetFlag === -1 ? `${process.platform}-${process.arch}` : process.argv[targetFlag + 1];
+
+const target = TARGETS[key];
+if (!target) {
+  console.error(`unknown target ${key} — known: ${Object.keys(TARGETS).join(", ")}`);
   process.exit(1);
 }
 
 const outDir = join(clientDir, "src-tauri", "binaries");
 mkdirSync(outDir, { recursive: true });
-const out = join(outDir, `tailnet-sidecar-${triple}${process.platform === "win32" ? ".exe" : ""}`);
+const out = join(outDir, `tailnet-sidecar-${target.triple}${target.goos === "windows" ? ".exe" : ""}`);
 
 execFileSync("go", ["build", "-o", out, "./cmd/tailnet-sidecar"], {
   cwd: join(clientDir, "tailnet-sidecar"),
   stdio: "inherit",
+  // CGO off so a cross-build never reaches for a C toolchain it doesn't have;
+  // nothing here needs one on any platform.
+  env: { ...process.env, GOOS: target.goos, GOARCH: target.goarch, CGO_ENABLED: "0" },
 });
 console.log(`built ${out}`);
