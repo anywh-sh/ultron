@@ -60,8 +60,12 @@ test("a plan-mode marker becomes a choice_prompt, and answering it enqueues the 
   const turnComplete = firstTurnMessages.find((message) => message.type === "turn_complete");
   assert.deepEqual(turnComplete, { type: "turn_complete", stopped: false });
 
-  const choicePrompt = firstTurnMessages.at(-1) as { type: string; promptId: string; questions: ChoiceQuestion[] };
+  const choicePrompt = firstTurnMessages.at(-1) as { type: string; promptId: string; questions: ChoiceQuestion[]; kind: string };
   assert.equal(choicePrompt.type, "choice_prompt");
+  // A plan-mode marker has no live `claude` call blocked waiting for the
+  // answer (SharedSession.pendingChoice) — `kind: "choice"` is what tells
+  // `ChoiceCard`'s close button it's safe to dismiss with no answer sent.
+  assert.equal(choicePrompt.kind, "choice");
   assert.equal(choicePrompt.questions.length, 1);
   assert.equal(choicePrompt.questions[0].question, "Which approach?");
   assert.deepEqual(

@@ -306,6 +306,7 @@ export function ChatPanel({
     setDraft,
     choicePrompt,
     answerChoice,
+    dismissChoicePrompt,
   } = useRelayClient(profile, sessionId, {
     onEvent: (event) => logRef.current.handleEvent(event),
     onReconnecting: () => {
@@ -637,7 +638,15 @@ export function ChatPanel({
              * `turnStartedAt !== null` like the iOS one below. */}
             {!isIOS() && <TurnIndicator startedAt={turnStartedAt} />}
 
-            {choicePrompt && <ChoiceCard promptId={choicePrompt.promptId} questions={choicePrompt.questions} onAnswer={answerChoice} />}
+            {choicePrompt && (
+              <ChoiceCard
+                promptId={choicePrompt.promptId}
+                questions={choicePrompt.questions}
+                kind={choicePrompt.kind}
+                onAnswer={answerChoice}
+                onClose={dismissChoicePrompt}
+              />
+            )}
 
             <Composer
               ref={composerRef}

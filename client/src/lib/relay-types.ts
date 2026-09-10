@@ -207,8 +207,14 @@ export type RelayMessage =
    * blocked waiting for an answer. "Current state" pattern like
    * `cwd_state`/`turn_state`: sent again to a device that (re)connects
    * mid-wait, not just to whoever was already there. Answer with
-   * `choice_answer` (`{ type: "choice_answer", promptId, answers }`). */
-  | { type: "choice_prompt"; promptId: string; questions: ChoiceQuestion[] }
+   * `choice_answer` (`{ type: "choice_answer", promptId, answers }`).
+   * `kind` distinguishes the two `SharedSession` slots that both feed this
+   * same message (`pendingApproval`/`pendingChoice`, sharedSession.ts) —
+   * `"approval"` is a live blocked tool call that genuinely needs SOME
+   * answer to unblock it, `"choice"` is a deferred `present_choice`/
+   * plan-marker prompt that tolerates being closed with no answer at all
+   * (`ChoiceCard`'s close button behaves differently per kind). */
+  | { type: "choice_prompt"; promptId: string; questions: ChoiceQuestion[]; kind: "approval" | "choice" }
   /** The prompt above was answered (by any device) or the turn that asked
    * it ended before anyone answered — dismiss it everywhere it's shown. */
   | { type: "choice_resolved"; promptId: string };

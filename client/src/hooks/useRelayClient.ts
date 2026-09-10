@@ -27,6 +27,10 @@ export interface CompactBoundaryEvent {
 export interface PendingChoice {
   promptId: string;
   questions: ChoiceQuestion[];
+  /** See the `choice_prompt` doc comment in relay-types.ts — `"approval"` is
+   * a live blocked tool call, `"choice"` a deferred prompt that can be
+   * closed with no answer at all. */
+  kind: "approval" | "choice";
 }
 
 export interface UseRelayClientOptions {
@@ -128,6 +132,12 @@ export interface UseRelayClientResult {
   /** Answers the current `choicePrompt` — a no-op if it's already `null`
    * (e.g. the turn ended and resolved it right as the user was answering). */
   answerChoice: (answers: ChoiceAnswer[]) => void;
+  /** Closes the current `choicePrompt` locally with no answer sent to the
+   * relay at all — only valid for `kind: "choice"` (a deferred prompt
+   * tolerates being left unanswered, see `SharedSession.pendingChoice`'s
+   * doc comment); `ChoiceCard` never calls this for `kind: "approval"`,
+   * which always needs a real answer to unblock the live tool call. */
+  dismissChoicePrompt: () => void;
 }
 
 /**
@@ -213,7 +223,7 @@ export function useRelayClient(
       onHistoryTruncated: (page) => optionsRef.current.onHistoryTruncated?.(page),
       onEditMessageError: (message) => optionsRef.current.onEditMessageError?.(message),
       onDraftState: setDraftState,
-      onChoicePrompt: (promptId, questions) => setChoicePrompt({ promptId, questions }),
+      onChoicePrompt: (promptId, questions, kind) => setChoicePrompt({ promptId, questions, kind }),
       // Only clears local state if it's still the SAME prompt — a new one
       // could in principle already be pending by the time this arrives
       // (unlikely given only one `present_choice` call is ever in flight per
@@ -298,6 +308,10 @@ export function useRelayClient(
     setChoicePrompt(null);
   }, []);
 
+  const dismissChoicePrompt = useCallback(() => {
+    setChoicePrompt(null);
+  }, []);
+
   return {
     connected,
     cwd,
@@ -323,5 +337,6 @@ export function useRelayClient(
     setDraft,
     choicePrompt,
     answerChoice,
+    dismissChoicePrompt,
   };
 }

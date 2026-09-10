@@ -57,10 +57,14 @@ test("present_choice replies immediately (not blocked on a human), the turn comp
   assert.deepEqual(turnComplete, { type: "turn_complete", stopped: false });
 
   const choicePrompt = turnMessages.find((message) => message.type === "choice_prompt") as
-    | { type: string; promptId: string; questions: { question: string; options: { label: string }[] }[] }
+    | { type: string; promptId: string; questions: { question: string; options: { label: string }[] }[]; kind: string }
     | undefined;
   assert.ok(choicePrompt, "choice_prompt must have been broadcast even though nobody answered it");
   assert.equal(choicePrompt.questions[0].question, "Which approach?");
+  // The MCP `present_choice` path shares `kind: "choice"` with the
+  // plan-mode marker path (choicePrompt.test.ts) — neither has a live
+  // `claude` call left blocked waiting for the answer.
+  assert.equal(choicePrompt.kind, "choice");
 
   // The fake claude's "assistant reply" is literally the tool call's
   // response text — proves the relay replied to the MCP call with the

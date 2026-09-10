@@ -322,7 +322,7 @@ export interface RelayClientCallbacks {
    * `onCwdState`/`onTurnState`: sent again to a device that (re)connects
    * mid-wait, not just to whoever was already there. Answer via
    * `RelayClient.answerChoice`. */
-  onChoicePrompt?: (promptId: string, questions: ChoiceQuestion[]) => void;
+  onChoicePrompt?: (promptId: string, questions: ChoiceQuestion[], kind: "approval" | "choice") => void;
   /** The prompt above was answered (by any device) or the turn that asked
    * it ended before anyone answered — whoever shows it should dismiss it. */
   onChoiceResolved?: (promptId: string) => void;
@@ -448,7 +448,7 @@ export class RelayClient {
       } else if (parsed.type === "edit_message_error") {
         this.callbacks.onEditMessageError?.(parsed.message);
       } else if (parsed.type === "choice_prompt") {
-        this.callbacks.onChoicePrompt?.(parsed.promptId, parsed.questions);
+        this.callbacks.onChoicePrompt?.(parsed.promptId, parsed.questions, parsed.kind);
       } else if (parsed.type === "choice_resolved") {
         this.callbacks.onChoiceResolved?.(parsed.promptId);
       }

@@ -436,7 +436,7 @@ export class SharedSession {
     if (this.pendingChoice) return false;
     const promptId = randomUUID();
     this.pendingChoice = { promptId, questions };
-    this.broadcastChoicePrompt(this.pendingChoice);
+    this.broadcastChoicePrompt(this.pendingChoice, "choice");
     return true;
   }
 
@@ -508,7 +508,7 @@ export class SharedSession {
     return new Promise((resolve) => {
       const promptId = randomUUID();
       this.pendingApproval = { promptId, questions, resolve };
-      this.broadcastChoicePrompt(this.pendingApproval);
+      this.broadcastChoicePrompt(this.pendingApproval, "approval");
     });
   }
 
@@ -633,8 +633,8 @@ export class SharedSession {
     // (it does, `useRelayClient.ts`), the time-critical one (the CLI is
     // actually blocked waiting on it) is the one a reconnecting device sees,
     // not the deferred one that's fine to answer whenever.
-    if (this.pendingChoice) this.sendChoicePrompt(socket, this.pendingChoice);
-    if (this.pendingApproval) this.sendChoicePrompt(socket, this.pendingApproval);
+    if (this.pendingChoice) this.sendChoicePrompt(socket, this.pendingChoice, "choice");
+    if (this.pendingApproval) this.sendChoicePrompt(socket, this.pendingApproval, "approval");
 
     this.ensureHistoryLoaded();
     // Phase 2 (docs/30) — only the recent tail (`INITIAL_HISTORY_TAIL_TURNS`
@@ -1159,17 +1159,19 @@ export class SharedSession {
    * a device that reconnects (or connects for the first time) mid-wait needs
    * to see the pending question immediately, not just devices that were
    * already there when it was asked. */
-  private sendChoicePrompt(target: WebSocket, prompt: { promptId: string; questions: ChoiceQuestion[] }): void {
-    target.send(JSON.stringify({ type: "choice_prompt", promptId: prompt.promptId, questions: prompt.questions }));
+  private sendChoicePrompt(target: WebSocket, prompt: { promptId: string; questions: ChoiceQuestion[] }, kind: "approval" | "choice"): void {
+    target.send(JSON.stringify({ type: "choice_prompt", promptId: prompt.promptId, questions: prompt.questions, kind }));
   }
 
   /** Takes the prompt explicitly (rather than reading `this.pendingChoice`/
    * `this.pendingApproval` itself) since both `presentChoice` and
    * `presentApprovalChoice` call this right after setting their own
    * respective field — passing it in keeps this function agnostic to which
-   * of the two slots it's broadcasting for. */
-  private broadcastChoicePrompt(prompt: { promptId: string; questions: ChoiceQuestion[] }): void {
-    for (const client of this.clients) this.sendChoicePrompt(client, prompt);
+   * of the two slots it's broadcasting for. `kind` is passed alongside for
+   * the same reason and tells the client which close behavior applies —
+   * see the `choice_prompt` doc comment in relay-types.ts. */
+  private broadcastChoicePrompt(prompt: { promptId: string; questions: ChoiceQuestion[] }, kind: "approval" | "choice"): void {
+    for (const client of this.clients) this.sendChoicePrompt(client, prompt, kind);
   }
 
   /** Tells every connected device the prompt is gone — including whichever

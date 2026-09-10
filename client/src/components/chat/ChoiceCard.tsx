@@ -8,7 +8,15 @@ import type { ChoiceAnswer, ChoiceQuestion } from "@/lib/relayClient";
 interface ChoiceCardProps {
   promptId: string;
   questions: ChoiceQuestion[];
+  /** `"approval"` (a live blocked tool call, e.g. permission approve/deny)
+   * genuinely needs SOME answer to unblock it — the close button falls back
+   * to `onAnswer` with whatever's selected, same as before. `"choice"` (the
+   * `present_choice` MCP tool / plan-mode marker) has no live call waiting,
+   * so the close button just calls `onClose` and sends nothing — see the
+   * `choice_prompt` doc comment in relay-types.ts. */
+  kind: "approval" | "choice";
   onAnswer: (answers: ChoiceAnswer[]) => void;
+  onClose: () => void;
 }
 
 /** docs/46 Phase 2 — picker for a `present_choice` MCP call blocked
@@ -21,9 +29,11 @@ interface ChoiceCardProps {
  * question, see relay/src/sharedSession.ts::answerChoice) — this component
  * accumulates an answer per question locally as the user steps through them
  * and only calls `onAnswer` once the last one is confirmed or skipped, or
- * the user closes the card early (filling in whatever wasn't reached yet
- * with an empty selection, so the turn always genuinely unblocks). */
-export function ChoiceCard({ promptId, questions, onAnswer }: ChoiceCardProps) {
+ * (for `kind: "approval"` only) the user closes the card early, filling in
+ * whatever wasn't reached yet with an empty selection so the live blocked
+ * tool call always genuinely unblocks. `kind: "choice"` closes with no
+ * `onAnswer` call at all instead — see `ChoiceCardProps.kind`. */
+export function ChoiceCard({ promptId, questions, kind, onAnswer, onClose }: ChoiceCardProps) {
   const [index, setIndex] = useState(0);
   const [answers, setAnswers] = useState<Map<number, string[]>>(new Map());
   const [selected, setSelected] = useState<string[]>([]);
@@ -110,8 +120,8 @@ export function ChoiceCard({ promptId, questions, onAnswer }: ChoiceCardProps) {
           )}
           <button
             type="button"
-            onClick={() => finish(new Map(answers).set(index, selected))}
-            aria-label="Fechar e responder com o que já foi selecionado"
+            onClick={() => (kind === "approval" ? finish(new Map(answers).set(index, selected)) : onClose())}
+            aria-label={kind === "approval" ? "Fechar e responder com o que já foi selecionado" : "Fechar sem responder"}
             className="ml-1 cursor-pointer text-muted-foreground hover:text-foreground"
           >
             <X className="size-4" />
