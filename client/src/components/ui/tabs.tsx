@@ -63,15 +63,18 @@ function TabsTrigger({
       data-slot="tabs-trigger"
       className={cn(
         "relative z-10 inline-flex h-[calc(100%-1px)] flex-1 items-center justify-center gap-1.5 rounded-md border border-transparent px-2 py-1 text-sm font-medium whitespace-nowrap text-foreground/60 transition-all group-data-[orientation=vertical]/tabs:w-full group-data-[orientation=vertical]/tabs:justify-start hover:text-foreground focus-visible:border-ring focus-visible:ring-[3px] focus-visible:ring-ring/50 focus-visible:outline-1 focus-visible:outline-ring disabled:pointer-events-none disabled:opacity-50 group-data-[variant=default]/tabs-list:data-[state=active]:shadow-sm group-data-[variant=line]/tabs-list:data-[state=active]:shadow-none dark:text-muted-foreground dark:hover:text-foreground [&_svg]:pointer-events-none [&_svg]:shrink-0 [&_svg:not([class*='size-'])]:size-4",
-        // No longer force the line variant's active tab back to transparent
-        // (that used to fight TabBar's own `data-[state=active]:bg-*`
-        // override at equal CSS specificity, and — being last in Tailwind's
-        // generated stylesheet — silently won every time: the profile tint
-        // never painted, even though the class was correctly applied). Only
-        // the resting-state `bg-transparent` stays, since it doesn't target
-        // `data-[state=active]` and so can't collide with a caller's own
-        // active-state background.
-        "group-data-[variant=line]/tabs-list:bg-transparent",
+        // No longer force the line variant's active tab background back to
+        // transparent (that used to fight TabBar's own
+        // `data-[state=active]:bg-*` override — both were 2-class-worth of
+        // specificity, but this one's `:is()` group-data wrapper made it 3,
+        // so it silently won every time regardless of source order and the
+        // profile tint never painted even though the class was correctly
+        // applied). The border override below stays, at the same
+        // higher-specificity shape, precisely so it keeps winning over the
+        // generic `dark:data-[state=active]:border-input` two lines down —
+        // a line-variant tab's border must always match its own background
+        // (invisible), not the default variant's visible ring.
+        "group-data-[variant=line]/tabs-list:bg-transparent group-data-[variant=line]/tabs-list:data-[state=active]:border-transparent",
         "data-[state=active]:bg-background data-[state=active]:text-foreground dark:data-[state=active]:border-input dark:data-[state=active]:text-foreground",
         className
       )}

@@ -289,19 +289,24 @@ export function profileColorClass(profileId: string): string {
   return profileColorClassForIndex(profileColorIndex(profileId));
 }
 
-// Same colors as `PROFILE_COLOR_CLASSES`, at low opacity — TabBar's selected
-// tab paints its own background with this instead of the old "selected"
-// indicator bar, so the tint alone carries both "this tab is active" and
-// "this is the profile it belongs to". Written out as literal class names
-// (not built with a template string) because Tailwind's scanner needs the
-// full utility name present verbatim in source to generate it.
+// A softened, opaque cousin of `PROFILE_COLOR_CLASSES` (index.css's
+// `--profile-N-soft`, mixed toward a fixed literal rather than
+// `transparent`) — TabBar's selected tab paints its own background with
+// this instead of the old "selected" indicator bar, so the tint alone
+// carries both "this tab is active" and "this is the profile it belongs
+// to". Deliberately not the `/15` opacity modifier: that composites with
+// whatever's actually behind the element, which on this dark theme read as
+// a near-black smudge instead of a soft version of the color. Written out
+// as literal class names (not built with a template string) because
+// Tailwind's scanner needs the full utility name present verbatim in
+// source to generate it.
 const PROFILE_ACTIVE_BG_CLASSES = [
-  "data-[state=active]:bg-profile-1/15",
-  "data-[state=active]:bg-profile-2/15",
-  "data-[state=active]:bg-profile-3/15",
-  "data-[state=active]:bg-profile-4/15",
-  "data-[state=active]:bg-profile-5/15",
-  "data-[state=active]:bg-profile-6/15",
+  "data-[state=active]:bg-profile-1-soft",
+  "data-[state=active]:bg-profile-2-soft",
+  "data-[state=active]:bg-profile-3-soft",
+  "data-[state=active]:bg-profile-4-soft",
+  "data-[state=active]:bg-profile-5-soft",
+  "data-[state=active]:bg-profile-6-soft",
 ];
 
 function profileColorIndex(profileId: string): number {
@@ -311,7 +316,7 @@ function profileColorIndex(profileId: string): number {
 }
 
 /** Tinted background for a tab's selected state — same color/index rules as
- * `profileColorClass`, just mapped onto the low-opacity palette above. */
+ * `profileColorClass`, just mapped onto the softened palette above. */
 export function profileActiveBgClass(profileId: string): string {
   const index = profileColorIndex(profileId);
   return PROFILE_ACTIVE_BG_CLASSES[index % PROFILE_ACTIVE_BG_CLASSES.length];

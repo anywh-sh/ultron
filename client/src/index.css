@@ -95,6 +95,25 @@
   --profile-5: #c9a45f;
   --profile-6: #6fa3a3;
 
+  /* Selected-tab background wash (TabBar) — mixed toward a literal neutral,
+     never a themed token like `--bg-elevated`: an earlier attempt used the
+     Tailwind opacity modifier (`bg-profile-N/15`, i.e. `color-mix(…,
+     transparent)`), which composites with whatever surface is actually
+     behind the element at paint time. On this dark theme that read as a
+     near-black smudge instead of a soft version of the profile color, and
+     it would render differently again on a light theme — profile colors
+     are the app's own identity, deliberately theme-independent (see the
+     `--profile-1`..`6` derivation skip in themeApply.ts), so their tab wash
+     needs to be too. Mixing toward a fixed literal instead of `transparent`
+     always yields the same opaque color regardless of what's underneath or
+     which theme is active. */
+  --profile-1-soft: color-mix(in srgb, var(--profile-1) 50%, #2b2a27);
+  --profile-2-soft: color-mix(in srgb, var(--profile-2) 50%, #2b2a27);
+  --profile-3-soft: color-mix(in srgb, var(--profile-3) 50%, #2b2a27);
+  --profile-4-soft: color-mix(in srgb, var(--profile-4) 50%, #2b2a27);
+  --profile-5-soft: color-mix(in srgb, var(--profile-5) 50%, #2b2a27);
+  --profile-6-soft: color-mix(in srgb, var(--profile-6) 50%, #2b2a27);
+
   /* Tab dot for "turn finished, not viewed yet" (TabBar). Deliberately a
      saturated blue with no muted/pastel sibling in the profile palette above
      — every `--profile-*` needs to stay visually distinct from this one, or
@@ -167,6 +186,12 @@
   --color-profile-4: var(--profile-4);
   --color-profile-5: var(--profile-5);
   --color-profile-6: var(--profile-6);
+  --color-profile-1-soft: var(--profile-1-soft);
+  --color-profile-2-soft: var(--profile-2-soft);
+  --color-profile-3-soft: var(--profile-3-soft);
+  --color-profile-4-soft: var(--profile-4-soft);
+  --color-profile-5-soft: var(--profile-5-soft);
+  --color-profile-6-soft: var(--profile-6-soft);
   --color-status-done: var(--status-done);
 
   --color-sidebar: var(--bg-sidebar);
