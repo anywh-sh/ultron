@@ -11,7 +11,6 @@ import (
 	"encoding/json"
 	"flag"
 	"fmt"
-	"io"
 	"log"
 	"net"
 	"os"
@@ -19,6 +18,7 @@ import (
 
 	"github.com/wilmacedo/ultron/client/tailnet-sidecar/internal/identity"
 	"github.com/wilmacedo/ultron/client/tailnet-sidecar/internal/signature"
+	"github.com/wilmacedo/ultron/client/tailnet-sidecar/internal/tailnetup"
 	"tailscale.com/tsnet"
 )
 
@@ -152,35 +152,18 @@ func runTailnetUp(args []string) {
 	fmt.Printf("LISTENING %s\n", ln.Addr().String())
 	log.Printf("local listener up on %s, forwarding to %s inside the tailnet", ln.Addr(), *target)
 
-	for {
-		conn, err := ln.Accept()
-		if err != nil {
-			log.Fatalf("accept: %v", err)
-		}
-		go handleConn(srv, conn, *target)
+	tnSrv := &tailnetup.Server{
+		Target: *target,
+		Dial: func(ctx context.Context, network, addr string) (net.Conn, error) {
+			start := time.Now()
+			conn, err := srv.Dial(ctx, network, addr)
+			if err != nil {
+				log.Printf("dial %s inside tailnet: %v (after %s)", addr, err, time.Since(start))
+				return nil, err
+			}
+			log.Printf("dial %s inside tailnet: connected after %s", addr, time.Since(start))
+			return conn, nil
+		},
 	}
-}
-
-func handleConn(srv *tsnet.Server, local net.Conn, target string) {
-	defer local.Close()
-
-	start := time.Now()
-	remote, err := srv.Dial(context.Background(), "tcp", target)
-	if err != nil {
-		log.Printf("dial %s inside tailnet: %v (after %s)", target, err, time.Since(start))
-		return
-	}
-	log.Printf("dial %s inside tailnet: connected after %s", target, time.Since(start))
-	defer remote.Close()
-
-	done := make(chan struct{}, 2)
-	go func() {
-		io.Copy(remote, local)
-		done <- struct{}{}
-	}()
-	go func() {
-		io.Copy(local, remote)
-		done <- struct{}{}
-	}()
-	<-done
+	log.Fatal(tnSrv.Serve(ln))
 }
