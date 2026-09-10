@@ -110,8 +110,8 @@ jobs:
       # client-e2e itself gains a Windows/macOS matrix.
       - name: Build the tailnet-sidecar Go binary
         run: |
-          mkdir -p client/src-tauri/binaries
-          go build -o client/src-tauri/binaries/tailnet-sidecar-x86_64-unknown-linux-gnu ./cmd/tailnet-sidecar
+          mkdir -p ../src-tauri/binaries
+          go build -o ../src-tauri/binaries/tailnet-sidecar-x86_64-unknown-linux-gnu ./cmd/tailnet-sidecar
         working-directory: client/tailnet-sidecar
       # Same packages this tier needed installing by hand the first time it
       # was validated locally (2026-09-07, .ultron/skills/tests/SKILL.md) —
