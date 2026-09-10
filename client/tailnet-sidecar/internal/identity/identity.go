@@ -24,7 +24,7 @@ import (
 )
 
 const (
-	keyringService = "ultron-tailnet-identity"
+	keyringService = "anywh-tailnet-identity"
 	keyringUser    = "device"
 )
 

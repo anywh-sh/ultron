@@ -1,4 +1,4 @@
-module github.com/wilmacedo/ultron/client/tailnet-sidecar
+module github.com/anywh-sh/ultron/client/tailnet-sidecar
 
 go 1.26.6
 

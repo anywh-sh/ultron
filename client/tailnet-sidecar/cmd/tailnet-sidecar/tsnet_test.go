@@ -10,7 +10,7 @@ func TestNewTsnetServerIsNotEphemeral(t *testing.T) {
 	// an ephemeral node can join exactly once and is then permanently unable
 	// to come back ("backend: authkey expired", observed live on Windows).
 	srv, err := newTsnetServer(tsnetConfig{
-		hostname:   "ultron-client-abc",
+		hostname:   "anywh-client-abc",
 		controlURL: "https://headscale.test",
 		authKey:    "key",
 		stateDir:   t.TempDir(),
@@ -30,7 +30,7 @@ func TestNewTsnetServerKeepsIdentityWhereItWasToldTo(t *testing.T) {
 	// identity.
 	dir := t.TempDir()
 	srv, err := newTsnetServer(tsnetConfig{
-		hostname:   "ultron-client-abc",
+		hostname:   "anywh-client-abc",
 		controlURL: "https://headscale.test",
 		authKey:    "key",
 		stateDir:   dir,
@@ -41,7 +41,7 @@ func TestNewTsnetServerKeepsIdentityWhereItWasToldTo(t *testing.T) {
 	if srv.Dir != dir {
 		t.Errorf("state dir = %q, want %q", srv.Dir, dir)
 	}
-	if srv.Hostname != "ultron-client-abc" {
+	if srv.Hostname != "anywh-client-abc" {
 		t.Errorf("hostname = %q, want the one it was given", srv.Hostname)
 	}
 }
@@ -50,7 +50,7 @@ func TestNewTsnetServerRefusesAnUnsetStateDir(t *testing.T) {
 	// Rejected rather than defaulted: a silent fallback to a shared path is
 	// exactly the failure this is meant to make impossible.
 	if _, err := newTsnetServer(tsnetConfig{
-		hostname:   "ultron-client-abc",
+		hostname:   "anywh-client-abc",
 		controlURL: "https://headscale.test",
 		authKey:    "key",
 	}); err == nil {

@@ -17,9 +17,9 @@ import (
 	"os"
 	"time"
 
-	"github.com/wilmacedo/ultron/client/tailnet-sidecar/internal/identity"
-	"github.com/wilmacedo/ultron/client/tailnet-sidecar/internal/signature"
-	"github.com/wilmacedo/ultron/client/tailnet-sidecar/internal/tailnetup"
+	"github.com/anywh-sh/ultron/client/tailnet-sidecar/internal/identity"
+	"github.com/anywh-sh/ultron/client/tailnet-sidecar/internal/signature"
+	"github.com/anywh-sh/ultron/client/tailnet-sidecar/internal/tailnetup"
 	"tailscale.com/tsnet"
 )
 
