@@ -95,6 +95,12 @@
   --profile-5: #c9a45f;
   --profile-6: #6fa3a3;
 
+  /* Tab dot for "turn finished, not viewed yet" (TabBar). Deliberately a
+     saturated blue with no muted/pastel sibling in the profile palette above
+     — every `--profile-*` needs to stay visually distinct from this one, or
+     the dot could be mistaken for a profile color instead of a status. */
+  --status-done: #4f9fe0;
+
   --radius: 0.5rem;
 }
 
@@ -161,6 +167,7 @@
   --color-profile-4: var(--profile-4);
   --color-profile-5: var(--profile-5);
   --color-profile-6: var(--profile-6);
+  --color-status-done: var(--status-done);
 
   --color-sidebar: var(--bg-sidebar);
   --color-sidebar-foreground: var(--foreground);

@@ -1,5 +1,5 @@
 import { useState, type ReactNode } from "react";
-import { X } from "lucide-react";
+import { Loader2, X } from "lucide-react";
 import {
   DndContext,
   PointerSensor,
@@ -12,7 +12,7 @@ import { CSS } from "@dnd-kit/utilities";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { cn } from "@/lib/utils";
 import type { Tab } from "@/hooks/useTabs";
-import { profileColorClass } from "@/lib/profiles";
+import { profileActiveBgClass } from "@/lib/profiles";
 import { useContextMenu } from "@/hooks/useContextMenu";
 import { SessionDeleteMenu } from "@/components/shell/SessionDeleteMenu";
 import { RenameSessionDialog } from "@/components/shell/RenameSessionDialog";
@@ -72,26 +72,21 @@ function SortableTab({ tab, onClose, onRename, onDelete }: SortableTabProps) {
     >
       <TabsTrigger
         value={tab.id}
-        // `after:bottom-0` overrides `ui/tabs.tsx`'s default `-5px` (which
-        // deliberately paints the active-tab bar past the list's own box,
-        // see that file's comment on why it needs `z-10`): the tab strip
-        // below is now a horizontal scroll container, and CSS forces
-        // `overflow-y` to `auto` too whenever `overflow-x` isn't `visible`
-        // (no way to scroll one axis only) — content escaping the box
-        // vertically, like that `-5px` bar, gets clipped instead of
-        // overflowing into the panel underneath. Keeping it flush with the
-        // trigger's own bottom edge avoids the clip.
-        className="min-w-0 gap-1.5 rounded-none py-2 pr-7 pl-3 font-mono text-xs data-[state=active]:bg-bg-elevated group-data-[orientation=horizontal]/tabs:after:bottom-0"
+        // No more active-tab bar (ui/tabs.tsx no longer paints one for the
+        // "line" variant) — the selected tab is now marked by tinting its
+        // own background with the session's profile color instead.
+        className={cn(
+          "min-w-0 gap-1.5 rounded-none py-2 pr-7 pl-3 font-mono text-xs",
+          profileActiveBgClass(tab.profileId),
+        )}
       >
-        <span
-          className={cn(
-            "size-1.5 shrink-0 rounded-full",
-            profileColorClass(tab.profileId),
-            tab.isRunning && "animate-pulse",
-          )}
-          aria-label={tab.isRunning ? "Agente trabalhando nesta sessão" : undefined}
-        />
-        {tab.hasUnreadCompletion && <span className="size-1.5 shrink-0 rounded-full bg-primary" />}
+        {tab.isRunning ? (
+          <Loader2 className="size-3 shrink-0 animate-spin text-muted-foreground" aria-label="Agente trabalhando nesta sessão" />
+        ) : (
+          tab.hasUnreadCompletion && (
+            <span className="size-1.5 shrink-0 rounded-full bg-status-done" aria-label="Sessão finalizada" />
+          )
+        )}
         <span className="min-w-0 flex-1 truncate">{tab.title ?? "Nova sessão"}</span>
       </TabsTrigger>
       <button
