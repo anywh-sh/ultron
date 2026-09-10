@@ -52,8 +52,8 @@ export function extractHumanText(line: TranscriptLine): string | undefined {
  * Replaces any character outside `[a-zA-Z0-9-]` with `-` — same
  * sanitization Claude Code uses for the folder name in
  * `~/.claude/projects/`. Confirmed by checking against real folders from
- * both profiles: `/home/user/personal/ultron/relay` -> `-home-user-personal-ultron-relay`,
- * `/home/user/.anywh-trabalho-home` -> `-home-user--ultron-trabalho-home`.
+ * both profiles: `/home/user/personal/anywh/relay` -> `-home-user-personal-anywh-relay`,
+ * `/home/user/.anywh-trabalho-home` -> `-home-user--anywh-trabalho-home`.
  */
 export function sanitizeCwd(cwd: string): string {
   return cwd.replace(/[^a-zA-Z0-9-]/g, "-");
@@ -65,7 +65,7 @@ export function sanitizeCwd(cwd: string): string {
  * first makes this calculation land on a folder that doesn't exist whenever
  * some path component is a symlink (real finding: `~/.anywh-trabalho-home/mode`
  * -> `~/mode`, sessions in the `widgets` repo computed
- * `-home-user--ultron-trabalho-home-mode-widgets` instead of the real folder,
+ * `-home-user--anywh-trabalho-home-mode-widgets` instead of the real folder,
  * `-home-user-mode-widgets`). Falls back to the raw `cwd` if the path no longer
  * exists (test/fixture session, or a deleted folder) — same behavior as
  * before in that case, just without trying to resolve what can't be

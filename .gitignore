@@ -5,7 +5,7 @@ relay/sessions.local.json
 relay/.env
 
 # systemd (rendered from *.service.template — machine-specific paths)
-infra/systemd/ultron-relay@.service
+infra/systemd/anywh-relay@.service
 
 # rust / tauri
 client/src-tauri/target/

@@ -4,7 +4,7 @@
 // binary via the `SYSTEMCTL_BIN` env var (relay/src/server.ts), used only by
 // `DELETE /control/profiles/:id`. Added after a real incident (2026-09-07):
 // an integration test hitting that route with the real `systemctl` disabled
-// and stopped the operator's actual live `ultron-relay@trabalho` service,
+// and stopped the operator's actual live `anywh-relay@trabalho` service,
 // SIGKILLing an in-flight `claude` conversation. `systemctl --user` has no
 // concept of "this is a test" the way an isolated `$HOME`/port/env-dir does
 // for everything else this route touches — there's no sandboxed form of the

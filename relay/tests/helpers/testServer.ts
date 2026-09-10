@@ -78,7 +78,7 @@ export interface TestServer {
  * files.
  */
 export async function startTestServer(): Promise<TestServer> {
-  const workDir = mkdtempSync(join(tmpdir(), "ultron-relay-integration-"));
+  const workDir = mkdtempSync(join(tmpdir(), "anywh-relay-integration-"));
   const homeDir = join(workDir, "home");
   // `homeDir` becomes the cwd of every `claude` child this test's turns
   // spawn (paths.ts defaultCwd) — a nonexistent cwd makes `child_process.spawn`
@@ -97,7 +97,7 @@ export async function startTestServer(): Promise<TestServer> {
   process.env.CLAUDE_BIN = FAKE_CLAUDE_BIN;
   // Real incident (2026-09-07): a test hitting `DELETE /control/profiles/:id`
   // with the real `systemctl` disabled+stopped the operator's actual live
-  // `ultron-relay@trabalho` service. Never point this at the real binary in
+  // `anywh-relay@trabalho` service. Never point this at the real binary in
   // a test — see fixtures/fake-systemctl.mjs.
   process.env.SYSTEMCTL_BIN = FAKE_SYSTEMCTL_BIN;
 

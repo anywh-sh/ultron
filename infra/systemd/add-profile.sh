@@ -203,6 +203,6 @@ Run it in dev mode with:
   cd "$RELAY_DIR" && ANYWH_PROFILE=$ID npm run dev:profile
 EOF
 else
-  systemctl --user enable --now "ultron-relay@$ID"
-  echo "Enabled ultron-relay@$ID (check: systemctl --user status ultron-relay@$ID)"
+  systemctl --user enable --now "anywh-relay@$ID"
+  echo "Enabled anywh-relay@$ID (check: systemctl --user status anywh-relay@$ID)"
 fi

@@ -53,7 +53,7 @@ const ADD_PROFILE_SCRIPT = resolvePath(dirname(fileURLToPath(import.meta.url)), 
 // overridable so a test never has to shell out to the REAL systemd user
 // session, which has no notion of "this is just a test": a real incident
 // (2026-09-07) had an integration test's `DELETE /control/profiles/:id`
-// call disable+stop the operator's actual live `ultron-relay@trabalho`
+// call disable+stop the operator's actual live `anywh-relay@trabalho`
 // service, SIGKILLing a real in-flight `claude` conversation. `CLAUDE_BIN`
 // already gets this treatment for the same reason; this route's `spawn`
 // needed the identical override, not a mock of `spawn` itself.
@@ -828,7 +828,7 @@ export const httpServer = createServer((req, res) => {
         res.end(JSON.stringify({ error: "failed to delete profile files" }));
       }
     };
-    const disable = spawn(SYSTEMCTL_BIN, ["--user", "disable", "--now", `ultron-relay@${id}`], {
+    const disable = spawn(SYSTEMCTL_BIN, ["--user", "disable", "--now", `anywh-relay@${id}`], {
       stdio: ["ignore", "pipe", "pipe"],
     });
     let disableStderr = "";

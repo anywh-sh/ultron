@@ -3,7 +3,7 @@ import type { RemoteProfile } from "@/lib/relay-types";
 export interface Profile {
   /** Immutable slug — the key of every per-profile storage (tabs, recent
    * folders, settings) and of the host-side artifacts (`<id>.env`,
-   * `ultron-relay@<id>`, sessions file). Generated once at creation from the
+   * `anywh-relay@<id>`, sessions file). Generated once at creation from the
    * label and never rewritten: renaming a profile must not orphan its
    * settings. */
   id: string;

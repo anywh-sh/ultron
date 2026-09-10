@@ -8,17 +8,17 @@ back on its own after a reboot or a crash, with no one watching.
 
 ## One template, any number of profiles
 
-`ultron-relay@.service.template` is a systemd
+`anywh-relay@.service.template` is a systemd
 [instantiated unit](https://www.freedesktop.org/software/systemd/man/latest/systemd.unit.html#Specifiers) —
 one file serves every profile you run (`pessoal`, `trabalho`, `default`,
 whatever you call them), each as its own systemd instance
-(`ultron-relay@<profile>`). It's a user-scope unit (`systemctl --user`, no
+(`anywh-relay@<profile>`). It's a user-scope unit (`systemctl --user`, no
 sudo) — running as *your* user was always the intent, since the relay only
 ever needed to run as whoever owns the Claude Code login it's isolating, not
 as root. It isn't committed with real paths in it: the relay's absolute
 directory and the absolute `node` binary path are specific to the machine it
 runs on, so `install.sh` fills those in and writes the rendered
-`ultron-relay@.service` next to the template (gitignored — it's a build
+`anywh-relay@.service` next to the template (gitignored — it's a build
 artifact, regenerate it whenever paths change).
 
 Profile-specific config (`RELAY_PORT`, `RELAY_HOME_OVERRIDE`, ...) doesn't
@@ -35,9 +35,9 @@ skip the second file, or even both, and run on the relay's own defaults.
 ## Setup
 
 ```bash
-./install.sh                          # renders ultron-relay@.service for this machine
+./install.sh                          # renders anywh-relay@.service for this machine
 mkdir -p ~/.config/systemd/user
-cp ultron-relay@.service ~/.config/systemd/user/
+cp anywh-relay@.service ~/.config/systemd/user/
 systemctl --user daemon-reload
 
 # Once per machine — a user-scope unit stops the moment your last login
@@ -49,7 +49,7 @@ cd ../../relay
 npm install && npm run build
 cp .env.example .env                  # edit CLAUDE_BIN/EXTRA_PATH_DIRS etc. if needed
 
-systemctl --user enable --now ultron-relay@default
+systemctl --user enable --now anywh-relay@default
 ```
 
 For more than one profile, give each its own env file before enabling it:
@@ -63,7 +63,7 @@ RELAY_BACKGROUND_JOBS_FILE=/home/you/.anywh-sessions/pessoal-bg-jobs.json
 RELAY_UPLOAD_DIR=/tmp/anywh-uploads-pessoal
 ANYWH_EDITOR_LOCAL=1
 EOF
-systemctl --user enable --now ultron-relay@pessoal
+systemctl --user enable --now anywh-relay@pessoal
 ```
 
 Or use `add-profile.sh` (same directory) to generate the `.env` and enable
@@ -78,8 +78,8 @@ separate Claude Code login — `RELAY_HOME_OVERRIDE`) for a second profile.
 ## Checking it
 
 ```bash
-systemctl --user status ultron-relay@default
-journalctl --user -u ultron-relay@default -f
+systemctl --user status anywh-relay@default
+journalctl --user -u anywh-relay@default -f
 ```
 
 ## Remote access

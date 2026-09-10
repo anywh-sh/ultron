@@ -1,15 +1,15 @@
 #!/usr/bin/env bash
-# Renders ultron-relay@.service.template with this machine's paths (absolute
+# Renders anywh-relay@.service.template with this machine's paths (absolute
 # relay/ directory, absolute node binary — none of which belong in a file
 # committed to git). Run once per machine, not once per profile: the same
 # rendered unit template serves every profile via systemd's instance
-# mechanism (`ultron-relay@<profile>`), see infra/systemd/README.md.
+# mechanism (`anywh-relay@<profile>`), see infra/systemd/README.md.
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 RELAY_DIR="$(cd "$SCRIPT_DIR/../../relay" && pwd)"
-TEMPLATE="$SCRIPT_DIR/ultron-relay@.service.template"
-OUTPUT="$SCRIPT_DIR/ultron-relay@.service"
+TEMPLATE="$SCRIPT_DIR/anywh-relay@.service.template"
+OUTPUT="$SCRIPT_DIR/anywh-relay@.service"
 
 source "$SCRIPT_DIR/../lib.sh"
 
@@ -30,7 +30,7 @@ Rendered: $OUTPUT
 
 Install it once per machine (user-scope unit — no sudo):
   mkdir -p "$HOME/.config/systemd/user"
-  cp "$OUTPUT" "$HOME/.config/systemd/user/ultron-relay@.service"
+  cp "$OUTPUT" "$HOME/.config/systemd/user/anywh-relay@.service"
   systemctl --user daemon-reload
 
   # Needed once per machine so the unit keeps running without an active
@@ -42,5 +42,5 @@ Then, per profile (e.g. "default", or "pessoal"/"trabalho" for more than
 one), point it at a built relay and enable the instance:
   cd "$RELAY_DIR" && npm install && npm run build
   cp .env.example .env   # edit as needed — see infra/systemd/README.md
-  systemctl --user enable --now ultron-relay@default
+  systemctl --user enable --now anywh-relay@default
 EOF
