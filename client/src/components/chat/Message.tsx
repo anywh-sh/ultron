@@ -245,6 +245,11 @@ interface AssistantTextProps {
   sentAt: number;
   streaming: boolean;
   onCopy: (text: string) => void;
+  /** Opens a path mentioned in inline code in the work dir file panel —
+   * desktop only, `undefined` on compact/iOS where that panel doesn't exist
+   * (see `MarkdownContent`'s `code` override, which falls back to plain
+   * code when this is absent). */
+  onOpenPath?: (path: string) => void;
 }
 
 /** Memoized — see comment on `UserBubble`. `MarkdownContent` re-parses
@@ -256,7 +261,7 @@ interface AssistantTextProps {
  * edit, which makes no sense on the assistant's own words. Hidden while
  * `streaming` is true: the response isn't final yet, and `sentAt` is only a
  * placeholder until the block actually commits (see `useMessageLog.ts`). */
-export const AssistantText = memo(function AssistantText({ text, sentAt, streaming, onCopy }: AssistantTextProps) {
+export const AssistantText = memo(function AssistantText({ text, sentAt, streaming, onCopy, onOpenPath }: AssistantTextProps) {
   const [copied, setCopied] = useState(false);
 
   function handleCopy(): void {
@@ -277,7 +282,7 @@ export const AssistantText = memo(function AssistantText({ text, sentAt, streami
   return (
     <div className="group flex flex-col items-start" {...(isIOS() && !streaming ? longPress : undefined)}>
       <div className="prose-chat text-sm text-foreground">
-        <MarkdownContent text={stripPlanChoiceMarkers(text)} />
+        <MarkdownContent text={stripPlanChoiceMarkers(text)} onOpenPath={onOpenPath} />
       </div>
       {!streaming && !isIOS() && (
         <div className="mt-1 flex h-6 items-center gap-1 text-xs text-muted-foreground opacity-0 transition-opacity group-hover:opacity-100">

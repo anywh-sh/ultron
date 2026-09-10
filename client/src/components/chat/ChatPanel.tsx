@@ -70,6 +70,10 @@ interface ChatPanelProps {
     open: boolean;
     onToggle: () => void;
   };
+  /** Opens a path mentioned in assistant text in the file panel — `App`
+   * passes `undefined` on compact/iOS, same gate as `terminal`/`files`
+   * above (there's no file panel to open it in there). */
+  onOpenPath?: (path: string) => void;
   /** Only the active tab should react to Tauri's native drag-and-drop —
    * unlike the old HTML5 DnD (scoped by the DOM itself), the native event
    * reaches ALL mounted instances (background tabs stay mounted, docs/18),
@@ -128,6 +132,7 @@ export function ChatPanel({
   onConnectedChange,
   terminal,
   files,
+  onOpenPath,
   isActiveTab,
 }: ChatPanelProps) {
   const log = useMessageLog();
@@ -542,6 +547,7 @@ export function ChatPanel({
           onCancelEdit={onCancelEdit}
           onSaveEdit={onSaveEdit}
           onCopy={onCopyMessage}
+          onOpenPath={onOpenPath}
           isActiveTab={isActiveTab}
         />
       ) : (

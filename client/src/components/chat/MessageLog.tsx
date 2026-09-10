@@ -38,6 +38,10 @@ interface MessageLogProps {
   onCancelEdit: () => void;
   onSaveEdit: (id: string, text: string) => void;
   onCopy: (text: string) => void;
+  /** Opens a path mentioned in assistant text in the work dir file panel —
+   * `undefined` on compact/iOS, where that panel doesn't exist (see
+   * `Message.tsx`'s `AssistantText`). */
+  onOpenPath?: (path: string) => void;
   /** Whether this tab is the one currently on screen — background tabs stay
    * mounted (`forceMount`/`invisible` in `TabBar`, docs/18), so this is the
    * only signal telling this instance it just came back into view. See the
@@ -119,6 +123,7 @@ interface UserActionHandlers {
   onCancelEdit: () => void;
   onSaveEdit: (id: string, text: string) => void;
   onCopy: (text: string) => void;
+  onOpenPath?: (path: string) => void;
 }
 
 function renderItem(item: RenderItem, userActions: UserActionHandlers) {
@@ -158,7 +163,13 @@ function renderItem(item: RenderItem, userActions: UserActionHandlers) {
     case "text":
       return (
         <LogEntryRow key={entry.id} rail="none">
-          <AssistantText text={entry.text} sentAt={entry.sentAt} streaming={entry.streaming} onCopy={userActions.onCopy} />
+          <AssistantText
+            text={entry.text}
+            sentAt={entry.sentAt}
+            streaming={entry.streaming}
+            onCopy={userActions.onCopy}
+            onOpenPath={userActions.onOpenPath}
+          />
         </LogEntryRow>
       );
     case "error":
@@ -207,10 +218,11 @@ export const MessageLog = memo(function MessageLog({
   onCancelEdit,
   onSaveEdit,
   onCopy,
+  onOpenPath,
   isActiveTab,
 }: MessageLogProps) {
   const parentRef = useRef<HTMLDivElement>(null);
-  const userActions: UserActionHandlers = { editingMessageId, onStartEdit, onCancelEdit, onSaveEdit, onCopy };
+  const userActions: UserActionHandlers = { editingMessageId, onStartEdit, onCancelEdit, onSaveEdit, onCopy, onOpenPath };
 
   // `entries` only gets a new reference when something is actually
   // committed (see reducer in useMessageLog) — memoizing here avoids

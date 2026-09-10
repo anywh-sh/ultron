@@ -447,6 +447,27 @@ body {
   font-weight: 500;
   color: var(--primary);
 }
+/* Inline code that looks like a file path (`MarkdownContent`'s `code`
+ * override) — same pill as `.prose-chat code` above, plus the affordance
+ * that it opens in the file panel instead of just being styled text. */
+.prose-chat-path-link {
+  font-family: var(--font-mono);
+  background: color-mix(in srgb, var(--bg-sidebar) 55%, var(--background));
+  border: 1px solid var(--border);
+  border-radius: 5px;
+  padding: 0.15em 0.45em;
+  font-size: 0.85em;
+  font-weight: 500;
+  color: var(--primary);
+  cursor: pointer;
+  text-decoration: underline;
+  text-decoration-color: transparent;
+  transition: text-decoration-color 0.1s ease;
+}
+.prose-chat-path-link:hover {
+  text-decoration-color: currentColor;
+  border-color: var(--primary);
+}
 .prose-chat pre {
   background: var(--card);
   border: 1px solid var(--border);

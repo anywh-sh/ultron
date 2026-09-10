@@ -28,7 +28,8 @@ import { useNotificationClick } from "@/hooks/useNotificationClick";
 import { useProfileImport } from "@/hooks/useProfileImport";
 import { useActiveTheme, useThemeSync } from "@/hooks/useThemes";
 import { useProfileSync } from "@/hooks/useProfileSync";
-import { findProfile, getProfiles } from "@/lib/profiles";
+import { findProfile, getProfiles, type Profile } from "@/lib/profiles";
+import { resolveChatPath } from "@/lib/filePathLinks";
 import { ensureNotificationPermission, notifyTurnComplete } from "@/lib/notifications";
 import { deleteSession, renameSession } from "@/lib/relayClient";
 import { isIOS } from "@/lib/platform";
@@ -277,6 +278,22 @@ export default function App() {
     terminalTabs.addTerminal(tabId, path);
   }
 
+  /** A path mentioned in assistant chat text (`Message.tsx`'s `AssistantText`)
+   * — same "always show it" gate/`openPane` as `handleOpenTerminalAt` above.
+   * `rawPath` is whatever the model wrote (relative to the session's cwd, or
+   * already absolute); `resolveChatPath` turns it into the absolute form
+   * `relay/src/fsFiles.ts` requires, reusing the file panel's own cached
+   * root when it's already been opened once for this tab. A path that turns
+   * out not to exist isn't an error here — `FileViewer` renders that. */
+  function handleOpenFilePath(profile: Profile, tabId: string, rawPath: string): void {
+    if (isCompact || isIOS()) return;
+    sessionDock.openPane(tabId, "files");
+    const cachedRoot = fileTabs.getTabs(tabId).root;
+    resolveChatPath(profile, tabId, rawPath, cachedRoot)
+      .then((absolutePath) => fileTabs.openPreview(tabId, absolutePath))
+      .catch(() => {});
+  }
+
   // Ctrl+Tab / Ctrl+Shift+Tab, like a browser — intentionally only `ctrlKey`,
   // not `metaKey || ctrlKey` like the other shortcuts below: on macOS Cmd+Tab
   // is the OS's own app switcher (never reaches the app), so the real
@@ -441,6 +458,7 @@ export default function App() {
             ? undefined
             : { open: dock.panes.includes("files"), onToggle: () => sessionDock.togglePane(tab.id, "files") }
         }
+        onOpenPath={isCompact || isIOS() ? undefined : (path) => handleOpenFilePath(profile, tab.id, path)}
         isActiveTab={isTabActive}
       />
     );
