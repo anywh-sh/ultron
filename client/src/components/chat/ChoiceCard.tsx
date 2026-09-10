@@ -37,6 +37,8 @@ export function ChoiceCard({ promptId, questions, kind, onAnswer, onClose }: Cho
   const [index, setIndex] = useState(0);
   const [answers, setAnswers] = useState<Map<number, string[]>>(new Map());
   const [selected, setSelected] = useState<string[]>([]);
+  const [customTexts, setCustomTexts] = useState<Map<number, string>>(new Map());
+  const [customText, setCustomText] = useState("");
 
   // A fresh prompt (new `promptId`) always starts over — same instance can
   // be reused across prompts since `ChatPanel` keys it by `choicePrompt`
@@ -45,22 +47,41 @@ export function ChoiceCard({ promptId, questions, kind, onAnswer, onClose }: Cho
     setIndex(0);
     setAnswers(new Map());
     setSelected([]);
+    setCustomTexts(new Map());
+    setCustomText("");
   }, [promptId]);
 
   const question = questions[index];
   const isLast = index === questions.length - 1;
+  // Free text always wins over checked options when both are present — kept
+  // mutually exclusive (see `toggleOption`/`setCustomTextFor`) so there's
+  // never an ambiguous "which one did they mean" at confirm time.
+  const effectiveSelection = customText.trim() ? [customText.trim()] : selected;
 
   function goTo(nextIndex: number): void {
     setIndex(nextIndex);
     setSelected(answers.get(nextIndex) ?? []);
+    setCustomText(customTexts.get(nextIndex) ?? "");
   }
 
   function toggleOption(label: string): void {
+    setCustomText("");
+    setCustomTexts((current) => {
+      const next = new Map(current);
+      next.delete(index);
+      return next;
+    });
     if (question.multiSelect) {
       setSelected((current) => (current.includes(label) ? current.filter((item) => item !== label) : [...current, label]));
     } else {
       setSelected((current) => (current.includes(label) ? [] : [label]));
     }
+  }
+
+  function setCustomTextFor(value: string): void {
+    setCustomText(value);
+    setCustomTexts((current) => new Map(current).set(index, value));
+    if (value.trim() && selected.length > 0) setSelected([]);
   }
 
   function finish(finalAnswers: Map<number, string[]>): void {
@@ -120,7 +141,7 @@ export function ChoiceCard({ promptId, questions, kind, onAnswer, onClose }: Cho
           )}
           <button
             type="button"
-            onClick={() => (kind === "approval" ? finish(new Map(answers).set(index, selected)) : onClose())}
+            onClick={() => (kind === "approval" ? finish(new Map(answers).set(index, effectiveSelection)) : onClose())}
             aria-label={kind === "approval" ? "Fechar e responder com o que já foi selecionado" : "Fechar sem responder"}
             className="ml-1 cursor-pointer text-muted-foreground hover:text-foreground"
           >
@@ -129,7 +150,7 @@ export function ChoiceCard({ promptId, questions, kind, onAnswer, onClose }: Cho
         </div>
       </div>
 
-      <div className="flex flex-col divide-y divide-border">
+      <div className={cn("flex flex-col divide-y divide-border", customText.trim() && "opacity-40")}>
         {question.options.map((option) => {
           const isSelected = selected.includes(option.label);
           return (
@@ -156,13 +177,39 @@ export function ChoiceCard({ promptId, questions, kind, onAnswer, onClose }: Cho
         })}
       </div>
 
+      {/* Free-text fallback — always the last option, only for `present_choice`/
+          plan-marker prompts. Not offered for `kind: "approval"`: that path
+          checks `selected` against the literal "Aprovar"/"Recusar" labels
+          (sharedSession.ts::checkPermission), so free text there would never
+          match and could stall the live blocked tool call. */}
+      {kind === "choice" && (
+        <input
+          type="text"
+          value={customText}
+          onChange={(event) => setCustomTextFor(event.target.value)}
+          onKeyDown={(event) => {
+            if (event.key === "Enter" && customText.trim()) confirmCurrent([customText.trim()]);
+          }}
+          placeholder="Ou escreva sua própria resposta…"
+          aria-label="Escrever uma resposta personalizada"
+          className="min-w-0 rounded-md border border-border bg-transparent px-2.5 py-1.5 text-sm text-foreground outline-none placeholder:text-muted-foreground focus:border-ring"
+        />
+      )}
+
       <div className="flex items-center justify-between pt-1">
-        <span className="text-xs text-muted-foreground">{selected.length} selecionado(s)</span>
+        <span className="text-xs text-muted-foreground">
+          {customText.trim() ? "resposta personalizada" : `${selected.length} selecionado(s)`}
+        </span>
         <div className="flex items-center gap-1.5">
           <Button type="button" variant="secondary" size="sm" onClick={() => confirmCurrent([])}>
             Pular
           </Button>
-          <Button type="button" size="icon-sm" onClick={() => confirmCurrent(selected)} aria-label={isLast ? "Enviar respostas" : "Próxima pergunta"}>
+          <Button
+            type="button"
+            size="icon-sm"
+            onClick={() => confirmCurrent(effectiveSelection)}
+            aria-label={isLast ? "Enviar respostas" : "Próxima pergunta"}
+          >
             <ArrowRight className="size-4" />
           </Button>
         </div>
