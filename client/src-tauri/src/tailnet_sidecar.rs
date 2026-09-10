@@ -68,16 +68,20 @@ fn sanitize_for_path(profile_id: &str) -> String {
     }
 }
 
-/// The name this device shows up as in the tenant's tailnet. `node_id` is
-/// `Profile.brokerNodeId` for a brokered profile — the id
-/// anywh-control-plane's own hostname cross-check expects
-/// (`bindReportedNodeKey`/`reconcile.ts`, journal/50 3.3) — or `Profile.id`
-/// for a manually configured one, which has no broker to reconcile against
-/// anyway. Kept short — a Tailscale hostname is a DNS label.
+/// The name this device shows up as in the tenant's tailnet. Has to match
+/// `node_id` byte-for-byte, no prefix or truncation: anywh-control-plane's
+/// own hostname cross-check (`bindReportedNodeKey`/`reconcile.ts`,
+/// journal/50 3.3) does a plain string comparison against `node.id`, not a
+/// pattern match — a shortened/prefixed form (the previous
+/// `ultron-<12 chars>`, live-confirmed via a WebdriverIO e2e run against
+/// production) never matches and the device sits unbound forever. `node_id`
+/// is `Profile.brokerNodeId` for a brokered profile, or `Profile.id` for a
+/// manually configured one (no broker to reconcile against, so nothing to
+/// match) — both are always a UUID already (`crypto.randomUUID()` on the JS
+/// side), well inside the 63-character DNS label limit, so sanitizing here
+/// is defense-in-depth against a malformed input, not an expected transform.
 fn tailnet_hostname(node_id: &str) -> String {
-    let cleaned = sanitize_for_path(node_id);
-    let short: String = cleaned.chars().take(12).collect();
-    format!("ultron-{}", short.trim_matches('-'))
+    sanitize_for_path(node_id)
 }
 
 /// Where the device's Ed25519 identity file lives — same directory Tauri
@@ -292,16 +296,19 @@ mod tests {
     use super::*;
 
     #[test]
-    fn hostname_is_a_usable_dns_label() {
+    fn hostname_matches_the_node_id_exactly() {
+        // Byte-for-byte, not just "recognizable" — anywh-control-plane's own
+        // cross-check does a plain string comparison, no prefix tolerance
+        // (see this function's doc comment for the live bug this pins).
         let name = tailnet_hostname("77974f6e-e0ac-4d07-a0f0-0a8791c23e66");
-        assert_eq!(name, "ultron-77974f6e-e0a");
+        assert_eq!(name, "77974f6e-e0ac-4d07-a0f0-0a8791c23e66");
         assert!(name.len() <= 63);
         assert!(name.chars().all(|c| c.is_ascii_alphanumeric() || c == '-'));
     }
 
     #[test]
     fn hostname_survives_a_profile_id_that_is_not_a_uuid() {
-        assert_eq!(tailnet_hostname("Trabalho Pessoal!"), "ultron-trabalho-pes");
+        assert_eq!(tailnet_hostname("Trabalho Pessoal!"), "trabalho-pessoal-");
     }
 
     #[test]
