@@ -42,11 +42,28 @@ const outDir = join(clientDir, "src-tauri", "binaries");
 mkdirSync(outDir, { recursive: true });
 const out = join(outDir, `tailnet-sidecar-${target.triple}${target.goos === "windows" ? ".exe" : ""}`);
 
-execFileSync("go", ["build", "-o", out, "./cmd/tailnet-sidecar"], {
-  cwd: join(clientDir, "tailnet-sidecar"),
-  stdio: "inherit",
-  // CGO off so a cross-build never reaches for a C toolchain it doesn't have;
-  // nothing here needs one on any platform.
-  env: { ...process.env, GOOS: target.goos, GOARCH: target.goarch, CGO_ENABLED: "0" },
-});
+try {
+  execFileSync("go", ["build", "-o", out, "./cmd/tailnet-sidecar"], {
+    cwd: join(clientDir, "tailnet-sidecar"),
+    stdio: "inherit",
+    // CGO off so a cross-build never reaches for a C toolchain it doesn't
+    // have; nothing here needs one on any platform.
+    env: { ...process.env, GOOS: target.goos, GOARCH: target.goarch, CGO_ENABLED: "0" },
+  });
+} catch (err) {
+  if (err.code === "ENOENT") {
+    // The machine doing the testing doesn't necessarily have a Go toolchain,
+    // and the raw spawn failure buries that under a stack trace.
+    console.error(
+      `Go is not installed on this machine, so the sidecar can't be built here.\n` +
+        `Build it on a machine that has Go, with the same target:\n` +
+        `  npm run build:sidecar -- --target ${key}\n` +
+        `then copy the result to this machine as:\n` +
+        `  ${out}\n` +
+        `The file name has to match exactly — Tauri's externalBin looks it up by name.`,
+    );
+    process.exit(1);
+  }
+  throw err;
+}
 console.log(`built ${out}`);
