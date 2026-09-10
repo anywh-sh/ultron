@@ -87,7 +87,8 @@ pub fn run() {
             voice::stop_recording_and_transcribe,
             read_dropped_file,
             editors::detect_editors,
-            tailnet_sidecar::tailnet_sidecar_probe
+            tailnet_sidecar::tailnet_sidecar_probe,
+            tailnet_sidecar::tailnet_sidecar_probe_listen
         ]);
 
     #[cfg(target_os = "ios")]
