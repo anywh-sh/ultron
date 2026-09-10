@@ -28,7 +28,13 @@
     "deep-link": {
       "desktop": {
         "schemes": ["ultron"]
-      }
+      },
+      "mobile": [
+        {
+          "scheme": ["ultron"],
+          "appLink": false
+        }
+      ]
     }
   },
   "bundle": {
