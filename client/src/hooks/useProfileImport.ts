@@ -45,13 +45,27 @@ export function useProfileImport(onImported: (profileId: string) => void): void 
       }
     }
 
-    void getCurrent().then((urls) => {
-      if (urls) handle(urls);
-    });
+    // Deferred by a tick, same trick as tailnetSidecar.ts's release delay
+    // and useRelayClient.ts's start() — React 18 StrictMode (dev) mounts
+    // this effect, cleans it up, and mounts it again, synchronously, within
+    // one tick. Calling getCurrent() straight from the effect meant the
+    // doomed first mount already redeemed the join code (importProfile →
+    // claimTailnetBundle, single-use per code) before its own cleanup had
+    // any chance to stop it — the second mount's redemption of the very
+    // same code then failed with a 409, on every cold launch. Deferring
+    // means the first mount's cleanup clears its timer before it ever
+    // fires; only the surviving mount calls getCurrent() and redeems the
+    // code, exactly once.
+    const initialUrlTimer = setTimeout(() => {
+      void getCurrent().then((urls) => {
+        if (urls) handle(urls);
+      });
+    }, 0);
 
     const unlistenPromise = onOpenUrl(handle);
 
     return () => {
+      clearTimeout(initialUrlTimer);
       void unlistenPromise.then((unlisten) => unlisten());
     };
   }, []);
