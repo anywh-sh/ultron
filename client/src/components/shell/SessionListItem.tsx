@@ -42,17 +42,18 @@ export function SessionListItem({
         )}
       >
         <span className="min-w-0 flex-1 truncate">{session.title}</span>
-        {running && (
+        {running ? (
           <Loader2
             className="size-3 shrink-0 animate-spin text-foreground transition-opacity group-hover:opacity-0"
             aria-label="Agente trabalhando nesta sessão"
           />
-        )}
-        {hasBackgroundJob && (
-          <Loader2
-            className="size-3 shrink-0 animate-spin text-muted-foreground transition-opacity group-hover:opacity-0"
-            aria-label="Job em background rodando nesta sessão"
-          />
+        ) : (
+          hasBackgroundJob && (
+            <Loader2
+              className="size-3 shrink-0 animate-spin text-muted-foreground transition-opacity group-hover:opacity-0"
+              aria-label="Job em background rodando nesta sessão"
+            />
+          )
         )}
       </button>
       <button
