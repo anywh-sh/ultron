@@ -15,6 +15,11 @@ export interface BackgroundJobStarted {
   pid: number;
   log: string;
   exitFile: string;
+  /** Heartbeat file the wrapper touches every ~5s (journal/32 Phase G).
+   * Optional: a marker printed by an older `ultron-bg` doesn't have it, and
+   * a job without a heartbeat simply falls back to the previous behavior
+   * (only `.exit` or the ceiling ever end it). */
+  alive?: string;
   label: string;
 }
 
@@ -25,6 +30,9 @@ export interface WatchedJob {
   logPath: string;
   exitPath: string;
   startedAt: number;
+  /** Path of the heartbeat file (journal/32 Phase G) — `undefined` for a
+   * job persisted before this existed, which keeps the old behavior. */
+  alivePath?: string;
   /** PID reported by `ultron-bg start` (docs/32 Phase F) — only used for
    * cancellation (`cancel`, `kill -<pid>` on the whole process group),
    * NEVER to detect completion (that's the `.exit` file's job; PID reuse by
@@ -51,6 +59,13 @@ export function toBackgroundJobSummary(job: WatchedJob): BackgroundJobSummary {
 export interface FinishedBackgroundJob extends WatchedJob {
   exitCode: number;
   logTail: string;
+  /** journal/32 Phase G — the job didn't end on its own: the wrapper was
+   * killed from the outside without ever writing `.exit` (detected via the
+   * heartbeat going stale). There's no real exit code in this case
+   * (`exitCode` is `-1`), and the command's own process tree MAY still be
+   * alive if only the wrapper took the signal — so the follow-up message
+   * has to say "terminated externally", not "failed with exit -1". */
+  terminated?: true;
 }
 
 // Only the marker line (one of potentially several lines of a Bash call's
@@ -73,7 +88,7 @@ export function parseStartedMarker(text: string): BackgroundJobStarted | undefin
     return undefined;
   }
   if (typeof parsed !== "object" || parsed === null) return undefined;
-  const { ultron_bg, id, pid, log, exitFile, label } = parsed as Record<string, unknown>;
+  const { ultron_bg, id, pid, log, exitFile, alive, label } = parsed as Record<string, unknown>;
   if (
     ultron_bg !== "started" ||
     typeof id !== "string" ||
@@ -84,7 +99,10 @@ export function parseStartedMarker(text: string): BackgroundJobStarted | undefin
   ) {
     return undefined;
   }
-  return { id, pid, log, exitFile, label };
+  // `alive` deliberately NOT required: the relay and the script are
+  // updated by separate steps (`git pull` + rebuild vs. the copy the model
+  // calls), so a marker without it has to keep working.
+  return { id, pid, log, exitFile, label, ...(typeof alive === "string" ? { alive } : {}) };
 }
 
 interface ToolResultBlock {
@@ -131,10 +149,29 @@ export function extractStartedJobFromEvent(event: ClaudeEvent): BackgroundJobSta
   return undefined;
 }
 
-function readExitCode(exitPath: string): number {
+/** `undefined` = the file exists but is still EMPTY: a wrapper from before
+ * journal/32 Phase G writes it with `echo $? > file`, and the redirect
+ * creates the file before the content lands — a poll landing in that window
+ * used to read `""` and report `-1`, announcing a job that passed as a
+ * failure. The current wrapper writes it atomically (tmp + `mv`), but a job
+ * started by the old one can still be in flight. */
+function readExitCode(exitPath: string): number | undefined {
   const raw = readFileSync(exitPath, "utf8").trim();
+  if (raw === "") return undefined;
   const parsed = Number.parseInt(raw, 10);
   return Number.isFinite(parsed) ? parsed : -1;
+}
+
+/** `kill(pid, 0)` — signal 0 only checks existence/permission, never
+ * delivers anything. `EPERM` means the PID exists but belongs to another
+ * user, which for our purposes is still "alive". */
+function isProcessAlive(pid: number): boolean {
+  try {
+    process.kill(pid, 0);
+    return true;
+  } catch (error) {
+    return (error as NodeJS.ErrnoException).code === "EPERM";
+  }
 }
 
 /** Only the tail — same truncation pattern as `suggestionGenerator.ts`, but
@@ -177,6 +214,10 @@ export interface BackgroundJobTrackerOptions {
   maxWatchMs?: number;
   /** Log tail delivered in `FinishedBackgroundJob.logTail`. */
   logTailBytes?: number;
+  /** How long without a heartbeat before a job is considered dead
+   * (journal/32 Phase G) — an option only so tests don't have to wait the
+   * real value. */
+  heartbeatStaleMs?: number;
   /** Path to the persistence file (docs/32 Phase F) — if provided, the list
    * of watched jobs survives a relay restart: written on every change (same
    * synchronous pattern as `SessionStore`, `writeFileSync` of the whole
@@ -190,6 +231,10 @@ export interface BackgroundJobTrackerOptions {
 const DEFAULT_POLL_INTERVAL_MS = 10_000;
 const DEFAULT_MAX_WATCH_MS = 6 * 60 * 60 * 1000;
 const DEFAULT_LOG_TAIL_BYTES = 4000;
+/** 6 missed beats (the wrapper touches `.alive` every 5s) — generous on
+ * purpose: a loaded machine can delay a `sleep 5` by a lot, and a false
+ * "it died" costs a wrong report to the user. */
+const DEFAULT_HEARTBEAT_STALE_MS = 30_000;
 
 export class BackgroundJobTracker {
   private readonly jobs = new Map<string, WatchedJob>();
@@ -197,11 +242,13 @@ export class BackgroundJobTracker {
   private readonly pollIntervalMs: number;
   private readonly maxWatchMs: number;
   private readonly logTailBytes: number;
+  private readonly heartbeatStaleMs: number;
 
   constructor(private readonly options: BackgroundJobTrackerOptions) {
     this.pollIntervalMs = options.pollIntervalMs ?? DEFAULT_POLL_INTERVAL_MS;
     this.maxWatchMs = options.maxWatchMs ?? DEFAULT_MAX_WATCH_MS;
     this.logTailBytes = options.logTailBytes ?? DEFAULT_LOG_TAIL_BYTES;
+    this.heartbeatStaleMs = options.heartbeatStaleMs ?? DEFAULT_HEARTBEAT_STALE_MS;
 
     if (this.options.persistPath) {
       for (const job of this.load(this.options.persistPath)) {
@@ -242,6 +289,7 @@ export class BackgroundJobTracker {
         typeof entry.label === "string" &&
         typeof entry.logPath === "string" &&
         typeof entry.exitPath === "string" &&
+        (entry.alivePath === undefined || typeof entry.alivePath === "string") &&
         typeof entry.startedAt === "number" &&
         typeof entry.pid === "number",
     );
@@ -272,6 +320,7 @@ export class BackgroundJobTracker {
       label: started.label,
       logPath: started.log,
       exitPath: started.exitFile,
+      alivePath: started.alive,
       startedAt: Date.now(),
       pid: started.pid,
     });
@@ -294,6 +343,60 @@ export class BackgroundJobTracker {
     this.timer.unref?.();
   }
 
+  /** ms since the last heartbeat, or `undefined` for a job that doesn't
+   * have one (started by an `ultron-bg` from before journal/32 Phase G).
+   * A declared-but-missing file counts as "never beat since it started":
+   * the wrapper creates it in its first milliseconds, so its absence past
+   * the staleness window means it died before writing one, not that it's
+   * healthy. */
+  private heartbeatAgeMs(job: WatchedJob, now: number): number | undefined {
+    if (!job.alivePath) return undefined;
+    let lastBeat: number;
+    try {
+      lastBeat = statSync(job.alivePath).mtimeMs;
+    } catch {
+      lastBeat = job.startedAt;
+    }
+    return now - lastBeat;
+  }
+
+  /** journal/32 Phase G — the failure this fixes: `pkill -f "next dev"`
+   * matches the WRAPPER's cmdline too (it carries the command string), so
+   * `echo $? > .exit` never ran and the job stayed "running" in the UI
+   * until the 6h ceiling, with the promised completion notice never
+   * arriving. Two independent signals have to agree before declaring death:
+   *
+   * - stale heartbeat — the wrapper stopped touching `.alive`;
+   * - the PID is gone — guards against the machine having been SUSPENDED
+   *   (every process frozen while the wall clock advances, so on resume the
+   *   heartbeat looks hours old even though the job is perfectly alive).
+   *
+   * Note the PID check can only ever VETO a death, never assert one by
+   * itself — exactly what journal/32 (case 7) rejected: a PID recycled by
+   * the OS at worst delays detection until the ceiling, it can never invent
+   * a completion. */
+  private isWrapperGone(job: WatchedJob, now: number): boolean {
+    const age = this.heartbeatAgeMs(job, now);
+    return age !== undefined && age > this.heartbeatStaleMs && !isProcessAlive(job.pid);
+  }
+
+  /** Single exit point for "this job is over" — drops it from the list,
+   * persists, and notifies. Reads the log tail defensively: a log that
+   * can't be read (deleted by hand, disk full) is worth reporting with an
+   * empty tail, never worth swallowing the whole notification for. */
+  private finish(key: string, job: WatchedJob, result: { exitCode: number; terminated?: true }): void {
+    this.jobs.delete(key);
+    let logTail = "";
+    try {
+      logTail = readLogTail(job.logPath, this.logTailBytes);
+    } catch (error) {
+      console.error(`[relay] failed reading background job log "${job.label}" (${job.id}):`, error);
+    }
+    this.persist();
+    this.options.onFinished({ ...job, ...result, logTail });
+    this.options.onChanged?.(job.sessionId);
+  }
+
   /** Public only so tests can trigger a poll without waiting for the real
    * interval — `setInterval` in production calls this same method. */
   pollOnce(): void {
@@ -308,22 +411,27 @@ export class BackgroundJobTracker {
         this.options.onChanged?.(job.sessionId);
         continue;
       }
-      if (!existsSync(job.exitPath)) continue;
-      this.jobs.delete(key);
-      let exitCode: number;
-      let logTail: string;
-      try {
-        exitCode = readExitCode(job.exitPath);
-        logTail = readLogTail(job.logPath, this.logTailBytes);
-      } catch (error) {
-        console.error(`[relay] failed reading background job result "${job.label}" (${job.id}):`, error);
-        this.persist();
-        this.options.onChanged?.(job.sessionId);
+      let exitCode: number | undefined;
+      if (existsSync(job.exitPath)) {
+        try {
+          exitCode = readExitCode(job.exitPath);
+        } catch (error) {
+          // Unreadable (deleted mid-poll, permissions...) — report it as an
+          // unknown result instead of leaving the job pinned forever.
+          console.error(`[relay] failed reading background job result "${job.label}" (${job.id}):`, error);
+          exitCode = -1;
+        }
+      }
+
+      if (exitCode === undefined) {
+        if (!this.isWrapperGone(job, now)) continue;
+        console.warn(
+          `[relay] background job "${job.label}" (${job.id}) died without writing .exit (killed from outside) — reporting as terminated`,
+        );
+        this.finish(key, job, { exitCode: -1, terminated: true });
         continue;
       }
-      this.persist();
-      this.options.onFinished({ ...job, exitCode, logTail });
-      this.options.onChanged?.(job.sessionId);
+      this.finish(key, job, { exitCode });
     }
     if (this.jobs.size === 0 && this.timer) {
       clearInterval(this.timer);
@@ -351,6 +459,19 @@ export class BackgroundJobTracker {
     this.jobs.delete(key);
     this.persist();
     this.options.onChanged?.(sessionId);
+
+    // Only signal if the heartbeat still vouches for this PID being OUR
+    // job (journal/32 Phase G): a job persisted across a reboot carries a
+    // PID the OS has long since handed to someone else, and `kill(-pid)`
+    // would take down an unrelated process group. No heartbeat at all
+    // (older wrapper) keeps the previous behavior.
+    const heartbeatAge = this.heartbeatAgeMs(job, Date.now());
+    if (heartbeatAge !== undefined && heartbeatAge > this.heartbeatStaleMs) {
+      console.warn(
+        `[relay] background job "${job.label}" (${job.id}) has no live heartbeat — dropped from the list without signalling PID ${String(job.pid)}`,
+      );
+      return true;
+    }
 
     try {
       process.kill(-job.pid, "SIGTERM");

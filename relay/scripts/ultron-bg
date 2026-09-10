@@ -1,9 +1,11 @@
 #!/bin/bash
 # Helper pra deixar um comando rodando desacoplado do processo que o
 # iniciou (o turno `claude -p`, que morre ao fim do turno — docs/32) e
-# detectável depois por quem quer que seja (o relay faz polling do
-# arquivo `.exit`, não do PID: reuso de PID pelo SO mascararia um
-# `kill -0` continuando a "ver" alguém vivo ali).
+# detectável depois por quem quer que seja: o relay faz polling do arquivo
+# `.exit` (nunca do PID sozinho — reuso de PID pelo SO mascararia um
+# `kill -0` continuando a "ver" alguém vivo ali) e, como rede de segurança
+# pro wrapper morto de fora sem gravar `.exit`, do batimento `.alive`
+# (journal/32 Fase G).
 #
 # Uso:
 #   ultron-bg start --label "<descrição curta>" --cmd "<comando shell completo>"
@@ -21,6 +23,82 @@
 set -euo pipefail
 
 JOBS_DIR="${HOME:?HOME precisa estar definido}/.ultron/bg-jobs"
+
+# Corpo do processo que roda dentro do `setsid`, em variável só pra caber
+# comentado. Roda via `bash -c "$WRAPPER_BODY" _ "$cmd"`, com `EXITFILE` e
+# `ALIVEFILE` vindo do ambiente. Sem aspas simples aqui dentro — a string
+# inteira é single-quoted.
+WRAPPER_BODY='
+write_exit() {
+  # tmp + mv, nunca "> $EXITFILE" direto: o redirect cria o arquivo VAZIO
+  # antes de o conteúdo chegar, e o relay pode ler exatamente nessa janela
+  # (um job que passou seria anunciado como falha, exit -1).
+  printf "%s\n" "$1" > "$EXITFILE.tmp" && mv -f "$EXITFILE.tmp" "$EXITFILE"
+}
+
+# Batimento (journal/32 Fase G): o relay usa a mtime deste arquivo pra
+# saber que o wrapper continua vivo, cobrindo o que o trap abaixo não
+# alcança (SIGKILL, OOM, reboot). O "kill -0" na condição do laço mata o
+# batimento junto do wrapper — sem isso um "pkill -9" que só casa a
+# cmdline do wrapper deixaria o batimento eterno e o job preso na UI.
+WRAPPER=$$
+: > "$ALIVEFILE"
+while :; do
+  sleep 5
+  # Checa ANTES de bater, não depois: invertido, o laço ainda gravava um
+  # batimento posterior à morte do wrapper (medido).
+  kill -0 "$WRAPPER" 2>/dev/null || break
+  : > "$ALIVEFILE"
+done &
+HEARTBEAT=$!
+
+# `eval "$1"` (não `"$1"` sozinho) — precisa reinterpretar a string como
+# código shell (&&, |, ;, redirects...), não executá-la como nome de
+# programa literal. Roda numa SUBSHELL própria: sem isso, um comando
+# terminando em `exit N` explícito (padrão comum) mata o wrapper inteiro
+# antes de gravar o `.exit` (achado real testando, journal/32). Em
+# BACKGROUND + `wait` (não em foreground) pra que os traps abaixo rodem na
+# hora do sinal — bash só executa trap entre comandos, e com o comando em
+# foreground o handler ficaria adiado até ele terminar sozinho. O
+# "trap - INT QUIT" desfaz o SIG_IGN que o bash põe em comando assíncrono
+# de shell não-interativo, senão o repasse de SIGINT viraria no-op.
+( trap - INT QUIT; eval "$1" ) &
+CMD=$!
+
+# Repassa o sinal e deixa o fluxo normal gravar o `.exit`:
+# `pkill -f "next dev"` casa a cmdline do WRAPPER tambem (ela contem a
+# string do comando), e sem isto o wrapper morria antes do `echo $?` —
+# job vivo pra sempre na UI e notificação de término que nunca chega.
+# Sinaliza o GRUPO ("-$WRAPPER", que setsid fez valer PID=PGID=SID), não
+# só a subshell: um `kill <pid do wrapper>` sozinho deixaria a árvore real
+# (npm -> node ...) viva e ainda assim gravaria o `.exit`, ou seja,
+# reportaria "terminou" pra um job que continua rodando. O "trap ''" antes
+# do kill é obrigatório: o sinal do grupo volta pra nós, e sem ignorá-lo o
+# wrapper morre pelo próprio repasse, exatamente o que isto conserta.
+forward() {
+  trap "" TERM INT HUP
+  kill -"$1" "-$WRAPPER" 2>/dev/null || true
+  trap "forward TERM" TERM
+  trap "forward INT" INT
+  trap "forward HUP" HUP
+}
+trap "forward TERM" TERM
+trap "forward INT" INT
+trap "forward HUP" HUP
+
+# `wait` devolve 128+N quando um sinal com trap o interrompe, e nesse ponto
+# o comando pode continuar vivo (o trap só repassou o sinal) — daí o laço:
+# só sai quando o filho realmente terminou.
+while :; do
+  wait "$CMD"
+  code=$?
+  kill -0 "$CMD" 2>/dev/null || break
+done
+
+write_exit "$code"
+kill "$HEARTBEAT" 2>/dev/null || true
+rm -f "$ALIVEFILE"
+'
 
 json_escape() {
   local s=$1
@@ -56,31 +134,26 @@ cmd_start() {
   fi
 
   mkdir -p "$JOBS_DIR"
-  local id log exitfile
+  local id log exitfile alivefile
   id="$(date +%s%N)-$RANDOM"
   log="$JOBS_DIR/$id.log"
   exitfile="$JOBS_DIR/$id.exit"
+  alivefile="$JOBS_DIR/$id.alive"
 
   # `setsid` desacopla de sessão/grupo de processo (não recebe SIGINT do
   # `stop()` do relay, que só sinaliza o PID direto do `claude -p` — nunca
   # um grupo). `< /dev/null` evita segurar stdin aberto. `pid` é só
-  # informativo pro usuário/modelo — a detecção de término real usa o
-  # arquivo `.exit`, nunca esse PID (setsid pode ter feito fork interno
-  # dependendo da versão do util-linux, então `$!` nem sempre é o PID
-  # exato do comando final).
-  # `eval "$1"` (não `"$1"` sozinho) — precisa reinterpretar a string como
-  # código shell (`&&`, `|`, `;`, redirects...), não executá-la como um
-  # nome de programa literal. `eval` roda numa SUBSHELL `( ... )` própria —
-  # sem isso, um comando terminando em `exit N` explícito (padrão comum)
-  # mata o processo inteiro do wrapper antes de gravar o `.exit`, e o job
-  # fica marcado como rodando pra sempre (achado real testando, docs/32).
-  EXITFILE="$exitfile" setsid bash -c '(eval "$1"); echo $? > "$EXITFILE"' _ "$cmd" \
+  # informativo pro usuário/modelo e pro `cancel` do relay — a detecção de
+  # término nunca depende dele (reuso de PID pelo SO mascararia um job
+  # morto como vivo): é o `.exit`, e o `.alive` como rede de segurança.
+  EXITFILE="$exitfile" ALIVEFILE="$alivefile" setsid bash -c "$WRAPPER_BODY" _ "$cmd" \
     < /dev/null > "$log" 2>&1 &
   local pid=$!
   disown 2>/dev/null || true
 
-  printf '{"ultron_bg":"started","id":"%s","pid":%d,"log":"%s","exitFile":"%s","label":"%s"}\n' \
-    "$(json_escape "$id")" "$pid" "$(json_escape "$log")" "$(json_escape "$exitfile")" "$(json_escape "$label")"
+  printf '{"ultron_bg":"started","id":"%s","pid":%d,"log":"%s","exitFile":"%s","alive":"%s","label":"%s"}\n' \
+    "$(json_escape "$id")" "$pid" "$(json_escape "$log")" "$(json_escape "$exitfile")" \
+    "$(json_escape "$alivefile")" "$(json_escape "$label")"
 }
 
 cmd_status() {

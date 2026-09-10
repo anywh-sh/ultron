@@ -31,7 +31,16 @@ import { toBackgroundJobSummary, type BackgroundJobSummary, type FinishedBackgro
  * reply (shown to the user in the chat log) will follow.
  */
 function buildBackgroundJobFollowupPrompt(job: FinishedBackgroundJob): string {
-  const status = job.exitCode === 0 ? "concluiu com sucesso (exit 0)" : `terminou com erro (exit ${String(job.exitCode)})`;
+  // `terminated` (journal/32 Fase G) is NOT a failure: the wrapper was
+  // killed from the outside (`pkill`, SIGKILL, reboot) without leaving an
+  // exit code behind, usually because the user or the model deliberately
+  // took the process down. Saying "exit -1" here would make the model
+  // report a crash that never happened.
+  const status = job.terminated
+    ? "foi encerrado de fora, sem exit code (morto por sinal — pkill/kill, ou a máquina reiniciou)"
+    : job.exitCode === 0
+      ? "concluiu com sucesso (exit 0)"
+      : `terminou com erro (exit ${String(job.exitCode)})`;
   const logTail = job.logTail.trim() || "(sem saída)";
   return (
     `[ultron-bg] O processo em background "${job.label}" que você iniciou ${status}. Log (cauda):\n` +
