@@ -211,6 +211,8 @@ pub async fn tailnet_sidecar_start(
             &tailnet_hostname(hostname_source),
         ]);
     let (mut rx, child) = sidecar.spawn().map_err(|e| e.to_string())?;
+    #[cfg(windows)]
+    job::adopt(child.pid());
 
     let mut listening: Option<String> = None;
     let mut node_key: Option<String> = None;
@@ -288,6 +290,98 @@ pub async fn tailnet_sidecar_stop(
         entry.child.kill().map_err(|e| e.to_string())?;
     }
     Ok(())
+}
+
+/// Kills every sidecar still running, for a quit that isn't going through
+/// `tailnet_sidecar_stop` — that command only ever fires when the JS side
+/// releases a profile, so closing the window (or quitting) with profiles
+/// open leaves one `tailnet-up` behind each, still joined to the tenant's
+/// tailnet and still holding the `-state-dir` a second node for the same
+/// profile would fight over. Called from `lib.rs` on `RunEvent::Exit`; the
+/// exits that run no code of ours at all are the Windows job object's job.
+pub fn kill_all(app: &tauri::AppHandle) {
+    let Some(state) = app.try_state::<TailnetSidecars>() else {
+        return;
+    };
+    // Sync context (the run-event callback), so the map has to be drained
+    // through the async runtime rather than awaited.
+    let running: Vec<(String, Running)> =
+        tauri::async_runtime::block_on(async { state.0.lock().await.drain().collect() });
+    for (profile_id, entry) in running {
+        if let Err(err) = entry.child.kill() {
+            eprintln!("[tailnet-sidecar] {profile_id}: failed to kill on exit: {err}");
+        }
+    }
+}
+
+/// The only orphan cleanup on Windows that survives the exits `RunEvent::Exit`
+/// never sees — a panic, an End Task, or the `Ctrl+C` that ends every
+/// `tauri dev` session: a job object the children are assigned to, created
+/// with `KILL_ON_JOB_CLOSE` so the kernel terminates them once the last
+/// handle to it closes, which process teardown does unconditionally.
+/// Windows-only because that's where a leaked child is worse than a leak: a
+/// running `tailnet-sidecar.exe` can't be deleted, so the *next* build dies
+/// in tauri-build's `remove_file(&dest).unwrap()` (lib.rs:80) with
+/// `PermissionDenied`, having found the copy it wanted to replace locked by
+/// a sidecar from a session that ended hours ago.
+#[cfg(windows)]
+mod job {
+    use std::sync::OnceLock;
+
+    use windows::Win32::Foundation::{CloseHandle, HANDLE};
+    use windows::Win32::System::JobObjects::{
+        AssignProcessToJobObject, CreateJobObjectW, JobObjectExtendedLimitInformation,
+        SetInformationJobObject, JOBOBJECT_EXTENDED_LIMIT_INFORMATION,
+        JOB_OBJECT_LIMIT_KILL_ON_JOB_CLOSE,
+    };
+    use windows::Win32::System::Threading::{OpenProcess, PROCESS_SET_QUOTA, PROCESS_TERMINATE};
+
+    /// Never closed on purpose: the handle's lifetime *is* the kill signal,
+    /// so releasing it early would take the live sidecars down with it.
+    struct Job(HANDLE);
+
+    // A kernel handle is not bound to the thread that opened it.
+    unsafe impl Send for Job {}
+    unsafe impl Sync for Job {}
+
+    static JOB: OnceLock<Option<Job>> = OnceLock::new();
+
+    fn job() -> Option<&'static Job> {
+        JOB.get_or_init(|| unsafe {
+            let handle = CreateJobObjectW(None, None).ok()?;
+            let mut info = JOBOBJECT_EXTENDED_LIMIT_INFORMATION::default();
+            info.BasicLimitInformation.LimitFlags = JOB_OBJECT_LIMIT_KILL_ON_JOB_CLOSE;
+            if SetInformationJobObject(
+                handle,
+                JobObjectExtendedLimitInformation,
+                &info as *const _ as *const core::ffi::c_void,
+                std::mem::size_of_val(&info) as u32,
+            )
+            .is_err()
+            {
+                let _ = CloseHandle(handle);
+                return None;
+            }
+            Some(Job(handle))
+        })
+        .as_ref()
+    }
+
+    /// Best effort by design: a sidecar that can't be adopted still starts
+    /// and works, it just goes back to being leakable on a hard exit.
+    pub fn adopt(pid: u32) {
+        let Some(job) = job() else { return };
+        unsafe {
+            let Ok(process) = OpenProcess(PROCESS_SET_QUOTA | PROCESS_TERMINATE, false, pid) else {
+                eprintln!("[tailnet-sidecar] could not open pid {pid} to adopt it into the job");
+                return;
+            };
+            if let Err(err) = AssignProcessToJobObject(job.0, process) {
+                eprintln!("[tailnet-sidecar] could not adopt pid {pid} into the job: {err}");
+            }
+            let _ = CloseHandle(process);
+        }
+    }
 }
 
 

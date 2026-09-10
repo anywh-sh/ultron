@@ -164,6 +164,15 @@ pub fn run() {
 
             Ok(())
         })
-        .run(tauri::generate_context!())
-        .expect("error while running tauri application");
+        .build(tauri::generate_context!())
+        .expect("error while running tauri application")
+        .run(|_app_handle, _event| {
+            // Quitting is the only moment nothing else will collect the
+            // sidecars: `tailnet_sidecar_stop` fires when the JS side
+            // releases a profile, never when the app itself goes away.
+            #[cfg(not(target_os = "ios"))]
+            if matches!(_event, tauri::RunEvent::Exit) {
+                tailnet_sidecar::kill_all(_app_handle);
+            }
+        });
 }
