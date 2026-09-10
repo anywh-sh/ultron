@@ -1,11 +1,14 @@
-// Spike for journal/62 (anywh workspace) — proves tsnet-based tailnet
-// join works standalone, before any Tauri integration. Only the
-// "tailnet-up" mode exists here; "identity" and "sign" are F1, not this
-// spike.
+// tailnet-sidecar (journal/62): the Go binary the Tauri client spawns as a
+// sidecar to join a Tailscale/Headscale tailnet and sign requests, without
+// ever knowing the anywh-control-plane API's own shape (journal/62 CT-1 —
+// that boundary is the whole reason this binary exists at all). Three
+// subcommands: "identity" (F1), "sign" (F1), "tailnet-up" (the spike, F1
+// packages it the same way).
 package main
 
 import (
 	"context"
+	"encoding/json"
 	"flag"
 	"fmt"
 	"io"
@@ -14,15 +17,104 @@ import (
 	"os"
 	"time"
 
+	"github.com/wilmacedo/ultron/client/tailnet-sidecar/internal/identity"
+	"github.com/wilmacedo/ultron/client/tailnet-sidecar/internal/signature"
 	"tailscale.com/tsnet"
 )
 
+func usage() {
+	fmt.Fprintln(os.Stderr, `usage:
+  tailnet-sidecar identity -path=<file>
+  tailnet-sidecar sign -identity=<file> -method=<M> -path=<P> [-body=<B>] [-ts=<unix-ms>]
+  tailnet-sidecar tailnet-up -auth-key=... -control-url=... -target=host:port [-listen=127.0.0.1:0] [-hostname=...] [-state-dir=...]`)
+}
+
 func main() {
-	if len(os.Args) < 2 || os.Args[1] != "tailnet-up" {
-		fmt.Fprintln(os.Stderr, "usage: tailnet-sidecar tailnet-up -auth-key=... -control-url=... -target=host:port [-listen=127.0.0.1:0] [-hostname=...] [-state-dir=...]")
+	if len(os.Args) < 2 {
+		usage()
 		os.Exit(2)
 	}
 
+	switch os.Args[1] {
+	case "identity":
+		runIdentity(os.Args[2:])
+	case "sign":
+		runSign(os.Args[2:])
+	case "tailnet-up":
+		runTailnetUp(os.Args[2:])
+	default:
+		usage()
+		os.Exit(2)
+	}
+}
+
+// runIdentity loads (or creates) the device's Ed25519 keypair and prints
+// its public key — the same base64 shape POST /v1/nodes and
+// POST /v1/nodes/claim expect. Never prints the private key; it never
+// leaves the identity file (journal/49 D7).
+func runIdentity(args []string) {
+	fs := flag.NewFlagSet("identity", flag.ExitOnError)
+	path := fs.String("path", "", "identity file (required)")
+	if err := fs.Parse(args); err != nil {
+		log.Fatalf("parse flags: %v", err)
+	}
+	if *path == "" {
+		fmt.Fprintln(os.Stderr, "path is required")
+		os.Exit(2)
+	}
+
+	priv, err := identity.LoadOrCreate(*path)
+	if err != nil {
+		log.Fatalf("identity: %v", err)
+	}
+	fmt.Println(identity.PublicKeyBase64(priv))
+}
+
+type signResult struct {
+	Ts  int64  `json:"ts"`
+	Sig string `json:"sig"`
+}
+
+// runSign signs an HTTP request's method/path/body with the device
+// identity, in the exact format anywh-control-plane's
+// src/auth/nodeSignature.ts (verifyNodeSignature) expects. It never learns
+// the header names or the meaning of the path it's signing — that's on the
+// caller (journal/62 CT-1): this command only knows Ed25519, not the
+// control plane's API.
+func runSign(args []string) {
+	fs := flag.NewFlagSet("sign", flag.ExitOnError)
+	identityPath := fs.String("identity", "", "identity file (required)")
+	method := fs.String("method", "", "HTTP method (required)")
+	reqPath := fs.String("path", "", "HTTP request path (required)")
+	body := fs.String("body", "", "request body")
+	ts := fs.Int64("ts", 0, "unix ms timestamp override (defaults to now)")
+	if err := fs.Parse(args); err != nil {
+		log.Fatalf("parse flags: %v", err)
+	}
+	if *identityPath == "" || *method == "" || *reqPath == "" {
+		fmt.Fprintln(os.Stderr, "identity, method and path are all required")
+		os.Exit(2)
+	}
+
+	priv, err := identity.LoadOrCreate(*identityPath)
+	if err != nil {
+		log.Fatalf("identity: %v", err)
+	}
+
+	timestampMs := *ts
+	if timestampMs == 0 {
+		timestampMs = time.Now().UnixMilli()
+	}
+
+	sig := signature.Sign(priv, *method, *reqPath, timestampMs, []byte(*body))
+	out, err := json.Marshal(signResult{Ts: timestampMs, Sig: sig})
+	if err != nil {
+		log.Fatalf("marshal result: %v", err)
+	}
+	fmt.Println(string(out))
+}
+
+func runTailnetUp(args []string) {
 	fs := flag.NewFlagSet("tailnet-up", flag.ExitOnError)
 	authKey := fs.String("auth-key", "", "tsnet pre-auth key (required)")
 	controlURL := fs.String("control-url", "", "Headscale control URL (required)")
@@ -30,7 +122,7 @@ func main() {
 	listen := fs.String("listen", "127.0.0.1:0", "local address to listen on")
 	hostname := fs.String("hostname", "tailnet-sidecar-spike", "tsnet hostname")
 	stateDir := fs.String("state-dir", "", "tsnet state dir (defaults to a temp dir)")
-	if err := fs.Parse(os.Args[2:]); err != nil {
+	if err := fs.Parse(args); err != nil {
 		log.Fatalf("parse flags: %v", err)
 	}
 	if *authKey == "" || *controlURL == "" || *target == "" {
