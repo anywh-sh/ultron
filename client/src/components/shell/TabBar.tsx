@@ -81,7 +81,7 @@ function SortableTab({ tab, onClose, onRename, onDelete }: SortableTabProps) {
         )}
       >
         {tab.isRunning ? (
-          <Loader2 className="size-3 shrink-0 animate-spin text-muted-foreground" aria-label="Agente trabalhando nesta sessão" />
+          <Loader2 className="size-3 shrink-0 animate-spin text-foreground" aria-label="Agente trabalhando nesta sessão" />
         ) : (
           tab.hasUnreadCompletion && (
             <span className="size-1.5 shrink-0 rounded-full bg-status-done" aria-label="Sessão finalizada" />

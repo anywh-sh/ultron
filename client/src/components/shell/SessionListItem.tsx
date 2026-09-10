@@ -1,4 +1,4 @@
-import { Brain, Loader2, Pencil } from "lucide-react";
+import { Loader2, Pencil } from "lucide-react";
 import { cn } from "@/lib/utils";
 import type { SessionSummary } from "@/lib/relay-types";
 import { useContextMenu } from "@/hooks/useContextMenu";
@@ -41,8 +41,10 @@ export function SessionListItem({
           selected ? "bg-bg-elevated opacity-100" : "opacity-60",
         )}
       >
-        <span className="truncate">{session.title}</span>
-        {running && <Brain className="size-3 shrink-0 animate-pulse text-primary" aria-label="Agente trabalhando nesta sessão" />}
+        <span className="min-w-0 flex-1 truncate">{session.title}</span>
+        {running && (
+          <Loader2 className="size-3 shrink-0 animate-spin text-foreground" aria-label="Agente trabalhando nesta sessão" />
+        )}
         {hasBackgroundJob && (
           <Loader2 className="size-3 shrink-0 animate-spin text-muted-foreground" aria-label="Job em background rodando nesta sessão" />
         )}
