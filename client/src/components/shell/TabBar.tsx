@@ -62,7 +62,16 @@ function SortableTab({ tab, onClose, onRename, onDelete }: SortableTabProps) {
     >
       <TabsTrigger
         value={tab.id}
-        className="min-w-0 gap-1.5 rounded-none py-2 pr-7 pl-3 font-mono text-xs data-[state=active]:bg-bg-elevated"
+        // `after:bottom-0` overrides `ui/tabs.tsx`'s default `-5px` (which
+        // deliberately paints the active-tab bar past the list's own box,
+        // see that file's comment on why it needs `z-10`): the tab strip
+        // below is now a horizontal scroll container, and CSS forces
+        // `overflow-y` to `auto` too whenever `overflow-x` isn't `visible`
+        // (no way to scroll one axis only) — content escaping the box
+        // vertically, like that `-5px` bar, gets clipped instead of
+        // overflowing into the panel underneath. Keeping it flush with the
+        // trigger's own bottom edge avoids the clip.
+        className="min-w-0 gap-1.5 rounded-none py-2 pr-7 pl-3 font-mono text-xs data-[state=active]:bg-bg-elevated group-data-[orientation=horizontal]/tabs:after:bottom-0"
       >
         <span
           className={cn(
