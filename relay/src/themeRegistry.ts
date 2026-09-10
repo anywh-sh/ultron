@@ -9,9 +9,9 @@ import { formatThemeErrors, isValidThemeId, parseTheme, type Theme } from "./the
 // profile, and every device syncing against this host sees the same list.
 //
 // Derived from ENV_DIR (`~/.config/ultron/env`) rather than from `homedir()`
-// directly, so overriding `ULTRON_ENV_DIR` in a test relocates both
+// directly, so overriding `ANYWH_ENV_DIR` in a test relocates both
 // registries together.
-export const THEMES_DIR = process.env.ULTRON_THEMES_DIR ?? join(dirname(ENV_DIR), "themes");
+export const THEMES_DIR = process.env.ANYWH_THEMES_DIR ?? join(dirname(ENV_DIR), "themes");
 
 /** Ceiling on what a single theme file may contain. Nothing legitimate gets
  * close (the built-in with every token spelled out is ~2 KB) — this is here

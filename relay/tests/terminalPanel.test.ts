@@ -132,8 +132,8 @@ async function closeTerminal(chatSessionId: string, terminalId: string): Promise
 }
 
 test("a terminal tab runs real shell commands, and its tmux session survives a disconnect/reconnect (unlike a plain pty)", async () => {
-  const marker1 = "ULTRON_TERM_TEST_MARKER_1";
-  const marker2 = "ULTRON_TERM_TEST_MARKER_2";
+  const marker1 = "ANYWH_TERM_TEST_MARKER_1";
+  const marker2 = "ANYWH_TERM_TEST_MARKER_2";
 
   // `finally`-cleaned up unconditionally: a WS `close()` only detaches (by
   // design, see terminalSession.ts's top-of-file comment), it never kills
@@ -173,7 +173,7 @@ test("a terminal tab runs real shell commands, and its tmux session survives a d
 
     const third = await connectTerminal("term-chat-session", "tab-1");
     await waitForQuiet(third);
-    const marker3 = "ULTRON_TERM_TEST_FRESH_SHELL";
+    const marker3 = "ANYWH_TERM_TEST_FRESH_SHELL";
     sendInput(third, `echo ${marker3}\r`);
     const output = await waitForOutput(third, marker3);
     assert.ok(!output.includes(marker1), "a session killed via /terminals/close must not resurrect its old screen");

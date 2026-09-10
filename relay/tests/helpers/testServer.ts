@@ -56,7 +56,7 @@ export interface TestServer {
   /** Root of the fake $HOME this instance runs under (`RELAY_HOME_OVERRIDE`)
    * — real filesystem, real isolation between test runs, no mocking. */
   homeDir: string;
-  /** `ULTRON_ENV_DIR` for this instance — real directory on disk, so a test
+  /** `ANYWH_ENV_DIR` for this instance — real directory on disk, so a test
    * exercising the profile registry (`GET/PATCH/DELETE /control/profiles`)
    * can plant a second profile's `.env` file directly, the same shape
    * `add-profile.sh` would have written, without needing systemd. */
@@ -91,7 +91,7 @@ export async function startTestServer(): Promise<TestServer> {
   process.env.RELAY_HOST = "127.0.0.1";
   process.env.RELAY_HOME_OVERRIDE = homeDir;
   const envDir = join(workDir, "env");
-  process.env.ULTRON_ENV_DIR = envDir;
+  process.env.ANYWH_ENV_DIR = envDir;
   process.env.RELAY_SESSIONS_FILE = join(workDir, "sessions.json");
   process.env.RELAY_BACKGROUND_JOBS_FILE = join(workDir, "background-jobs.json");
   process.env.CLAUDE_BIN = FAKE_CLAUDE_BIN;

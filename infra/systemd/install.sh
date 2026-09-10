@@ -22,7 +22,7 @@ fi
 sed \
   -e "s|{{WORKING_DIRECTORY}}|$RELAY_DIR|g" \
   -e "s|{{NODE_BIN}}|$NODE_BIN|g" \
-  -e "s|{{ENV_DIR}}|$ULTRON_ENV_DIR|g" \
+  -e "s|{{ENV_DIR}}|$ANYWH_ENV_DIR|g" \
   "$TEMPLATE" > "$OUTPUT"
 
 cat <<EOF

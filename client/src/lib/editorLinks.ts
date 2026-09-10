@@ -63,7 +63,7 @@ function lineColumnSuffix(line: number | undefined, column: number | undefined):
  * `user@host` or `user@host:port` — kept separate from `encodePathForEditorUrl`
  * on purpose: the `@` and the port's `:` are structural to the URL's
  * authority component, not path content, so they must never go through the
- * path's percent-encoding. `user`/`host` come from `ULTRON_EDITOR_SSH`,
+ * path's percent-encoding. `user`/`host` come from `ANYWH_EDITOR_SSH`,
  * already validated relay-side (`editorHostInfo.ts`'s `parseEditorSsh`).
  */
 function sshAuthority(user: string, host: string, port: number | undefined): string {
@@ -72,7 +72,7 @@ function sshAuthority(user: string, host: string, port: number | undefined): str
 
 /**
  * Builds the deep link URL to open `target` in `editor`, or `null` when
- * `locality` is `null` (both `ULTRON_EDITOR_LOCAL`/`ULTRON_EDITOR_SSH`
+ * `locality` is `null` (both `ANYWH_EDITOR_LOCAL`/`ANYWH_EDITOR_SSH`
  * unset relay-side — the caller should have already hidden the feature in
  * that case; this is just the defensive mirror of that contract).
  *

@@ -87,7 +87,7 @@ By default the client points at a relay on the same machine (`127.0.0.1:8765`). 
 - **Build-time env var** — works on both desktop and iOS:
   ```bash
   cd client
-  cp .env.example .env   # set VITE_ULTRON_HOST / VITE_ULTRON_PORT
+  cp .env.example .env   # set VITE_ANYWH_HOST / VITE_ANYWH_PORT
   npm run tauri dev
   ```
 - **`localStorage` override** — desktop only (needs DevTools), no rebuild required:

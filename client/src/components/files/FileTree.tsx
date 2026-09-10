@@ -102,7 +102,7 @@ interface EditorOpenMenuItemsProps {
 
 /**
  * "Open in editor" (journal/60) — hidden entirely when there's no declared
- * locality (both `ULTRON_EDITOR_LOCAL`/`ULTRON_EDITOR_SSH` unset
+ * locality (both `ANYWH_EDITOR_LOCAL`/`ANYWH_EDITOR_SSH` unset
  * relay-side), no detected editor, or on iOS (no deep link handler exists
  * there). One editor renders a plain item; more than one nests under an
  * "Abrir com" submenu, mirroring the file/folder row's existing pattern of

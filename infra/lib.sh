@@ -5,4 +5,4 @@
 # Duplicated instead of shared across the language boundary because
 # systemd's EnvironmentFile can't source a shell variable, and the relay
 # needs the value with no shell involved at all.
-ULTRON_ENV_DIR="${ULTRON_ENV_DIR:-$HOME/.config/ultron/env}"
+ANYWH_ENV_DIR="${ANYWH_ENV_DIR:-$HOME/.config/ultron/env}"

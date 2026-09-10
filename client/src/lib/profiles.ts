@@ -97,8 +97,8 @@ const DEFAULT_PROFILES: Profile[] = [
   {
     id: "default",
     label: "Default",
-    host: import.meta.env.VITE_ULTRON_HOST ?? "127.0.0.1",
-    relayPort: Number(import.meta.env.VITE_ULTRON_PORT ?? 8765),
+    host: import.meta.env.VITE_ANYWH_HOST ?? "127.0.0.1",
+    relayPort: Number(import.meta.env.VITE_ANYWH_PORT ?? 8765),
   },
 ];
 

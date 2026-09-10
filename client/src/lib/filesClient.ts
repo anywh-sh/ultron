@@ -176,8 +176,8 @@ export interface HostInfo {
 }
 
 /** Whether/how the client can open a file panel path in a local editor
- * (journal/60) — `editor: null` means both `ULTRON_EDITOR_LOCAL` and
- * `ULTRON_EDITOR_SSH` are unset relay-side, and the feature should be
+ * (journal/60) — `editor: null` means both `ANYWH_EDITOR_LOCAL` and
+ * `ANYWH_EDITOR_SSH` are unset relay-side, and the feature should be
  * hidden entirely (see `relay/src/editorHostInfo.ts`). */
 export async function getHostInfo(profile: Profile): Promise<HostInfo> {
   const { base, token } = await resolveBase(profile);

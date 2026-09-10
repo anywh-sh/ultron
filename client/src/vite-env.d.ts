@@ -1,8 +1,8 @@
 /// <reference types="vite/client" />
 
 interface ImportMetaEnv {
-  readonly VITE_ULTRON_HOST?: string;
-  readonly VITE_ULTRON_PORT?: string;
+  readonly VITE_ANYWH_HOST?: string;
+  readonly VITE_ANYWH_PORT?: string;
 }
 
 interface ImportMeta {

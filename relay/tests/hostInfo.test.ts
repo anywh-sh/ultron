@@ -22,13 +22,13 @@ after(async () => {
 });
 
 beforeEach(() => {
-  delete process.env.ULTRON_EDITOR_LOCAL;
-  delete process.env.ULTRON_EDITOR_SSH;
+  delete process.env.ANYWH_EDITOR_LOCAL;
+  delete process.env.ANYWH_EDITOR_SSH;
 });
 
 afterEach(() => {
-  delete process.env.ULTRON_EDITOR_LOCAL;
-  delete process.env.ULTRON_EDITOR_SSH;
+  delete process.env.ANYWH_EDITOR_LOCAL;
+  delete process.env.ANYWH_EDITOR_SSH;
 });
 
 function httpUrl(path: string): string {
@@ -46,14 +46,14 @@ test("GET /host-info: both env vars absent hides the feature", async () => {
   assert.equal(body.editor, null);
 });
 
-test("GET /host-info: ULTRON_EDITOR_LOCAL=1 resolves to local for a real loopback peer", async () => {
-  process.env.ULTRON_EDITOR_LOCAL = "1";
+test("GET /host-info: ANYWH_EDITOR_LOCAL=1 resolves to local for a real loopback peer", async () => {
+  process.env.ANYWH_EDITOR_LOCAL = "1";
   const body = (await (await fetch(httpUrl("/host-info"))).json()) as { editor: unknown };
   assert.deepEqual(body.editor, { kind: "local" });
 });
 
-test("GET /host-info: ULTRON_EDITOR_SSH describes the ssh target", async () => {
-  process.env.ULTRON_EDITOR_SSH = "wil@debian-headless:2222";
+test("GET /host-info: ANYWH_EDITOR_SSH describes the ssh target", async () => {
+  process.env.ANYWH_EDITOR_SSH = "wil@debian-headless:2222";
   const body = (await (await fetch(httpUrl("/host-info"))).json()) as { editor: unknown };
   assert.deepEqual(body.editor, { kind: "ssh", user: "wil", host: "debian-headless", port: 2222 });
 });

@@ -13,8 +13,8 @@ import { networkInterfaces } from "node:os";
 export type EditorDescriptor = null | { kind: "local" } | { kind: "ssh"; user: string; host: string; port?: number };
 
 export interface EditorEnv {
-  ULTRON_EDITOR_LOCAL?: string;
-  ULTRON_EDITOR_SSH?: string;
+  ANYWH_EDITOR_LOCAL?: string;
+  ANYWH_EDITOR_SSH?: string;
 }
 
 /** Strips the IPv4-mapped-IPv6 prefix Node uses for dual-stack sockets (`::ffff:127.0.0.1` -> `127.0.0.1`). */
@@ -24,7 +24,7 @@ function normalizePeerAddress(address: string): string {
 
 /**
  * Is `peerAddress` this machine — loopback, or a real address of one of its
- * own network interfaces? Used only to downgrade a declared `ULTRON_EDITOR_LOCAL`,
+ * own network interfaces? Used only to downgrade a declared `ANYWH_EDITOR_LOCAL`,
  * never to infer locality on its own (see file header).
  */
 export function peerIsThisMachine(peerAddress: string | undefined): boolean {
@@ -40,7 +40,7 @@ export function peerIsThisMachine(peerAddress: string | undefined): boolean {
 }
 
 /**
- * Parses `ULTRON_EDITOR_SSH=user@host[:port]`. Returns null on anything that
+ * Parses `ANYWH_EDITOR_SSH=user@host[:port]`. Returns null on anything that
  * doesn't fit the shape (missing `@`, empty user/host, non-numeric port) —
  * treated identically to the variable being unset, rather than surfacing a
  * malformed-config error the file panel has no UI for.
@@ -71,10 +71,10 @@ export function parseEditorSsh(raw: string | undefined): { user: string; host: s
  * absent is the default, not an error.
  */
 export function resolveEditorDescriptor(env: EditorEnv, peerAddress: string | undefined): EditorDescriptor {
-  if (env.ULTRON_EDITOR_LOCAL === "1" && peerIsThisMachine(peerAddress)) {
+  if (env.ANYWH_EDITOR_LOCAL === "1" && peerIsThisMachine(peerAddress)) {
     return { kind: "local" };
   }
-  const ssh = parseEditorSsh(env.ULTRON_EDITOR_SSH);
+  const ssh = parseEditorSsh(env.ANYWH_EDITOR_SSH);
   if (ssh) return { kind: "ssh", ...ssh };
   return null;
 }

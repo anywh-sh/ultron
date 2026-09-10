@@ -44,7 +44,7 @@ function listing(): FilesListResult {
 
 beforeEach(() => {
   vi.mocked(listFiles).mockResolvedValue(listing());
-  // Default (both `ULTRON_EDITOR_LOCAL`/`ULTRON_EDITOR_SSH` unset relay-side,
+  // Default (both `ANYWH_EDITOR_LOCAL`/`ANYWH_EDITOR_SSH` unset relay-side,
   // and no editor detected) hides the "open in editor" feature entirely —
   // matches editorHostInfo.ts's documented default, so the pre-existing
   // menu tests below don't need to know this feature exists at all.

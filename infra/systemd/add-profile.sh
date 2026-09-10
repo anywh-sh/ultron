@@ -63,7 +63,7 @@ if [[ "$MODE" != "dev" && "$MODE" != "prod" ]]; then
   exit 1
 fi
 
-ENV_FILE="$ULTRON_ENV_DIR/$ID.env"
+ENV_FILE="$ANYWH_ENV_DIR/$ID.env"
 if [[ -e "$ENV_FILE" ]]; then
   echo "error: profile '$ID' already exists ($ENV_FILE)" >&2
   exit 1
@@ -79,7 +79,7 @@ LABEL="${LABEL:-$ID}"
 # locally.
 RELAY_HOST="$RELAY_HOST_ARG"
 if [[ -z "$RELAY_HOST" ]]; then
-  RELAY_HOST="$(grep -h '^RELAY_HOST=' "$ULTRON_ENV_DIR"/*.env 2>/dev/null | head -1 | cut -d= -f2- || true)"
+  RELAY_HOST="$(grep -h '^RELAY_HOST=' "$ANYWH_ENV_DIR"/*.env 2>/dev/null | head -1 | cut -d= -f2- || true)"
 fi
 if [[ -z "$RELAY_HOST" ]]; then
   echo "error: --relay-host is required (no existing profile to read a default from)" >&2
@@ -96,7 +96,7 @@ port_in_use() {
 
 allocate_port() {
   local claimed
-  claimed="$(grep -h '^RELAY_PORT=' "$ULTRON_ENV_DIR"/*.env 2>/dev/null | cut -d= -f2- || true)"
+  claimed="$(grep -h '^RELAY_PORT=' "$ANYWH_ENV_DIR"/*.env 2>/dev/null | cut -d= -f2- || true)"
   local port
   for ((port = 8765; port < 8865; port++)); do
     if grep -qx "$port" <<<"$claimed"; then
@@ -127,7 +127,7 @@ if [[ -n "$PROFILE_HOME" ]]; then
   PROFILE_HOME="$(cd "$PROFILE_HOME" && pwd)"
 fi
 
-mkdir -p "$ULTRON_ENV_DIR"
+mkdir -p "$ANYWH_ENV_DIR"
 mkdir -p "$HOME/.ultron-sessions"
 
 {
@@ -151,14 +151,14 @@ mkdir -p "$HOME/.ultron-sessions"
   # build pre-seeds this same variable explicitly empty (journal/60 part 5,
   # journal/51), a completely separate mechanism, so this default has no
   # effect on that path.
-  echo "ULTRON_EDITOR_LOCAL=1"
+  echo "ANYWH_EDITOR_LOCAL=1"
 } > "$ENV_FILE"
 
 # `profiles.json` read-modify-write done in Node (already a hard
 # requirement for the relay itself) rather than hand-rolled in bash —
 # allocates the smallest colorIndex not already taken, same rule as
 # `profileColorClass` uses for profiles that predate the field.
-PROFILES_JSON="$(dirname "$ULTRON_ENV_DIR")/profiles.json"
+PROFILES_JSON="$(dirname "$ANYWH_ENV_DIR")/profiles.json"
 node -e '
 const fs = require("fs");
 // `-e` doesn'\''t consume an argv slot for a script filename the way a real
@@ -200,7 +200,7 @@ if [[ "$MODE" == "dev" ]]; then
   cat <<EOF
 
 Run it in dev mode with:
-  cd "$RELAY_DIR" && ULTRON_PROFILE=$ID npm run dev:profile
+  cd "$RELAY_DIR" && ANYWH_PROFILE=$ID npm run dev:profile
 EOF
 else
   systemctl --user enable --now "ultron-relay@$ID"
