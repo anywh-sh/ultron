@@ -10,6 +10,7 @@ import {
 import { SortableContext, horizontalListSortingStrategy, useSortable } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { cn } from "@/lib/utils";
 import type { Tab } from "@/hooks/useTabs";
 import { profileActiveBgClass } from "@/lib/profiles";
@@ -70,25 +71,30 @@ function SortableTab({ tab, onClose, onRename, onDelete }: SortableTabProps) {
       }}
       className="group relative flex min-w-[72px] flex-[0_1_168px] items-center"
     >
-      <TabsTrigger
-        value={tab.id}
-        // No more active-tab bar (ui/tabs.tsx no longer paints one for the
-        // "line" variant) — the selected tab is now marked by tinting its
-        // own background with the session's profile color instead.
-        className={cn(
-          "min-w-0 gap-1.5 rounded-none py-2 pr-7 pl-3 font-mono text-xs",
-          profileActiveBgClass(tab.profileId),
-        )}
-      >
-        {tab.isRunning ? (
-          <Loader2 className="size-3 shrink-0 animate-spin text-foreground" aria-label="Agente trabalhando nesta sessão" />
-        ) : (
-          tab.hasUnreadCompletion && (
-            <span className="size-1.5 shrink-0 rounded-full bg-status-done" aria-label="Sessão finalizada" />
-          )
-        )}
-        <span className="min-w-0 flex-1 truncate">{tab.title ?? "Nova sessão"}</span>
-      </TabsTrigger>
+      <Tooltip>
+        <TooltipTrigger asChild>
+          <TabsTrigger
+            value={tab.id}
+            // No more active-tab bar (ui/tabs.tsx no longer paints one for the
+            // "line" variant) — the selected tab is now marked by tinting its
+            // own background with the session's profile color instead.
+            className={cn(
+              "min-w-0 gap-1.5 rounded-none py-2 pr-7 pl-3 font-mono text-xs",
+              profileActiveBgClass(tab.profileId),
+            )}
+          >
+            {tab.isRunning ? (
+              <Loader2 className="size-3 shrink-0 animate-spin text-foreground" aria-label="Agente trabalhando nesta sessão" />
+            ) : (
+              tab.hasUnreadCompletion && (
+                <span className="size-1.5 shrink-0 rounded-full bg-status-done" aria-label="Sessão finalizada" />
+              )
+            )}
+            <span className="min-w-0 flex-1 truncate">{tab.title ?? "Nova sessão"}</span>
+          </TabsTrigger>
+        </TooltipTrigger>
+        <TooltipContent side="bottom">{tab.title ?? "Nova sessão"}</TooltipContent>
+      </Tooltip>
       <button
         type="button"
         onClick={(event) => {
