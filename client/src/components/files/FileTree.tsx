@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { openUrl } from "@tauri-apps/plugin-opener";
 import { ChevronDown, ChevronRight, Code2, Download, File, FilePlus, Folder, Pencil, SquareTerminal, Trash2 } from "lucide-react";
 import type { ChangeSignal } from "@/components/files/FilesPanel";
@@ -70,6 +70,22 @@ interface FileTreeProps {
 }
 
 const INDENT_PX = 14;
+
+/** Depth-first, pre-order list of files (dirs skipped, per the SHIFT-range
+ * decision below) in the exact order `FileTreeChildren`/`FileTreeNode`
+ * render them — the only way to compute "everything between the anchor and
+ * the SHIFT-clicked row" without duplicating the render's own tree walk. A
+ * collapsed folder's contents are invisible, so they never enter the range. */
+function flattenVisibleFiles(dir: string, nodesByDir: Record<string, DirState>, expanded: string[]): FileEntry[] {
+  const nodes = nodesByDir[dir];
+  if (!Array.isArray(nodes)) return [];
+  const result: FileEntry[] = [];
+  for (const entry of nodes) {
+    if (entry.kind === "file") result.push(entry);
+    else if (expanded.includes(entry.path)) result.push(...flattenVisibleFiles(entry.path, nodesByDir, expanded));
+  }
+  return result;
+}
 
 interface EditorOpenMenuItemsProps {
   editors: DetectedEditor[];
@@ -180,6 +196,74 @@ export function FileTree({
   const [editorLocality, setEditorLocality] = useState<EditorLocality>(null);
   const [detectedEditors, setDetectedEditors] = useState<DetectedEditor[]>([]);
 
+  // SHIFT range-select (files only). `anchorPath` is the last *plain* click,
+  // never moved by a SHIFT-click, so repeated SHIFT-clicks keep extending the
+  // same range instead of walking it. Kept in sync with `activePath` below so
+  // navigating away (a tab click, "open in new tab", ...) collapses back to a
+  // single selection instead of leaving a stale multi-select behind.
+  const [selectedPaths, setSelectedPaths] = useState<Set<string>>(new Set());
+  const [anchorPath, setAnchorPath] = useState<string | null>(null);
+
+  useEffect(() => {
+    setAnchorPath(activePath);
+    setSelectedPaths(activePath ? new Set([activePath]) : new Set());
+  }, [activePath]);
+
+  const visibleFiles = useMemo(() => flattenVisibleFiles(root, nodesByDir, expanded), [root, nodesByDir, expanded]);
+
+  // Every cached file entry regardless of current expand state — a SHIFT
+  // range can include a file whose parent folder gets collapsed afterwards,
+  // and bulk download still needs its `name`/`mtimeMs` at that point.
+  const allEntriesByPath = useMemo(() => {
+    const map = new Map<string, FileEntry>();
+    for (const nodes of Object.values(nodesByDir)) {
+      if (Array.isArray(nodes)) for (const entry of nodes) map.set(entry.path, entry);
+    }
+    return map;
+  }, [nodesByDir]);
+
+  const handleFileClick = useCallback(
+    (path: string, shiftKey: boolean) => {
+      if (shiftKey && anchorPath) {
+        const anchorIndex = visibleFiles.findIndex((entry) => entry.path === anchorPath);
+        const targetIndex = visibleFiles.findIndex((entry) => entry.path === path);
+        if (anchorIndex !== -1 && targetIndex !== -1) {
+          const [start, end] = anchorIndex < targetIndex ? [anchorIndex, targetIndex] : [targetIndex, anchorIndex];
+          setSelectedPaths(new Set(visibleFiles.slice(start, end + 1).map((entry) => entry.path)));
+          return;
+        }
+      }
+      onOpenPreview(path);
+    },
+    [anchorPath, visibleFiles, onOpenPreview],
+  );
+
+  async function handleBulkDelete(paths: string[]): Promise<void> {
+    for (const path of paths) {
+      try {
+        await deleteFile(profile, sessionId, path);
+        onFileDeleted(path);
+      } catch (error) {
+        console.error("[ultron] failed to delete file:", path, error);
+        window.alert(`Não foi possível excluir "${path.split("/").pop() ?? path}".`);
+      }
+    }
+    setSelectedPaths(new Set());
+  }
+
+  async function handleBulkDownload(paths: string[]): Promise<void> {
+    for (const path of paths) {
+      const entry = allEntriesByPath.get(path);
+      if (!entry) continue;
+      try {
+        await downloadFile(profile, sessionId, entry.path, entry.name, entry.mtimeMs);
+      } catch (error) {
+        console.error("[ultron] failed to download file:", path, error);
+        window.alert(`Não foi possível baixar "${entry.name}".`);
+      }
+    }
+  }
+
   // "Open in editor" (journal/60): locality comes from the relay (declared,
   // never inferred — see editorHostInfo.ts), the editor list from a local
   // OS-level scheme detection (editors.rs) — independent lookups, so
@@ -266,7 +350,6 @@ export function FileTree({
         expanded={expanded}
         activePath={activePath}
         onToggleExpand={onToggleExpand}
-        onOpenPreview={onOpenPreview}
         onOpenPinned={onOpenPinned}
         onFileDeleted={onFileDeleted}
         onFileRenamed={onFileRenamed}
@@ -274,6 +357,10 @@ export function FileTree({
         editorLocality={editorLocality}
         detectedEditors={detectedEditors}
         dropTargetPath={dropTargetPath}
+        selectedPaths={selectedPaths}
+        onFileClick={handleFileClick}
+        onBulkDelete={(paths) => void handleBulkDelete(paths)}
+        onBulkDownload={(paths) => void handleBulkDownload(paths)}
       />
       <DropdownMenu open={panelMenu.open} onOpenChange={panelMenu.setOpen}>
         <DropdownMenuTrigger asChild>
@@ -313,7 +400,6 @@ interface SharedTreeProps {
   expanded: string[];
   activePath: string | null;
   onToggleExpand: (path: string) => void;
-  onOpenPreview: (path: string) => void;
   onOpenPinned: (path: string) => void;
   onFileDeleted: (path: string) => void;
   onFileRenamed: (oldPath: string, newPath: string) => void;
@@ -321,6 +407,12 @@ interface SharedTreeProps {
   editorLocality: EditorLocality;
   detectedEditors: DetectedEditor[];
   dropTargetPath: string | null;
+  /** Multi-select (SHIFT range, files only) — owned by `FileTree` since a
+   * range spans nodes from possibly-different `FileTreeChildren` subtrees. */
+  selectedPaths: Set<string>;
+  onFileClick: (path: string, shiftKey: boolean) => void;
+  onBulkDelete: (paths: string[]) => void;
+  onBulkDownload: (paths: string[]) => void;
 }
 
 interface ChildrenProps extends SharedTreeProps {
@@ -336,7 +428,6 @@ function FileTreeChildren({
   expanded,
   activePath,
   onToggleExpand,
-  onOpenPreview,
   onOpenPinned,
   onFileDeleted,
   onFileRenamed,
@@ -344,6 +435,10 @@ function FileTreeChildren({
   editorLocality,
   detectedEditors,
   dropTargetPath,
+  selectedPaths,
+  onFileClick,
+  onBulkDelete,
+  onBulkDownload,
 }: ChildrenProps) {
   const nodes = nodesByDir[dir];
   const indent = `${depth * INDENT_PX + 8}px`;
@@ -383,7 +478,6 @@ function FileTreeChildren({
           expanded={expanded}
           activePath={activePath}
           onToggleExpand={onToggleExpand}
-          onOpenPreview={onOpenPreview}
           onOpenPinned={onOpenPinned}
           onFileDeleted={onFileDeleted}
           onFileRenamed={onFileRenamed}
@@ -391,6 +485,10 @@ function FileTreeChildren({
           editorLocality={editorLocality}
           detectedEditors={detectedEditors}
           dropTargetPath={dropTargetPath}
+          selectedPaths={selectedPaths}
+          onFileClick={onFileClick}
+          onBulkDelete={onBulkDelete}
+          onBulkDownload={onBulkDownload}
         />
       ))}
     </>
@@ -410,7 +508,6 @@ function FileTreeNode({
   expanded,
   activePath,
   onToggleExpand,
-  onOpenPreview,
   onOpenPinned,
   onFileDeleted,
   onFileRenamed,
@@ -418,16 +515,25 @@ function FileTreeNode({
   editorLocality,
   detectedEditors,
   dropTargetPath,
+  selectedPaths,
+  onFileClick,
+  onBulkDelete,
+  onBulkDownload,
 }: NodeProps) {
   const isDir = entry.kind === "dir";
   const isExpanded = isDir && expanded.includes(entry.path);
   const isActive = entry.path === activePath;
+  // A row is part of the "batch" menu/highlight only once 2+ files are
+  // selected and this one is among them — a lone selected file (the common
+  // case) keeps the regular single-file menu and `isActive`'s highlight.
+  const isMultiSelected = !isDir && selectedPaths.size > 1 && selectedPaths.has(entry.path);
   // File and directory rows show different items below (decision 6, docs/41
   // for the file ones) — both get a menu now, "open in terminal" only makes
   // sense for a folder.
   const menu = useContextMenu();
   const [renameOpen, setRenameOpen] = useState(false);
   const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false);
+  const [bulkDeleteConfirmOpen, setBulkDeleteConfirmOpen] = useState(false);
 
   async function handleDownload(): Promise<void> {
     try {
@@ -465,18 +571,42 @@ function FileTreeNode({
         role="button"
         tabIndex={0}
         data-file-tree-dir={isDir ? entry.path : undefined}
-        onClick={() => (isDir ? onToggleExpand(entry.path) : onOpenPreview(entry.path))}
+        onClick={(event) => {
+          // `DropdownMenuContent` portals its DOM node elsewhere (usually
+          // `document.body`) but stays a React-tree descendant of this row —
+          // React re-dispatches a portaled child's synthetic click up
+          // through ancestor handlers by *fiber* tree, regardless of real
+          // DOM containment. Left unguarded, clicking any menu item also
+          // looks like a plain click on this row and would collapse a
+          // multi-selection right as a batch action's menu item is picked.
+          if (!event.currentTarget.contains(event.target as Node)) return;
+          if (isDir) onToggleExpand(entry.path);
+          else onFileClick(entry.path, event.shiftKey);
+        }}
         onDoubleClick={() => !isDir && onOpenPinned(entry.path)}
-        onContextMenu={menu.onContextMenu}
+        onMouseDown={(event) => {
+          // Otherwise a SHIFT-click also fires the browser's native
+          // text-selection drag, highlighting row labels alongside our own
+          // (unrelated) multi-select.
+          if (event.shiftKey) event.preventDefault();
+        }}
+        onContextMenu={(event) => {
+          // Right-clicking a file outside the current selection replaces it
+          // (mirrors a plain click) — only a file already part of a 2+
+          // selection keeps that selection and gets the batch menu below.
+          if (!isDir && !isMultiSelected) onFileClick(entry.path, false);
+          menu.onContextMenu(event);
+        }}
         onKeyDown={(event) => {
+          if (!event.currentTarget.contains(event.target as Node)) return;
           if (event.key !== "Enter" && event.key !== " ") return;
           if (isDir) onToggleExpand(entry.path);
-          else onOpenPreview(entry.path);
+          else onFileClick(entry.path, false);
         }}
         style={{ paddingLeft: `${depth * INDENT_PX + 8}px` }}
         className={cn(
           "flex cursor-pointer items-center gap-1 rounded py-1 pr-2 hover:bg-border",
-          isActive ? "bg-bg-elevated text-foreground" : "text-muted-foreground",
+          isActive ? "bg-bg-elevated text-foreground" : isMultiSelected ? "bg-primary/10 text-foreground" : "text-muted-foreground",
           isDir && dropTargetPath === entry.path && "bg-primary/15 text-foreground ring-1 ring-inset ring-primary",
         )}
       >
@@ -497,55 +627,84 @@ function FileTreeNode({
               <span className="pointer-events-none fixed" style={{ left: menu.position.x, top: menu.position.y }} />
             </DropdownMenuTrigger>
             <DropdownMenuContent align="start">
-              <DropdownMenuItem
-                onSelect={(event) => {
-                  event.preventDefault();
-                  menu.setOpen(false);
-                  onOpenPinned(entry.path);
-                }}
-              >
-                Abrir em nova aba
-              </DropdownMenuItem>
-              <EditorOpenMenuItems
-                editors={detectedEditors}
-                locality={editorLocality}
-                path={entry.path}
-                itemLabel={(label) => `Abrir no ${label}`}
-                subTriggerLabel="Abrir com"
-                onSelected={() => menu.setOpen(false)}
-              />
-              <DropdownMenuSeparator />
-              <DropdownMenuItem
-                onSelect={(event) => {
-                  event.preventDefault();
-                  menu.setOpen(false);
-                  void handleDownload();
-                }}
-              >
-                <Download />
-                Baixar
-              </DropdownMenuItem>
-              <DropdownMenuItem
-                onSelect={(event) => {
-                  event.preventDefault();
-                  menu.setOpen(false);
-                  setRenameOpen(true);
-                }}
-              >
-                <Pencil />
-                Renomear
-              </DropdownMenuItem>
-              <DropdownMenuItem
-                variant="destructive"
-                onSelect={(event) => {
-                  event.preventDefault();
-                  menu.setOpen(false);
-                  setDeleteConfirmOpen(true);
-                }}
-              >
-                <Trash2 />
-                Excluir
-              </DropdownMenuItem>
+              {isMultiSelected ? (
+                <>
+                  <DropdownMenuItem
+                    onSelect={(event) => {
+                      event.preventDefault();
+                      menu.setOpen(false);
+                      onBulkDownload(Array.from(selectedPaths));
+                    }}
+                  >
+                    <Download />
+                    Baixar {selectedPaths.size} arquivos
+                  </DropdownMenuItem>
+                  <DropdownMenuSeparator />
+                  <DropdownMenuItem
+                    variant="destructive"
+                    onSelect={(event) => {
+                      event.preventDefault();
+                      menu.setOpen(false);
+                      setBulkDeleteConfirmOpen(true);
+                    }}
+                  >
+                    <Trash2 />
+                    Excluir {selectedPaths.size} arquivos
+                  </DropdownMenuItem>
+                </>
+              ) : (
+                <>
+                  <DropdownMenuItem
+                    onSelect={(event) => {
+                      event.preventDefault();
+                      menu.setOpen(false);
+                      onOpenPinned(entry.path);
+                    }}
+                  >
+                    Abrir em nova aba
+                  </DropdownMenuItem>
+                  <EditorOpenMenuItems
+                    editors={detectedEditors}
+                    locality={editorLocality}
+                    path={entry.path}
+                    itemLabel={(label) => `Abrir no ${label}`}
+                    subTriggerLabel="Abrir com"
+                    onSelected={() => menu.setOpen(false)}
+                  />
+                  <DropdownMenuSeparator />
+                  <DropdownMenuItem
+                    onSelect={(event) => {
+                      event.preventDefault();
+                      menu.setOpen(false);
+                      void handleDownload();
+                    }}
+                  >
+                    <Download />
+                    Baixar
+                  </DropdownMenuItem>
+                  <DropdownMenuItem
+                    onSelect={(event) => {
+                      event.preventDefault();
+                      menu.setOpen(false);
+                      setRenameOpen(true);
+                    }}
+                  >
+                    <Pencil />
+                    Renomear
+                  </DropdownMenuItem>
+                  <DropdownMenuItem
+                    variant="destructive"
+                    onSelect={(event) => {
+                      event.preventDefault();
+                      menu.setOpen(false);
+                      setDeleteConfirmOpen(true);
+                    }}
+                  >
+                    <Trash2 />
+                    Excluir
+                  </DropdownMenuItem>
+                </>
+              )}
             </DropdownMenuContent>
           </DropdownMenu>
         )}
@@ -592,6 +751,27 @@ function FileTreeNode({
               </AlertDialogFooter>
             </AlertDialogContent>
           </AlertDialog>
+          <AlertDialog open={bulkDeleteConfirmOpen} onOpenChange={setBulkDeleteConfirmOpen}>
+            <AlertDialogContent>
+              <AlertDialogHeader>
+                <AlertDialogTitle>Excluir arquivos</AlertDialogTitle>
+                <AlertDialogDescription>
+                  Excluir {selectedPaths.size} arquivos selecionados? Essa ação não pode ser desfeita.
+                </AlertDialogDescription>
+              </AlertDialogHeader>
+              <AlertDialogFooter>
+                <AlertDialogCancel>Cancelar</AlertDialogCancel>
+                <AlertDialogAction
+                  onClick={() => {
+                    onBulkDelete(Array.from(selectedPaths));
+                    setBulkDeleteConfirmOpen(false);
+                  }}
+                >
+                  Excluir
+                </AlertDialogAction>
+              </AlertDialogFooter>
+            </AlertDialogContent>
+          </AlertDialog>
         </>
       )}
       {isDir && isExpanded && (
@@ -604,7 +784,6 @@ function FileTreeNode({
           expanded={expanded}
           activePath={activePath}
           onToggleExpand={onToggleExpand}
-          onOpenPreview={onOpenPreview}
           onOpenPinned={onOpenPinned}
           onFileDeleted={onFileDeleted}
           onFileRenamed={onFileRenamed}
@@ -612,6 +791,10 @@ function FileTreeNode({
           editorLocality={editorLocality}
           detectedEditors={detectedEditors}
           dropTargetPath={dropTargetPath}
+          selectedPaths={selectedPaths}
+          onFileClick={onFileClick}
+          onBulkDelete={onBulkDelete}
+          onBulkDownload={onBulkDownload}
         />
       )}
     </div>

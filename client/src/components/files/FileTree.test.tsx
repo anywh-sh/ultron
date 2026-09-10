@@ -1,3 +1,4 @@
+import { useState } from "react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { cleanup, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
@@ -180,6 +181,85 @@ describe("FileTree context menu", () => {
     await user.click(await screen.findByText("Abrir no terminal"));
 
     expect(onOpenTerminal).toHaveBeenCalledWith(`${root}/src`);
+  });
+});
+
+describe("FileTree multi-select (SHIFT range)", () => {
+  function multiListing(): FilesListResult {
+    return {
+      root,
+      path: root,
+      entries: [
+        { name: "a.txt", path: `${root}/a.txt`, kind: "file", size: 1, mtimeMs: 100 },
+        { name: "b.txt", path: `${root}/b.txt`, kind: "file", size: 1, mtimeMs: 200 },
+        { name: "c.txt", path: `${root}/c.txt`, kind: "file", size: 1, mtimeMs: 300 },
+      ],
+    };
+  }
+
+  // `activePath` has to be real state here, not a fixed prop like the other
+  // tests' `renderTree` uses — the selection sync effect (FileTree.tsx)
+  // reacts to `activePath` *changing*, mirroring how `FilesPanel` actually
+  // feeds it back in from `useFileTabs` after `onOpenPreview`.
+  function ControlledFileTree({ onFileDeleted = () => {} }: { onFileDeleted?: (path: string) => void }) {
+    const [activePath, setActivePath] = useState<string | null>(null);
+    return (
+      <FileTree
+        profile={profile}
+        sessionId="session-1"
+        root={root}
+        expanded={[]}
+        activePath={activePath}
+        showHidden={false}
+        changedDir={null}
+        onToggleExpand={() => {}}
+        onOpenPreview={setActivePath}
+        onOpenPinned={() => {}}
+        onFileDeleted={onFileDeleted}
+        onFileRenamed={() => {}}
+        onOpenTerminal={() => {}}
+        dropTargetPath={null}
+      />
+    );
+  }
+
+  it("SHIFT-clicking a file extends the selection to the range and offers batch actions for it", async () => {
+    vi.mocked(listFiles).mockResolvedValue(multiListing());
+    vi.mocked(deleteFile).mockResolvedValue(undefined);
+    const onFileDeleted = vi.fn();
+    const user = userEvent.setup();
+    render(<ControlledFileTree onFileDeleted={onFileDeleted} />);
+
+    fireEvent.click(await screen.findByText("a.txt"));
+    fireEvent.click(await screen.findByText("c.txt"), { shiftKey: true });
+
+    // Right-clicking the row in between (never itself clicked) still counts
+    // as part of the range and surfaces the batch menu, not the single-file one.
+    await user.pointer({ keys: "[MouseRight]", target: screen.getByText("b.txt") });
+    expect(await screen.findByText("Baixar 3 arquivos")).toBeInTheDocument();
+    const deleteItem = await screen.findByText("Excluir 3 arquivos");
+
+    await user.click(deleteItem);
+    const dialog = await screen.findByRole("alertdialog");
+    await user.click(within(dialog).getByRole("button", { name: "Excluir" }));
+
+    await waitFor(() => expect(deleteFile).toHaveBeenCalledTimes(3));
+    expect(onFileDeleted).toHaveBeenCalledWith(`${root}/a.txt`);
+    expect(onFileDeleted).toHaveBeenCalledWith(`${root}/b.txt`);
+    expect(onFileDeleted).toHaveBeenCalledWith(`${root}/c.txt`);
+  });
+
+  it("right-clicking a file outside the current selection replaces it, back to the single-file menu", async () => {
+    vi.mocked(listFiles).mockResolvedValue(multiListing());
+    const user = userEvent.setup();
+    render(<ControlledFileTree />);
+
+    fireEvent.click(await screen.findByText("a.txt"));
+    fireEvent.click(await screen.findByText("b.txt"), { shiftKey: true });
+
+    await user.pointer({ keys: "[MouseRight]", target: screen.getByText("c.txt") });
+    expect(await screen.findByText("Excluir")).toBeInTheDocument();
+    expect(screen.queryByText("Excluir 2 arquivos")).toBeNull();
   });
 });
 
