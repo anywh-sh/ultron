@@ -239,7 +239,7 @@ export default function App() {
       });
   }
 
-  /** Only removes the session from ultron's control — doesn't delete the
+  /** Only removes the session from anywh's control — doesn't delete the
    * transcript that Claude Code already keeps on its own. Explicit
    * `profileId` (not always `activeProfile`) because it's also called from a
    * tab belonging to a profile other than the one currently selected in the

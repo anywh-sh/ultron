@@ -184,7 +184,7 @@ test("a terminal tab runs real shell commands, and its tmux session survives a d
 });
 
 test("a cwd query param starts the shell there — the file tree's \"open in terminal\"", async () => {
-  const workDir = realpathSync(mkdtempSync(join(tmpdir(), "ultron-terminal-cwd-")));
+  const workDir = realpathSync(mkdtempSync(join(tmpdir(), "anywh-terminal-cwd-")));
   const subDir = join(workDir, "sub");
   mkdirSync(subDir);
   const chatSessionId = "term-chat-session-cwd";
@@ -204,8 +204,8 @@ test("a cwd query param starts the shell there — the file tree's \"open in ter
 });
 
 test("a cwd outside the session's own root is ignored, falling back to the session's cwd", async () => {
-  const workDir = realpathSync(mkdtempSync(join(tmpdir(), "ultron-terminal-cwd-root-")));
-  const outsideDir = realpathSync(mkdtempSync(join(tmpdir(), "ultron-terminal-cwd-outside-")));
+  const workDir = realpathSync(mkdtempSync(join(tmpdir(), "anywh-terminal-cwd-root-")));
+  const outsideDir = realpathSync(mkdtempSync(join(tmpdir(), "anywh-terminal-cwd-outside-")));
   const chatSessionId = "term-chat-session-cwd-outside";
   const chatSocket = await setSessionCwd(chatSessionId, workDir);
 

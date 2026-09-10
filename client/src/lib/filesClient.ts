@@ -117,7 +117,7 @@ export function rawFileUrl(profile: Profile, sessionId: string, path: string, mt
  * branch on profile mode itself if it doesn't already for other reasons —
  * `FileViewer` still does, to keep paying zero extra cost (no JS-mediated
  * fetch, native browser caching/progressive decode) for the common
- * self-host case, which is the majority of `ultron/`'s users. */
+ * self-host case, which is the majority of anywh's users. */
 export async function fetchRawFile(profile: Profile, sessionId: string, path: string, mtimeMs: number): Promise<Blob> {
   const { base, token } = await resolveBase(profile);
   const response = await fetch(`${base}${rawFilePath(sessionId, path, mtimeMs)}`, { headers: authHeaders(token) });

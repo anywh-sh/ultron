@@ -7,7 +7,7 @@ import { setTimeout as delay } from "node:timers/promises";
 import { FilesWatchSession, type FilesWatchMessage } from "./fsWatch.js";
 
 async function withTempDir(run: (dir: string) => Promise<void>): Promise<void> {
-  const dir = mkdtempSync(join(tmpdir(), "ultron-fswatch-test-"));
+  const dir = mkdtempSync(join(tmpdir(), "anywh-fswatch-test-"));
   try {
     await run(dir);
   } finally {

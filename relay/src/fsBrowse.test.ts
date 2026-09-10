@@ -6,7 +6,7 @@ import { join } from "node:path";
 import { checkDirectory, listDirectories } from "./fsBrowse.js";
 
 function withTempDir(run: (dir: string) => void): void {
-  const dir = mkdtempSync(join(tmpdir(), "ultron-fsbrowse-test-"));
+  const dir = mkdtempSync(join(tmpdir(), "anywh-fsbrowse-test-"));
   try {
     run(dir);
   } finally {

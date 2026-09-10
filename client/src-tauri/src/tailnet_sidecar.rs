@@ -73,7 +73,7 @@ fn sanitize_for_path(profile_id: &str) -> String {
 /// own hostname cross-check (`bindReportedNodeKey`/`reconcile.ts`,
 /// journal/50 3.3) does a plain string comparison against `node.id`, not a
 /// pattern match — a shortened/prefixed form (the previous
-/// `ultron-<12 chars>`, live-confirmed via a WebdriverIO e2e run against
+/// `ultron-<12 chars>` of the pre-rebrand build, live-confirmed via a WebdriverIO e2e run against
 /// production) never matches and the device sits unbound forever. `node_id`
 /// is `Profile.brokerNodeId` for a brokered profile, or `Profile.id` for a
 /// manually configured one (no broker to reconcile against, so nothing to

@@ -8,7 +8,7 @@ import { SessionStore } from "./sessionStore.js";
 const DEFAULT_CWD = "/home/user";
 
 function withStoreFile(seed: unknown, run: (filePath: string) => void): void {
-  const dir = mkdtempSync(join(tmpdir(), "ultron-sessionstore-test-"));
+  const dir = mkdtempSync(join(tmpdir(), "anywh-sessionstore-test-"));
   const filePath = join(dir, "sessions.json");
   try {
     if (seed !== undefined) writeFileSync(filePath, JSON.stringify(seed));
@@ -107,7 +107,7 @@ function sleep(ms: number): Promise<void> {
 }
 
 test("listTitled sorts by lastActiveAt descending (most recent first)", async () => {
-  const dir = mkdtempSync(join(tmpdir(), "ultron-sessionstore-test-"));
+  const dir = mkdtempSync(join(tmpdir(), "anywh-sessionstore-test-"));
   try {
     const filePath = join(dir, "sessions.json");
     const store = new SessionStore(filePath, DEFAULT_CWD);

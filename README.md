@@ -1,8 +1,8 @@
 <div align="center">
 
-<img src="assets/logo.svg" width="120" alt="ultron logo">
+<img src="assets/logo.svg" width="120" alt="anywh.sh logo">
 
-# ultron
+# anywh.sh
 
 ### A self-hosted remote control for your coding agents — chat, voice, and a file browser from any device, while they keep running on your own machine
 
@@ -19,14 +19,14 @@
 ---
 
 <p align="center">
-  <img src="assets/screenshot-desktop.png" alt="ultron desktop client showing multiple session tabs, a chat with rendered Markdown and code blocks, a file browser, and an integrated terminal side by side" width="100%">
+  <img src="assets/screenshot-desktop.png" alt="anywh desktop client showing multiple session tabs, a chat with rendered Markdown and code blocks, a file browser, and an integrated terminal side by side" width="100%">
 </p>
 
 A thin wrapper around the [Claude Code](https://claude.ai/code) CLI: chat, voice input, image upload, multi-session, and a file browser from a native app on desktop (Windows/macOS, Linux untested — Tauri supports it, but nobody has run it there yet) or iOS — while the actual `claude` process keeps running on a machine you control.
 
 ## Why
 
-If you run Claude Code on a headless machine (a home server, a NAS, an always-on desktop) and connect to it over SSH from elsewhere, you lose things the official Claude apps have: voice input, drag-and-drop images, decent mobile formatting. The official apps solve that by moving your session into their own cloud — ultron doesn't. It's a relay that sits between a real client app and the real `claude` binary: the CLI keeps running on your machine, authenticated the same way it already is (OAuth/subscription, not a billed API key), and the app is just a nicer way to talk to it from any device.
+If you run Claude Code on a headless machine (a home server, a NAS, an always-on desktop) and connect to it over SSH from elsewhere, you lose things the official Claude apps have: voice input, drag-and-drop images, decent mobile formatting. The official apps solve that by moving your session into their own cloud — anywh doesn't. It's a relay that sits between a real client app and the real `claude` binary: the CLI keeps running on your machine, authenticated the same way it already is (OAuth/subscription, not a billed API key), and the app is just a nicer way to talk to it from any device.
 
 ## How it works
 
@@ -149,7 +149,7 @@ This matters more than "no authentication" alone suggests: the relay's default p
 
 ## Remote access (outside your LAN)
 
-Nothing here is automated — it's network setup you do once, with your own accounts, and ultron never sees it.
+Nothing here is automated — it's network setup you do once, with your own accounts, and anywh never sees it.
 
 1. Create a personal [Tailscale](https://tailscale.com/) account (the free tier covers individual use) and install the client on the relay machine and on every device you want to connect from.
 2. On the relay machine, run `tailscale ip -4` to get its tailnet address (a `100.x.y.z`).

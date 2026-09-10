@@ -1,4 +1,4 @@
-# ultron
+# anywh
 
 Wrapper multiplataforma para o Claude Code CLI. O `claude` continua rodando numa máquina que você controla (tipicamente uma Debian headless); o app é só uma forma melhor de falar com ele de qualquer device.
 

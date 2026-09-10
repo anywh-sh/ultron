@@ -7,7 +7,7 @@ import { transcriptPath } from "./transcriptReader.js";
 import { forkTruncatedTranscript } from "./transcriptFork.js";
 
 function withFixture(sessionId: string, rawLines: unknown[], run: (home: string, path: string) => void): void {
-  const home = mkdtempSync(join(tmpdir(), "ultron-transcript-fork-test-"));
+  const home = mkdtempSync(join(tmpdir(), "anywh-transcript-fork-test-"));
   try {
     const path = transcriptPath(home, home, sessionId);
     mkdirSync(dirname(path), { recursive: true });

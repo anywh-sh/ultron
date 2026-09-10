@@ -6,7 +6,7 @@ import { test } from "node:test";
 import { deleteTheme, listThemes, readTheme, saveTheme, ThemeValidationFailure } from "./themeRegistry.js";
 
 function withThemesDir(run: (dir: string) => void): void {
-  const dir = mkdtempSync(join(tmpdir(), "ultron-themes-"));
+  const dir = mkdtempSync(join(tmpdir(), "anywh-themes-"));
   try {
     run(dir);
   } finally {
@@ -44,7 +44,7 @@ test("saves, lists and reads a theme", () => {
 });
 
 test("an absent directory lists as empty rather than throwing", () => {
-  assert.deepEqual(listThemes(join(tmpdir(), "ultron-themes-does-not-exist")), []);
+  assert.deepEqual(listThemes(join(tmpdir(), "anywh-themes-does-not-exist")), []);
 });
 
 test("saving the same id again overwrites it", () => {

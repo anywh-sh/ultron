@@ -6,7 +6,7 @@ import { dirname, join } from "node:path";
 import { readHistoryFromTranscript, transcriptPath } from "./transcriptReader.js";
 
 function withFixture(sessionId: string, rawLines: string[], run: (home: string) => void): void {
-  const home = mkdtempSync(join(tmpdir(), "ultron-transcript-test-"));
+  const home = mkdtempSync(join(tmpdir(), "anywh-transcript-test-"));
   try {
     // home == cwd in these tests — the distinction only matters for the real
     // caller (SharedSession), which resolves the two separately.
@@ -73,8 +73,8 @@ test("second turn closes the first with a synthetic turn_complete, tool_use/tool
 });
 
 test("cwd crossing a symlink resolves to the real path (real bug: ~/.anywh-trabalho-home/mode -> ~/mode)", () => {
-  const realHome = mkdtempSync(join(tmpdir(), "ultron-transcript-test-real-"));
-  const linkDir = mkdtempSync(join(tmpdir(), "ultron-transcript-test-link-"));
+  const realHome = mkdtempSync(join(tmpdir(), "anywh-transcript-test-real-"));
+  const linkDir = mkdtempSync(join(tmpdir(), "anywh-transcript-test-link-"));
   const cwdLink = join(linkDir, "mode");
   try {
     symlinkSync(realHome, cwdLink);

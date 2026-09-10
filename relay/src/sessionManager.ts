@@ -148,7 +148,7 @@ export class SessionManager {
     return true;
   }
 
-  /** Only removes the session from ultron's control (SessionStore +
+  /** Only removes the session from anywh's control (SessionStore +
    * in-memory map) — doesn't delete the transcript that Claude Code already
    * maintains on its own in `~/.claude/projects/`. Stops the turn in
    * progress (if any) and notifies whoever is connected before dropping the

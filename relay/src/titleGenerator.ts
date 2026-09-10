@@ -59,10 +59,10 @@ export async function generateTitle(homeOverride: string | undefined, cwd: strin
     ],
     // Without this, the process inherits the relay's own cwd (systemd's
     // WorkingDirectory) instead of the session's folder — Claude Code
-    // auto-discovers the CLAUDE.md from there (this project's, ultron) and
+    // auto-discovers the CLAUDE.md from there (this project's, anywh) and
     // the title comes out about the wrong project, even with
     // `--system-prompt` overriding the persona. Real finding: asking for a
-    // title for a session in `~/mode/storefront` returned "Ultron wrapper
+    // title for a session in `~/mode/storefront` returned "anywh wrapper
     // Claude multiplataforma" — the wrong cwd is the reason. Same cwd that
     // the real turn uses (claudeSession.ts).
     { env, cwd },

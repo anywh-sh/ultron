@@ -13,7 +13,7 @@ import type { ContextUsage, ModelChoice, PermissionMode } from "./sessionStore.j
 // Code starts billing via API instead of using the plan.
 
 /** Appended to every turn, regardless of the active project's CLAUDE.md — it's
- * a preference of the ultron CLIENT, not of a specific project. Without
+ * a preference of the anywh CLIENT, not of a specific project. Without
  * this, when writing a draft meant to be pasted elsewhere (Slack, email),
  * the model sometimes manually wraps the text every ~80 columns (habit
  * inherited from terminal/commit text) — inside a ``` block that's literal

@@ -22,7 +22,7 @@ import {
 // would resolve to that shared `/tmp`, and every test's `profiles.json`
 // would collide on the same path instead of each getting its own.
 function withTempDir(run: (envDir: string) => void | Promise<void>): Promise<void> {
-  const root = mkdtempSync(join(tmpdir(), "ultron-profile-registry-test-"));
+  const root = mkdtempSync(join(tmpdir(), "anywh-profile-registry-test-"));
   const envDir = join(root, "env");
   mkdirSync(envDir);
   return Promise.resolve(run(envDir)).finally(() => rmSync(root, { recursive: true, force: true }));

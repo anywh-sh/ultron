@@ -276,7 +276,7 @@ export class SessionStore {
   }
 
   /** `true` if the session existed (and was removed); `false` if it already
-   * didn't exist. Only removes it from ultron's control — doesn't touch the
+   * didn't exist. Only removes it from anywh's control — doesn't touch the
    * transcript that Claude Code already maintains on its own in
    * `~/.claude/projects/`. */
   deleteEntry(id: string): boolean {

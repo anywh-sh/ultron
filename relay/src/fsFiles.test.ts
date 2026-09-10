@@ -6,7 +6,7 @@ import { join } from "node:path";
 import { createFile, deleteFile, listFiles, readFileForViewer, renameFile, resolveChatPath, resolveRawFile, resolveWithinRoot } from "./fsFiles.js";
 
 function withTempDir(run: (dir: string) => void): void {
-  const dir = mkdtempSync(join(tmpdir(), "ultron-fsfiles-test-"));
+  const dir = mkdtempSync(join(tmpdir(), "anywh-fsfiles-test-"));
   try {
     run(dir);
   } finally {

@@ -89,7 +89,7 @@ async function callPresentChoice(mcpConfigJson, questions) {
 }
 
 if (args[0] === "auth" && args[1] === "status") {
-  emit({ loggedIn: true, email: "fake@ultron.test", subscriptionType: "pro" });
+  emit({ loggedIn: true, email: "fake@anywh.test", subscriptionType: "pro" });
   process.exit(0);
 } else if (args[0] === "-p") {
   const outputFormat = flagValue("--output-format");

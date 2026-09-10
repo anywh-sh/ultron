@@ -21,7 +21,7 @@ let workDir: string;
 
 before(async () => {
   server = await startTestServer();
-  workDir = realpathSync(mkdtempSync(join(tmpdir(), "ultron-file-browser-")));
+  workDir = realpathSync(mkdtempSync(join(tmpdir(), "anywh-file-browser-")));
 });
 
 after(async () => {

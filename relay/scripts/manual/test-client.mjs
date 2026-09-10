@@ -16,7 +16,7 @@ const resultsSeen = [];
 socket.on("open", () => {
   console.log("[test] connected, sending turn 1");
   turn = 1;
-  send("Minha cor favorita e verde-ultron. So confirme que anotou, nao repita ela.");
+  send("Minha cor favorita e verde-anywh. So confirme que anotou, nao repita ela.");
 });
 
 socket.on("message", (raw) => {

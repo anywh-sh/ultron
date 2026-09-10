@@ -64,7 +64,7 @@ export async function renameSession(host: string, port: number, id: string, titl
   }
 }
 
-/** Only removes the session from ultron's control (sidebar, tabs) — doesn't delete the
+/** Only removes the session from anywh's control (sidebar, tabs) — doesn't delete the
  * transcript that Claude Code already keeps on its own. Works even for a
  * session with no tab open right now. */
 export async function deleteSession(host: string, port: number, id: string, token?: string): Promise<void> {

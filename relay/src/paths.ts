@@ -5,7 +5,7 @@ import { homedir } from "node:os";
  * session and as the fallback when `GET /fs/list` doesn't receive `path`.
  * Before this function existed, the fallback for the personal profile
  * (without `homeOverride`) was the relay process's `process.cwd()` — in
- * practice ultron's own source code folder (the systemd unit's
+ * practice anywh's own source code folder (the systemd unit's
  * `WorkingDirectory`), not the user's actual $HOME. `homedir()` is the
  * correct fallback.
  */
