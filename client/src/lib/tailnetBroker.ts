@@ -12,6 +12,19 @@ interface SignResult {
   sig: string;
 }
 
+// How long to keep asking a broker that answers "not ready yet". The
+// control plane's own hint is optimistic (`eta_ms: 5000`) — what's actually
+// being waited on is a Vercel Sandbox resuming from a snapshot and its
+// supervisor rejoining the tailnet, which is tens of seconds from cold.
+// Waiting a while beats failing on something that was always going to work.
+const RESUME_DEADLINE_MS = 120_000;
+// Used when a broker answers 409 without saying how long to wait.
+const DEFAULT_RETRY_AFTER_MS = 1_500;
+
+function delay(ms: number): Promise<void> {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
 /**
  * Calls a brokered profile's `brokerUrl` (journal/62 CT-1) for a fresh
  * connection grant. Generic on purpose — this code has no idea what API it's
@@ -26,28 +39,51 @@ interface SignResult {
  *
  * Must be called fresh before every new connection, never cached —
  * journal/49 D4: the token authorizes exactly one handshake.
+ *
+ * A 409 is not a failure but a state: the broker is saying the compute
+ * isn't reachable *yet* and to ask again (the control plane answers this
+ * while a suspended sandbox resumes). Still generic — "409 plus an optional
+ * `retry_after_ms`" is a contract a self-hoster's own broker can implement
+ * without knowing anything about anywh.
  */
 export async function fetchConnectGrant(profile: Profile): Promise<ConnectGrant> {
   if (!isBrokeredProfile(profile)) throw new Error("profile has no broker configured");
   if (!inTauri()) throw new Error("the broker call needs the Tauri sidecar to sign it, not available in a plain browser");
 
   const url = new URL(profile.brokerUrl!);
-  const { ts, sig } = await invoke<SignResult>("tailnet_sidecar_sign", {
-    method: "POST",
-    path: url.pathname,
-    body: "",
-  });
+  const deadline = Date.now() + RESUME_DEADLINE_MS;
+  for (;;) {
+    // Signed inside the loop, once per attempt: the signature carries its
+    // own timestamp and the control plane rejects a repeat as a replay
+    // (journal/49 D4), so a retry reusing the first attempt's signature
+    // would fail for a reason that has nothing to do with what it's
+    // waiting for.
+    const { ts, sig } = await invoke<SignResult>("tailnet_sidecar_sign", {
+      method: "POST",
+      path: url.pathname,
+      body: "",
+    });
 
-  const response = await fetch(url, {
-    method: "POST",
-    headers: {
-      "X-Node-Id": profile.brokerNodeId!,
-      "X-Node-Ts": String(ts),
-      "X-Node-Sig": sig,
-    },
-  });
-  if (!response.ok) throw new Error(`broker refused the connection request (${String(response.status)})`);
-  const body = (await response.json()) as Partial<ConnectGrant>;
-  if (!body.endpoint || typeof body.token !== "string") throw new Error("broker response missing endpoint/token");
-  return { endpoint: body.endpoint, token: body.token };
+    const response = await fetch(url, {
+      method: "POST",
+      headers: {
+        "X-Node-Id": profile.brokerNodeId!,
+        "X-Node-Ts": String(ts),
+        "X-Node-Sig": sig,
+      },
+    });
+
+    if (response.status === 409) {
+      const hint = (await response.json().catch(() => ({}))) as { retry_after_ms?: number };
+      if (Date.now() >= deadline) {
+        throw new Error("broker is still resuming the compute after waiting for it");
+      }
+      await delay(hint.retry_after_ms ?? DEFAULT_RETRY_AFTER_MS);
+      continue;
+    }
+    if (!response.ok) throw new Error(`broker refused the connection request (${String(response.status)})`);
+    const body = (await response.json()) as Partial<ConnectGrant>;
+    if (!body.endpoint || typeof body.token !== "string") throw new Error("broker response missing endpoint/token");
+    return { endpoint: body.endpoint, token: body.token };
+  }
 }
