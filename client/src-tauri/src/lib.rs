@@ -37,7 +37,31 @@ fn read_dropped_file(path: String) -> Result<tauri::ipc::Response, String> {
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
-    let builder = tauri::Builder::default()
+    let builder = tauri::Builder::default();
+
+    // Must come before every other plugin: the whole job of this one is to
+    // make a redundant second process exit as early as possible, and a
+    // plugin registered ahead of it would be one this doomed process paid
+    // for anyway. On Windows and Linux that second process is how the OS
+    // delivers an `ultron://` link to an app that's already running (it
+    // passes the URL in argv rather than notifying the live instance), so
+    // this is also what makes `onOpenUrl` fire on those two platforms
+    // instead of only `getCurrent()` at a cold launch — see
+    // src/hooks/useProfileImport.ts, which documented that gap as a known
+    // limitation until now. The Cargo `deep-link` feature does the actual
+    // forwarding into tauri-plugin-deep-link; the callback here only has to
+    // surface the window that's about to receive it.
+    #[cfg(not(target_os = "ios"))]
+    let builder = builder.plugin(tauri_plugin_single_instance::init(|app, _argv, _cwd| {
+        use tauri::Manager as _;
+        if let Some(window) = app.get_webview_window("main") {
+            let _ = window.unminimize();
+            let _ = window.show();
+            let _ = window.set_focus();
+        }
+    }));
+
+    let builder = builder
         .plugin(tauri_plugin_opener::init())
         .plugin(tauri_plugin_notification::init())
         .plugin(tauri_plugin_os::init())

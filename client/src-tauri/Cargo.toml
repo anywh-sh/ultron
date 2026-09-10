@@ -72,6 +72,16 @@ cpal = "0.15"
 whisper-rs = "0.16"
 rubato = "0.15"
 tauri-plugin-shell = "2"
+# journal/62: on Windows and Linux the OS answers an `ultron://` link by
+# spawning a *second* process with the URL in argv, instead of notifying the
+# running one — so without this, `onOpenUrl` never fired there and only a
+# cold launch could import a profile. The `deep-link` feature is what makes
+# this plugin hand that argv URL to tauri-plugin-deep-link's own listeners,
+# turning the two platforms into the same JS-side contract macOS already
+# had. Excluded on iOS for a different reason than the voice crates above:
+# the crate has no mobile target, and the behaviour it corrects (a second
+# process at all) doesn't exist there.
+tauri-plugin-single-instance = { version = "2", features = ["deep-link"] }
 
 # Camada de chrome nativo (SwiftUI/Liquid Glass) do port iOS — docs/23, Fase E.
 # Promovido do spike de UI nativa (docs/22, spike 2/3): manager.viewController

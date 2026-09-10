@@ -13,11 +13,17 @@ import { importProfile, parseImportProfileUrl } from "@/lib/profileImport";
  * Two delivery paths, both handled: `getCurrent()` covers a cold launch
  * (the OS started the app *because* of the link — the common case for a
  * pairing flow, since the app usually isn't running yet), `onOpenUrl` covers
- * the link arriving while the app is already open. Per the plugin's own
- * docs, `onOpenUrl` needs the single-instance plugin on Windows/Linux to
- * fire at all there (the OS spawns a second process and hands it the URL as
- * a CLI argument instead of notifying the running one) — not wired up here,
- * so on those two platforms only the cold-launch path is covered today.
+ * the link arriving while the app is already open. `onOpenUrl` needs the
+ * single-instance plugin to fire at all on Windows/Linux (the OS spawns a
+ * second process and hands it the URL as a CLI argument instead of
+ * notifying the running one) — now wired up in src-tauri/src/lib.rs with
+ * the plugin's `deep-link` feature, so all three desktop platforms deliver
+ * both paths.
+ *
+ * Neither path is the only way in: `AddRemoteMachineDialog` redeems a typed
+ * pairing code through the same import, for whoever has a code but no
+ * working link (a platform where `ultron://` isn't registered, a browser
+ * that swallowed it, a code read off another screen).
  */
 export function useProfileImport(onImported: (profileId: string) => void): void {
   const onImportedRef = useRef(onImported);
