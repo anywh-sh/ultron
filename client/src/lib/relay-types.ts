@@ -87,10 +87,13 @@ export interface ClaudeEvent {
   tool_use_result?: ToolUseResult;
   /** Present on `type: "system", subtype: "compact_boundary"`. */
   compactMetadata?: CompactBoundaryMetadata;
-  /** Present only on `type: "user_prompt"` — ISO from the real `.jsonl` line
-   * (history/replay) or approximate time from the live broadcast to other
-   * devices (docs/33). Whoever sent the message already knows their own
-   * click time, doesn't depend on this. */
+  /** On `type: "assistant"` this is a genuine field the CLI itself stamps on
+   * every stream-json line — present both live and on replay
+   * (relay/src/transcriptReader.ts). On `type: "user_prompt"` (synthetic)
+   * it's ISO from the real `.jsonl` line on replay, or absent in the live
+   * broadcast to other devices (docs/33) — whoever sent the message already
+   * knows their own click time, doesn't depend on this. Either way,
+   * `useMessageLog.ts` falls back to `Date.now()` when absent. */
   timestamp?: string;
   [key: string]: unknown;
 }

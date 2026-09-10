@@ -117,7 +117,14 @@ export function readHistoryFromTranscript(home: string, cwd: string, sessionId: 
     }
 
     if (line.type === "assistant") {
-      const event: ClaudeEvent = { type: "assistant", message: line.message };
+      // Real timestamp of the line (docs/33, same as `user_prompt` below) —
+      // the client shows it on the assistant bubble's action strip. Omitted
+      // when absent, same reasoning as the `user_prompt` case.
+      const event: ClaudeEvent = {
+        type: "assistant",
+        message: line.message,
+        ...(typeof line.timestamp === "string" ? { timestamp: line.timestamp } : {}),
+      };
       messages.push({ type: "claude_event", event });
       continue;
     }

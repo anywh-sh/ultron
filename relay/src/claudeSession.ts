@@ -98,11 +98,14 @@ export interface ClaudeEvent {
   is_error?: boolean;
   result?: string;
   errors?: string[];
-  /** Present only in `type: "user_prompt"` (synthetic, never comes from the
-   * CLI's stdout) — ISO from the actual `.jsonl` line when rebuilding
-   * history, or `new Date().toISOString()` in the live broadcast to other
-   * devices (docs/33). Whoever sent the message already knows the click's
-   * own time, doesn't depend on this. */
+  /** On `type: "assistant"` this is a genuine field the CLI itself stamps on
+   * every stream-json line (verified against real `claude -p --output-format
+   * stream-json` output and the on-disk transcript) — present both live and
+   * on replay. On `type: "user_prompt"` (synthetic, never comes from the
+   * CLI's stdout) it's ISO from the actual `.jsonl` line when rebuilding
+   * history, or absent in the live broadcast to other devices (docs/33) —
+   * whoever sent the message already knows the click's own time, doesn't
+   * depend on this. */
   timestamp?: string;
   [key: string]: unknown;
 }
