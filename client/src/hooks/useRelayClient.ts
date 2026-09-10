@@ -257,7 +257,7 @@ export function useRelayClient(
     async function start(): Promise<void> {
       let host = profile.host;
       let port = profile.relayPort;
-      let wsToken = profile.connectToken;
+      let wsToken: string | (() => Promise<string>) | undefined = profile.connectToken;
       if (tailnetMode) {
         try {
           // journal/62 F3: a brokered profile resolves the target and a
@@ -270,7 +270,20 @@ export function useRelayClient(
             const grant = await fetchConnectGrant(profile);
             if (cancelled) return;
             target = `${grant.endpoint.host}:${String(grant.endpoint.port)}`;
-            wsToken = grant.token;
+            // D4 again, on the reconnection side: the grant fetched just
+            // now opens the first connection, and every attempt after it
+            // (the proxy spends a token's `jti` on the handshake, so
+            // resending this one loops on "reconnecting" forever) resolves
+            // its own.
+            let firstToken: string | undefined = grant.token;
+            wsToken = async () => {
+              if (firstToken !== undefined) {
+                const token = firstToken;
+                firstToken = undefined;
+                return token;
+              }
+              return (await fetchConnectGrant(profile)).token;
+            };
           }
           if (!target) throw new Error("tailnet profile has no target to dial (no tailnetTarget and no broker)");
           // Flagged synchronously with the call, before the first await:

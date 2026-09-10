@@ -4,12 +4,13 @@ import type { Profile } from "@/lib/profiles";
 
 // `vi.hoisted` because these mocks are read by modules this file imports
 // statically — the `vi.mock` factories run before the top-level bindings.
-const { invokeMock, connectMock } = vi.hoisted(() => ({
+const { invokeMock, connectMock, constructedMock } = vi.hoisted(() => ({
   invokeMock: vi.fn(async (cmd: string, _args?: unknown) => {
     if (cmd === "tailnet_sidecar_start") return "127.0.0.1:12345";
     return undefined;
   }),
   connectMock: vi.fn(),
+  constructedMock: vi.fn(),
 }));
 vi.mock("@tauri-apps/api/core", () => ({ invoke: invokeMock }));
 vi.mock("@/lib/tauri", () => ({ inTauri: () => true }));
@@ -26,6 +27,9 @@ vi.mock("@/lib/relayClient", () => ({
   RelayClient: class {
     connect = connectMock;
     disconnect = vi.fn();
+    constructor(...args: unknown[]) {
+      constructedMock(...args);
+    }
   },
 }));
 
@@ -48,6 +52,7 @@ beforeEach(() => {
   vi.useFakeTimers();
   invokeMock.mockClear();
   connectMock.mockClear();
+  constructedMock.mockClear();
   Object.defineProperty(window, "__TAURI_INTERNALS__", { value: {}, configurable: true });
 });
 
@@ -76,5 +81,18 @@ describe("useRelayClient tailnet mode", () => {
 
     tabA.unmount();
     await vi.runAllTimersAsync();
+  });
+
+  it("hands the relay client a token resolver, not the single grant it opened with", async () => {
+    // journal/49 D4: the broker's token authorizes one handshake, so the
+    // client has to be able to ask for another one — see relayClient.test.ts
+    // for what it does with this.
+    renderHook(() => useRelayClient(tailnetProfile, "session-a"));
+    await vi.runAllTimersAsync();
+
+    const [host, port, , , token] = constructedMock.mock.calls[0] as [string, number, unknown, unknown, unknown];
+    expect({ host, port }).toEqual({ host: "127.0.0.1", port: 12345 });
+    expect(typeof token).toBe("function");
+    await expect((token as () => Promise<string>)()).resolves.toBe("grant-token");
   });
 });

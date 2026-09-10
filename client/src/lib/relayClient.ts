@@ -352,6 +352,10 @@ export class RelayClient {
    * know whether a reconnection is in progress (`> 1`), so as not to fire
    * `onReconnecting` on the initial connection. */
   private connectCount = 0;
+  /** Bumped by every `connect()` — a token resolved for an attempt that has
+   * since been superseded (or cancelled by `disconnect`) must not open a
+   * socket when it finally arrives. */
+  private connectGeneration = 0;
 
   constructor(
     private readonly host: string,
@@ -359,15 +363,43 @@ export class RelayClient {
     private readonly sessionId: string,
     private readonly callbacks: RelayClientCallbacks,
     /** See `Profile.connectToken` — sent as a query param because the
-     * browser `WebSocket` constructor has no way to set a header. */
-    private readonly connectToken?: string,
+     * browser `WebSocket` constructor has no way to set a header. A plain
+     * string for a fixed credential (a reverse proxy gating access); a
+     * resolver for a brokered profile, whose token authorizes exactly one
+     * handshake (journal/49 D4) and so has to be re-fetched for every
+     * attempt, reconnections included. */
+    private readonly connectToken?: string | (() => Promise<string>),
   ) {}
 
   connect(): void {
     this.connectCount += 1;
+    this.connectGeneration += 1;
     if (this.connectCount > 1) this.callbacks.onReconnecting?.();
 
-    const tokenParam = this.connectToken ? `&token=${encodeURIComponent(this.connectToken)}` : "";
+    if (typeof this.connectToken !== "function") {
+      this.openSocket(this.connectToken);
+      return;
+    }
+    const generation = this.connectGeneration;
+    void this.connectToken().then(
+      (token) => {
+        // A newer attempt started (or `disconnect` ran) while this token was
+        // being fetched — the token is simply dropped, unspent.
+        if (generation !== this.connectGeneration || !this.shouldReconnect) return;
+        this.openSocket(token);
+      },
+      (err: unknown) => {
+        if (generation !== this.connectGeneration) return;
+        // Same treatment as a socket that failed to open: the broker being
+        // unreachable is as transient as the relay being unreachable.
+        console.error("failed to resolve a connection token:", err);
+        this.scheduleReconnect();
+      },
+    );
+  }
+
+  private openSocket(token: string | undefined): void {
+    const tokenParam = token ? `&token=${encodeURIComponent(token)}` : "";
     const socket = new WebSocket(
       `ws://${this.host}:${this.port}/?session=${encodeURIComponent(this.sessionId)}${tokenParam}`,
     );
@@ -550,6 +582,10 @@ export class RelayClient {
 
   disconnect(): void {
     this.shouldReconnect = false;
+    // Invalidates any token still being resolved for an attempt in flight —
+    // `shouldReconnect` alone already covers it, this keeps the two paths
+    // (superseded vs. cancelled) from having to be reasoned about apart.
+    this.connectGeneration += 1;
     this.clearReconnectTimer();
     this.socket?.close();
   }
