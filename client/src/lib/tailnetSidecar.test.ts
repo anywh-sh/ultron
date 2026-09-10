@@ -2,10 +2,15 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { Profile } from "@/lib/profiles";
 
 const invokeMock = vi.fn(async (cmd: string, _args?: unknown) => {
-  if (cmd === "tailnet_sidecar_start") return "127.0.0.1:12345";
+  if (cmd === "tailnet_sidecar_start") return { addr: "127.0.0.1:12345", nodeKey: "nodekey:abc" };
   return undefined;
 });
 vi.mock("@tauri-apps/api/core", () => ({ invoke: invokeMock }));
+// tailnetBroker's own report call isn't this module's concern — covered by
+// tailnetBroker.test.ts. Stubbed here so the cold-start path doesn't reach
+// for a real fetch/tailnet_sidecar_sign.
+const reportTailnetKeyMock = vi.fn(async () => {});
+vi.mock("@/lib/tailnetBroker", () => ({ reportTailnetKey: reportTailnetKeyMock }));
 
 // acquireTailnetSidecar/releaseTailnetSidecar only read `id`, `tailnetAuthKey`
 // and `tailnetControlUrl` off a Profile — nothing else in this fixture matters.
@@ -16,6 +21,7 @@ function profile(id: string): Profile {
 beforeEach(() => {
   vi.useFakeTimers();
   invokeMock.mockClear();
+  reportTailnetKeyMock.mockClear();
   // acquireTailnetSidecar/releaseTailnetSidecar branch on this — see tauri.ts.
   Object.defineProperty(window, "__TAURI_INTERNALS__", { value: {}, configurable: true });
 });
@@ -65,6 +71,23 @@ describe("tailnetSidecar", () => {
     expect(invokeMock).toHaveBeenCalledTimes(1); // only the one tailnet_sidecar_start
     expect(invokeMock).not.toHaveBeenCalledWith("tailnet_sidecar_stop", expect.anything());
 
+    releaseTailnetSidecar(id);
+    await vi.runAllTimersAsync();
+  });
+
+  it("reports the node key a cold start earns, but only once even when a second tab joins the same sidecar (journal/62 CT-1 follow-up)", async () => {
+    const { acquireTailnetSidecar, releaseTailnetSidecar } = await import("@/lib/tailnetSidecar");
+    const id = "report-node-key";
+    const p = profile(id);
+
+    const first = acquireTailnetSidecar(p, "target:1");
+    const second = acquireTailnetSidecar(p, "target:1"); // joins the same in-flight sidecar
+    await Promise.all([first, second]);
+
+    expect(reportTailnetKeyMock).toHaveBeenCalledTimes(1);
+    expect(reportTailnetKeyMock).toHaveBeenCalledWith(p, "nodekey:abc");
+
+    releaseTailnetSidecar(id);
     releaseTailnetSidecar(id);
     await vi.runAllTimersAsync();
   });

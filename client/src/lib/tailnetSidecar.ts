@@ -1,10 +1,21 @@
 import { invoke } from "@tauri-apps/api/core";
 import { inTauri } from "@/lib/tauri";
+import { reportTailnetKey } from "@/lib/tailnetBroker";
 import type { Profile } from "@/lib/profiles";
 
 export interface TailnetEndpoint {
   host: string;
   port: number;
+}
+
+/** What a cold `tailnet_sidecar_start` (Rust) resolves to — mirrors
+ * `TailnetUpResult` on that side. `nodeKey` is only ever set on a cold
+ * start; an already-running sidecar's second caller gets `undefined`
+ * (see `Running`/the Rust command's own doc comment) because the report
+ * below only needs to happen once per join, not once per caller. */
+interface TailnetUpResult {
+  addr: string;
+  nodeKey?: string;
 }
 
 interface Entry {
@@ -53,12 +64,18 @@ export function acquireTailnetSidecar(profile: Profile, target: string): Promise
     return existing.endpoint;
   }
   const endpoint = inTauri()
-    ? invoke<string>("tailnet_sidecar_start", {
+    ? invoke<TailnetUpResult>("tailnet_sidecar_start", {
         profileId: profile.id,
         authKey: profile.tailnetAuthKey,
         controlUrl: profile.tailnetControlUrl,
         target,
-      }).then(parseAddr)
+        brokerNodeId: profile.brokerNodeId,
+      }).then((result) => {
+        // Fire-and-forget, deliberately not awaited: nothing here needs the
+        // report to land before the sidecar is usable for its actual job.
+        if (result.nodeKey) void reportTailnetKey(profile, result.nodeKey);
+        return parseAddr(result.addr);
+      })
     : Promise.reject(new Error("tailnet mode needs the Tauri sidecar, not available in a plain browser"));
   entries.set(profile.id, { refCount: 1, endpoint });
   return endpoint;

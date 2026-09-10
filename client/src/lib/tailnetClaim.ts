@@ -5,6 +5,12 @@ export interface ClaimedBundle {
   nodeId: string;
   controlUrl: string;
   authKey: string;
+  /** Opaque — where to report the tsnet node key this device earns on its
+   * next join (journal/62 CT-1 follow-up). Optional so a self-hoster's own
+   * claim endpoint that doesn't implement the report step still works;
+   * `importProfile` (profileImport.ts) just leaves `Profile.tailnetReportUrl`
+   * unset when absent. */
+  reportUrl?: string;
 }
 
 /**
@@ -35,5 +41,5 @@ export async function claimTailnetBundle(claimUrl: string, joinCode: string): Pr
   if (!body.nodeId || !body.controlUrl || !body.authKey) {
     throw new Error("claim response missing nodeId/controlUrl/authKey");
   }
-  return { nodeId: body.nodeId, controlUrl: body.controlUrl, authKey: body.authKey };
+  return { nodeId: body.nodeId, controlUrl: body.controlUrl, authKey: body.authKey, reportUrl: body.reportUrl };
 }

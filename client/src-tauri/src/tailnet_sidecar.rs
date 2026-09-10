@@ -68,11 +68,14 @@ fn sanitize_for_path(profile_id: &str) -> String {
     }
 }
 
-/// The name this device shows up as in the tenant's tailnet. Derived from
-/// the profile so two profiles on one machine are distinguishable, and kept
-/// short — a Tailscale hostname is a DNS label.
-fn tailnet_hostname(profile_id: &str) -> String {
-    let cleaned = sanitize_for_path(profile_id);
+/// The name this device shows up as in the tenant's tailnet. `node_id` is
+/// `Profile.brokerNodeId` for a brokered profile — the id
+/// anywh-control-plane's own hostname cross-check expects
+/// (`bindReportedNodeKey`/`reconcile.ts`, journal/50 3.3) — or `Profile.id`
+/// for a manually configured one, which has no broker to reconcile against
+/// anyway. Kept short — a Tailscale hostname is a DNS label.
+fn tailnet_hostname(node_id: &str) -> String {
+    let cleaned = sanitize_for_path(node_id);
     let short: String = cleaned.chars().take(12).collect();
     format!("ultron-{}", short.trim_matches('-'))
 }
@@ -109,6 +112,17 @@ pub async fn tailnet_sidecar_identity(app: tauri::AppHandle) -> Result<String, S
 pub struct SignResult {
     ts: i64,
     sig: String,
+}
+
+/// What a cold `tailnet_sidecar_start` resolves to — an already-running
+/// sidecar's second (and later) caller gets `node_key: None`, since the
+/// report (JS side, tailnetBroker.ts) only needs to happen once per join,
+/// not once per caller.
+#[derive(Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct TailnetUpResult {
+    addr: String,
+    node_key: Option<String>,
 }
 
 /// Signs an HTTP request's method/path/body with the device identity, in
@@ -151,7 +165,11 @@ pub async fn tailnet_sidecar_sign(
 /// stdout confirms it's up — same `LISTENING host:port` line and
 /// `CommandEvent::Stdout` read loop the spike (journal/62 step 4) already
 /// validated, now keeping the child alive instead of killing it right
-/// after the probe.
+/// after the probe. `broker_node_id` (`Profile.brokerNodeId`, absent for a
+/// manually configured profile) is what the tailnet hostname is set from —
+/// see `tailnet_hostname`. A cold start also captures the `NODE_KEY` line
+/// the Go side prints once `tsnet.Up()` returns, so the JS caller
+/// (`tailnetSidecar.ts`) can report it to the control plane.
 #[tauri::command]
 pub async fn tailnet_sidecar_start(
     app: tauri::AppHandle,
@@ -160,13 +178,15 @@ pub async fn tailnet_sidecar_start(
     auth_key: String,
     control_url: String,
     target: String,
-) -> Result<String, String> {
+    broker_node_id: Option<String>,
+) -> Result<TailnetUpResult, String> {
     let mut running = state.0.lock().await;
     if let Some(existing) = running.get(&profile_id) {
-        return Ok(existing.addr.clone());
+        return Ok(TailnetUpResult { addr: existing.addr.clone(), node_key: None });
     }
 
     let state_dir = tailnet_state_dir(&app, &profile_id)?;
+    let hostname_source = broker_node_id.as_deref().unwrap_or(&profile_id);
     let sidecar = app
         .shell()
         .sidecar("tailnet-sidecar")
@@ -184,18 +204,26 @@ pub async fn tailnet_sidecar_start(
             "-state-dir",
             &state_dir.to_string_lossy(),
             "-hostname",
-            &tailnet_hostname(&profile_id),
+            &tailnet_hostname(hostname_source),
         ]);
     let (mut rx, child) = sidecar.spawn().map_err(|e| e.to_string())?;
 
     let mut listening: Option<String> = None;
+    let mut node_key: Option<String> = None;
     while let Some(event) = rx.recv().await {
         match event {
             CommandEvent::Stdout(bytes) => {
                 let line = String::from_utf8_lossy(&bytes);
-                if let Some(addr) = line.trim().strip_prefix("LISTENING ") {
+                let line = line.trim();
+                if let Some(addr) = line.strip_prefix("LISTENING ") {
                     listening = Some(addr.to_string());
                     break;
+                }
+                // Printed before LISTENING (Up() runs before Listen() on the
+                // Go side) — captured, not broken on, so the loop still
+                // exits on LISTENING as before.
+                if let Some(key) = line.strip_prefix("NODE_KEY ") {
+                    node_key = Some(key.to_string());
                 }
             }
             // Everything the Go side has to say goes to stderr (tsnet join
@@ -232,7 +260,7 @@ pub async fn tailnet_sidecar_start(
             }
         }
     });
-    Ok(addr)
+    Ok(TailnetUpResult { addr, node_key })
 }
 
 fn log_sidecar(profile_id: &str, bytes: &[u8]) {

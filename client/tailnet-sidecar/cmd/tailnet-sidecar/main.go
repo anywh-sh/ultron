@@ -143,10 +143,21 @@ func runTailnetUp(args []string) {
 	}
 	defer srv.Close()
 
-	if _, err := srv.Up(context.Background()); err != nil {
+	status, err := srv.Up(context.Background())
+	if err != nil {
 		log.Fatalf("tsnet up: %v", err)
 	}
 	log.Printf("tsnet up, joined %s", *controlURL)
+	if status.Self != nil {
+		// Rust reads this to report the node key Headscale just assigned
+		// back to whatever minted this profile's auth key (anywh-control-plane's
+		// POST /v1/nodes/{id}/tailnet, journal/62 CT-1 follow-up) — this
+		// binary never learns why it matters, only that Rust wants it. A
+		// public key, not a secret: same value GET /api/v1/node already
+		// hands back to any caller, and what edge/internal/proxy's
+		// ReportTailnetKey already sends in production for the sandbox side.
+		fmt.Printf("NODE_KEY %s\n", status.Self.PublicKey.String())
+	}
 
 	ln, err := net.Listen("tcp", *listen)
 	if err != nil {

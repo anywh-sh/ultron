@@ -6,7 +6,7 @@ import type { Profile } from "@/lib/profiles";
 // statically — the `vi.mock` factories run before the top-level bindings.
 const { invokeMock, connectMock, constructedMock } = vi.hoisted(() => ({
   invokeMock: vi.fn(async (cmd: string, _args?: unknown) => {
-    if (cmd === "tailnet_sidecar_start") return "127.0.0.1:12345";
+    if (cmd === "tailnet_sidecar_start") return { addr: "127.0.0.1:12345", nodeKey: "nodekey:abc" };
     return undefined;
   }),
   connectMock: vi.fn(),
@@ -19,6 +19,9 @@ vi.mock("@/lib/tauri", () => ({ inTauri: () => true }));
 // only its resolved target matters here.
 vi.mock("@/lib/tailnetBroker", () => ({
   fetchConnectGrant: vi.fn(async () => ({ endpoint: { host: "100.64.0.1", port: 8765 }, token: "grant-token" })),
+  // tailnetSidecar.ts's own cold-start report call — not what this file is
+  // about (covered by tailnetSidecar.test.ts/tailnetBroker.test.ts).
+  reportTailnetKey: vi.fn(async () => {}),
 }));
 
 // A real RelayClient would open a WebSocket; the connection itself is not

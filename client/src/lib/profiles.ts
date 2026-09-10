@@ -56,6 +56,14 @@ export interface Profile {
    * which is only this local install's UI slug and never leaves the
    * device. */
   brokerNodeId?: string;
+  /** Where to report the tsnet node key this device earns on its next
+   * tailnet join (journal/62 CT-1 follow-up) — an opaque URL, resolved
+   * server-side (`POST /v1/nodes/claim`'s `reportUrl`) for the same reason
+   * `brokerUrl` is opaque: this client never learns the control plane's own
+   * route shape. Set together with `brokerNodeId`/`brokerUrl` by a deep-link
+   * import; absent for a manually configured tailnet profile, which has no
+   * control plane to report to. */
+  tailnetReportUrl?: string;
 }
 
 /** A profile is in tailnet mode iff it can join the tailnet
@@ -193,7 +201,8 @@ function profileFieldsEqual(a: Profile, b: Profile): boolean {
     a.tailnetControlUrl === b.tailnetControlUrl &&
     a.tailnetTarget === b.tailnetTarget &&
     a.brokerUrl === b.brokerUrl &&
-    a.brokerNodeId === b.brokerNodeId
+    a.brokerNodeId === b.brokerNodeId &&
+    a.tailnetReportUrl === b.tailnetReportUrl
   );
 }
 
@@ -261,6 +270,7 @@ export function syncProfilesForHost(host: string, remote: RemoteProfile[]): void
         tailnetTarget: existing?.tailnetTarget,
         brokerUrl: existing?.brokerUrl,
         brokerNodeId: existing?.brokerNodeId,
+        tailnetReportUrl: existing?.tailnetReportUrl,
       };
     }),
   ];

@@ -91,6 +91,7 @@ export async function importProfile(params: ImportedProfileParams): Promise<stri
       tailnetAuthKey: bundle.authKey,
       brokerUrl: params.brokerUrl,
       brokerNodeId: bundle.nodeId,
+      tailnetReportUrl: bundle.reportUrl,
     });
   } else {
     addProfile({

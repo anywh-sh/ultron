@@ -88,6 +88,46 @@ export async function fetchConnectGrant(profile: Profile): Promise<ConnectGrant>
   }
 }
 
+/**
+ * Reports this device's freshly earned tsnet node key to the control plane
+ * (journal/62 CT-1 follow-up, called by `tailnetSidecar.ts` right after a
+ * cold `tailnet_sidecar_start`). The deep-link pairing flow's own
+ * hostname/nodeId cross-check (anywh-control-plane's `bindReportedNodeKey`)
+ * needs this to mark the device paired right away — without it, pairing
+ * still eventually resolves through that control plane's own hourly
+ * reconciliation sweep (it matches unbound devices by hostname, which is
+ * now this profile's own node id), just up to an hour late. A no-op for a
+ * profile with no `tailnetReportUrl` (manually configured, nothing to
+ * report to) — same generic-POST shape as `fetchConnectGrant`, signed with
+ * `tailnet_sidecar_sign` and sent with CT-1's header names. Fire-and-forget
+ * from the caller's side: given the sweep above, there's nothing useful to
+ * do with a failure here beyond logging it.
+ */
+export async function reportTailnetKey(profile: Profile, nodeKey: string): Promise<void> {
+  if (!profile.tailnetReportUrl || !profile.brokerNodeId) return;
+  if (!inTauri()) return;
+
+  try {
+    const url = new URL(profile.tailnetReportUrl);
+    const body = JSON.stringify({ nodeKey });
+    const { ts, sig } = await invoke<SignResult>("tailnet_sidecar_sign", { method: "POST", path: url.pathname, body });
+
+    const response = await fetch(url, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "X-Node-Id": profile.brokerNodeId,
+        "X-Node-Ts": String(ts),
+        "X-Node-Sig": sig,
+      },
+      body,
+    });
+    if (!response.ok) console.error(`tailnet key report failed (${String(response.status)})`);
+  } catch (err) {
+    console.error("tailnet key report failed:", err);
+  }
+}
+
 export interface TailnetJoinPlan {
   target: string;
   /** Only set for a brokered profile — the grant's token, paired with this

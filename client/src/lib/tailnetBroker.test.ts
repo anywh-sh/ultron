@@ -7,7 +7,7 @@ const { invokeMock } = vi.hoisted(() => ({
 vi.mock("@tauri-apps/api/core", () => ({ invoke: invokeMock }));
 vi.mock("@/lib/tauri", () => ({ inTauri: () => true }));
 
-import { fetchConnectGrant, resolveTailnetTarget } from "@/lib/tailnetBroker";
+import { fetchConnectGrant, reportTailnetKey, resolveTailnetTarget } from "@/lib/tailnetBroker";
 
 const profile: Profile = {
   id: "p1",
@@ -88,6 +88,45 @@ describe("fetchConnectGrant", () => {
     const assertion = expect(grant).rejects.toThrow(/403/);
     await vi.runAllTimersAsync();
     await assertion;
+  });
+});
+
+describe("reportTailnetKey", () => {
+  const reportableProfile: Profile = { ...profile, tailnetReportUrl: "https://api.test/v1/nodes/node-1/tailnet" };
+
+  it("signs and posts the node key with CT-1's generic headers", async () => {
+    const fetchMock = vi.fn().mockResolvedValue(new Response(null, { status: 200 }));
+    vi.stubGlobal("fetch", fetchMock);
+
+    await reportTailnetKey(reportableProfile, "nodekey:abc");
+
+    expect(invokeMock).toHaveBeenCalledWith("tailnet_sidecar_sign", {
+      method: "POST",
+      path: "/v1/nodes/node-1/tailnet",
+      body: JSON.stringify({ nodeKey: "nodekey:abc" }),
+    });
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+    const [url, init] = fetchMock.mock.calls[0] as [URL, RequestInit];
+    expect(url.toString()).toBe("https://api.test/v1/nodes/node-1/tailnet");
+    expect(init.body).toBe(JSON.stringify({ nodeKey: "nodekey:abc" }));
+    const headers = init.headers as Record<string, string>;
+    expect(headers["X-Node-Id"]).toBe("node-1");
+    expect(headers["X-Node-Sig"]).toBeTruthy();
+  });
+
+  it("is a no-op for a profile with no tailnetReportUrl (manually configured, nothing to report to)", async () => {
+    const fetchMock = vi.fn();
+    vi.stubGlobal("fetch", fetchMock);
+
+    await reportTailnetKey(staticProfile, "nodekey:abc");
+
+    expect(fetchMock).not.toHaveBeenCalled();
+    expect(invokeMock).not.toHaveBeenCalled();
+  });
+
+  it("swallows a failed report instead of throwing — the hourly reconciliation sweep is the fallback", async () => {
+    vi.stubGlobal("fetch", vi.fn().mockRejectedValue(new Error("network down")));
+    await expect(reportTailnetKey(reportableProfile, "nodekey:abc")).resolves.toBeUndefined();
   });
 });
 
