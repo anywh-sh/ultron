@@ -7,7 +7,7 @@ const { invokeMock } = vi.hoisted(() => ({
 vi.mock("@tauri-apps/api/core", () => ({ invoke: invokeMock }));
 vi.mock("@/lib/tauri", () => ({ inTauri: () => true }));
 
-import { fetchConnectGrant } from "@/lib/tailnetBroker";
+import { fetchConnectGrant, resolveTailnetTarget } from "@/lib/tailnetBroker";
 
 const profile: Profile = {
   id: "p1",
@@ -18,6 +18,17 @@ const profile: Profile = {
   tailnetControlUrl: "https://headscale.test",
   brokerUrl: "https://api.test/v1/connect/w1",
   brokerNodeId: "node-1",
+};
+
+const staticProfile: Profile = {
+  id: "p2",
+  label: "Manual",
+  host: "127.0.0.1",
+  relayPort: 0,
+  tailnetAuthKey: "key",
+  tailnetControlUrl: "https://headscale.test",
+  tailnetTarget: "100.64.0.9:9000",
+  connectToken: "static-token",
 };
 
 function resuming(): Response {
@@ -77,5 +88,27 @@ describe("fetchConnectGrant", () => {
     const assertion = expect(grant).rejects.toThrow(/403/);
     await vi.runAllTimersAsync();
     await assertion;
+  });
+});
+
+describe("resolveTailnetTarget", () => {
+  it("resolves a brokered profile's target (and token) from a fresh grant", async () => {
+    vi.stubGlobal("fetch", vi.fn().mockResolvedValue(granted()));
+    await expect(resolveTailnetTarget(profile)).resolves.toEqual({ target: "100.64.0.1:8443", token: "tok" });
+  });
+
+  it("resolves a static profile's target/token straight from its own fields, no network call", async () => {
+    const fetchMock = vi.fn();
+    vi.stubGlobal("fetch", fetchMock);
+    await expect(resolveTailnetTarget(staticProfile)).resolves.toEqual({
+      target: "100.64.0.9:9000",
+      token: "static-token",
+    });
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+
+  it("throws for a profile with neither a broker nor a static target", async () => {
+    const misconfigured: Profile = { ...staticProfile, tailnetTarget: undefined };
+    await expect(resolveTailnetTarget(misconfigured)).rejects.toThrow(/no target to dial/);
   });
 });

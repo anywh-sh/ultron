@@ -1,5 +1,6 @@
 import { useCallback, useLayoutEffect, useMemo, useRef, useState, useSyncExternalStore } from "react";
 import { fetchThemes } from "@/lib/relayClient";
+import { resolveConnection } from "@/lib/connectionResolver";
 import { useForegroundSync } from "@/hooks/useForegroundSync";
 import type { Profile } from "@/lib/profiles";
 import type { Theme } from "@/lib/theme";
@@ -11,22 +12,24 @@ import {
   selectableThemes,
   setThemesForHost,
   subscribeThemes,
+  themeStoreKey,
 } from "@/lib/themes";
 
-/** Reactive view of one host's catalog: the built-ins plus whatever that
- * host has registered.
+/** Reactive view of one profile's catalog: the built-ins plus whatever its
+ * registry (`themeStoreKey`) has registered.
  *
  * The store snapshot is a dependency, not just a subscription: the selectors
  * read the module-level store rather than taking it as an argument, so a memo
- * keyed only on `host` would keep handing back the previous list after a
- * theme is added — the component re-renders and shows stale content. */
-export function useThemes(host: string): { all: Theme[]; custom: Theme[] } {
+ * keyed only on the store key would keep handing back the previous list
+ * after a theme is added — the component re-renders and shows stale content. */
+export function useThemes(profile: Profile): { all: Theme[]; custom: Theme[] } {
   const store = useSyncExternalStore(subscribeThemes, getThemeStore);
-  return useMemo(() => ({ all: selectableThemes(host), custom: customThemesForHost(host) }), [store, host]);
+  const key = themeStoreKey(profile);
+  return useMemo(() => ({ all: selectableThemes(key), custom: customThemesForHost(key) }), [store, key]);
 }
 
 /**
- * Mirrors `host`'s `GET /control/themes` into the local catalog on the
+ * Mirrors `profile`'s `GET /control/themes` into the local catalog on the
  * triggers `useForegroundSync` provides — deliberately the same triggers and
  * the same failure posture as `useProfileSync`: a failed fetch only reports
  * `supported: false` and never touches what's already stored, so an
@@ -39,21 +42,35 @@ export function useThemes(host: string): { all: Theme[]; custom: Theme[] } {
  */
 export function useThemeSync(profile: Profile): { supported: boolean } {
   const [supported, setSupported] = useState(true);
-  const currentHost = useRef(profile.host);
-  currentHost.current = profile.host;
+  // Guards against a response from the previous profile landing after a
+  // switch — `profile.id` (not `host`) is what actually tells two profiles
+  // apart, since every tailnet profile shares the same placeholder host.
+  const currentProfileId = useRef(profile.id);
+  currentProfileId.current = profile.id;
 
   const sync = useCallback(() => {
-    const host = profile.host;
-    fetchThemes(host, profile.relayPort)
+    const profileId = profile.id;
+    const key = themeStoreKey(profile);
+    resolveConnection(profile)
+      .then(({ host, port, token }) => fetchThemes(host, port, token))
       .then((themes) => {
-        if (currentHost.current !== host) return;
-        setThemesForHost(host, themes);
+        if (currentProfileId.current !== profileId) return;
+        setThemesForHost(key, themes);
         setSupported(true);
       })
       .catch(() => {
-        if (currentHost.current === host) setSupported(false);
+        if (currentProfileId.current === profileId) setSupported(false);
       });
-  }, [profile.host, profile.relayPort]);
+  }, [
+    profile.id,
+    profile.host,
+    profile.relayPort,
+    profile.tailnetAuthKey,
+    profile.tailnetControlUrl,
+    profile.tailnetTarget,
+    profile.brokerUrl,
+    profile.brokerNodeId,
+  ]);
 
   useForegroundSync(sync);
 

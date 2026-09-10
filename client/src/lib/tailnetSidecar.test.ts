@@ -26,6 +26,28 @@ afterEach(() => {
 });
 
 describe("tailnetSidecar", () => {
+  it("peeks the endpoint of an already-acquired sidecar without touching its ref-count", async () => {
+    const { acquireTailnetSidecar, releaseTailnetSidecar, peekTailnetSidecar } = await import("@/lib/tailnetSidecar");
+    const id = "peek-existing";
+
+    const acquired = acquireTailnetSidecar(profile(id), "target:1");
+    const peeked = peekTailnetSidecar(id);
+    expect(peeked).toBeDefined();
+    expect(await peeked).toEqual(await acquired);
+
+    // A peek must not have counted as a reference: the one real
+    // `acquireTailnetSidecar` call above is still the only owner, so a
+    // single release tears it down.
+    releaseTailnetSidecar(id);
+    await vi.runAllTimersAsync();
+    expect(invokeMock).toHaveBeenCalledWith("tailnet_sidecar_stop", { profileId: id });
+  });
+
+  it("peeks nothing for a profile nobody has acquired", async () => {
+    const { peekTailnetSidecar } = await import("@/lib/tailnetSidecar");
+    expect(peekTailnetSidecar("never-acquired")).toBeUndefined();
+  });
+
   it("cancels the deferred teardown when the same profile is reacquired before it fires", async () => {
     const { acquireTailnetSidecar, releaseTailnetSidecar } = await import("@/lib/tailnetSidecar");
     const id = "reacquire-before-timeout";

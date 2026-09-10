@@ -87,3 +87,34 @@ export async function fetchConnectGrant(profile: Profile): Promise<ConnectGrant>
     return { endpoint: body.endpoint, token: body.token };
   }
 }
+
+export interface TailnetJoinPlan {
+  target: string;
+  /** Only set for a brokered profile — the grant's token, paired with this
+   * same call, for a caller that's about to spend it on the connection this
+   * join is for (never for a caller that only cares about the target, e.g.
+   * `useTailnetSidecarOwner`, which has no connection of its own to open). */
+  token?: string;
+}
+
+/**
+ * Resolves what a tailnet profile's sidecar should dial to actually reach
+ * the relay — a fresh broker grant's endpoint for a brokered profile
+ * (journal/62 F3: the sandbox's tailnet address can move after a resume, so
+ * this is never cached), or the static `tailnetTarget`/`connectToken` pair
+ * for a profile configured by hand with no broker. Only meaningful for
+ * starting a *cold* join: an already-running sidecar keeps forwarding to
+ * whatever target its first caller resolved (see `acquireTailnetSidecar`'s
+ * doc comment) — a caller reusing that sidecar still needs its own fresh
+ * token, separately, for whichever connection it's about to open.
+ * Precondition: `isTailnetProfile(profile)` — this throws for a profile
+ * with neither a broker nor a static target instead of returning one.
+ */
+export async function resolveTailnetTarget(profile: Profile): Promise<TailnetJoinPlan> {
+  if (!isBrokeredProfile(profile)) {
+    if (!profile.tailnetTarget) throw new Error("tailnet profile has no target to dial (no tailnetTarget and no broker)");
+    return { target: profile.tailnetTarget, token: profile.connectToken };
+  }
+  const grant = await fetchConnectGrant(profile);
+  return { target: `${grant.endpoint.host}:${String(grant.endpoint.port)}`, token: grant.token };
+}

@@ -64,6 +64,23 @@ export function acquireTailnetSidecar(profile: Profile, target: string): Promise
   return endpoint;
 }
 
+/** Reads the endpoint of a sidecar some owner already has running for
+ * `profileId`, without acquiring a reference of its own — for a consumer
+ * that just needs to dial the tunnel for one HTTP/WS call (journal/62,
+ * "todo tráfego que não é o WebSocket do chat") and relies on a longer-lived
+ * owner (`useTailnetSidecarOwner` at the App level, or a chat tab's
+ * `useRelayClient`) to already be holding the join open. Acquiring here
+ * too would double-count correctly (the ref-count already supports several
+ * owners), but releasing right after — the only sane thing a one-off caller
+ * could do — would tear the sidecar down the instant the real owner's own
+ * reference briefly bounced to zero between renders, refiring the whole
+ * `tsnet` join. `undefined` when nobody owns this profile's sidecar yet
+ * (e.g. a background tailnet profile queried without ever being opened) —
+ * the caller decides whether to fall back to its own acquire/release. */
+export function peekTailnetSidecar(profileId: string): Promise<TailnetEndpoint> | undefined {
+  return entries.get(profileId)?.endpoint;
+}
+
 /** Releases one reference acquired via `acquireTailnetSidecar` — once the
  * last tab on a profile releases it, the sidecar is actually stopped. Safe
  * to call for a profile that was never acquired (a no-op) — e.g. cleanup

@@ -1,5 +1,6 @@
 import { useCallback, useRef, useState } from "react";
 import { fetchControlProfiles } from "@/lib/relayClient";
+import { resolveConnection } from "@/lib/connectionResolver";
 import { useForegroundSync } from "@/hooks/useForegroundSync";
 import { syncProfilesForHost, type Profile } from "@/lib/profiles";
 
@@ -32,24 +33,38 @@ interface ProfileSyncResult {
  */
 export function useProfileSync(profile: Profile): ProfileSyncResult {
   const [supported, setSupported] = useState(true);
-  // Guards against a response from the previous host landing after a
-  // profile switch — the effect identity no longer changes per fetch now
-  // that the triggers live outside it.
-  const currentHost = useRef(profile.host);
-  currentHost.current = profile.host;
+  // Guards against a response from the previous profile landing after a
+  // switch — `profile.id` (not `host`) is what actually tells two profiles
+  // apart, since every tailnet profile shares the same placeholder host.
+  const currentProfileId = useRef(profile.id);
+  currentProfileId.current = profile.id;
 
   const sync = useCallback(() => {
-    const host = profile.host;
-    fetchControlProfiles(host, profile.relayPort)
+    const profileId = profile.id;
+    const registryHost = profile.host;
+    resolveConnection(profile)
+      .then(({ host, port, token }) => fetchControlProfiles(host, port, token))
       .then((remote) => {
-        if (currentHost.current !== host) return;
-        syncProfilesForHost(host, remote);
+        if (currentProfileId.current !== profileId) return;
+        // `syncProfilesForHost` keys off the profile's own advertised host
+        // (the tailnet placeholder for a tailnet profile, see its own doc
+        // comment) — never the sidecar's resolved local address above.
+        syncProfilesForHost(registryHost, remote);
         setSupported(true);
       })
       .catch(() => {
-        if (currentHost.current === host) setSupported(false);
+        if (currentProfileId.current === profileId) setSupported(false);
       });
-  }, [profile.host, profile.relayPort]);
+  }, [
+    profile.id,
+    profile.host,
+    profile.relayPort,
+    profile.tailnetAuthKey,
+    profile.tailnetControlUrl,
+    profile.tailnetTarget,
+    profile.brokerUrl,
+    profile.brokerNodeId,
+  ]);
 
   useForegroundSync(sync);
 

@@ -18,6 +18,7 @@ import type {
 } from "@/lib/relay-types";
 import type { Theme, ThemeValidationError } from "@/lib/theme";
 import { recordAvailableModels } from "@/lib/modelCatalog";
+import { authHeaders } from "@/lib/connectionResolver";
 
 export type {
   BackgroundJobSummary,
@@ -43,18 +44,18 @@ function isRelayMessage(value: unknown): value is RelayMessage {
   return typeof value === "object" && value !== null && "type" in value;
 }
 
-export async function fetchSessions(host: string, port: number): Promise<SessionSummary[]> {
-  const response = await fetch(`http://${host}:${port}/sessions`);
+export async function fetchSessions(host: string, port: number, token?: string): Promise<SessionSummary[]> {
+  const response = await fetch(`http://${host}:${port}/sessions`, { headers: authHeaders(token) });
   const body = (await response.json()) as { sessions?: SessionSummary[] };
   return body.sessions ?? [];
 }
 
 /** Manual rename (sidebar dialog) — works even for a session with no
  * tab open right now (the relay only needs the id, not a live WS connection). */
-export async function renameSession(host: string, port: number, id: string, title: string): Promise<void> {
+export async function renameSession(host: string, port: number, id: string, title: string, token?: string): Promise<void> {
   const response = await fetch(`http://${host}:${port}/sessions/rename`, {
     method: "POST",
-    headers: { "Content-Type": "application/json" },
+    headers: { "Content-Type": "application/json", ...authHeaders(token) },
     body: JSON.stringify({ id, title }),
   });
   if (!response.ok) {
@@ -66,10 +67,10 @@ export async function renameSession(host: string, port: number, id: string, titl
 /** Only removes the session from ultron's control (sidebar, tabs) — doesn't delete the
  * transcript that Claude Code already keeps on its own. Works even for a
  * session with no tab open right now. */
-export async function deleteSession(host: string, port: number, id: string): Promise<void> {
+export async function deleteSession(host: string, port: number, id: string, token?: string): Promise<void> {
   const response = await fetch(`http://${host}:${port}/sessions/delete`, {
     method: "POST",
-    headers: { "Content-Type": "application/json" },
+    headers: { "Content-Type": "application/json", ...authHeaders(token) },
     body: JSON.stringify({ id }),
   });
   if (!response.ok) {
@@ -83,10 +84,10 @@ export async function deleteSession(host: string, port: number, id: string): Pro
  * terminalSession.ts for why this is a separate HTTP call instead
  * of a message on the terminal's own WS (the WS might already be closed
  * at this point, e.g. closing a tab that isn't the currently active one). */
-export async function closeTerminal(host: string, port: number, session: string, term: string): Promise<void> {
+export async function closeTerminal(host: string, port: number, session: string, term: string, token?: string): Promise<void> {
   const response = await fetch(`http://${host}:${port}/terminals/close`, {
     method: "POST",
-    headers: { "Content-Type": "application/json" },
+    headers: { "Content-Type": "application/json", ...authHeaders(token) },
     body: JSON.stringify({ session, term }),
   });
   if (!response.ok) {
@@ -101,8 +102,8 @@ export async function closeTerminal(host: string, port: number, session: string,
  * 404s). Callers that need to tell those two apart should catch instead of
  * relying on the returned length; see `useProfileSync`, which is the only
  * caller and does exactly that. */
-export async function fetchControlProfiles(host: string, port: number): Promise<RemoteProfile[]> {
-  const response = await fetch(`http://${host}:${port}/control/profiles`);
+export async function fetchControlProfiles(host: string, port: number, token?: string): Promise<RemoteProfile[]> {
+  const response = await fetch(`http://${host}:${port}/control/profiles`, { headers: authHeaders(token) });
   if (!response.ok) {
     throw new Error(`failed to list profiles (${String(response.status)})`);
   }
@@ -156,10 +157,11 @@ export async function updateProfileMeta(
   port: number,
   id: string,
   patch: { label?: string; colorIndex?: number; themeId?: string | null },
+  token?: string,
 ): Promise<ProfileMetaUpdate> {
   const response = await fetch(`http://${host}:${port}/control/profiles/${encodeURIComponent(id)}`, {
     method: "PATCH",
-    headers: { "Content-Type": "application/json" },
+    headers: { "Content-Type": "application/json", ...authHeaders(token) },
     body: JSON.stringify(patch),
   });
   const body = (await response.json().catch(() => ({}))) as ProfileMetaUpdate & { error?: string };
@@ -174,8 +176,8 @@ export async function updateProfileMeta(
  * (relay/src/themeRegistry.ts). Throws on an older relay that doesn't have
  * the route, which is how `useThemeSync` tells "no custom themes" apart
  * from "this host can't store them". */
-export async function fetchThemes(host: string, port: number): Promise<Theme[]> {
-  const response = await fetch(`http://${host}:${port}/control/themes`);
+export async function fetchThemes(host: string, port: number, token?: string): Promise<Theme[]> {
+  const response = await fetch(`http://${host}:${port}/control/themes`, { headers: authHeaders(token) });
   if (!response.ok) {
     throw new Error(`failed to list themes (${String(response.status)})`);
   }
@@ -187,10 +189,10 @@ export async function fetchThemes(host: string, port: number): Promise<Theme[]> 
  * broken file, answers with one error per field — surfaced here as
  * `ThemeSaveError.errors` so the import UI can point at the offending line
  * instead of showing one flat message. */
-export async function saveTheme(host: string, port: number, theme: Theme): Promise<Theme> {
+export async function saveTheme(host: string, port: number, theme: Theme, token?: string): Promise<Theme> {
   const response = await fetch(`http://${host}:${port}/control/themes/${encodeURIComponent(theme.id)}`, {
     method: "PUT",
-    headers: { "Content-Type": "application/json" },
+    headers: { "Content-Type": "application/json", ...authHeaders(token) },
     body: JSON.stringify(theme),
   });
   const body = (await response.json().catch(() => ({}))) as Theme & {

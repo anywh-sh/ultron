@@ -25,6 +25,7 @@ import {
 import { getKnownModels, labelForModel } from "@/lib/modelCatalog";
 import { addProfile, PROFILE_COLOR_COUNT, profileColorClassForIndex, removeProfile, type Profile } from "@/lib/profiles";
 import { deleteProfile, updateProfileMeta } from "@/lib/relayClient";
+import { resolveConnection } from "@/lib/connectionResolver";
 import { useProfiles } from "@/hooks/useProfiles";
 import { cn } from "@/lib/utils";
 
@@ -144,7 +145,8 @@ function ProfileIdentityRow({ profile, effectiveColorIndex }: { profile: Profile
   async function applyPatch(patch: { label?: string; colorIndex?: number }): Promise<void> {
     setError(null);
     try {
-      const updated = await updateProfileMeta(profile.host, profile.relayPort, profile.id, patch);
+      const { host, port, token } = await resolveConnection(profile);
+      const updated = await updateProfileMeta(host, port, profile.id, patch, token);
       addProfile({ ...profile, label: updated.label, colorIndex: updated.colorIndex });
     } catch (err) {
       setError(err instanceof Error ? err.message : String(err));

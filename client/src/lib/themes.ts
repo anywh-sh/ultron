@@ -1,6 +1,17 @@
 import { BUILTIN_THEMES, DEFAULT_THEME } from "@/lib/builtinThemes";
-import type { Profile } from "@/lib/profiles";
+import { isTailnetProfile, type Profile } from "@/lib/profiles";
 import type { Theme } from "@/lib/theme";
+
+/** The key a profile's theme registry is stored/looked up under. Normally
+ * `profile.host` — a registry belongs to the machine that stores it, and two
+ * profiles on the same real host share the same file. A tailnet profile
+ * (journal/62 F4) breaks that: every one of them has `host` set to the same
+ * `127.0.0.1` sidecar placeholder (`profileImport.ts`), so keying by host
+ * would make two unrelated tailnet profiles' custom themes collide — `id` is
+ * the only field that actually tells them apart. */
+export function themeStoreKey(profile: Profile): string {
+  return isTailnetProfile(profile) ? profile.id : profile.host;
+}
 
 /**
  * Local mirror of each host's theme registry, plus the built-ins.
@@ -55,7 +66,9 @@ export function subscribeThemes(listener: () => void): () => void {
 
 /** Replaces what this device knows about one host's registry — the write
  * side of `useThemeSync`. Never called on a failed fetch: an unreachable
- * host must not look like a host with no themes. */
+ * host must not look like a host with no themes. `host` here is really a
+ * `themeStoreKey` (a profile id for a tailnet profile) — kept as the
+ * parameter name since a direct profile's key genuinely is its host. */
 export function setThemesForHost(host: string, themes: Theme[]): void {
   const current = store.byHost[host];
   if (current && current.length === themes.length && current.every((theme, i) => theme.id === themes[i].id && theme.updatedAt === themes[i].updatedAt)) {
@@ -88,13 +101,17 @@ export interface ProfileThemeResolution {
 
 export function resolveProfileTheme(profile: Profile): ProfileThemeResolution {
   if (!profile.themeId) return { theme: DEFAULT_THEME, missing: false };
-  const found = selectableThemes(profile.host).find((theme) => theme.id === profile.themeId);
+  const found = selectableThemes(themeStoreKey(profile)).find((theme) => theme.id === profile.themeId);
   return found ? { theme: found, missing: false } : { theme: DEFAULT_THEME, missing: true };
 }
 
 /** Profiles that would lose their theme if `themeId` were deleted from
- * `host` — used to say how many before confirming, without asking the relay
- * (the profile list this device already has carries `themeId`). */
-export function profilesUsingTheme(profiles: Profile[], host: string, themeId: string): Profile[] {
-  return profiles.filter((profile) => profile.host === host && profile.themeId === themeId);
+ * `scopedProfile`'s registry — used to say how many before confirming,
+ * without asking the relay (the profile list this device already has
+ * carries `themeId`). Compares by `themeStoreKey`, not `host` directly, so
+ * two tailnet profiles sharing the placeholder host never get counted as
+ * using each other's theme. */
+export function profilesUsingTheme(profiles: Profile[], scopedProfile: Profile, themeId: string): Profile[] {
+  const key = themeStoreKey(scopedProfile);
+  return profiles.filter((profile) => themeStoreKey(profile) === key && profile.themeId === themeId);
 }

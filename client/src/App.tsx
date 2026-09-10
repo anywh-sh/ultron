@@ -28,8 +28,10 @@ import { useNotificationClick } from "@/hooks/useNotificationClick";
 import { useProfileImport } from "@/hooks/useProfileImport";
 import { useActiveTheme, useThemeSync } from "@/hooks/useThemes";
 import { useProfileSync } from "@/hooks/useProfileSync";
+import { useTailnetSidecarOwner } from "@/hooks/useTailnetSidecarOwner";
 import { findProfile, getProfiles, type Profile } from "@/lib/profiles";
 import { resolveChatPath } from "@/lib/filesClient";
+import { resolveConnection } from "@/lib/connectionResolver";
 import { ensureNotificationPermission, notifyTurnComplete } from "@/lib/notifications";
 import { deleteSession, renameSession } from "@/lib/relayClient";
 import { isIOS } from "@/lib/platform";
@@ -60,6 +62,11 @@ export default function App() {
   // never renders at all — so collapsing the sidebar turned it off and the
   // phone never ran it.
   const { supported: profilesSupported } = useProfileSync(activeProfile);
+  // Holds the active profile's tailnet-sidecar reference for as long as it's
+  // selected — the sidebar/sync hooks above run against it before any chat
+  // tab (the only other thing that used to acquire one) ever mounts for it
+  // (journal/62, "todo tráfego que não é o WebSocket do chat").
+  useTailnetSidecarOwner(activeProfile);
 
   // The painted theme tracks its own profile, separate from `activeProfile`:
   // `activeProfile` also moves when a tab is opened for a session that
@@ -72,6 +79,11 @@ export default function App() {
   const themeProfile = findProfile(themeProfileId) ?? activeProfile;
   useThemeSync(themeProfile);
   useActiveTheme(themeProfile);
+  // Usually the same profile as `activeProfile` above (and then a no-op
+  // extra reference on the same sidecar entry) — only diverges briefly when
+  // a tab from another profile gets focus (search/notification click) while
+  // the sidebar's own selection hasn't moved yet.
+  useTailnetSidecarOwner(themeProfile);
 
   const [drawerOpen, setDrawerOpen] = useState(false);
   const [searchOpen, setSearchOpen] = useState(false);
@@ -215,7 +227,8 @@ export default function App() {
   function handleRenameSession(profileId: string, id: string, title: string): void {
     const profile = findProfile(profileId);
     if (!profile) return;
-    renameSession(profile.host, profile.relayPort, id, title)
+    resolveConnection(profile)
+      .then(({ host, port, token }) => renameSession(host, port, id, title, token))
       .then(() => {
         tabsState.setTabTitle(id, title);
         if (profileId === activeProfile.id) upsertTitle(id, title);
@@ -234,7 +247,8 @@ export default function App() {
   function handleDeleteSession(profileId: string, id: string): void {
     const profile = findProfile(profileId);
     if (!profile) return;
-    deleteSession(profile.host, profile.relayPort, id)
+    resolveConnection(profile)
+      .then(({ host, port, token }) => deleteSession(host, port, id, token))
       .then(() => {
         tabsState.closeTab(id);
         sessionDock.removeSession(id);
@@ -592,7 +606,13 @@ export default function App() {
 
   if (isIOS()) {
     return (
-      <div className="flex h-screen w-screen flex-col overflow-hidden bg-background text-foreground">
+      // `h-full`, not `h-screen`/`h-dvh` — both are independent viewport-height
+      // calculations that can disagree with the `body { position: fixed; inset: 0 }`
+      // hack in index.css (already pinned to the real visible viewport). `h-full`
+      // instead inherits that exact box via `#app { height: 100% }` (found live
+      // testing `ChoiceCard` clipping/leaving a gap under the composer on iOS,
+      // journal/46 follow-up).
+      <div className="flex h-full w-screen flex-col overflow-hidden bg-background text-foreground">
         <SessionSearch open={searchOpen} onOpenChange={setSearchOpen} onSelectSession={handleSearchSelectSession} />
         <MobileShell
           activeProfile={activeProfile}

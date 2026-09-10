@@ -5,7 +5,8 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/u
 import type { Profile } from "@/lib/profiles";
 import { parseTheme, type Theme, type ThemeValidationError } from "@/lib/theme";
 import { saveTheme, ThemeSaveError } from "@/lib/relayClient";
-import { setThemesForHost, customThemesForHost } from "@/lib/themes";
+import { resolveConnection } from "@/lib/connectionResolver";
+import { setThemesForHost, customThemesForHost, themeStoreKey } from "@/lib/themes";
 
 /** Mirrors the relay's own cap (MAX_JSON_BODY_BYTES) so an oversized file
  * gets a readable message here instead of a dropped connection there. */
@@ -105,12 +106,14 @@ export function ThemeImportDialog({
 
     setSaving(true);
     try {
-      const saved = await saveTheme(profile.host, profile.relayPort, result.theme);
+      const { host, port, token } = await resolveConnection(profile);
+      const saved = await saveTheme(host, port, result.theme, token);
       // Optimistic: the next `useThemeSync` pass would pick this up anyway,
       // but that's on foreground/mount, and the theme has to be selectable
       // the moment the dialog closes.
-      const current = customThemesForHost(profile.host).filter((theme) => theme.id !== saved.id);
-      setThemesForHost(profile.host, [...current, saved]);
+      const key = themeStoreKey(profile);
+      const current = customThemesForHost(key).filter((theme) => theme.id !== saved.id);
+      setThemesForHost(key, [...current, saved]);
       onImported(saved);
       onOpenChange(false);
     } catch (error) {

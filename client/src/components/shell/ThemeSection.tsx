@@ -18,7 +18,7 @@ import { addProfile, type Profile } from "@/lib/profiles";
 import { deleteTheme, updateProfileMeta } from "@/lib/relayClient";
 import type { Theme } from "@/lib/theme";
 import { resolveTheme } from "@/lib/themeApply";
-import { customThemesForHost, profilesUsingTheme, resolveProfileTheme, setThemesForHost } from "@/lib/themes";
+import { customThemesForHost, profilesUsingTheme, resolveProfileTheme, setThemesForHost, themeStoreKey } from "@/lib/themes";
 import { cn } from "@/lib/utils";
 
 /**
@@ -139,7 +139,7 @@ export function ThemeSection({
   // the one known to be reachable.
   const registry = activeProfile.host === scopedProfile.host ? activeProfile : scopedProfile;
   const { supported } = useThemeSync(registry);
-  const { all } = useThemes(scopedProfile.host);
+  const { all } = useThemes(scopedProfile);
   const { theme: current, missing } = resolveProfileTheme(scopedProfile);
 
   const [busy, setBusy] = useState(false);
@@ -188,10 +188,8 @@ export function ThemeSection({
     setError(null);
     try {
       await deleteTheme(registry.host, registry.relayPort, theme.id);
-      setThemesForHost(
-        scopedProfile.host,
-        customThemesForHost(scopedProfile.host).filter((entry) => entry.id !== theme.id),
-      );
+      const key = themeStoreKey(scopedProfile);
+      setThemesForHost(key, customThemesForHost(key).filter((entry) => entry.id !== theme.id));
       setPendingDelete(null);
     } catch (err) {
       setError(err instanceof Error ? err.message : String(err));
@@ -200,7 +198,7 @@ export function ThemeSection({
     }
   }
 
-  const usedBy = pendingDelete ? profilesUsingTheme(allProfiles, scopedProfile.host, pendingDelete.id) : [];
+  const usedBy = pendingDelete ? profilesUsingTheme(allProfiles, scopedProfile, pendingDelete.id) : [];
 
   return (
     <div className="flex flex-col gap-3">
