@@ -52,6 +52,16 @@ function SortableTab({ tab, onClose, onRename, onDelete }: SortableTabProps) {
       ref={setNodeRef}
       {...listeners}
       onContextMenu={menu.onContextMenu}
+      // Chrome-style middle-click-to-close, anywhere on the tab (not just
+      // the X). `onMouseDown` (not `onClick`, which never fires for the
+      // middle button) prevents the browser's autoscroll-mode cursor —
+      // that starts on mousedown, so `onAuxClick` alone would still flash it.
+      onMouseDown={(event) => {
+        if (event.button === 1) event.preventDefault();
+      }}
+      onAuxClick={(event) => {
+        if (event.button === 1) onClose(tab.id);
+      }}
       style={{
         transform: CSS.Transform.toString(transform),
         transition,
