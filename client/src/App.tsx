@@ -58,13 +58,20 @@ export default function App() {
   // the whole life of the app in both layouts. The profile sync used to sit
   // inside ProfileSwitcher, which the collapsible sidebar unmounts and iOS
   // never renders at all — so collapsing the sidebar turned it off and the
-  // phone never ran it. The theme is app-wide for the same reason: which
-  // theme applies is a property of the profile in front of you
-  // (`Profile.themeId`, mirrored from the host registry), and the catalog it
-  // resolves against is that profile's host.
+  // phone never ran it.
   const { supported: profilesSupported } = useProfileSync(activeProfile);
-  useThemeSync(activeProfile);
-  useActiveTheme(activeProfile);
+
+  // The painted theme tracks its own profile, separate from `activeProfile`:
+  // `activeProfile` also moves when a tab is opened for a session that
+  // belongs to another profile (search, notification click) — that's meant
+  // to update the sidebar/session list, not repaint the whole app out from
+  // under whatever the user is reading. Only an explicit pick in the
+  // bottom-left ProfileSwitcher (`handleProfileChange`) should change the
+  // theme.
+  const [themeProfileId, setThemeProfileId] = useState(activeProfile.id);
+  const themeProfile = findProfile(themeProfileId) ?? activeProfile;
+  useThemeSync(themeProfile);
+  useActiveTheme(themeProfile);
 
   const [drawerOpen, setDrawerOpen] = useState(false);
   const [searchOpen, setSearchOpen] = useState(false);
@@ -153,6 +160,7 @@ export default function App() {
 
   function handleProfileChange(profileId: string): void {
     setActiveProfileId(profileId);
+    setThemeProfileId(profileId);
     setDrawerOpen(false);
   }
 
