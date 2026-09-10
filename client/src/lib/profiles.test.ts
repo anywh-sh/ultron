@@ -36,6 +36,39 @@ describe("syncProfilesForHost", () => {
     expect(ids).toEqual(["pessoal"]);
   });
 
+  it("keeps a tailnet profile whose loopback host is only the sidecar placeholder", () => {
+    // journal/62 F4: `importProfile` stores `127.0.0.1:0` as a placeholder
+    // for a brokered tailnet profile — `useRelayClient` swaps it for the
+    // sidecar's real local address before dialing anything. That host looks
+    // exactly like the `ensureSelfRegistered` ghost the test above drops,
+    // but this one is a live profile the user just paired, and losing it
+    // means losing its auth key/broker config for good (neither is
+    // recoverable from any host's `/control/profiles`).
+    const tailnet: Profile = {
+      id: "9f1c-imported",
+      label: "Sandbox",
+      host: "127.0.0.1",
+      relayPort: 0,
+      tailnetAuthKey: "key",
+      tailnetControlUrl: "https://headscale.test",
+      brokerUrl: "https://api.test/v1/connect/w1",
+      brokerNodeId: "node-1",
+    };
+    setProfiles([tailnet]);
+
+    syncProfilesForHost("100.64.0.1", [remote({ id: "pessoal", host: "100.64.0.1" })]);
+
+    const ids = getProfiles().map((p) => p.id).sort();
+    expect(ids).toEqual(["9f1c-imported", "pessoal"]);
+
+    // Same for a sync against a loopback host (a relay running on this very
+    // machine): the placeholder shares that host without being one of its
+    // profiles at all.
+    setProfiles([tailnet]);
+    syncProfilesForHost("127.0.0.1", [remote({ id: "default", host: "127.0.0.1" })]);
+    expect(getProfiles().map((p) => p.id).sort()).toEqual(["9f1c-imported", "default"].sort());
+  });
+
   it("dedups by id, not host: a stale local entry for an id also present in the remote response is replaced, not duplicated", () => {
     const staleLocal: Profile = { id: "trabalho", label: "Default", host: "127.0.0.1", relayPort: 8765 };
     setProfiles([staleLocal]);

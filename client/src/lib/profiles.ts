@@ -172,7 +172,12 @@ export function removeProfile(id: string): boolean {
 // sync's response at all (the id-based cleanup below only catches a ghost
 // that's still being re-registered under a *different* port each time; one
 // that stopped existing entirely — e.g. its `.env` got deleted — needs this
-// instead).
+// instead). A tailnet profile is the one exception — its loopback host is
+// the `importProfile` placeholder (journal/62 F4), swapped for the
+// sidecar's real local address by `useRelayClient` before anything is
+// dialed, so it looks identical to a ghost while actually being a live
+// profile whose auth key/broker config exists nowhere else (no host's
+// `/control/profiles` can hand it back).
 const LOOPBACK_HOSTS = new Set(["127.0.0.1", "localhost", "::1"]);
 
 function profileFieldsEqual(a: Profile, b: Profile): boolean {
@@ -226,9 +231,13 @@ function profileListsEqual(a: Profile[], b: Profile[]): boolean {
  * device knows about. */
 export function syncProfilesForHost(host: string, remote: RemoteProfile[]): void {
   const remoteIds = new Set(remote.map((entry) => entry.id));
-  const dropStale = LOOPBACK_HOSTS.has(host)
+  const keepForHost = LOOPBACK_HOSTS.has(host)
     ? (p: Profile) => p.host !== host && !remoteIds.has(p.id)
     : (p: Profile) => p.host !== host && !remoteIds.has(p.id) && !LOOPBACK_HOSTS.has(p.host);
+  // A tailnet profile is never dropped by any of the host-based reasoning
+  // above: its `host` is the sidecar placeholder, not a relay it was synced
+  // from, so no registry response either replaces it or proves it stale.
+  const dropStale = (p: Profile) => (isTailnetProfile(p) ? !remoteIds.has(p.id) : keepForHost(p));
   // `connectToken`/tailnet fields have no host-side counterpart (the control
   // API response never carries them), so a synced entry has to inherit
   // whatever this device already had for that id — otherwise a profile
