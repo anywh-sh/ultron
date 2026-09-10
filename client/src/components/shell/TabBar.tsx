@@ -72,26 +72,37 @@ function SortableTab({ tab, onClose, onRename, onDelete }: SortableTabProps) {
       className="group relative flex min-w-[72px] flex-[0_1_168px] items-center"
     >
       <Tooltip>
+        {/* `asChild` merges the tooltip's own `data-state` (open/closed) onto
+            whatever it wraps — landed directly on `TabsTrigger`, that clobbers
+            Radix Tabs' `data-state` (active/inactive), since Tabs' own
+            implementation spreads incoming props *after* setting it
+            (`@radix-ui/react-tabs`). The tab silently stopped carrying
+            `data-state="active"` at all, so neither the profile tint nor the
+            border override could ever match. This `contents` span is layout-
+            transparent (no box of its own) and absorbs that merge instead,
+            leaving TabsTrigger's own state untouched. */}
         <TooltipTrigger asChild>
-          <TabsTrigger
-            value={tab.id}
-            // No more active-tab bar (ui/tabs.tsx no longer paints one for the
-            // "line" variant) — the selected tab is now marked by tinting its
-            // own background with the session's profile color instead.
-            className={cn(
-              "min-w-0 gap-1.5 rounded-none py-2 pr-7 pl-3 font-mono text-xs",
-              profileActiveBgClass(tab.profileId),
-            )}
-          >
-            {tab.isRunning ? (
-              <Loader2 className="size-3 shrink-0 animate-spin text-foreground" aria-label="Agente trabalhando nesta sessão" />
-            ) : (
-              tab.hasUnreadCompletion && (
-                <span className="size-1.5 shrink-0 rounded-full bg-status-done" aria-label="Sessão finalizada" />
-              )
-            )}
-            <span className="min-w-0 flex-1 truncate">{tab.title ?? "Nova sessão"}</span>
-          </TabsTrigger>
+          <span className="contents">
+            <TabsTrigger
+              value={tab.id}
+              // No more active-tab bar (ui/tabs.tsx no longer paints one for the
+              // "line" variant) — the selected tab is now marked by tinting its
+              // own background with the session's profile color instead.
+              className={cn(
+                "min-w-0 gap-1.5 rounded-none py-2 pr-7 pl-3 font-mono text-xs",
+                profileActiveBgClass(tab.profileId),
+              )}
+            >
+              {tab.isRunning ? (
+                <Loader2 className="size-3 shrink-0 animate-spin text-foreground" aria-label="Agente trabalhando nesta sessão" />
+              ) : (
+                tab.hasUnreadCompletion && (
+                  <span className="size-1.5 shrink-0 rounded-full bg-status-done" aria-label="Sessão finalizada" />
+                )
+              )}
+              <span className="min-w-0 flex-1 truncate">{tab.title ?? "Nova sessão"}</span>
+            </TabsTrigger>
+          </span>
         </TooltipTrigger>
         <TooltipContent side="bottom">{tab.title ?? "Nova sessão"}</TooltipContent>
       </Tooltip>
