@@ -281,7 +281,7 @@ export const AssistantText = memo(function AssistantText({ text, sentAt, streami
 
   return (
     <div className="group flex flex-col items-start" {...(isIOS() && !streaming ? longPress : undefined)}>
-      <div className="prose-chat text-sm text-foreground">
+      <div className="prose-chat min-w-0 max-w-full text-sm text-foreground">
         <MarkdownContent text={stripPlanChoiceMarkers(text)} onOpenPath={onOpenPath} />
       </div>
       {!streaming && !isIOS() && (
