@@ -48,6 +48,14 @@ Functional MVP, self-hosted and used daily by its author: chat, voice, image upl
 
 Setting up your own instance means pointing the client at your relay by hand (below), or implementing the [pairing protocol](./docs/pairing.md) if your relay isn't directly reachable. There's no one-command setup yet.
 
+## Roadmap
+
+- [x] Interactive file browser — browse, read, download, rename/delete, and open files in your editor (local or over SSH)
+- [x] Multi-session and multi-profile support
+- [ ] More agent CLIs — Codex CLI, Kimi CLI, and others beyond Claude Code
+- [ ] Workspace isolation — per-session git worktree instead of a shared working directory, so multiple agents can work on the same repo without stepping on each other
+- [ ] Direct model access (BYOK) — talk to a model API directly with your own key instead of going through a CLI, same UI and session model either way
+
 ## Getting started (self-host)
 
 ### Relay
