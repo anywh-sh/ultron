@@ -293,6 +293,17 @@ export function useRelayClient(
           if (!cancelled) setConnectingTailnet(false);
         }
       }
+      // Temporary, same spirit as the identity logs in tailnetClaim.ts /
+      // tailnetBroker.ts: the chat WebSocket has been observed dialing
+      // `127.0.0.1:0` (the tailnet placeholder) with no way to tell from the
+      // Network tab alone whether the tailnet branch ran at all. Booleans
+      // and an address only — never the auth key or the handshake token.
+      // Remove once the Windows pairing flow is confirmed working.
+      console.log(
+        `[ultron] relay dial ${host}:${String(port)} session=${sessionId} tailnetMode=${String(tailnetMode)}` +
+          ` brokered=${String(isBrokeredProfile(profile))} authKey=${String(Boolean(profile.tailnetAuthKey))}` +
+          ` controlUrl=${String(Boolean(profile.tailnetControlUrl))} token=${String(Boolean(wsToken))}`,
+      );
       const client = new RelayClient(host, port, sessionId, callbacks, wsToken);
       clientRef.current = client;
       client.connect();
