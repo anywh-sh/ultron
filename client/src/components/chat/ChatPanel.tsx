@@ -21,6 +21,7 @@ import { TerminalToggleButton } from "@/components/chat/TerminalToggleButton";
 import { BackgroundJobIndicator } from "@/components/chat/BackgroundJobIndicator";
 import type { BackgroundJobSummary } from "@/lib/relayClient";
 import { isIOS } from "@/lib/platform";
+import { physicalPositionToClientPoint } from "@/lib/dragDropPosition";
 import { cn } from "@/lib/utils";
 import { parseSlashCommand } from "@/lib/slashCommands";
 import type { Profile } from "@/lib/profiles";
@@ -175,6 +176,7 @@ export function ChatPanel({
   const performEditRef = useRef<(id: string, text: string) => void>(() => {});
 
   const [isDraggingOver, setIsDraggingOver] = useState(false);
+  const containerRef = useRef<HTMLDivElement>(null);
 
   // Tauri's native drag-and-drop (`onDragDropEvent`), not HTML5 DnD — the
   // previous version (DOM dragenter/dragover/drop + `dragDropEnabled:
@@ -187,8 +189,12 @@ export function ChatPanel({
   // pipeline as the attach button.
   //
   // The event reaches ALL mounted tabs (background tabs stay mounted,
-  // docs/18), not just the visible one — hence the `isActiveTabRef` guard
-  // right at the start of the handler.
+  // docs/18), not just the visible one — hence the `isActiveTabRef` guard.
+  // It also reaches every panel sharing the window (the file panel has its
+  // own native drop target since it added drag-and-drop upload) — `position`
+  // (physical pixels) is checked against this component's own bounding
+  // element via `elementFromPoint` so a drop over the file panel is left
+  // entirely to its own handler instead of also being attached here.
   useEffect(() => {
     let unlisten: (() => void) | undefined;
     let cancelled = false;
@@ -197,8 +203,18 @@ export function ChatPanel({
       .onDragDropEvent((event) => {
         if (!isActiveTabRef.current) return;
 
+        if (event.payload.type === "leave") {
+          setIsDraggingOver(false);
+          return;
+        }
+
+        const { x, y } = physicalPositionToClientPoint(event.payload.position);
+        const target = document.elementFromPoint(x, y);
+        const withinChat = containerRef.current?.contains(target) ?? false;
+
         if (event.payload.type === "drop") {
           setIsDraggingOver(false);
+          if (!withinChat) return;
           const paths = event.payload.paths;
           void (async () => {
             const files: File[] = [];
@@ -216,10 +232,8 @@ export function ChatPanel({
               composerRef.current?.focus();
             }
           })();
-        } else if (event.payload.type === "enter" || event.payload.type === "over") {
-          setIsDraggingOver(true);
         } else {
-          setIsDraggingOver(false);
+          setIsDraggingOver(withinChat);
         }
       })
       .then((fn) => {
@@ -495,7 +509,7 @@ export function ChatPanel({
   const keyboardInfo = useKeyboardInset();
 
   return (
-    <div className="relative flex h-full flex-col">
+    <div ref={containerRef} className="relative flex h-full flex-col">
       {isDraggingOver && (
         <div className="pointer-events-none absolute inset-2 z-10 flex items-center justify-center gap-2 rounded-xl border-2 border-dashed border-primary bg-background/90 text-sm text-primary">
           <ImagePlus className="size-4" />

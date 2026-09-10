@@ -30,7 +30,7 @@ import { McpPermissionBridge } from "./permissionBridge.js";
 import { SessionManager } from "./sessionManager.js";
 import { SessionStore, type ModelChoice, type PermissionMode } from "./sessionStore.js";
 import { killAllTerminalsForSession, killTerminal, scrollTerminal, spawnTerminal } from "./terminalSession.js";
-import { saveUpload } from "./uploads.js";
+import { MAX_UPLOAD_BYTES, readRawBody, saveUpload } from "./uploads.js";
 
 // Resolved relative to this file (not hardcoded), same reasoning as
 // SCRIPTS_DIR in claudeCliConfig.ts — works whether running from `src/`
@@ -997,6 +997,43 @@ export const httpServer = createServer((req, res) => {
       .catch(() => {
         res.writeHead(400);
         res.end(JSON.stringify({ error: "invalid body" }));
+      });
+    return;
+  }
+
+  // Drag-and-drop upload into the file panel — same raw-binary-body style as
+  // `/upload` (chat attachments), but the destination is the requesting
+  // session's own cwd (via `createFile`/`resolveWithinRoot`, same
+  // confinement contract as the rest of this route group) rather than the
+  // sessionless `RELAY_UPLOAD_DIR`. `dir`/`name` travel in the query string
+  // since the body is the raw file bytes, not JSON.
+  if (req.method === "POST" && req.url?.startsWith("/files/upload")) {
+    const url = new URL(req.url, `http://${req.headers.host ?? "localhost"}`);
+    const sessionId = url.searchParams.get("session")?.trim() || DEFAULT_SESSION;
+    const dir = url.searchParams.get("dir");
+    const name = url.searchParams.get("name");
+    res.setHeader("Content-Type", "application/json");
+    res.setHeader("Access-Control-Allow-Origin", "*");
+    if (!name) {
+      res.writeHead(400);
+      res.end(JSON.stringify({ error: "invalid_path" }));
+      return;
+    }
+    const root = sessionStore.getCwdState(sessionId).cwd;
+    readRawBody(req, MAX_UPLOAD_BYTES)
+      .then((buffer) => {
+        const result = createFile(root, dir, name, buffer);
+        if (!result.ok) {
+          res.writeHead(statusForFilesError(result.error));
+          res.end(JSON.stringify({ error: result.error }));
+          return;
+        }
+        res.end(JSON.stringify({ ok: true, path: result.path }));
+      })
+      .catch((error: unknown) => {
+        console.error("[relay] files upload failed:", error);
+        res.writeHead(500);
+        res.end(JSON.stringify({ error: "upload failed" }));
       });
     return;
   }

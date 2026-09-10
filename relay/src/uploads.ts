@@ -10,7 +10,7 @@ import type { IncomingMessage } from "node:http";
 const UPLOAD_DIR = process.env.RELAY_UPLOAD_DIR ?? "/tmp/ultron-uploads";
 mkdirSync(UPLOAD_DIR, { recursive: true });
 
-const MAX_UPLOAD_BYTES = 100 * 1024 * 1024; // 100MB — a short flow/animation video easily exceeds an image's 25MB.
+export const MAX_UPLOAD_BYTES = 100 * 1024 * 1024; // 100MB — a short flow/animation video easily exceeds an image's 25MB.
 
 const VIDEO_EXTENSIONS = new Set(["mp4", "mov", "m4v", "webm", "avi", "mkv"]);
 const VIDEO_FRAME_COUNT = 6;
@@ -23,34 +23,38 @@ export interface UploadResult {
   frames?: string[];
 }
 
-export function saveUpload(req: IncomingMessage, ext: string): Promise<UploadResult> {
+/** Shared by this module's `/upload` (chat attachments) and the file panel's
+ * `/files/upload` (server.ts) — both need the same raw-body-with-size-cap
+ * accumulator, just against different limits/destinations. */
+export function readRawBody(req: IncomingMessage, maxBytes: number): Promise<Buffer> {
   return new Promise((resolve, reject) => {
     const chunks: Buffer[] = [];
     let totalBytes = 0;
 
     req.on("data", (chunk: Buffer) => {
       totalBytes += chunk.length;
-      if (totalBytes > MAX_UPLOAD_BYTES) {
+      if (totalBytes > maxBytes) {
         req.destroy();
-        reject(new Error("upload maior que o limite de 100MB"));
+        reject(new Error(`upload maior que o limite de ${String(Math.floor(maxBytes / (1024 * 1024)))}MB`));
         return;
       }
       chunks.push(chunk);
     });
 
-    req.on("end", () => {
-      void handleUploadComplete(chunks, ext).then(resolve, reject);
-    });
-
+    req.on("end", () => resolve(Buffer.concat(chunks)));
     req.on("error", (err) => reject(err));
   });
 }
 
-async function handleUploadComplete(chunks: Buffer[], ext: string): Promise<UploadResult> {
+export function saveUpload(req: IncomingMessage, ext: string): Promise<UploadResult> {
+  return readRawBody(req, MAX_UPLOAD_BYTES).then((buffer) => handleUploadComplete(buffer, ext));
+}
+
+async function handleUploadComplete(buffer: Buffer, ext: string): Promise<UploadResult> {
   const safeExt = ext.replace(/[^a-zA-Z0-9]/g, "") || "bin";
   const id = randomUUID();
   const filePath = join(UPLOAD_DIR, `${id}.${safeExt}`);
-  writeFileSync(filePath, Buffer.concat(chunks));
+  writeFileSync(filePath, buffer);
 
   if (!VIDEO_EXTENSIONS.has(safeExt.toLowerCase())) {
     return { path: filePath };

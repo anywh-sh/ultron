@@ -243,12 +243,15 @@ export function renameFile(rawRoot: string, rawPath: string, newName: string): R
 
 export type CreateResult = { ok: true; path: string } | { ok: false; error: FilesWriteError };
 
-/** Creates an empty file directly under `rawDir` (or the root itself when
- * `rawDir` is `null` — the file tree's panel-level "new file" context menu
- * always creates at the root today). `name` is validated the same way
+/** Creates a file directly under `rawDir` (or the root itself when `rawDir`
+ * is `null` — the file tree's panel-level "new file" context menu always
+ * creates at the root today). `name` is validated the same way
  * `renameFile`'s `newName` is, and creation fails closed if something
- * already exists at the target path rather than silently truncating it. */
-export function createFile(rawRoot: string, rawDir: string | null, name: string): CreateResult {
+ * already exists at the target path rather than silently truncating it.
+ * `content` defaults to empty (the "new file" context menu's case) — the
+ * file panel's drag-and-drop upload (`/files/upload`, server.ts) is the
+ * other caller, passing the dropped file's bytes instead. */
+export function createFile(rawRoot: string, rawDir: string | null, name: string, content: Buffer | string = ""): CreateResult {
   const resolvedDir = resolveWithinRoot(rawRoot, rawDir);
   if (!resolvedDir.ok) return resolvedDir;
 
@@ -261,7 +264,7 @@ export function createFile(rawRoot: string, rawDir: string | null, name: string)
   if (existsSync(target)) return { ok: false, error: "already_exists" };
 
   try {
-    writeFileSync(target, "");
+    writeFileSync(target, content);
   } catch (error) {
     return { ok: false, error: errorFromErrno(error) };
   }

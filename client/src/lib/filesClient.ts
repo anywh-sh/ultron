@@ -80,6 +80,25 @@ export async function createFile(profile: Profile, sessionId: string, name: stri
   return postJson(`${baseUrl(profile)}/files/create`, { session: sessionId, dir: dir ?? null, name });
 }
 
+/** `dir` omitted uploads at the session's root — mirrors `createFile`'s
+ * confinement/fail-closed behavior (relay/src/fsFiles.ts), just with the
+ * dropped file's bytes as content instead of an empty file. `content` is
+ * sent as the raw request body (not multipart/JSON), same style as
+ * `imageUpload.ts`'s `uploadAttachment`. */
+export async function uploadFile(profile: Profile, sessionId: string, name: string, content: ArrayBuffer, dir?: string): Promise<{ path: string }> {
+  const params = new URLSearchParams({ session: sessionId, name });
+  if (dir) params.set("dir", dir);
+  const response = await fetch(`${baseUrl(profile)}/files/upload?${params.toString()}`, {
+    method: "POST",
+    body: content,
+  });
+  if (!response.ok) {
+    const body = (await response.json().catch(() => ({}))) as { error?: string };
+    throw new Error(body.error ?? `HTTP ${String(response.status)}`);
+  }
+  return response.json() as Promise<{ path: string }>;
+}
+
 /** File-only write surface — the context menu that drives these (`FileTree`)
  * never shows delete/rename for a directory row. */
 export async function deleteFile(profile: Profile, sessionId: string, path: string): Promise<void> {

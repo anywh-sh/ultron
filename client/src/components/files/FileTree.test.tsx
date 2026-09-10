@@ -79,6 +79,7 @@ function renderTree(
       onFileDeleted={overrides.onFileDeleted ?? (() => {})}
       onFileRenamed={overrides.onFileRenamed ?? (() => {})}
       onOpenTerminal={overrides.onOpenTerminal ?? (() => {})}
+      dropTargetPath={null}
     />,
   );
 }

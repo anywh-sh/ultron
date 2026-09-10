@@ -1,5 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { Eye, EyeOff } from "lucide-react";
+import { Eye, EyeOff, UploadCloud } from "lucide-react";
+import { getCurrentWebview } from "@tauri-apps/api/webview";
+import { invoke } from "@tauri-apps/api/core";
 import { PaneTabStrip } from "@/components/shell/PaneTabStrip";
 import { SessionPanel } from "@/components/shell/SessionPanel";
 import { FileTree } from "@/components/files/FileTree";
@@ -7,7 +9,8 @@ import { FileViewer } from "@/components/files/FileViewer";
 import { Button } from "@/components/ui/button";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import type { useFileTabs } from "@/hooks/useFileTabs";
-import { listFiles } from "@/lib/filesClient";
+import { listFiles, uploadFile } from "@/lib/filesClient";
+import { physicalPositionToClientPoint } from "@/lib/dragDropPosition";
 import type { Profile } from "@/lib/profiles";
 import { cn } from "@/lib/utils";
 
@@ -145,6 +148,84 @@ function useTreeWidthDrag(width: number, onChange: (width: number) => void) {
 }
 
 /**
+ * Drag-and-drop upload — same native Tauri `onDragDropEvent` as
+ * `ChatPanel`'s image attach (delivers the dropped file's real path on
+ * disk, read via the `read_dropped_file` Rust command), but the target
+ * directory depends on *where* inside the panel the drop lands: a folder
+ * row in the tree if the cursor is over one (`data-file-tree-dir`, set by
+ * `FileTree`), the session's root otherwise (including a drop on the
+ * viewer side). The event is window-global (reaches every mounted panel,
+ * ChatPanel included — see the comment there), so every `enter`/`over`/`drop`
+ * is first checked against this panel's own `containerRef` via
+ * `elementFromPoint`, exactly like `ChatPanel` checks against its own.
+ */
+function useFilesDrop(profile: Profile, sessionId: string) {
+  const containerRef = useRef<HTMLDivElement>(null);
+  const [isDraggingOver, setIsDraggingOver] = useState(false);
+  const [dropTargetPath, setDropTargetPath] = useState<string | null>(null);
+
+  const resolveDropTarget = useCallback((clientX: number, clientY: number): { withinPanel: boolean; dir: string | null } => {
+    const container = containerRef.current;
+    if (!container) return { withinPanel: false, dir: null };
+    const target = document.elementFromPoint(clientX, clientY);
+    if (!target || !container.contains(target)) return { withinPanel: false, dir: null };
+    const folderRow = target.closest<HTMLElement>("[data-file-tree-dir]");
+    return { withinPanel: true, dir: folderRow?.dataset.fileTreeDir ?? null };
+  }, []);
+
+  useEffect(() => {
+    let unlisten: (() => void) | undefined;
+    let cancelled = false;
+
+    async function uploadDroppedPaths(paths: string[], dir: string | null): Promise<void> {
+      for (const path of paths) {
+        const name = path.split(/[\\/]/).pop() ?? "arquivo";
+        try {
+          const buffer = await invoke<ArrayBuffer>("read_dropped_file", { path });
+          await uploadFile(profile, sessionId, name, buffer, dir ?? undefined);
+        } catch (error) {
+          console.error("[ultron] failed to upload dropped file:", path, error);
+          window.alert(`Não foi possível enviar "${name}".`);
+        }
+      }
+    }
+
+    void getCurrentWebview()
+      .onDragDropEvent((event) => {
+        if (event.payload.type === "leave") {
+          setIsDraggingOver(false);
+          setDropTargetPath(null);
+          return;
+        }
+
+        const { x, y } = physicalPositionToClientPoint(event.payload.position);
+        const { withinPanel, dir } = resolveDropTarget(x, y);
+
+        if (event.payload.type === "drop") {
+          setIsDraggingOver(false);
+          setDropTargetPath(null);
+          if (withinPanel) void uploadDroppedPaths(event.payload.paths, dir);
+          return;
+        }
+
+        setIsDraggingOver(withinPanel);
+        setDropTargetPath(withinPanel ? dir : null);
+      })
+      .then((fn) => {
+        if (cancelled) fn();
+        else unlisten = fn;
+      });
+
+    return () => {
+      cancelled = true;
+      unlisten?.();
+    };
+  }, [profile, sessionId, resolveDropTarget]);
+
+  return { containerRef, isDraggingOver, dropTargetPath };
+}
+
+/**
  * Work dir file panel content (docs/41), plugged into the generic
  * `SessionPanel` shell — tree on the left, tabs + breadcrumb + viewer on the
  * right. Mirrors `TerminalPanel`'s mount lifecycle: only exists while the
@@ -181,6 +262,7 @@ export function FilesPanel({ profile, chatSessionId, maximized, fileTabs, onTogg
   // (not inside any expanded subfolder) never surface without a full reopen.
   const watchedDirs = useMemo(() => (root ? [root, ...expanded] : expanded), [root, expanded]);
   const { dirChanged, fileChanged } = useFilesWatch(profile, chatSessionId, watchedDirs, openPaths);
+  const { containerRef: dropContainerRef, isDraggingOver, dropTargetPath } = useFilesDrop(profile, chatSessionId);
 
   if (!root) {
     return (
@@ -225,7 +307,13 @@ export function FilesPanel({ profile, chatSessionId, maximized, fileTabs, onTogg
         </div>
       }
     >
-      <div className="relative flex h-full min-h-0">
+      <div ref={dropContainerRef} className={cn("relative flex h-full min-h-0", isDraggingOver && "ring-2 ring-inset ring-primary")}>
+        {isDraggingOver && (
+          <div className="pointer-events-none absolute inset-x-0 top-0 z-10 flex items-center justify-center gap-2 bg-primary/10 py-1 text-xs text-primary">
+            <UploadCloud className="size-3.5" />
+            {dropTargetPath ? `Solte para enviar para "${fileLabel(dropTargetPath)}"` : "Solte para enviar para a raiz"}
+          </div>
+        )}
         <div className="h-full shrink-0 overflow-hidden" style={{ width: treeWidth }}>
           <FileTree
             profile={profile}
@@ -241,6 +329,7 @@ export function FilesPanel({ profile, chatSessionId, maximized, fileTabs, onTogg
             onFileDeleted={(path) => fileTabs.closeTab(chatSessionId, path)}
             onFileRenamed={(oldPath, newPath) => fileTabs.renamePath(chatSessionId, oldPath, newPath)}
             onOpenTerminal={onOpenTerminal}
+            dropTargetPath={dropTargetPath}
           />
         </div>
         <div

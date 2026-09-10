@@ -60,6 +60,13 @@ interface FileTreeProps {
    * a fresh tab rooted at this folder — wired all the way up to `App.tsx`,
    * the only place that has both the terminal tabs and the dock state. */
   onOpenTerminal: (path: string) => void;
+  /** Folder row a drag-and-drop upload is currently hovering, or `null` for
+   * "none"/"root" — drives the highlight below and, via each row's
+   * `data-file-tree-dir`, is how `FilesPanel` resolves which folder a drop
+   * lands in (`elementFromPoint` + `closest`). Owned by `FilesPanel` since
+   * the Tauri drag events it reads are window-global, not scoped to this
+   * component. */
+  dropTargetPath: string | null;
 }
 
 const INDENT_PX = 14;
@@ -164,6 +171,7 @@ export function FileTree({
   onFileDeleted,
   onFileRenamed,
   onOpenTerminal,
+  dropTargetPath,
 }: FileTreeProps) {
   const [nodesByDir, setNodesByDir] = useState<Record<string, DirState>>({});
   const inFlightRef = useRef<Set<string>>(new Set());
@@ -265,6 +273,7 @@ export function FileTree({
         onOpenTerminal={onOpenTerminal}
         editorLocality={editorLocality}
         detectedEditors={detectedEditors}
+        dropTargetPath={dropTargetPath}
       />
       <DropdownMenu open={panelMenu.open} onOpenChange={panelMenu.setOpen}>
         <DropdownMenuTrigger asChild>
@@ -311,6 +320,7 @@ interface SharedTreeProps {
   onOpenTerminal: (path: string) => void;
   editorLocality: EditorLocality;
   detectedEditors: DetectedEditor[];
+  dropTargetPath: string | null;
 }
 
 interface ChildrenProps extends SharedTreeProps {
@@ -333,6 +343,7 @@ function FileTreeChildren({
   onOpenTerminal,
   editorLocality,
   detectedEditors,
+  dropTargetPath,
 }: ChildrenProps) {
   const nodes = nodesByDir[dir];
   const indent = `${depth * INDENT_PX + 8}px`;
@@ -379,6 +390,7 @@ function FileTreeChildren({
           onOpenTerminal={onOpenTerminal}
           editorLocality={editorLocality}
           detectedEditors={detectedEditors}
+          dropTargetPath={dropTargetPath}
         />
       ))}
     </>
@@ -405,6 +417,7 @@ function FileTreeNode({
   onOpenTerminal,
   editorLocality,
   detectedEditors,
+  dropTargetPath,
 }: NodeProps) {
   const isDir = entry.kind === "dir";
   const isExpanded = isDir && expanded.includes(entry.path);
@@ -451,6 +464,7 @@ function FileTreeNode({
       <div
         role="button"
         tabIndex={0}
+        data-file-tree-dir={isDir ? entry.path : undefined}
         onClick={() => (isDir ? onToggleExpand(entry.path) : onOpenPreview(entry.path))}
         onDoubleClick={() => !isDir && onOpenPinned(entry.path)}
         onContextMenu={menu.onContextMenu}
@@ -463,6 +477,7 @@ function FileTreeNode({
         className={cn(
           "flex cursor-pointer items-center gap-1 rounded py-1 pr-2 hover:bg-border",
           isActive ? "bg-bg-elevated text-foreground" : "text-muted-foreground",
+          isDir && dropTargetPath === entry.path && "bg-primary/15 text-foreground ring-1 ring-inset ring-primary",
         )}
       >
         {isDir ? (
@@ -596,6 +611,7 @@ function FileTreeNode({
           onOpenTerminal={onOpenTerminal}
           editorLocality={editorLocality}
           detectedEditors={detectedEditors}
+          dropTargetPath={dropTargetPath}
         />
       )}
     </div>
