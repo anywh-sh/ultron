@@ -42,6 +42,7 @@
       "icons/icon.ico"
     ],
     "resources": ["icons/128x128.png"],
+    "externalBin": ["binaries/tailnet-sidecar"],
     "windows": {
       "nsis": {
         "installMode": "currentUser"

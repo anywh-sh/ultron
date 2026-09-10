@@ -67,6 +67,7 @@ tauri-plugin-macos-permissions = "2"
 cpal = "0.15"
 whisper-rs = "0.16"
 rubato = "0.15"
+tauri-plugin-shell = "2"
 
 # Camada de chrome nativo (SwiftUI/Liquid Glass) do port iOS — docs/23, Fase E.
 # Promovido do spike de UI nativa (docs/22, spike 2/3): manager.viewController

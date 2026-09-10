@@ -11,6 +11,10 @@ mod voice;
 // installed editors against — out of scope for iOS the same way voice is.
 #[cfg(not(target_os = "ios"))]
 mod editors;
+// tailnet-sidecar (journal/62): spawns an external Go process, which iOS
+// can't do at all — same exclusion as voice/editors above.
+#[cfg(not(target_os = "ios"))]
+mod tailnet_sidecar;
 
 // Learn more about Tauri commands at https://tauri.app/develop/calling-rust/
 #[tauri::command]
@@ -40,6 +44,12 @@ pub fn run() {
         .plugin(tauri_plugin_dialog::init())
         .plugin(tauri_plugin_fs::init())
         .plugin(tauri_plugin_deep_link::init());
+
+    // tailnet-sidecar (journal/62) spawns an external process — not a
+    // capability iOS has at all, same reasoning as the voice/editors
+    // exclusions below.
+    #[cfg(not(target_os = "ios"))]
+    let builder = builder.plugin(tauri_plugin_shell::init());
 
     // cpal accesses CoreAudio directly (without going through AVFoundation),
     // which in practice doesn't trigger macOS's permission dialog — the app
@@ -76,7 +86,8 @@ pub fn run() {
             voice::start_recording,
             voice::stop_recording_and_transcribe,
             read_dropped_file,
-            editors::detect_editors
+            editors::detect_editors,
+            tailnet_sidecar::tailnet_sidecar_probe
         ]);
 
     #[cfg(target_os = "ios")]

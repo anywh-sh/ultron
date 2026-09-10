@@ -11,6 +11,10 @@ infra/systemd/ultron-relay@.service
 client/src-tauri/target/
 client/src-tauri/gen/
 
+# tailnet-sidecar Go binaries, one per platform target triple (journal/62
+# CT-2) — built from client/tailnet-sidecar/, not checked in
+client/src-tauri/binaries/
+
 # personal convenience scripts (see client/README.md) — machine-specific,
 # e.g. a physical iOS device name, never meant to be shared
 client/*.local.sh
