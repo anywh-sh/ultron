@@ -3,7 +3,7 @@ import { useCallback, useEffect, useState } from "react";
 const MAX_RECENTS = 5;
 
 function recentFoldersKey(profileId: string): string {
-  return `ultron:recent-folders:${profileId}`;
+  return `anywh:recent-folders:${profileId}`;
 }
 
 function readRecents(profileId: string): string[] {

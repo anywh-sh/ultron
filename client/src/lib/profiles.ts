@@ -85,7 +85,7 @@ export function isBrokeredProfile(profile: Profile): boolean {
   return Boolean(profile.brokerUrl && profile.brokerNodeId);
 }
 
-const STORAGE_KEY = "ultron:profiles";
+const STORAGE_KEY = "anywh:profiles";
 
 // Seed data, built from build-time env vars (see client/.env.example) so a
 // distributed binary doesn't hardcode any one deployment's address. A future

@@ -92,7 +92,7 @@ By default the client points at a relay on the same machine (`127.0.0.1:8765`). 
   ```
 - **`localStorage` override** — desktop only (needs DevTools), no rebuild required:
   ```js
-  localStorage.setItem("ultron:profiles", JSON.stringify([
+  localStorage.setItem("anywh:profiles", JSON.stringify([
     { id: "default", label: "Default", host: "127.0.0.1", relayPort: 8765 },
   ]));
   ```

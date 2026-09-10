@@ -244,7 +244,7 @@ export function FileTree({
         await deleteFile(profile, sessionId, path);
         onFileDeleted(path);
       } catch (error) {
-        console.error("[ultron] failed to delete file:", path, error);
+        console.error("[anywh] failed to delete file:", path, error);
         window.alert(`Não foi possível excluir "${path.split("/").pop() ?? path}".`);
       }
     }
@@ -258,7 +258,7 @@ export function FileTree({
       try {
         await downloadFile(profile, sessionId, entry.path, entry.name, entry.mtimeMs);
       } catch (error) {
-        console.error("[ultron] failed to download file:", path, error);
+        console.error("[anywh] failed to download file:", path, error);
         window.alert(`Não foi possível baixar "${entry.name}".`);
       }
     }
@@ -289,7 +289,7 @@ export function FileTree({
       setCreateOpen(false);
       onOpenPinned(result.path);
     } catch (error) {
-      console.error("[ultron] failed to create file:", error);
+      console.error("[anywh] failed to create file:", error);
       window.alert("Não foi possível criar o arquivo.");
     }
   }
@@ -539,7 +539,7 @@ function FileTreeNode({
     try {
       await downloadFile(profile, sessionId, entry.path, entry.name, entry.mtimeMs);
     } catch (error) {
-      console.error("[ultron] failed to download file:", error);
+      console.error("[anywh] failed to download file:", error);
       window.alert("Não foi possível baixar o arquivo.");
     }
   }
@@ -550,7 +550,7 @@ function FileTreeNode({
       onFileRenamed(entry.path, result.path);
       setRenameOpen(false);
     } catch (error) {
-      console.error("[ultron] failed to rename file:", error);
+      console.error("[anywh] failed to rename file:", error);
       window.alert("Não foi possível renomear o arquivo.");
     }
   }
@@ -560,7 +560,7 @@ function FileTreeNode({
       await deleteFile(profile, sessionId, entry.path);
       onFileDeleted(entry.path);
     } catch (error) {
-      console.error("[ultron] failed to delete file:", error);
+      console.error("[anywh] failed to delete file:", error);
       window.alert("Não foi possível excluir o arquivo.");
     }
   }

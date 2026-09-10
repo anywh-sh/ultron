@@ -64,7 +64,7 @@ export function AddRemoteMachineDialog({ open, onOpenChange, onImported }: AddRe
       onOpenChange(false);
       onImported(id);
     } catch (err) {
-      console.error("[ultron] failed to pair from code", err);
+      console.error("[anywh] failed to pair from code", err);
       setError(
         "Não foi possível parear com esse código. Ele pode ter expirado, já ter sido usado, ou a máquina pode estar fora do ar.",
       );

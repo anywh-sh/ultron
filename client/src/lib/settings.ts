@@ -55,9 +55,9 @@ interface SettingsStore {
   byProfile: Record<string, ProfileSettings>;
 }
 
-const STORAGE_KEY = "ultron:settings";
-const OLD_DEFAULT_PATHS_KEY = "ultron:default-paths";
-const OLD_MODEL_PREFERENCE_KEY = "ultron:model-preference";
+const STORAGE_KEY = "anywh:settings";
+const OLD_DEFAULT_PATHS_KEY = "anywh:default-paths";
+const OLD_MODEL_PREFERENCE_KEY = "anywh:model-preference";
 
 const EMPTY_STORE: SettingsStore = { version: 1, global: {}, byProfile: {} };
 

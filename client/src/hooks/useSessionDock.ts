@@ -33,11 +33,11 @@ const DEFAULT_WIDTH = 480;
 const MIN_SPLIT_RATIO = 0.2;
 const MAX_SPLIT_RATIO = 0.8;
 
-const STORAGE_KEY = "ultron:session-dock";
+const STORAGE_KEY = "anywh:session-dock";
 // Old single-slot shape (`{ open, kind, width, maximized }`) this hook
 // replaces — not migrated, see docs/41 ("o que se perde é só 'esse painel
 // estava aberto, com essa largura', irrelevante").
-const OLD_STORAGE_KEY = "ultron:session-panels";
+const OLD_STORAGE_KEY = "anywh:session-panels";
 
 type DockMap = Record<string, DockState>;
 

@@ -2,7 +2,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { ensureMicrophonePermission, listInputDevices, startRecording, stopRecordingAndTranscribe } from "@/lib/voice";
 import { isIOS } from "@/lib/platform";
 
-const MIC_STORAGE_KEY = "ultron:selected-mic";
+const MIC_STORAGE_KEY = "anywh:selected-mic";
 
 export type VoiceRecordingState = "idle" | "recording" | "transcribing";
 
@@ -45,7 +45,7 @@ export function useVoiceRecording({ onTranscribed, onError }: UseVoiceRecordingO
         if (saved && names.includes(saved)) setSelectedDeviceState(saved);
       })
       .catch((error: unknown) => {
-        console.error("[ultron] failed to list microphones", error);
+        console.error("[anywh] failed to list microphones", error);
       });
   }, []);
 

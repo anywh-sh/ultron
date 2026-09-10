@@ -84,7 +84,7 @@ function useFilesWatch(profile: Profile, sessionId: string, dirs: string[], file
           });
         })
         .catch((error: unknown) => {
-          console.error("[ultron] failed to resolve a connection for the files watch:", error);
+          console.error("[anywh] failed to resolve a connection for the files watch:", error);
           if (!cancelled) reconnectTimer = window.setTimeout(connect, 2000);
         });
     }
@@ -198,7 +198,7 @@ function useFilesDrop(profile: Profile, sessionId: string) {
           const buffer = await invoke<ArrayBuffer>("read_dropped_file", { path });
           await uploadFile(profile, sessionId, name, buffer, dir ?? undefined);
         } catch (error) {
-          console.error("[ultron] failed to upload dropped file:", path, error);
+          console.error("[anywh] failed to upload dropped file:", path, error);
           window.alert(`Não foi possível enviar "${name}".`);
         }
       }

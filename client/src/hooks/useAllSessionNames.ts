@@ -29,7 +29,7 @@ export function useAllSessionNames(enabled: boolean): {
           .then(({ host, port, token }) => fetchSessions(host, port, token))
           .then((sessions): [string, SessionSummary[]] => [profile.id, sessions])
           .catch((error: unknown) => {
-            console.error("[ultron] failed to list sessions", profile.id, error);
+            console.error("[anywh] failed to list sessions", profile.id, error);
             return [profile.id, []] as [string, SessionSummary[]];
           }),
       ),

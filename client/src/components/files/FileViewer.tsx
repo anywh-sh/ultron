@@ -56,7 +56,7 @@ function RawImage({
         setBlobUrl(objectUrl);
       })
       .catch((error: unknown) => {
-        console.error("[ultron] failed to fetch raw image over the tailnet tunnel:", error);
+        console.error("[anywh] failed to fetch raw image over the tailnet tunnel:", error);
       });
     return () => {
       cancelled = true;

@@ -84,7 +84,7 @@ export function TerminalPanel({
     resolveConnection(profile)
       .then(({ host, port, token }) => closeTerminal(host, port, chatSessionId, terminalId, token))
       .catch((error: unknown) => {
-        console.error("[ultron] failed to close terminal:", error);
+        console.error("[anywh] failed to close terminal:", error);
       });
   }
 

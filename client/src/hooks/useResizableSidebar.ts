@@ -3,8 +3,8 @@ import { useCallback, useRef, useState } from "react";
 const MIN_WIDTH = 220;
 const MAX_WIDTH = 420;
 const DEFAULT_WIDTH = 280;
-const COLLAPSED_STORAGE_KEY = "ultron:sidebar-collapsed";
-const WIDTH_STORAGE_KEY = "ultron:sidebar-width";
+const COLLAPSED_STORAGE_KEY = "anywh:sidebar-collapsed";
+const WIDTH_STORAGE_KEY = "anywh:sidebar-width";
 
 function readInitialCollapsed(): boolean {
   return localStorage.getItem(COLLAPSED_STORAGE_KEY) === "true";

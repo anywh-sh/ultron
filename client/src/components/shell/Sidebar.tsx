@@ -45,7 +45,7 @@ export function Sidebar({
   return (
     <div className="flex h-full min-w-0 flex-col bg-bg-sidebar">
       <div className="flex items-center justify-between gap-2 p-2">
-        <span className="px-1 font-mono text-sm text-muted-foreground">ultron▍</span>
+        <span className="px-1 font-mono text-sm text-muted-foreground">anywh.sh▍</span>
         <Tooltip>
           <TooltipTrigger asChild>
             <Button variant="ghost" size="icon" onClick={onNewConversation} aria-label="Nova conversa">

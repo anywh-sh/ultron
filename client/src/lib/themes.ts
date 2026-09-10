@@ -31,7 +31,7 @@ interface ThemeStore {
   byHost: Record<string, Theme[]>;
 }
 
-const STORAGE_KEY = "ultron:themes";
+const STORAGE_KEY = "anywh:themes";
 
 const EMPTY_STORE: ThemeStore = { version: 1, byHost: {} };
 

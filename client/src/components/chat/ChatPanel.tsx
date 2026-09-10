@@ -229,7 +229,7 @@ export function ChatPanel({
                 const name = path.split(/[\\/]/).pop() ?? "arquivo";
                 files.push(new File([buffer], name, { type: guessMimeFromExtension(name) }));
               } catch (error) {
-                console.error("[ultron] failed to read dropped file:", path, error);
+                console.error("[anywh] failed to read dropped file:", path, error);
               }
             }
             if (files.length > 0) {

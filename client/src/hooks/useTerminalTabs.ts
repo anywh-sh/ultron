@@ -22,7 +22,7 @@ interface TerminalTabsState {
   nextNumber: number;
 }
 
-const STORAGE_KEY = "ultron:terminal-tabs";
+const STORAGE_KEY = "anywh:terminal-tabs";
 const EMPTY_STATE: TerminalTabsState = { tabs: [], activeTerminalId: null, nextNumber: 1 };
 
 type TerminalTabsMap = Record<string, TerminalTabsState>;

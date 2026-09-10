@@ -166,10 +166,10 @@ export function applyTheme(theme: Theme): ResolvedTheme {
 // built-in theme, mount, sync, and repaint, every single launch. Caching the
 // resolved tokens locally lets the first paint already be right.
 
-const CACHE_KEY = "ultron:theme-cache";
+const CACHE_KEY = "anywh:theme-cache";
 /** Owned by `useActiveProfile` — read (never written) here, to know which
  * profile's cached theme to paint before React decides anything. */
-const LAST_PROFILE_KEY = "ultron:last-profile";
+const LAST_PROFILE_KEY = "anywh:last-profile";
 
 type ThemeCache = Record<string, { appearance: ThemeAppearance; colors: ResolvedColors }>;
 

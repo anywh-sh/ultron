@@ -2,7 +2,7 @@ import { useCallback, useEffect, useState } from "react";
 import { findProfile, getProfiles, type Profile } from "@/lib/profiles";
 import { useProfiles } from "@/hooks/useProfiles";
 
-const STORAGE_KEY = "ultron:last-profile";
+const STORAGE_KEY = "anywh:last-profile";
 
 function readInitialProfileId(override: string | null): string {
   if (override && findProfile(override)) return override;

@@ -54,7 +54,7 @@ export function MobileSidebar({
         <span className="flex size-6.5 shrink-0 items-center justify-center rounded-lg bg-primary font-mono text-sm font-bold text-background">
           &gt;
         </span>
-        <span className="text-base font-semibold tracking-tight">ultron</span>
+        <span className="text-base font-semibold tracking-tight">anywh.sh</span>
       </div>
 
       <div className="flex gap-0.5 rounded-xl bg-bg-elevated p-0.5">

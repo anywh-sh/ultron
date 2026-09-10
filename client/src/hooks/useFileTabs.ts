@@ -22,7 +22,7 @@ interface FileTabsState {
   root: string | null;
 }
 
-const STORAGE_KEY = "ultron:file-tabs";
+const STORAGE_KEY = "anywh:file-tabs";
 const DEFAULT_TREE_WIDTH = 180;
 const EMPTY_STATE: FileTabsState = { open: [], activePath: null, expanded: [], treeWidth: DEFAULT_TREE_WIDTH, root: null };
 

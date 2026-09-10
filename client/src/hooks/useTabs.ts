@@ -38,17 +38,17 @@ interface PersistedTabs {
   activeTabId: string | null;
 }
 
-const TABS_KEY = "ultron:tabs";
-const ACTIVE_TAB_KEY = "ultron:active-tab";
+const TABS_KEY = "anywh:tabs";
+const ACTIVE_TAB_KEY = "anywh:active-tab";
 
 /** Keys from when tabs were separated by profile (docs/28 and earlier) — used
  * only as a migration fallback for whoever already had tabs saved from before the
  * merge into a single tab strip (docs/29). */
 function legacyTabsKey(profileId: string): string {
-  return `ultron:tabs:${profileId}`;
+  return `anywh:tabs:${profileId}`;
 }
 function legacyLastSessionKey(profileId: string): string {
-  return `ultron:last-session:${profileId}`;
+  return `anywh:last-session:${profileId}`;
 }
 
 /** Format saved before the id/title split: array of strings, where the

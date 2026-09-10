@@ -234,7 +234,7 @@ export default function App() {
         if (profileId === activeProfile.id) upsertTitle(id, title);
       })
       .catch((error: unknown) => {
-        console.error("[ultron] failed to rename session", error);
+        console.error("[anywh] failed to rename session", error);
         window.alert("Não foi possível renomear a sessão.");
       });
   }
@@ -257,7 +257,7 @@ export default function App() {
         if (profileId === activeProfile.id) removeSession(id);
       })
       .catch((error: unknown) => {
-        console.error("[ultron] failed to delete session", error);
+        console.error("[anywh] failed to delete session", error);
         window.alert("Não foi possível excluir a sessão.");
       });
   }

@@ -8,6 +8,6 @@
 		<true/>
 	</dict>
 	<key>NSMicrophoneUsageDescription</key>
-	<string>O ultron usa o microfone pra transcrever sua voz localmente (Whisper), sem enviar áudio pra fora da máquina.</string>
+	<string>O anywh usa o microfone pra transcrever sua voz localmente (Whisper), sem enviar áudio pra fora da máquina.</string>
 </dict>
 </plist>

@@ -13,7 +13,7 @@ import {
 
 export { DEFAULT_MODEL_PREFERENCE, type FixedModelChoice, type ModelPreference, type ModelPreferenceMode };
 
-const LAST_MODEL_STORAGE_KEY = "ultron:last-model";
+const LAST_MODEL_STORAGE_KEY = "anywh:last-model";
 
 type LastModelMap = Record<string, ModelChoice>;
 

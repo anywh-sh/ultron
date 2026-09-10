@@ -3,7 +3,7 @@ import type { Profile } from "@/lib/profiles";
 import { customThemesForHost, profilesUsingTheme, resolveProfileTheme, setThemesForHost, themeStoreKey } from "@/lib/themes";
 import type { Theme } from "@/lib/theme";
 
-const STORAGE_KEY = "ultron:themes";
+const STORAGE_KEY = "anywh:themes";
 
 const theme: Theme = {
   id: "nord-ish",

@@ -27,7 +27,7 @@ export function useSessionNames(profile: Profile): {
         if (!cancelled) setSessions(list);
       })
       .catch((error: unknown) => {
-        console.error("[ultron] failed to list sessions", error);
+        console.error("[anywh] failed to list sessions", error);
         if (!cancelled) setSessions([]);
       })
       .finally(() => {
@@ -125,7 +125,7 @@ export function useSessionNames(profile: Profile): {
           });
         })
         .catch((error: unknown) => {
-          console.error("[ultron] failed to resolve a connection for sessions/watch", error);
+          console.error("[anywh] failed to resolve a connection for sessions/watch", error);
           if (!cancelled) reconnectTimer = window.setTimeout(connect, 2000);
         });
     }

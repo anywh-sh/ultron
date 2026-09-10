@@ -109,7 +109,7 @@ export function TerminalView({ profile, chatSessionId, terminalId, cwd }: Termin
       // WebView doesn't support WebGL2, without breaking the terminal.
       term.loadAddon(new WebglAddon());
     } catch (error) {
-      console.warn("[ultron] WebGL unavailable for terminal, falling back to default renderer:", error);
+      console.warn("[anywh] WebGL unavailable for terminal, falling back to default renderer:", error);
     }
     fitAddon.fit();
 
@@ -167,7 +167,7 @@ export function TerminalView({ profile, chatSessionId, terminalId, cwd }: Termin
           });
         })
         .catch((error: unknown) => {
-          console.error("[ultron] failed to resolve a connection for the terminal:", error);
+          console.error("[anywh] failed to resolve a connection for the terminal:", error);
           if (!shouldReconnect) return;
           setReconnecting(true);
           const delay = Math.min(RECONNECT_BASE_DELAY_MS * 2 ** reconnectAttempt, RECONNECT_MAX_DELAY_MS);
