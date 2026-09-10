@@ -240,14 +240,58 @@ export const UserBubble = memo(function UserBubble({
   );
 });
 
+interface AssistantTextProps {
+  text: string;
+  sentAt: number;
+  streaming: boolean;
+  onCopy: (text: string) => void;
+}
+
 /** Memoized — see comment on `UserBubble`. `MarkdownContent` re-parses
  * markdown and re-runs syntax highlighting in full on every render; without
  * `memo`, this would run again for every old message on every new token
- * streamed in ANY message in the conversation. */
-export const AssistantText = memo(function AssistantText({ text }: { text: string }) {
+ * streamed in ANY message in the conversation.
+ *
+ * Timestamp/copy action strip, same interaction as `UserBubble` — minus
+ * edit, which makes no sense on the assistant's own words. Hidden while
+ * `streaming` is true: the response isn't final yet, and `sentAt` is only a
+ * placeholder until the block actually commits (see `useMessageLog.ts`). */
+export const AssistantText = memo(function AssistantText({ text, sentAt, streaming, onCopy }: AssistantTextProps) {
+  const [copied, setCopied] = useState(false);
+
+  function handleCopy(): void {
+    onCopy(text);
+    setCopied(true);
+    setTimeout(() => setCopied(false), 1500);
+  }
+
+  // Long-press (iOS) — same pattern as `UserBubble`, just "Copiar" only.
+  const longPress = useLongPress({
+    onLongPress: (point) => {
+      void showNativeContextMenu([{ id: "copy", label: "Copiar", systemIcon: "doc.on.doc" }], point).then((selectedId) => {
+        if (selectedId === "copy") handleCopy();
+      });
+    },
+  });
+
   return (
-    <div className="prose-chat text-sm text-foreground">
-      <MarkdownContent text={stripPlanChoiceMarkers(text)} />
+    <div className="group flex flex-col items-start" {...(isIOS() && !streaming ? longPress : undefined)}>
+      <div className="prose-chat text-sm text-foreground">
+        <MarkdownContent text={stripPlanChoiceMarkers(text)} />
+      </div>
+      {!streaming && !isIOS() && (
+        <div className="mt-1 flex h-6 items-center gap-1 text-xs text-muted-foreground opacity-0 transition-opacity group-hover:opacity-100">
+          <TimestampLabel sentAt={sentAt} />
+          <button
+            type="button"
+            onClick={handleCopy}
+            aria-label={copied ? "Copiado" : "Copiar mensagem"}
+            className="flex size-6 cursor-pointer items-center justify-center rounded-md hover:bg-border hover:text-foreground"
+          >
+            {copied ? <Check className="size-3.5" /> : <Copy className="size-3.5" />}
+          </button>
+        </div>
+      )}
     </div>
   );
 });

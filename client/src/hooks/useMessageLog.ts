@@ -4,7 +4,7 @@ import type { PendingAttachment } from "@/hooks/useImageUpload";
 
 export type LogEntry =
   | { kind: "user"; id: string; text: string; images?: PendingAttachment[]; sentAt: number }
-  | { kind: "text"; id: string; text: string; streaming: boolean }
+  | { kind: "text"; id: string; text: string; streaming: boolean; sentAt: number }
   | { kind: "tool-use"; id: string; toolUseId?: string; name: string; input: ClaudeContentBlock["input"] }
   | {
       kind: "tool-result";
@@ -80,7 +80,7 @@ function newId(): string {
   return crypto.randomUUID();
 }
 
-function commitContentBlock(entries: LogEntry[], block: ClaudeContentBlock): void {
+function commitContentBlock(entries: LogEntry[], block: ClaudeContentBlock, sentAt: number): void {
   if (block.type === "text" && typeof block.text === "string") {
     // Synthetic marker the CLI itself inserts into the transcript when
     // interrupted (`[Request interrupted by user]`, `[...for tool use]`,
@@ -88,7 +88,7 @@ function commitContentBlock(entries: LogEntry[], block: ClaudeContentBlock): voi
     // TURN_COMPLETE's `stopped` already covers this notice ("Interrompido
     // pelo usuário."), so committing this too would have duplicated the message on screen.
     if (block.text.startsWith("[Request interrupted")) return;
-    entries.push({ kind: "text", id: newId(), text: block.text, streaming: false });
+    entries.push({ kind: "text", id: newId(), text: block.text, streaming: false, sentAt });
   } else if (block.type === "tool_use") {
     entries.push({
       kind: "tool-use",
@@ -166,8 +166,14 @@ function applyClaudeEvent(state: MessageLogState, event: ClaudeEvent): MessageLo
 
   if (event.type === "assistant" || event.type === "user") {
     const entries = [...state.entries];
+    // Unlike `user_prompt`, `event.timestamp` here is a genuine field the
+    // CLI itself stamps on every `assistant` stream-json line (verified
+    // against real `claude -p --output-format stream-json` output and the
+    // on-disk transcript, both live and replayed) — the `Date.now()`
+    // fallback only covers an unexpected/older event shape.
+    const sentAt = event.timestamp ? Date.parse(event.timestamp) : Date.now();
     for (const block of event.message?.content ?? []) {
-      commitContentBlock(entries, block);
+      commitContentBlock(entries, block, sentAt);
       // Enriches the most recent tool-result with structuredPatch, if it
       // comes (found in an earlier pass: the relay already delivers Edit's
       // diff ready-made).
@@ -207,7 +213,9 @@ function applyHistoryMessage(state: MessageLogState, message: HistoryMessage): M
   // turn complete.
   const entries = [...state.entries];
   for (const block of state.streamingText) {
-    if (block.text.length > 0) entries.push({ kind: "text", id: newId(), text: block.text, streaming: false });
+    // No `event.timestamp` to fall back on here — this is a stop/interrupt
+    // cutting the stream short, not a real `assistant` line.
+    if (block.text.length > 0) entries.push({ kind: "text", id: newId(), text: block.text, streaming: false, sentAt: Date.now() });
   }
   if (message.stopped) entries.push({ kind: "stopped", id: newId() });
   return { ...state, entries, streamingText: [] };
@@ -330,7 +338,10 @@ export function useMessageLog(): UseMessageLogResult {
     () =>
       state.streamingText
         .filter((b) => b.text.length > 0)
-        .map((b) => ({ kind: "text" as const, id: `streaming-${b.index}`, text: b.text, streaming: true })),
+        // `sentAt` here is a placeholder, never shown — the action strip
+        // (Message.tsx::AssistantText) stays hidden while `streaming: true`,
+        // it only reads `sentAt` once the block has actually committed.
+        .map((b) => ({ kind: "text" as const, id: `streaming-${b.index}`, text: b.text, streaming: true, sentAt: Date.now() })),
     [state.streamingText],
   );
 

@@ -158,7 +158,7 @@ function renderItem(item: RenderItem, userActions: UserActionHandlers) {
     case "text":
       return (
         <LogEntryRow key={entry.id} rail="none">
-          <AssistantText text={entry.text} />
+          <AssistantText text={entry.text} sentAt={entry.sentAt} streaming={entry.streaming} onCopy={userActions.onCopy} />
         </LogEntryRow>
       );
     case "error":
