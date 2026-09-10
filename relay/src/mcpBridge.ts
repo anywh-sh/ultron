@@ -51,7 +51,7 @@ export interface ChoiceHost {
   presentChoice(questions: ChoiceQuestion[]): boolean;
 }
 
-export const CHOICE_MCP_SERVER_NAME = "ultron-choice";
+export const CHOICE_MCP_SERVER_NAME = "anywh-choice";
 const TOOL_NAME = "present_choice";
 export const CHOICE_ALLOWED_TOOL = `mcp__${CHOICE_MCP_SERVER_NAME}__${TOOL_NAME}`;
 

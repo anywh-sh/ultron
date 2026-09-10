@@ -107,7 +107,7 @@ test("tools/list: exposes exactly the present_choice tool, matching CHOICE_ALLOW
   const body = parsedBody(state);
   const tools = (body.result as { tools?: { name: string }[] }).tools ?? [];
   assert.equal(tools.length, 1);
-  assert.equal(`mcp__ultron-choice__${tools[0].name}`, CHOICE_ALLOWED_TOOL);
+  assert.equal(`mcp__anywh-choice__${tools[0].name}`, CHOICE_ALLOWED_TOOL);
 });
 
 test("tools/call present_choice: forwards questions to the host, replies immediately with the end-turn instruction (deferred lifecycle, docs/46 Descoberta 8)", async () => {

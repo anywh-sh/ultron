@@ -31,7 +31,7 @@
 //   FAKE_CLAUDE_PRESENT_CHOICE - if set (a JSON `ChoiceQuestion[]`), speaks
 //                        the real MCP "Streamable HTTP" handshake
 //                        (initialize -> tools/call) against the
-//                        `ultron-choice` server URL found in this
+//                        `anywh-choice` server URL found in this
 //                        invocation's own `--mcp-config`, exactly like the
 //                        real `claude` binary calling `present_choice` mid-
 //                        turn (docs/46) — but deterministically, no model
@@ -62,7 +62,7 @@ function flagValue(name) {
 }
 
 // Must match `CHOICE_MCP_SERVER_NAME` in mcpBridge.ts.
-const CHOICE_SERVER_NAME = "ultron-choice";
+const CHOICE_SERVER_NAME = "anywh-choice";
 
 /** Speaks just enough of the real MCP "Streamable HTTP" handshake to call
  * `present_choice` against the relay's own `McpChoiceBridge` — see

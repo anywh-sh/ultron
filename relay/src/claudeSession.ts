@@ -67,8 +67,8 @@ export function buildChildEnv(homeOverride: string | undefined): NodeJS.ProcessE
   // Real-session finding (2026-09-09): the per-server `timeout` field in
   // `--mcp-config` (sharedSession.ts, mcpServers) is a documented, confirmed
   // regression in this CLI generation — silently ignored for `"http"`-type
-  // servers, which is exactly `ultron-permission`'s transport
-  // (permissionBridge.ts; `ultron-choice`, mcpBridge.ts, no longer needs it
+  // servers, which is exactly `anywh-permission`'s transport
+  // (permissionBridge.ts; `anywh-choice`, mcpBridge.ts, no longer needs it
   // at all — its `tools/call` replies immediately now, see the "deferred
   // lifecycle" comment on `SharedSession.presentChoice`). Verified live: a
   // never-resolving `checkPermission` call still errored with "The

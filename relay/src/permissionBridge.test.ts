@@ -71,7 +71,7 @@ test("tools/list: exposes exactly the approve tool, matching PERMISSION_PROMPT_T
   const body = parsedBody(state);
   const tools = (body.result as { tools?: { name: string }[] }).tools ?? [];
   assert.equal(tools.length, 1);
-  assert.equal(`mcp__ultron-permission__${tools[0].name}`, PERMISSION_PROMPT_TOOL);
+  assert.equal(`mcp__anywh-permission__${tools[0].name}`, PERMISSION_PROMPT_TOOL);
 });
 
 test("tools/call approve: forwards tool_name/input/tool_use_id to the host, returns its decision as JSON text", async () => {

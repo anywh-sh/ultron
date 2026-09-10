@@ -31,7 +31,7 @@ export interface PermissionCheckHost {
   checkPermission(toolName: string, input: unknown, toolUseId: string | undefined): Promise<PermissionDecision>;
 }
 
-export const PERMISSION_MCP_SERVER_NAME = "ultron-permission";
+export const PERMISSION_MCP_SERVER_NAME = "anywh-permission";
 const TOOL_NAME = "approve";
 export const PERMISSION_PROMPT_TOOL = `mcp__${PERMISSION_MCP_SERVER_NAME}__${TOOL_NAME}`;
 

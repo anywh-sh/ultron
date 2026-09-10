@@ -956,7 +956,7 @@ export class SharedSession {
             checkPermission: (toolName, input, toolUseId) => this.checkPermission(toolName, input, toolUseId),
           })
         : undefined;
-    // `permissionRegistration`'s server (`ultron-permission`) still waits on
+    // `permissionRegistration`'s server (`anywh-permission`) still waits on
     // a real human (an approve/deny decision) with no bytes sent back until
     // that happens — from the CLI's point of view that's indistinguishable
     // from a hung connection. Real finding (2026-09-09): the CLI's own
@@ -988,7 +988,7 @@ export class SharedSession {
     // turn doesn't hang, it just can't get the approval it asked for). See
     // journal/46 Descoberta 8 for the full investigation.
     //
-    // `choiceRegistration`'s server (`ultron-choice`) no longer needs any of
+    // `choiceRegistration`'s server (`anywh-choice`) no longer needs any of
     // this: `presentChoice` (mcpBridge.ts's `ChoiceHost`) replies to
     // `present_choice` immediately now (the deferred lifecycle this feature
     // introduced), so there's nothing left for the CLI's idle/wall-clock
