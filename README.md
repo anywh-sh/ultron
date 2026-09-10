@@ -18,6 +18,10 @@
 
 ---
 
+<p align="center">
+  <img src="assets/screenshot-desktop.png" alt="ultron desktop client showing multiple session tabs, a chat with rendered Markdown and code blocks, a file browser, and an integrated terminal side by side" width="100%">
+</p>
+
 A thin wrapper around the [Claude Code](https://claude.ai/code) CLI: chat, voice input, image upload, multi-session, and a file browser from a native app on desktop (Windows/macOS, Linux untested — Tauri supports it, but nobody has run it there yet) or iOS — while the actual `claude` process keeps running on a machine you control.
 
 ## Why
