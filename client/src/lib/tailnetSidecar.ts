@@ -10,6 +10,9 @@ export interface TailnetEndpoint {
 interface Entry {
   refCount: number;
   endpoint: Promise<TailnetEndpoint>;
+  /** Set while a teardown is scheduled but hasn't run yet — see
+   * `releaseTailnetSidecar`'s comment for why this exists. */
+  pendingStop?: ReturnType<typeof setTimeout>;
 }
 
 const entries = new Map<string, Entry>();
@@ -40,6 +43,13 @@ export function acquireTailnetSidecar(profile: Profile, target: string): Promise
   const existing = entries.get(profile.id);
   if (existing) {
     existing.refCount += 1;
+    if (existing.pendingStop !== undefined) {
+      // Reclaimed within the StrictMode window described in
+      // `releaseTailnetSidecar` — the join in progress (or already up) is
+      // still good, cancel the teardown instead of restarting cold.
+      clearTimeout(existing.pendingStop);
+      existing.pendingStop = undefined;
+    }
     return existing.endpoint;
   }
   const endpoint = inTauri()
@@ -57,14 +67,31 @@ export function acquireTailnetSidecar(profile: Profile, target: string): Promise
 /** Releases one reference acquired via `acquireTailnetSidecar` — once the
  * last tab on a profile releases it, the sidecar is actually stopped. Safe
  * to call for a profile that was never acquired (a no-op) — e.g. cleanup
- * running for a tab that switched profile before its first render. */
+ * running for a tab that switched profile before its first render.
+ *
+ * The actual teardown is deferred, not immediate: React 18 StrictMode
+ * (dev only) double-invokes the effect that owns this profile's sidecar —
+ * mount, cleanup, mount again — all synchronously, before the first
+ * `tsnet` join has had any chance to finish. Tearing down on that first
+ * cleanup killed the join mid-flight every time, so the second mount
+ * always started cold, and any caller ahead of the second `acquireTailnetSidecar`
+ * (the chat `RelayClient`, `useSessionNames`, ...) was left racing a
+ * WebSocket against a sidecar with no port yet — this is the concrete bug
+ * behind the client connecting to `127.0.0.1:0` and looping on
+ * "reconnecting" forever. `setTimeout(0)` is enough: StrictMode's
+ * mount/cleanup/mount replay happens inside the same tick, well before any
+ * timer fires, so a genuine same-profile reacquire always lands before this
+ * runs and cancels it (see `acquireTailnetSidecar`); only a real
+ * "nobody wants this anymore" reaches the timeout body. */
 export function releaseTailnetSidecar(profileId: string): void {
   const entry = entries.get(profileId);
   if (!entry) return;
   entry.refCount -= 1;
   if (entry.refCount > 0) return;
-  entries.delete(profileId);
-  // Fire-and-forget: nothing downstream needs to await the child actually
-  // dying, and outside Tauri there's nothing to stop in the first place.
-  if (inTauri()) void invoke("tailnet_sidecar_stop", { profileId });
+  entry.pendingStop = setTimeout(() => {
+    entries.delete(profileId);
+    // Fire-and-forget: nothing downstream needs to await the child actually
+    // dying, and outside Tauri there's nothing to stop in the first place.
+    if (inTauri()) void invoke("tailnet_sidecar_stop", { profileId });
+  }, 0);
 }
