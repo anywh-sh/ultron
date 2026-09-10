@@ -1,4 +1,4 @@
-# ultron client
+# anywh client
 
 Desktop (Windows/macOS/Linux) and iOS client, built with React + TypeScript + Tailwind CSS + shadcn/ui on top of Tauri 2.0. Talks to the relay (`../relay`) over WebSocket.
 

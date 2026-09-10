@@ -131,7 +131,7 @@ pub fn run() {
             // falls back to Tauri's internal default ("Tauri App"). Force the title explicitly.
             #[cfg(target_os = "macos")]
             if let Some(window) = tauri::Manager::get_webview_window(app, "main") {
-                let _ = window.set_title("ultron");
+                let _ = window.set_title("anywh.sh");
             }
 
             // The OS-level scheme registration (tauri.conf.json's

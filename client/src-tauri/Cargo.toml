@@ -16,8 +16,8 @@ crate-type = ["staticlib", "cdylib", "rlib"]
 
 [[bin]]
 # Sem isso o binário sai como `client.exe` (nome do pacote Cargo) em vez de
-# `ultron.exe` — tanto no instalador NSIS quanto no .exe portátil.
-name = "ultron"
+# `anywh.exe` — tanto no instalador NSIS quanto no .exe portátil.
+name = "anywh"
 path = "src/main.rs"
 
 [build-dependencies]

@@ -1,8 +1,8 @@
 [package]
 name = "tauri-plugin-native-chrome"
 version = "0.1.0"
-authors = [ "ultron" ]
-description = "Camada de chrome nativo (SwiftUI/Liquid Glass) do port iOS do ultron — ver docs/23."
+authors = [ "anywh" ]
+description = "Camada de chrome nativo (SwiftUI/Liquid Glass) do port iOS do anywh — ver docs/23."
 edition = "2021"
 rust-version = "1.77.2"
 exclude = ["/examples", "/dist-js", "/guest-js", "/node_modules"]

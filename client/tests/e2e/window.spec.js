@@ -3,7 +3,7 @@
 // app itself launches under WebdriverIO's embedded provider, not any
 // relay-dependent flow (those need the client/tests/ui fake-relay tier, or a
 // real relay for a fuller e2e scenario later).
-describe("ultron desktop shell", () => {
+describe("anywh desktop shell", () => {
   it("launches the main window and renders the sidebar", async () => {
     const newConversationButton = await $('[aria-label="Nova conversa"]');
     await newConversationButton.waitForExist({ timeout: 15000 });

@@ -85,13 +85,13 @@ mod windows_toast {
     }
 
     /// `installMode: "currentUser"` (see `tauri.conf.json`) always installs
-    /// into `%LOCALAPPDATA%\ultron`; `perMachine` would land in
-    /// `%ProgramFiles%\ultron` — checking both covers the case where the
+    /// into `%LOCALAPPDATA%\anywh`; `perMachine` would land in
+    /// `%ProgramFiles%\anywh` — checking both covers the case where the
     /// mode ever changes. Only these directories have the Start Menu
     /// shortcut with the AppUserModelID actually registered (it's the NSIS
     /// installer that creates it).
     fn is_nsis_install_dir(dir: &std::path::Path) -> bool {
-        if dir.file_name().and_then(|n| n.to_str()) != Some("ultron") {
+        if dir.file_name().and_then(|n| n.to_str()) != Some("anywh") {
             return false;
         }
         let Some(parent) = dir.parent() else {

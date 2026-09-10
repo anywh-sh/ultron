@@ -1,6 +1,6 @@
 # Tauri Plugin native-chrome
 
-Camada de chrome nativo do port iOS do ultron (docs/23, Fase E) — promovido do
+Camada de chrome nativo do port iOS do anywh (docs/23, Fase E) — promovido do
 spike de UI nativa (`docs/22`, spike 2/3: `manager.viewController` +
 `UIHostingController` inserida como subview do webview via
 `addChild`/`addSubview`, material Liquid Glass real do iOS 26).

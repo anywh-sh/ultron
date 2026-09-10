@@ -11,7 +11,7 @@ import { resolve } from "node:path";
 //
 // Neither the feature nor the extra capability is present in a normal
 // `tauri dev`/`tauri build` — this is an opt-in, e2e-only binary.
-const appBinaryPath = resolve(import.meta.dirname, "src-tauri/target/debug/ultron");
+const appBinaryPath = resolve(import.meta.dirname, "src-tauri/target/debug/anywh");
 
 export const config = {
   runner: "local",

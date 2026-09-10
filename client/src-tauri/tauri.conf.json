@@ -1,8 +1,8 @@
 {
   "$schema": "https://schema.tauri.app/config/2",
-  "productName": "ultron",
+  "productName": "anywh",
   "version": "0.1.0",
-  "identifier": "com.ultron.client",
+  "identifier": "sh.anywh.client",
   "build": {
     "beforeDevCommand": "npm run dev",
     "devUrl": "http://localhost:1420",
@@ -13,7 +13,7 @@
     "withGlobalTauri": true,
     "windows": [
       {
-        "title": "ultron",
+        "title": "anywh.sh",
         "width": 1000,
         "height": 700,
         "dragDropEnabled": true,
