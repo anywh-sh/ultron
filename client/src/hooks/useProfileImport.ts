@@ -33,7 +33,15 @@ export function useProfileImport(onImported: (profileId: string) => void): void 
           console.error(`useProfileImport: ignoring unrecognized deep link: ${url}`);
           continue;
         }
-        onImportedRef.current(importProfile(params));
+        // journal/62 F4: a tailnet-mode import redeems the join code over
+        // the network (claimTailnetBundle) before there's a profile to add
+        // at all — no profile (and no `onImported` call) on failure, same
+        // as an unrecognized link above.
+        importProfile(params)
+          .then((id) => onImportedRef.current(id))
+          .catch((err: unknown) => {
+            console.error(`useProfileImport: failed to import profile from deep link: ${url}`, err);
+          });
       }
     }
 

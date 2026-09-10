@@ -286,8 +286,33 @@ export function profileColorClassForIndex(index: number): string {
  * `colorIndex` existed (the two seeded ones keep their current colors that
  * way, since `pessoal` is first and `trabalho` second). */
 export function profileColorClass(profileId: string): string {
+  return profileColorClassForIndex(profileColorIndex(profileId));
+}
+
+// Same colors as `PROFILE_COLOR_CLASSES`, at low opacity — TabBar's selected
+// tab paints its own background with this instead of the old "selected"
+// indicator bar, so the tint alone carries both "this tab is active" and
+// "this is the profile it belongs to". Written out as literal class names
+// (not built with a template string) because Tailwind's scanner needs the
+// full utility name present verbatim in source to generate it.
+const PROFILE_ACTIVE_BG_CLASSES = [
+  "data-[state=active]:bg-profile-1/15",
+  "data-[state=active]:bg-profile-2/15",
+  "data-[state=active]:bg-profile-3/15",
+  "data-[state=active]:bg-profile-4/15",
+  "data-[state=active]:bg-profile-5/15",
+  "data-[state=active]:bg-profile-6/15",
+];
+
+function profileColorIndex(profileId: string): number {
   const index = profiles.findIndex((p) => p.id === profileId);
   const profile = index >= 0 ? profiles[index] : undefined;
-  const slot = profile?.colorIndex ?? (index >= 0 ? index : 0);
-  return profileColorClassForIndex(slot);
+  return profile?.colorIndex ?? (index >= 0 ? index : 0);
+}
+
+/** Tinted background for a tab's selected state — same color/index rules as
+ * `profileColorClass`, just mapped onto the low-opacity palette above. */
+export function profileActiveBgClass(profileId: string): string {
+  const index = profileColorIndex(profileId);
+  return PROFILE_ACTIVE_BG_CLASSES[index % PROFILE_ACTIVE_BG_CLASSES.length];
 }
