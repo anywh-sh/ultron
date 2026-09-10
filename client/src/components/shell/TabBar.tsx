@@ -20,8 +20,8 @@ import { RenameSessionDialog } from "@/components/shell/RenameSessionDialog";
 
 // A long enough session title (auto-inferred from the first prompt, or
 // hand-typed via rename) could otherwise stretch the tooltip arbitrarily
-// wide — this caps it to roughly a glance's worth of text, same idea as the
-// `max-w-64` on TooltipContent below.
+// wide — this caps it to roughly a glance's worth of text, kept on the one
+// line TooltipContent below forces with `whitespace-nowrap`.
 const MAX_TOOLTIP_TITLE_WORDS = 12;
 
 interface TabBarProps {
@@ -138,7 +138,10 @@ function SortableTab({ tab, onClose, onRename, onDelete }: SortableTabProps) {
           />
         </div>
       </TooltipTrigger>
-      <TooltipContent side="bottom" className="max-w-64">
+      {/* `whitespace-nowrap` overrides TooltipContent's own `text-balance`
+          (which wraps to balance line lengths) — with the word cap above,
+          there's no need to wrap at all, and wrapping read as a bug here. */}
+      <TooltipContent side="bottom" className="whitespace-nowrap">
         {truncateWords(tab.title ?? "Nova sessão", MAX_TOOLTIP_TITLE_WORDS)}
       </TooltipContent>
     </Tooltip>
