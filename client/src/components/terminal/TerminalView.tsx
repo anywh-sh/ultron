@@ -243,7 +243,7 @@ export function TerminalView({ profile, chatSessionId, terminalId, cwd }: Termin
     // the theme's terminal background rather than `--bg-sidebar` whenever a
     // theme declares its own.
     <div className="relative h-full w-full" style={{ "--terminal-bg": terminalTheme.background } as React.CSSProperties}>
-      <div ref={containerRef} className="h-full w-full p-2" />
+      <div ref={containerRef} className="selectable-content h-full w-full p-2" />
       {reconnecting && (
         <div className="absolute top-2 right-2 rounded-md bg-bg-elevated px-2 py-0.5 text-xs text-muted-foreground">
           Reconectando…

@@ -36,7 +36,7 @@ export function CodeFileView({ path, content }: CodeFileViewProps) {
   });
 
   return (
-    <div ref={parentRef} className="scrollbar-thin h-full overflow-auto font-mono text-xs">
+    <div ref={parentRef} className="selectable-content scrollbar-thin h-full overflow-auto font-mono text-xs">
       <div style={{ position: "relative", width: "100%", height: virtualizer.getTotalSize() }}>
         {virtualizer.getVirtualItems().map((virtualItem) => (
           <div

@@ -421,7 +421,10 @@ export const MessageLog = memo(function MessageLog({
       // non-`visible` `overflow-y` forces the other axis to `auto` too),
       // which opens up horizontal scroll as soon as any content (a long
       // path in `code`, for instance) overflows the width by even 1px.
-      className={cn("scrollbar-thin relative flex-1 overflow-x-hidden overflow-y-auto px-4 py-3", className)}
+      className={cn(
+        "selectable-content scrollbar-thin relative flex-1 overflow-x-hidden overflow-y-auto px-4 py-3",
+        className,
+      )}
     >
       {loadingOlderHistory && (
         <div className="sticky top-0 z-10 flex justify-center py-1.5">

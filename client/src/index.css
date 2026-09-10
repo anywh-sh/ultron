@@ -225,6 +225,42 @@
   }
 }
 
+/* App-wide default: dragging across UI chrome (session list, tab bar,
+ * model/work-dir buttons, dialogs) must not enter text-selection mode — a
+ * WKWebView has no such default the way a native toolkit does, so without
+ * this the app behaves like a web page instead of an app (reported live:
+ * click-drag over the session list, or over the composer's model/work-dir
+ * buttons, selected their labels). `-webkit-touch-callout` (iOS's long-press
+ * "Copy/Look Up" bubble) follows the same default.
+ *
+ * Selection stays available exactly where copying text is a real use case —
+ * message/file content (`.selectable-content`, applied to `.prose-chat`, the
+ * code viewers, and the terminal below) and any actual editing surface
+ * (`input`/`textarea`/`[contenteditable]`) — those are exempted here instead
+ * of adding `select-none` ad hoc to every chrome element as it's discovered.
+ */
+@layer base {
+  html {
+    user-select: none;
+    -webkit-user-select: none;
+    -webkit-touch-callout: none;
+  }
+
+  input,
+  textarea,
+  [contenteditable="true"] {
+    user-select: text;
+    -webkit-user-select: text;
+    -webkit-touch-callout: default;
+  }
+}
+
+.selectable-content {
+  user-select: text;
+  -webkit-user-select: text;
+  -webkit-touch-callout: default;
+}
+
 /* `position: fixed` na `body` (não só `overflow: hidden`) é o truque padrão
  * pra impedir o comportamento nativo do WebKit em iOS de rolar o documento
  * inteiro pra "trazer o campo focado pra vista" quando um contenteditable
@@ -245,6 +281,16 @@ body {
   background: var(--background);
   color: var(--foreground);
   font-family: var(--font-sans);
+}
+
+/* `body`'s `fixed`/`inset: 0` above is already pinned to the real visible
+ * viewport — `#app` needs to inherit that exact box instead of an
+ * independent `vh`/`dvh` calculation of its own (App.tsx's root div), which
+ * can disagree with it in a WKWebView and clip or leave a gap under
+ * whatever sits at the bottom of the layout (found live testing
+ * `ChoiceCard` on iOS — journal/46 follow-up). */
+#app {
+  height: 100%;
 }
 
 @keyframes cursor-blink {
@@ -420,6 +466,9 @@ body {
    * mas só cortando o texto — aqui é o que faz ele quebrar de linha de
    * verdade em vez de ficar cortado. */
   overflow-wrap: anywhere;
+  user-select: text;
+  -webkit-user-select: text;
+  -webkit-touch-callout: default;
 }
 .prose-chat > * + * {
   margin-top: 0.6em;
@@ -556,6 +605,11 @@ body {
  * como fallback pro caso de a variável não ter sido escrita ainda. */
 .xterm .xterm-viewport {
   background-color: var(--terminal-bg, var(--bg-sidebar)) !important;
+}
+.xterm {
+  user-select: text;
+  -webkit-user-select: text;
+  -webkit-touch-callout: default;
 }
 
 /* Syntax highlight (rehype-highlight/hljs) — tema mínimo em cima da própria
