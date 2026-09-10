@@ -218,9 +218,10 @@ export class ThemeSaveError extends Error {
 /** Removes a theme from the host registry. Profiles still pointing at it
  * keep the dangling `themeId` on purpose (see themeRegistry.ts) — they fall
  * back to the built-in theme and recover the choice if it's added back. */
-export async function deleteTheme(host: string, port: number, id: string): Promise<void> {
+export async function deleteTheme(host: string, port: number, id: string, token?: string): Promise<void> {
   const response = await fetch(`http://${host}:${port}/control/themes/${encodeURIComponent(id)}`, {
     method: "DELETE",
+    headers: authHeaders(token),
   });
   if (!response.ok) {
     const body = (await response.json().catch(() => ({}))) as { error?: string };

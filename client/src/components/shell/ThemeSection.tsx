@@ -14,7 +14,8 @@ import {
 import { ThemeImportDialog, type ThemeDialogIntent } from "@/components/shell/ThemeImportDialog";
 import { useThemes, useThemeSync } from "@/hooks/useThemes";
 import { isBuiltinTheme } from "@/lib/builtinThemes";
-import { addProfile, type Profile } from "@/lib/profiles";
+import { resolveConnection } from "@/lib/connectionResolver";
+import { addProfile, isTailnetProfile, type Profile } from "@/lib/profiles";
 import { deleteTheme, updateProfileMeta } from "@/lib/relayClient";
 import type { Theme } from "@/lib/theme";
 import { resolveTheme } from "@/lib/themeApply";
@@ -128,16 +129,29 @@ export function ThemeSection({
   activeProfile: Profile;
   allProfiles: Profile[];
 }) {
-  // Both registries this section touches are host-wide files that any relay
-  // on the machine reads and writes: the themes directory and profiles.json
-  // (see themeRegistry.ts / profileRegistry.ts). Talking to the scoped
-  // profile's own relay would mean a profile whose service is stopped can
-  // neither read the theme list nor have its theme changed, even though its
-  // data is sitting in a file another relay on the same host is already
-  // serving. Same reasoning as DangerZone's executor lookup, for the
-  // opposite reason: there, another relay is required; here, it's simply
-  // the one known to be reachable.
-  const registry = activeProfile.host === scopedProfile.host ? activeProfile : scopedProfile;
+  // For a direct profile, both registries this section touches are
+  // host-wide files that any relay on the machine reads and writes: the
+  // themes directory and profiles.json (see themeRegistry.ts /
+  // profileRegistry.ts). Talking to the scoped profile's own relay would
+  // mean a profile whose service is stopped can neither read the theme list
+  // nor have its theme changed, even though its data is sitting in a file
+  // another relay on the same host is already serving — so this falls back
+  // to the active profile's relay, known to be reachable, whenever the two
+  // genuinely share a host. Same reasoning as DangerZone's executor lookup,
+  // for the opposite reason: there, another relay is required; here, it's
+  // simply the one known to be reachable.
+  //
+  // A tailnet profile breaks the host comparison instead of satisfying it:
+  // every tailnet profile reports the same "127.0.0.1" sidecar placeholder
+  // (profileImport.ts) regardless of which sandbox it actually is, so
+  // `activeProfile.host === scopedProfile.host` is always true for two of
+  // them even though each is its own isolated sandbox with its own
+  // registry — `themeStoreKey` already keys a tailnet profile's local
+  // mirror by `id` for exactly this reason. The scoped profile is always
+  // its own registry there; substituting the active one would silently
+  // read/write a different sandbox's themes.
+  const registry =
+    !isTailnetProfile(scopedProfile) && activeProfile.host === scopedProfile.host ? activeProfile : scopedProfile;
   const { supported } = useThemeSync(registry);
   const { all } = useThemes(scopedProfile);
   const { theme: current, missing } = resolveProfileTheme(scopedProfile);
@@ -157,7 +171,8 @@ export function ThemeSection({
       // The built-in is stored as "no theme" rather than as its id: that's
       // what makes it the fallback for a profile whose custom theme is gone.
       const themeId = isBuiltinTheme(theme.id) ? null : theme.id;
-      await updateProfileMeta(registry.host, registry.relayPort, scopedProfile.id, { themeId });
+      const { host, port, token } = await resolveConnection(registry);
+      await updateProfileMeta(host, port, scopedProfile.id, { themeId }, token);
       addProfile({ ...scopedProfile, themeId: themeId ?? undefined });
     } catch (err) {
       setError(err instanceof Error ? err.message : String(err));
@@ -187,7 +202,8 @@ export function ThemeSection({
     setBusy(true);
     setError(null);
     try {
-      await deleteTheme(registry.host, registry.relayPort, theme.id);
+      const { host, port, token } = await resolveConnection(registry);
+      await deleteTheme(host, port, theme.id, token);
       const key = themeStoreKey(scopedProfile);
       setThemesForHost(key, customThemesForHost(key).filter((entry) => entry.id !== theme.id));
       setPendingDelete(null);
@@ -219,7 +235,7 @@ export function ThemeSection({
 
       {!supported && (
         <p className="rounded-md border border-border px-3 py-2 text-xs text-muted-foreground">
-          Não foi possível ler os temas de {registry.host} (servidor fora do ar ou relay antigo). A
+          Não foi possível ler os temas de {registry.label} (servidor fora do ar ou relay antigo). A
           lista abaixo é a última conhecida, e mudanças não vão salvar até ele responder.
         </p>
       )}
