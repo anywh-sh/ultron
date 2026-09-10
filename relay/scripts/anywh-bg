@@ -22,7 +22,7 @@
 # ninguém notar, porque o modelo já tinha respondido antes de checar).
 set -euo pipefail
 
-JOBS_DIR="${HOME:?HOME precisa estar definido}/.ultron/bg-jobs"
+JOBS_DIR="${HOME:?HOME precisa estar definido}/.anywh/bg-jobs"
 
 # Corpo do processo que roda dentro do `setsid`, em variável só pra caber
 # comentado. Roda via `bash -c "$WRAPPER_BODY" _ "$cmd"`, com `EXITFILE` e

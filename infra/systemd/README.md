@@ -27,7 +27,7 @@ order so the second wins on conflicts:
 
 1. `relay/.env` — shared across every profile (`CLAUDE_BIN`,
    `EXTRA_PATH_DIRS`, anything that doesn't vary by profile).
-2. `~/.config/ultron/env/<profile>.env` — per-profile overrides.
+2. `~/.config/anywh/env/<profile>.env` — per-profile overrides.
 
 Both are optional (`EnvironmentFile=-...`), so a single-profile setup can
 skip the second file, or even both, and run on the relay's own defaults.
@@ -55,12 +55,12 @@ systemctl --user enable --now ultron-relay@default
 For more than one profile, give each its own env file before enabling it:
 
 ```bash
-mkdir -p ~/.config/ultron/env
-cat > ~/.config/ultron/env/pessoal.env <<'EOF'
+mkdir -p ~/.config/anywh/env
+cat > ~/.config/anywh/env/pessoal.env <<'EOF'
 RELAY_PORT=8765
-RELAY_SESSIONS_FILE=/home/you/.ultron-sessions/pessoal.json
-RELAY_BACKGROUND_JOBS_FILE=/home/you/.ultron-sessions/pessoal-bg-jobs.json
-RELAY_UPLOAD_DIR=/tmp/ultron-uploads-pessoal
+RELAY_SESSIONS_FILE=/home/you/.anywh-sessions/pessoal.json
+RELAY_BACKGROUND_JOBS_FILE=/home/you/.anywh-sessions/pessoal-bg-jobs.json
+RELAY_UPLOAD_DIR=/tmp/anywh-uploads-pessoal
 ANYWH_EDITOR_LOCAL=1
 EOF
 systemctl --user enable --now ultron-relay@pessoal

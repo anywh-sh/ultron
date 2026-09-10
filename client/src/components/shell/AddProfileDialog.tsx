@@ -134,7 +134,7 @@ export function AddProfileDialog({ open, onOpenChange, activeProfile }: AddProfi
               value={homePath}
               onChange={(event) => setHomePath(event.target.value)}
               className="rounded-md border border-border bg-transparent px-2.5 py-1.5 font-mono text-xs outline-none focus:border-ring"
-              placeholder="/home/user/.ultron-cliente-x-home"
+              placeholder="/home/user/.anywh-cliente-x-home"
               spellCheck={false}
             />
           </div>

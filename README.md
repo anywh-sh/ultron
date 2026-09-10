@@ -112,13 +112,13 @@ To add another profile once you're already connected to a relay:
 2. In the client, open the profile switcher and choose **Adicionar perfil** → **Criar**, give it a label and that same path, then **Verificar** to confirm the login was picked up before creating it.
 3. On any other device already pointed at the same relay machine, **Adicionar perfil** → **Importar** lists the new profile automatically — one click to add it there too.
 
-The profile registry (`~/.config/ultron/env/*.env`, `~/.config/ultron/profiles.json`) lives entirely on the relay machine — creating or importing a profile never sends anything to a third party. `infra/systemd/add-profile.sh` does the same provisioning from the command line (what the "Criar" dialog calls behind the scenes) — see [`infra/systemd/README.md`](./infra/systemd/README.md) for running it directly.
+The profile registry (`~/.config/anywh/env/*.env`, `~/.config/anywh/profiles.json`) lives entirely on the relay machine — creating or importing a profile never sends anything to a third party. `infra/systemd/add-profile.sh` does the same provisioning from the command line (what the "Criar" dialog calls behind the scenes) — see [`infra/systemd/README.md`](./infra/systemd/README.md) for running it directly.
 
 ## Themes
 
 Each profile picks its own theme, stored in the host registry next to the profile's label, so choosing one on your laptop shows up on your phone the next time it syncs.
 
-The built-in theme ships with the app and always works, even with the relay unreachable. Custom themes are JSON files added from **Configurações → Personalização → Adicionar tema** (paste or pick a file) and live on the relay machine under `~/.config/ultron/themes/*.json`, host-wide: a theme added once is selectable from every profile on that machine.
+The built-in theme ships with the app and always works, even with the relay unreachable. Custom themes are JSON files added from **Configurações → Personalização → Adicionar tema** (paste or pick a file) and live on the relay machine under `~/.config/anywh/themes/*.json`, host-wide: a theme added once is selectable from every profile on that machine.
 
 A theme only has to declare six colors; everything else is derived from them (surface stack, faint text, terminal palette) and can be overridden token by token:
 

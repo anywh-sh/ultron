@@ -23,7 +23,7 @@ const TMUX_BIN = process.env.TMUX_BIN ?? "/usr/bin/tmux";
  * default socket (`/tmp/tmux-<uid>/default`), which knows nothing about a
  * `HOME` override. */
 function tmuxSocketName(relayPort: number): string {
-  return `ultron-term-${relayPort}`;
+  return `anywh-term-${relayPort}`;
 }
 
 /** IDs come from outside (WS connection query string) — never interpolated

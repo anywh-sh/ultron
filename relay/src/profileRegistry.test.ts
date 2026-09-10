@@ -17,7 +17,7 @@ import {
 } from "./profileRegistry.js";
 
 // `envDir` nested one level under the unique tmp root (mirrors the real
-// `~/.config/ultron/{env,profiles.json}` layout) — `mkdtempSync` alone
+// `~/.config/anywh/{env,profiles.json}` layout) — `mkdtempSync` alone
 // creates directly under the shared `os.tmpdir()`, so `dirname(envDir)`
 // would resolve to that shared `/tmp`, and every test's `profiles.json`
 // would collide on the same path instead of each getting its own.

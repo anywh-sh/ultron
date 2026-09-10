@@ -7,7 +7,7 @@ import type { IncomingMessage } from "node:http";
 // Where images/videos attached by the client get saved — needs to be a path
 // that the relay's `claude -p` process can read (same machine), so it can
 // use the Read tool and genuinely "see" the image (see docs/15).
-const UPLOAD_DIR = process.env.RELAY_UPLOAD_DIR ?? "/tmp/ultron-uploads";
+const UPLOAD_DIR = process.env.RELAY_UPLOAD_DIR ?? "/tmp/anywh-uploads";
 mkdirSync(UPLOAD_DIR, { recursive: true });
 
 export const MAX_UPLOAD_BYTES = 100 * 1024 * 1024; // 100MB — a short flow/animation video easily exceeds an image's 25MB.

@@ -14,8 +14,8 @@ import {
 
 const STARTED_JSON =
   '{"anywh_bg":"started","id":"1788022610814662237-29477","pid":1200509,' +
-  '"log":"/home/user/.ultron/bg-jobs/1788022610814662237-29477.log",' +
-  '"exitFile":"/home/user/.ultron/bg-jobs/1788022610814662237-29477.exit","label":"sleep-build-stub"}';
+  '"log":"/home/user/.anywh/bg-jobs/1788022610814662237-29477.log",' +
+  '"exitFile":"/home/user/.anywh/bg-jobs/1788022610814662237-29477.exit","label":"sleep-build-stub"}';
 
 // ---- parseStartedMarker -----------------------------------------------
 
@@ -23,8 +23,8 @@ test("parseStartedMarker: recognizes the marker when it is the whole string", ()
   assert.deepEqual(parseStartedMarker(STARTED_JSON), {
     id: "1788022610814662237-29477",
     pid: 1200509,
-    log: "/home/user/.ultron/bg-jobs/1788022610814662237-29477.log",
-    exitFile: "/home/user/.ultron/bg-jobs/1788022610814662237-29477.exit",
+    log: "/home/user/.anywh/bg-jobs/1788022610814662237-29477.log",
+    exitFile: "/home/user/.anywh/bg-jobs/1788022610814662237-29477.exit",
     label: "sleep-build-stub",
   });
 });
@@ -33,8 +33,8 @@ test("parseStartedMarker: recognizes the marker with a trailing newline (real pr
   assert.deepEqual(parseStartedMarker(STARTED_JSON + "\n"), {
     id: "1788022610814662237-29477",
     pid: 1200509,
-    log: "/home/user/.ultron/bg-jobs/1788022610814662237-29477.log",
-    exitFile: "/home/user/.ultron/bg-jobs/1788022610814662237-29477.exit",
+    log: "/home/user/.anywh/bg-jobs/1788022610814662237-29477.log",
+    exitFile: "/home/user/.anywh/bg-jobs/1788022610814662237-29477.exit",
     label: "sleep-build-stub",
   });
 });

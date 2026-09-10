@@ -72,7 +72,7 @@ test("second turn closes the first with a synthetic turn_complete, tool_use/tool
   );
 });
 
-test("cwd crossing a symlink resolves to the real path (real bug: ~/.ultron-trabalho-home/mode -> ~/mode)", () => {
+test("cwd crossing a symlink resolves to the real path (real bug: ~/.anywh-trabalho-home/mode -> ~/mode)", () => {
   const realHome = mkdtempSync(join(tmpdir(), "ultron-transcript-test-real-"));
   const linkDir = mkdtempSync(join(tmpdir(), "ultron-transcript-test-link-"));
   const cwdLink = join(linkDir, "mode");

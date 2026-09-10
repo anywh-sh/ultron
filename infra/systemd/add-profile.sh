@@ -128,7 +128,7 @@ if [[ -n "$PROFILE_HOME" ]]; then
 fi
 
 mkdir -p "$ANYWH_ENV_DIR"
-mkdir -p "$HOME/.ultron-sessions"
+mkdir -p "$HOME/.anywh-sessions"
 
 {
   echo "RELAY_PORT=$PORT"
@@ -139,9 +139,9 @@ mkdir -p "$HOME/.ultron-sessions"
   if [[ -n "$PROFILE_HOME" && "$PROFILE_HOME" != "$HOME" ]]; then
     echo "RELAY_HOME_OVERRIDE=$PROFILE_HOME"
   fi
-  echo "RELAY_UPLOAD_DIR=/tmp/ultron-uploads-$ID"
-  echo "RELAY_SESSIONS_FILE=$HOME/.ultron-sessions/$ID.json"
-  echo "RELAY_BACKGROUND_JOBS_FILE=$HOME/.ultron-sessions/$ID-bg-jobs.json"
+  echo "RELAY_UPLOAD_DIR=/tmp/anywh-uploads-$ID"
+  echo "RELAY_SESSIONS_FILE=$HOME/.anywh-sessions/$ID.json"
+  echo "RELAY_BACKGROUND_JOBS_FILE=$HOME/.anywh-sessions/$ID-bg-jobs.json"
   # "Open in editor" (journal/60) on by default for every profile this
   # script provisions — safe because editorHostInfo.ts's peer check only
   # ever downgrades this to ssh/null for a client connecting from a

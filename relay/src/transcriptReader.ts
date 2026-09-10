@@ -53,7 +53,7 @@ export function extractHumanText(line: TranscriptLine): string | undefined {
  * sanitization Claude Code uses for the folder name in
  * `~/.claude/projects/`. Confirmed by checking against real folders from
  * both profiles: `/home/user/personal/ultron/relay` -> `-home-user-personal-ultron-relay`,
- * `/home/user/.ultron-trabalho-home` -> `-home-user--ultron-trabalho-home`.
+ * `/home/user/.anywh-trabalho-home` -> `-home-user--ultron-trabalho-home`.
  */
 export function sanitizeCwd(cwd: string): string {
   return cwd.replace(/[^a-zA-Z0-9-]/g, "-");
@@ -63,7 +63,7 @@ export function sanitizeCwd(cwd: string): string {
  * `cwd` (`process.cwd()`, which the kernel already returns without symlink
  * components) — sanitizing the raw `cwd` without resolving the symlink
  * first makes this calculation land on a folder that doesn't exist whenever
- * some path component is a symlink (real finding: `~/.ultron-trabalho-home/mode`
+ * some path component is a symlink (real finding: `~/.anywh-trabalho-home/mode`
  * -> `~/mode`, sessions in the `widgets` repo computed
  * `-home-user--ultron-trabalho-home-mode-widgets` instead of the real folder,
  * `-home-user-mode-widgets`). Falls back to the raw `cwd` if the path no longer

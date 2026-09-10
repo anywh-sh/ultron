@@ -11,7 +11,7 @@ import { dirname, join, resolve } from "node:path";
 //
 // Mirror of ENV_DIR in infra/lib.sh — keep both in sync (systemd's
 // `EnvironmentFile` can't share this constant across the language boundary).
-export const ENV_DIR = process.env.ANYWH_ENV_DIR ?? join(homedir(), ".config/ultron/env");
+export const ENV_DIR = process.env.ANYWH_ENV_DIR ?? join(homedir(), ".config/anywh/env");
 
 const PROFILE_ID_PATTERN = /^[a-z0-9][a-z0-9-]*$/;
 

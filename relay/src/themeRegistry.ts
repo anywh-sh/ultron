@@ -8,7 +8,7 @@ import { formatThemeErrors, isValidThemeId, parseTheme, type Theme } from "./the
 // feature asks for: a theme added once has to be selectable from every
 // profile, and every device syncing against this host sees the same list.
 //
-// Derived from ENV_DIR (`~/.config/ultron/env`) rather than from `homedir()`
+// Derived from ENV_DIR (`~/.config/anywh/env`) rather than from `homedir()`
 // directly, so overriding `ANYWH_ENV_DIR` in a test relocates both
 // registries together.
 export const THEMES_DIR = process.env.ANYWH_THEMES_DIR ?? join(dirname(ENV_DIR), "themes");

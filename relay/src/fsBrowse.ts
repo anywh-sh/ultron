@@ -42,7 +42,7 @@ export function checkDirectory(rawPath: string): CheckResult {
 type ListResult = { ok: true; path: string; entries: FsEntry[] } | { ok: false; error: FsError };
 
 /** Subfolders only — a symlink pointing to a directory is included
- * (otherwise `/home/user/.ultron-trabalho-home`, which is where the work
+ * (otherwise `/home/user/.anywh-trabalho-home`, which is where the work
  * profile actually operates, would disappear from any listing that goes
  * through a symlink); a broken link is ignored. No dotdir filter — hidden
  * folders remain navigable, the picker isn't an "end user" listing with
