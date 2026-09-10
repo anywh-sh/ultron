@@ -92,7 +92,12 @@ function SortableTab({ tab, onClose, onRename, onDelete }: SortableTabProps) {
         }}
         aria-label={`Fechar aba ${tab.title ?? "nova sessão"}`}
         className={cn(
-          "absolute right-1.5 cursor-pointer rounded p-0.5 opacity-0 transition-opacity",
+          // `z-20`: `TabsTrigger` sits at `z-10` (see `ui/tabs.tsx`) and,
+          // being `position: relative`, paints above this sibling `button`
+          // otherwise — its clickable box covers the full row including the
+          // `pr-7` padding reserved for this button, so without a higher
+          // z-index the trigger intercepts every click meant for the X.
+          "absolute right-1.5 z-20 cursor-pointer rounded p-0.5 opacity-0 transition-opacity",
           "hover:bg-border group-hover:opacity-100",
         )}
       >
