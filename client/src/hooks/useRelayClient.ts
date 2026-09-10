@@ -283,10 +283,26 @@ export function useRelayClient(
       clientRef.current = client;
       client.connect();
     }
-    void start();
+    // Deferred by a tick, same trick as tailnetSidecar.ts's release delay
+    // and for the same reason: React 18 StrictMode (dev) mounts this
+    // effect, cleans it up, and mounts it again, synchronously, within one
+    // tick. `start()`'s first await is `fetchConnectGrant` — a broker call
+    // signed with a fresh timestamp that the control plane accepts exactly
+    // once (journal/49 D4's anti-replay). Calling it straight from the
+    // effect meant the doomed first mount's `start()` already ran past that
+    // await (and so had already sent its signed request) by the time its
+    // own cleanup set `cancelled` — both mounts' requests reached the
+    // server, and whichever one happened to land in the same millisecond as
+    // the other got rejected as a replay, sometimes taking down the mount
+    // that mattered. `setTimeout(0)` fires after StrictMode's replay has
+    // already finished, so the first mount's cleanup below cancels its
+    // timer before `start()` is ever called at all — only the surviving
+    // mount's `start()` runs, and only one signed request goes out.
+    const startTimer = setTimeout(() => void start(), 0);
 
     return () => {
       cancelled = true;
+      clearTimeout(startTimer);
       clientRef.current?.disconnect();
       clientRef.current = null;
       if (tailnetMode) releaseTailnetSidecar(profile.id);
