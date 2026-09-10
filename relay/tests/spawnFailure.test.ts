@@ -5,7 +5,7 @@ import { join } from "node:path";
 import { startTestServer, type TestServer } from "./helpers/testServer.js";
 import { collectUntil, connectSession, sendUserMessage } from "./helpers/wsClient.js";
 
-// Real integration test (.ultron/skills/tests/SKILL.md): boots the actual
+// Real integration test (.anywh/skills/tests/SKILL.md): boots the actual
 // relay server, talks to it over a real WebSocket, only fakes the `claude`
 // process. Reproduces a real incident (2026-09-08): a tab's working
 // directory was moved/deleted out from under it (repo relocated, `mv` +

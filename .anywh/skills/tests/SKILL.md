@@ -1,6 +1,6 @@
 ---
 name: tests
-description: Testing doctrine, test layout conventions, and where each kind of test lives in the ultron repo
+description: Testing doctrine, test layout conventions, and where each kind of test lives in the anywh repo
 ---
 
 # Testing Guidelines

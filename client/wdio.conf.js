@@ -1,6 +1,6 @@
 import { resolve } from "node:path";
 
-// Real end-to-end tier (.ultron/skills/tests/SKILL.md) — drives the actual
+// Real end-to-end tier (.anywh/skills/tests/SKILL.md) — drives the actual
 // Tauri app (real window, real webview) via @wdio/tauri-service's embedded
 // provider, which needs no external driver on any platform (unlike the
 // older tauri-driver, Linux/Windows only). The binary must already be built

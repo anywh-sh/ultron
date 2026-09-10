@@ -4,7 +4,7 @@ import { startTestServer, type TestServer } from "./helpers/testServer.js";
 import { collectUntil, connectSession, sendUserMessage } from "./helpers/wsClient.js";
 import type { ChoiceQuestion } from "../src/mcpBridge.js";
 
-// Real integration test (.ultron/skills/tests/SKILL.md): exercises the
+// Real integration test (.anywh/skills/tests/SKILL.md): exercises the
 // present_choice/permission-bridge flow end to end over the real WebSocket
 // protocol (choice_prompt -> choice_answer -> choice_resolved). The real
 // mechanism (relay/src/mcpBridge.ts) needs a `claude` child that speaks

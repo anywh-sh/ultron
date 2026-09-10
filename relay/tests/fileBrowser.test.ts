@@ -7,7 +7,7 @@ import WebSocket from "ws";
 import { startTestServer, type TestServer } from "./helpers/testServer.js";
 import { connectSession } from "./helpers/wsClient.js";
 
-// Real integration test (.ultron/skills/tests/SKILL.md): the work dir file
+// Real integration test (.anywh/skills/tests/SKILL.md): the work dir file
 // panel's HTTP routes (/files/list, /files/read, /files/raw) scoped by a
 // real session's cwd, plus the /files WS watch reacting to a REAL
 // filesystem write. fsFiles.test.ts already unit-tests the pure

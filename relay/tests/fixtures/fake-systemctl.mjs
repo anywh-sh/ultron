@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 // Second sanctioned mock boundary, alongside `fake-claude.mjs` (see
-// .ultron/skills/tests/SKILL.md) — stands in for the real `systemctl`
+// .anywh/skills/tests/SKILL.md) — stands in for the real `systemctl`
 // binary via the `SYSTEMCTL_BIN` env var (relay/src/server.ts), used only by
 // `DELETE /control/profiles/:id`. Added after a real incident (2026-09-07):
 // an integration test hitting that route with the real `systemctl` disabled

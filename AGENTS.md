@@ -56,7 +56,7 @@ Tudo que não for texto de UI precisa estar em inglês, mesmo quando a conversa 
 
 ## Testes
 
-Doutrina completa (o quê testar, onde cada tipo de teste mora, a única exceção sancionada a "sem mock" — o processo `claude`) está em `.ultron/skills/tests/SKILL.md`, symlinkado em `.claude/skills/tests` pra ficar auto-descoberto pelo Claude Code. Canônico fica em `.ultron/` de propósito (não `.claude/`) porque o roadmap já prevê suporte a múltiplos coding agents além do Claude Code — mesmo raciocínio por trás deste arquivo: `AGENTS.md` é o canônico, `CLAUDE.md` é symlink pra ele (não duplicar conteúdo entre convenções de nome de cada provider).
+Doutrina completa (o quê testar, onde cada tipo de teste mora, a única exceção sancionada a "sem mock" — o processo `claude`) está em `.anywh/skills/tests/SKILL.md`, symlinkado em `.claude/skills/tests` pra ficar auto-descoberto pelo Claude Code. Canônico fica em `.anywh/` de propósito (não `.claude/`) porque o roadmap já prevê suporte a múltiplos coding agents além do Claude Code — mesmo raciocínio por trás deste arquivo: `AGENTS.md` é o canônico, `CLAUDE.md` é symlink pra ele (não duplicar conteúdo entre convenções de nome de cada provider).
 
 ## Documentação
 

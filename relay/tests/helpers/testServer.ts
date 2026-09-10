@@ -68,7 +68,7 @@ export interface TestServer {
  * Boots the real relay (`server.ts`, imported for its side effects — it has
  * no exported bootstrap function, it's a script) against a throwaway `$HOME`
  * and sessions file, with `CLAUDE_BIN` pointed at the fake `claude` fixture
- * (the one sanctioned mock boundary, see .ultron/skills/tests/SKILL.md).
+ * (the one sanctioned mock boundary, see .anywh/skills/tests/SKILL.md).
  * Everything else — HTTP, WebSocket, session persistence to disk, profile
  * registry — is the real module, unmocked.
  *

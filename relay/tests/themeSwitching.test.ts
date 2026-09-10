@@ -2,7 +2,7 @@ import { test, before, after } from "node:test";
 import assert from "node:assert/strict";
 import { startTestServer, type TestServer } from "./helpers/testServer.js";
 
-// Real integration test (.ultron/skills/tests/SKILL.md): the network-crossing
+// Real integration test (.anywh/skills/tests/SKILL.md): the network-crossing
 // half of "switching a theme" — saving/listing/deleting a custom theme
 // (`/control/themes`, real filesystem via themeRegistry.ts) and assigning one
 // to a profile (`/control/profiles/:id`'s `themeId`, profileRegistry.ts).

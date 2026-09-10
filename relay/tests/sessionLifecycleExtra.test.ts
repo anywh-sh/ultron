@@ -3,7 +3,7 @@ import assert from "node:assert/strict";
 import { startTestServer, type TestServer } from "./helpers/testServer.js";
 import { collectUntil, connectSession, connectSessionListWatch, sendUserMessage } from "./helpers/wsClient.js";
 
-// Real integration test (.ultron/skills/tests/SKILL.md), continuing where
+// Real integration test (.anywh/skills/tests/SKILL.md), continuing where
 // sessionLifecycle.test.ts leaves off: the "Stop" button (interrupt) and the
 // HTTP session-management routes (rename/delete/list), none of which the
 // original file covers.
@@ -132,7 +132,7 @@ test("/sessions/watch broadcasts a new session's title, and its deletion, to a c
   // Attach both collectors BEFORE triggering the action that causes the
   // broadcast, not after awaiting it — the title-generation broadcast can
   // arrive before `turn_complete` (they fire from parallel `-p` calls, see
-  // .ultron/skills/tests/SKILL.md), and the delete broadcast happens
+  // .anywh/skills/tests/SKILL.md), and the delete broadcast happens
   // synchronously inside the HTTP handler before the response is even sent.
   // Attaching the listener only after awaiting either would race exactly
   // like the connection-time-burst trap the skill documents for `open`.

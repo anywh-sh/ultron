@@ -4,7 +4,7 @@ import { SessionStore } from "../src/sessionStore.js";
 import { startTestServer, type TestServer } from "./helpers/testServer.js";
 import { collectUntil, connectSession, sendUserMessage } from "./helpers/wsClient.js";
 
-// Real integration test (.ultron/skills/tests/SKILL.md): boots the actual
+// Real integration test (.anywh/skills/tests/SKILL.md): boots the actual
 // relay server, talks to it over a real WebSocket, and only fakes the one
 // sanctioned boundary — the `claude` process itself (testServer.ts).
 

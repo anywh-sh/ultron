@@ -7,7 +7,7 @@ import WebSocket from "ws";
 import { startTestServer, type TestServer } from "./helpers/testServer.js";
 import { connectSession } from "./helpers/wsClient.js";
 
-// Real integration test (.ultron/skills/tests/SKILL.md): the embedded
+// Real integration test (.anywh/skills/tests/SKILL.md): the embedded
 // terminal panel talks to a REAL tmux session via node-pty
 // (relay/src/terminalSession.ts) — nothing to fake here, tmux is a real
 // system dependency the sandbox already has (unlike `claude`, it's

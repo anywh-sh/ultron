@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-// The relay's one sanctioned mock boundary (see .ultron/skills/tests/SKILL.md
+// The relay's one sanctioned mock boundary (see .anywh/skills/tests/SKILL.md
 // — "The one sanctioned mock boundary: the `claude` process"). Stands in for
 // the real `claude` binary in integration tests via the `CLAUDE_BIN` env var
 // (relay/src/claudeCliConfig.ts already reads it, no source change needed).

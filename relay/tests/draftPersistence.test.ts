@@ -4,7 +4,7 @@ import { SessionStore } from "../src/sessionStore.js";
 import { startTestServer, type TestServer } from "./helpers/testServer.js";
 import { collectUntil, connectSession, connectSessionAndCollectUntil, sendUserMessage } from "./helpers/wsClient.js";
 
-// Real integration test (.ultron/skills/tests/SKILL.md): the prompt-draft
+// Real integration test (.anywh/skills/tests/SKILL.md): the prompt-draft
 // feature (composer content not yet sent, persisted per session so it
 // survives a relay restart or a reconnect from another tab/device) driven
 // over the real WebSocket protocol and the real sessions file on disk —

@@ -3,7 +3,7 @@ import assert from "node:assert/strict";
 import { hostname } from "node:os";
 import { startTestServer, type TestServer } from "./helpers/testServer.js";
 
-// Real integration test (.ultron/skills/tests/SKILL.md): `GET /host-info`
+// Real integration test (.anywh/skills/tests/SKILL.md): `GET /host-info`
 // (journal/60) served over a real HTTP connection, whose peer address is
 // therefore genuinely loopback — exactly the case editorHostInfo.test.ts's
 // unit tests can only simulate. The downgrade branch (declared LOCAL but a
