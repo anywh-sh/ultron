@@ -79,6 +79,7 @@ pub fn run() {
     #[cfg(not(target_os = "ios"))]
     let builder = builder
         .manage(voice::VoiceState::default())
+        .manage(tailnet_sidecar::TailnetSidecars::default())
         .invoke_handler(tauri::generate_handler![
             greet,
             notifications::notify_turn_complete,
@@ -87,8 +88,10 @@ pub fn run() {
             voice::stop_recording_and_transcribe,
             read_dropped_file,
             editors::detect_editors,
-            tailnet_sidecar::tailnet_sidecar_probe,
-            tailnet_sidecar::tailnet_sidecar_probe_listen
+            tailnet_sidecar::tailnet_sidecar_identity,
+            tailnet_sidecar::tailnet_sidecar_sign,
+            tailnet_sidecar::tailnet_sidecar_start,
+            tailnet_sidecar::tailnet_sidecar_stop
         ]);
 
     #[cfg(target_os = "ios")]

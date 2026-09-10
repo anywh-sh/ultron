@@ -9,8 +9,10 @@ import {
   type HistoryPageMessage,
   type ModelChoice,
   type PermissionMode,
+  type RelayClientCallbacks,
 } from "@/lib/relayClient";
-import type { Profile } from "@/lib/profiles";
+import { isTailnetProfile, type Profile } from "@/lib/profiles";
+import { acquireTailnetSidecar, releaseTailnetSidecar } from "@/lib/tailnetSidecar";
 
 /** A received `compact_boundary`, with a timestamp — the timestamp guarantees a
  * fresh reference on every occurrence (even with repeated `trigger`/`preTokens`),
@@ -66,6 +68,11 @@ export interface UseRelayClientOptions {
 
 export interface UseRelayClientResult {
   connected: boolean;
+  /** `true` while a tailnet-mode profile's sidecar is joining the tailnet,
+   * before the relay `WebSocket` even starts connecting (journal/62 F2) —
+   * always `false` for a direct-mode profile, which has no such step. Purely
+   * informational: no UI reads it yet (cosmetic, out of scope for F2). */
+  connectingTailnet: boolean;
   /** `null` only in the brief window between connecting and the first `cwd_state`
    * arriving — see `SharedSession.addClient` on the relay, which sends this before
    * anything else. */
@@ -153,6 +160,7 @@ export function useRelayClient(
   options: UseRelayClientOptions = {},
 ): UseRelayClientResult {
   const [connected, setConnected] = useState(false);
+  const [connectingTailnet, setConnectingTailnet] = useState(false);
   const [cwd, setCwdState] = useState<string | null>(null);
   const [cwdLocked, setCwdLocked] = useState(false);
   const [permissionMode, setPermissionModeState] = useState<PermissionMode | null>(null);
@@ -187,7 +195,11 @@ export function useRelayClient(
     setDraftState(null);
     setChoicePrompt(null);
 
-    const client = new RelayClient(profile.host, profile.relayPort, sessionId, {
+    const tailnetMode = isTailnetProfile(profile);
+    setConnectingTailnet(tailnetMode);
+
+    let cancelled = false;
+    const callbacks: RelayClientCallbacks = {
       onEvent: (event) => {
         // `compact_boundary` already passes through the generic `claude_event`
         // with no special treatment on the relay — this only intercepts it here to
@@ -231,15 +243,48 @@ export function useRelayClient(
       onChoiceResolved: (promptId) => {
         if (choicePromptRef.current?.promptId === promptId) setChoicePrompt(null);
       },
-    }, profile.connectToken);
-    clientRef.current = client;
-    client.connect();
+    };
+
+    async function start(): Promise<void> {
+      let host = profile.host;
+      let port = profile.relayPort;
+      if (tailnetMode) {
+        try {
+          const endpoint = await acquireTailnetSidecar(profile);
+          if (cancelled) return;
+          host = endpoint.host;
+          port = endpoint.port;
+        } catch (err) {
+          // No UI surface for this yet (cosmetic, out of scope for F2) —
+          // `connected` simply never turns true, same as any other
+          // unreachable host today.
+          console.error("tailnet-sidecar failed to join the tailnet:", err);
+          return;
+        } finally {
+          if (!cancelled) setConnectingTailnet(false);
+        }
+      }
+      const client = new RelayClient(host, port, sessionId, callbacks, profile.connectToken);
+      clientRef.current = client;
+      client.connect();
+    }
+    void start();
 
     return () => {
-      client.disconnect();
+      cancelled = true;
+      clientRef.current?.disconnect();
       clientRef.current = null;
+      if (tailnetMode) releaseTailnetSidecar(profile.id);
     };
-  }, [profile.host, profile.relayPort, sessionId]);
+  }, [
+    profile.id,
+    profile.host,
+    profile.relayPort,
+    profile.tailnetAuthKey,
+    profile.tailnetControlUrl,
+    profile.tailnetTarget,
+    sessionId,
+  ]);
 
   // Foreground/background reconnection (docs/23, Phase D1): `visibilitychange`
   // is the reliable signal on iOS (Phase D0 confirmed that Tauri's onFocusChanged
@@ -314,6 +359,7 @@ export function useRelayClient(
 
   return {
     connected,
+    connectingTailnet,
     cwd,
     cwdLocked,
     permissionMode,

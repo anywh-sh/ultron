@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it } from "vitest";
-import { getProfiles, setProfiles, syncProfilesForHost, type Profile } from "./profiles";
+import { getProfiles, isTailnetProfile, setProfiles, syncProfilesForHost, type Profile } from "./profiles";
 import type { RemoteProfile } from "@/lib/relay-types";
 
 function remote(overrides: Partial<RemoteProfile> & Pick<RemoteProfile, "id" | "host">): RemoteProfile {
@@ -77,6 +77,26 @@ describe("syncProfilesForHost", () => {
     expect(synced?.connectToken).toBe("secret-token");
   });
 
+  it("preserves locally set tailnet fields across a sync that reports the same id — same reasoning as connectToken above (journal/62 F2)", () => {
+    const imported: Profile = {
+      id: "tailnet-paired",
+      label: "Tailnet device",
+      host: "127.0.0.1",
+      relayPort: 8765,
+      tailnetAuthKey: "tskey-auth-xyz",
+      tailnetControlUrl: "https://headscale.example",
+      tailnetTarget: "100.64.0.5:8765",
+    };
+    setProfiles([imported]);
+
+    syncProfilesForHost("127.0.0.1", [remote({ id: "tailnet-paired", host: "127.0.0.1", label: "Tailnet device" })]);
+
+    const synced = getProfiles().find((p) => p.id === "tailnet-paired");
+    expect(synced?.tailnetAuthKey).toBe("tskey-auth-xyz");
+    expect(synced?.tailnetControlUrl).toBe("https://headscale.example");
+    expect(synced?.tailnetTarget).toBe("100.64.0.5:8765");
+  });
+
   it("regression: a sync that reports the same data back is a no-op on the array/object identity, not just the values", () => {
     // useForegroundSync (client/src/hooks/useForegroundSync.ts) reruns this
     // every 30s and on window focus. Before this fix, every successful sync
@@ -93,5 +113,29 @@ describe("syncProfilesForHost", () => {
 
     expect(getProfiles()).toBe(listBefore);
     expect(getProfiles()[0]).toBe(profileBefore);
+  });
+});
+
+describe("isTailnetProfile", () => {
+  const base: Profile = { id: "p", label: "P", host: "127.0.0.1", relayPort: 8765 };
+
+  it("is false when none of the tailnet fields are set", () => {
+    expect(isTailnetProfile(base)).toBe(false);
+  });
+
+  it("is false when only some of the tailnet fields are set — never partially tailnet mode", () => {
+    expect(isTailnetProfile({ ...base, tailnetAuthKey: "key" })).toBe(false);
+    expect(isTailnetProfile({ ...base, tailnetAuthKey: "key", tailnetControlUrl: "https://hs.example" })).toBe(false);
+  });
+
+  it("is true only once all three tailnet fields are set", () => {
+    expect(
+      isTailnetProfile({
+        ...base,
+        tailnetAuthKey: "key",
+        tailnetControlUrl: "https://hs.example",
+        tailnetTarget: "100.64.0.5:8765",
+      }),
+    ).toBe(true);
   });
 });

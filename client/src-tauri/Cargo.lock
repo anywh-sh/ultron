@@ -619,6 +619,7 @@ dependencies = [
  "tauri-plugin-wdio",
  "tauri-plugin-wdio-webdriver",
  "tauri-winrt-notification",
+ "tokio",
  "whisper-rs",
  "windows 0.61.3",
 ]

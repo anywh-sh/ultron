@@ -26,6 +26,28 @@ export interface Profile {
    * `/control/profiles` (the host has no notion of it); only ever set
    * locally, e.g. by importing a profile via deep link. */
   connectToken?: string;
+  /** Tailnet mode (journal/62 F2) — when all three of these are set, the
+   * relay connection is proxied through the tailnet-sidecar instead of
+   * dialing `host`/`relayPort` directly: the sidecar joins the tailnet with
+   * `tailnetAuthKey`/`tailnetControlUrl` and forwards a local TCP listener
+   * to `tailnetTarget` (the relay's address *inside* the tailnet).
+   * `host`/`relayPort` on a tailnet profile are only a placeholder until
+   * `useRelayClient` replaces them with the sidecar's local address. Never
+   * synced from a host's own `/control/profiles` (same reasoning as
+   * `connectToken` above) — only ever set locally, e.g. by importing a
+   * profile via deep link (F4). Always set together, never partially — see
+   * `isTailnetProfile`. */
+  tailnetAuthKey?: string;
+  tailnetControlUrl?: string;
+  tailnetTarget?: string;
+}
+
+/** A profile is in tailnet mode iff all three tailnet fields are present —
+ * `useRelayClient` and `tailnetSidecar.ts` both branch on this instead of
+ * checking the fields individually, so the "all or nothing" invariant only
+ * needs to be enforced in one place. */
+export function isTailnetProfile(profile: Profile): boolean {
+  return Boolean(profile.tailnetAuthKey && profile.tailnetControlUrl && profile.tailnetTarget);
 }
 
 const STORAGE_KEY = "ultron:profiles";
@@ -134,7 +156,10 @@ function profileFieldsEqual(a: Profile, b: Profile): boolean {
     a.relayPort === b.relayPort &&
     a.colorIndex === b.colorIndex &&
     a.themeId === b.themeId &&
-    a.connectToken === b.connectToken
+    a.connectToken === b.connectToken &&
+    a.tailnetAuthKey === b.tailnetAuthKey &&
+    a.tailnetControlUrl === b.tailnetControlUrl &&
+    a.tailnetTarget === b.tailnetTarget
   );
 }
 
@@ -175,23 +200,29 @@ export function syncProfilesForHost(host: string, remote: RemoteProfile[]): void
   const dropStale = LOOPBACK_HOSTS.has(host)
     ? (p: Profile) => p.host !== host && !remoteIds.has(p.id)
     : (p: Profile) => p.host !== host && !remoteIds.has(p.id) && !LOOPBACK_HOSTS.has(p.host);
-  // `connectToken` has no host-side counterpart (the control API response
-  // never carries it), so a synced entry has to inherit whatever this
-  // device already had for that id — otherwise a profile imported via deep
-  // link would lose its token the moment its host's `/control/profiles`
-  // also happens to report the same id.
+  // `connectToken`/tailnet fields have no host-side counterpart (the control
+  // API response never carries them), so a synced entry has to inherit
+  // whatever this device already had for that id — otherwise a profile
+  // imported via deep link would lose its token/tailnet config the moment
+  // its host's `/control/profiles` also happens to report the same id.
   const existingById = new Map(profiles.map((p) => [p.id, p]));
   const merged = [
     ...profiles.filter(dropStale),
-    ...remote.map((entry) => ({
-      id: entry.id,
-      label: entry.label,
-      host: entry.host,
-      relayPort: entry.port,
-      colorIndex: entry.colorIndex,
-      themeId: entry.themeId,
-      connectToken: existingById.get(entry.id)?.connectToken,
-    })),
+    ...remote.map((entry) => {
+      const existing = existingById.get(entry.id);
+      return {
+        id: entry.id,
+        label: entry.label,
+        host: entry.host,
+        relayPort: entry.port,
+        colorIndex: entry.colorIndex,
+        themeId: entry.themeId,
+        connectToken: existing?.connectToken,
+        tailnetAuthKey: existing?.tailnetAuthKey,
+        tailnetControlUrl: existing?.tailnetControlUrl,
+        tailnetTarget: existing?.tailnetTarget,
+      };
+    }),
   ];
   if (merged.length === 0) return;
   // Every sync builds a brand-new array/objects regardless of whether the
