@@ -11,11 +11,22 @@ export interface ClaimedBundle {
    * `importProfile` (profileImport.ts) just leaves `Profile.tailnetReportUrl`
    * unset when absent. */
   reportUrl?: string;
+  /** Opaque — where to ask for a fresh connection before every dial (the
+   * CT-1 broker contract, `Profile.brokerUrl`). Optional for two independent
+   * reasons: a self-hoster's claim endpoint may have no broker at all, and
+   * an `ultron://import-profile` link can name the broker itself, in which
+   * case the link's value is the one that stands (profileImport.ts). It
+   * exists here because a *typed* pairing code (pairingCode.ts) has nowhere
+   * else to learn it — a code carries only a host, and the broker is
+   * generally scoped to whatever the code was minted for, which only the
+   * claim can resolve. */
+  brokerUrl?: string;
 }
 
 /**
- * Redeems a one-time join code against a generic `claimUrl` a deep link
- * supplies (journal/62 F4) — generates (or loads, if this device already
+ * Redeems a one-time join code against a generic `claimUrl` — supplied by
+ * a deep link (journal/62 F4) or discovered from the host half of a typed
+ * pairing code (pairingCode.ts) — generates (or loads, if this device already
  * paired once before) this device's own Ed25519 identity first
  * (`tailnet_sidecar_identity`, F2) and sends only its public half; the
  * private key never leaves the device, and never transits through the deep
@@ -41,5 +52,11 @@ export async function claimTailnetBundle(claimUrl: string, joinCode: string): Pr
   if (!body.nodeId || !body.controlUrl || !body.authKey) {
     throw new Error("claim response missing nodeId/controlUrl/authKey");
   }
-  return { nodeId: body.nodeId, controlUrl: body.controlUrl, authKey: body.authKey, reportUrl: body.reportUrl };
+  return {
+    nodeId: body.nodeId,
+    controlUrl: body.controlUrl,
+    authKey: body.authKey,
+    reportUrl: body.reportUrl,
+    brokerUrl: body.brokerUrl,
+  };
 }

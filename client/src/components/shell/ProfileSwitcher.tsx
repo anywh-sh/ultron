@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { Check, ChevronsUpDown, Plus } from "lucide-react";
+import { Check, ChevronsUpDown, Plus, Link2 } from "lucide-react";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -11,6 +11,7 @@ import { cn } from "@/lib/utils";
 import { profileColorClass, type Profile } from "@/lib/profiles";
 import { useProfiles } from "@/hooks/useProfiles";
 import { AddProfileDialog } from "@/components/shell/AddProfileDialog";
+import { AddRemoteMachineDialog } from "@/components/shell/AddRemoteMachineDialog";
 
 interface ProfileSwitcherProps {
   activeProfile: Profile;
@@ -23,6 +24,7 @@ interface ProfileSwitcherProps {
 export function ProfileSwitcher({ activeProfile, supported, onChange }: ProfileSwitcherProps) {
   const profiles = useProfiles();
   const [addOpen, setAddOpen] = useState(false);
+  const [pairOpen, setPairOpen] = useState(false);
 
   return (
     <>
@@ -60,17 +62,26 @@ export function ProfileSwitcher({ activeProfile, supported, onChange }: ProfileS
               {profile.label}
             </DropdownMenuItem>
           ))}
+          <DropdownMenuSeparator />
+          {/* Ungated on `supported`, unlike "Adicionar perfil" below: that
+              one asks the active host to create an account and needs a
+              working connection to it, while this one is how you get a
+              connection in the first place — a fresh install with nothing
+              reachable is exactly when it's needed most. */}
+          <DropdownMenuItem onSelect={() => setPairOpen(true)}>
+            <Link2 className="size-3.5" />
+            Adicionar máquina remota
+          </DropdownMenuItem>
           {supported && (
-            <>
-              <DropdownMenuSeparator />
-              <DropdownMenuItem onSelect={() => setAddOpen(true)}>
-                <Plus className="size-3.5" />
-                Adicionar perfil
-              </DropdownMenuItem>
-            </>
+            <DropdownMenuItem onSelect={() => setAddOpen(true)}>
+              <Plus className="size-3.5" />
+              Adicionar perfil
+            </DropdownMenuItem>
           )}
         </DropdownMenuContent>
       </DropdownMenu>
+
+      <AddRemoteMachineDialog open={pairOpen} onOpenChange={setPairOpen} onImported={onChange} />
 
       {supported && (
         <AddProfileDialog open={addOpen} onOpenChange={setAddOpen} activeProfile={activeProfile} />

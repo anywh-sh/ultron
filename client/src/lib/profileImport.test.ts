@@ -31,9 +31,18 @@ describe("parseImportProfileUrl", () => {
     });
   });
 
-  it("journal/62 F4: rejects a tailnet-mode link missing any of claimUrl/joinCode/brokerUrl — never partially tailnet mode", () => {
-    expect(parseImportProfileUrl("ultron://import-profile?label=Device&claimUrl=https://api.example/claim&joinCode=CODE")).toBeNull();
+  it("accepts a tailnet-mode link with no brokerUrl — the claim response can name one instead", () => {
+    expect(parseImportProfileUrl("ultron://import-profile?label=Device&claimUrl=https://api.example/claim&joinCode=CODE")).toEqual({
+      label: "Device",
+      claimUrl: "https://api.example/claim",
+      joinCode: "CODE",
+      brokerUrl: undefined,
+    });
+  });
+
+  it("rejects a tailnet-mode link missing claimUrl or joinCode — neither has a fallback anywhere", () => {
     expect(parseImportProfileUrl("ultron://import-profile?label=Device&joinCode=CODE&brokerUrl=https://api.example/connect")).toBeNull();
+    expect(parseImportProfileUrl("ultron://import-profile?label=Device&claimUrl=https://api.example/claim")).toBeNull();
   });
 
   it("rejects a different scheme", () => {
