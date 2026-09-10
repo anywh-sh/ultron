@@ -32,11 +32,6 @@ export async function fetchConnectGrant(profile: Profile): Promise<ConnectGrant>
   if (!inTauri()) throw new Error("the broker call needs the Tauri sidecar to sign it, not available in a plain browser");
 
   const url = new URL(profile.brokerUrl!);
-  // Temporary, paired with the log in tailnetClaim.ts — compare the two
-  // public keys to tell "the sidecar signed with a different identity than
-  // the one claimed" apart from "the payload it signed doesn't match".
-  const publicKey = await invoke<string>("tailnet_sidecar_identity");
-  console.log(`[ultron] signing broker call with identity public key: ${publicKey}`);
   const { ts, sig } = await invoke<SignResult>("tailnet_sidecar_sign", {
     method: "POST",
     path: url.pathname,

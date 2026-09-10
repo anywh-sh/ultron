@@ -24,12 +24,6 @@ export async function claimTailnetBundle(claimUrl: string, joinCode: string): Pr
     throw new Error("claiming a tailnet profile needs the Tauri sidecar to generate an identity, not available in a plain browser");
   }
   const publicKey = await invoke<string>("tailnet_sidecar_identity");
-  // Temporary: /v1/connect started failing with a signature mismatch right
-  // after a successful claim on Windows. This identity is public — safe to
-  // log — and lets a claim-time value be compared against the one
-  // tailnetBroker.ts logs at sign time, to tell "wrong key" apart from "bad
-  // payload". Remove once that's root-caused.
-  console.log(`[ultron] claiming with identity public key: ${publicKey}`);
 
   const response = await fetch(claimUrl, {
     method: "POST",
