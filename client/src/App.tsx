@@ -25,6 +25,7 @@ import { useTerminalTabs } from "@/hooks/useTerminalTabs";
 import { useFileTabs } from "@/hooks/useFileTabs";
 import { useWindowFocus } from "@/hooks/useWindowFocus";
 import { useNotificationClick } from "@/hooks/useNotificationClick";
+import { useProfileImport } from "@/hooks/useProfileImport";
 import { useActiveTheme, useThemeSync } from "@/hooks/useThemes";
 import { useProfileSync } from "@/hooks/useProfileSync";
 import { findProfile, getProfiles } from "@/lib/profiles";
@@ -189,6 +190,13 @@ export default function App() {
   // Windows and iOS work, macOS/Linux desktop has no click hook).
   useNotificationClick(({ sessionId, profileId }) => {
     focusSession(profileId, sessionId);
+  });
+
+  // Deep-link profile import (`ultron://import-profile`) — see
+  // useProfileImport.ts. Switches straight to the newly added profile,
+  // same as picking one in the switcher.
+  useProfileImport((profileId) => {
+    setActiveProfileId(profileId);
   });
 
   /** Explicit `profileId` (not always `activeProfile`) for the same reason as

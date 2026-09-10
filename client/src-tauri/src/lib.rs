@@ -38,7 +38,8 @@ pub fn run() {
         .plugin(tauri_plugin_notification::init())
         .plugin(tauri_plugin_os::init())
         .plugin(tauri_plugin_dialog::init())
-        .plugin(tauri_plugin_fs::init());
+        .plugin(tauri_plugin_fs::init())
+        .plugin(tauri_plugin_deep_link::init());
 
     // cpal accesses CoreAudio directly (without going through AVFoundation),
     // which in practice doesn't trigger macOS's permission dialog — the app
@@ -92,6 +93,20 @@ pub fn run() {
             #[cfg(target_os = "macos")]
             if let Some(window) = tauri::Manager::get_webview_window(app, "main") {
                 let _ = window.set_title("ultron");
+            }
+
+            // The OS-level scheme registration (tauri.conf.json's
+            // `plugins.deep-link.desktop.schemes`) only happens automatically
+            // for a real installed/bundled build. In a debug run it doesn't —
+            // Linux needs the manual `register_all` unconditionally (no
+            // installer step at all in dev), Windows only in debug builds
+            // (its release installer does the registration itself). macOS
+            // registers from Info.plist at build time either way, so it's
+            // deliberately excluded here.
+            #[cfg(any(target_os = "linux", all(debug_assertions, windows)))]
+            {
+                use tauri_plugin_deep_link::DeepLinkExt;
+                let _ = app.deep_link().register_all();
             }
 
             #[cfg(windows)]
