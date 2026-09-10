@@ -11,8 +11,9 @@ import {
   type PermissionMode,
   type RelayClientCallbacks,
 } from "@/lib/relayClient";
-import { isTailnetProfile, type Profile } from "@/lib/profiles";
+import { isBrokeredProfile, isTailnetProfile, type Profile } from "@/lib/profiles";
 import { acquireTailnetSidecar, releaseTailnetSidecar } from "@/lib/tailnetSidecar";
+import { fetchConnectGrant } from "@/lib/tailnetBroker";
 
 /** A received `compact_boundary`, with a timestamp — the timestamp guarantees a
  * fresh reference on every occurrence (even with repeated `trigger`/`preTokens`),
@@ -248,14 +249,28 @@ export function useRelayClient(
     async function start(): Promise<void> {
       let host = profile.host;
       let port = profile.relayPort;
+      let wsToken = profile.connectToken;
       if (tailnetMode) {
         try {
-          const endpoint = await acquireTailnetSidecar(profile);
+          // journal/62 F3: a brokered profile resolves the target and a
+          // fresh handshake token from the broker on every connection
+          // (D4 — never reuses one); a profile with only the static F2
+          // fields dials `tailnetTarget` and keeps using its stored
+          // `connectToken`, same as before F3 existed.
+          let target = profile.tailnetTarget;
+          if (isBrokeredProfile(profile)) {
+            const grant = await fetchConnectGrant(profile);
+            if (cancelled) return;
+            target = `${grant.endpoint.host}:${String(grant.endpoint.port)}`;
+            wsToken = grant.token;
+          }
+          if (!target) throw new Error("tailnet profile has no target to dial (no tailnetTarget and no broker)");
+          const endpoint = await acquireTailnetSidecar(profile, target);
           if (cancelled) return;
           host = endpoint.host;
           port = endpoint.port;
         } catch (err) {
-          // No UI surface for this yet (cosmetic, out of scope for F2) —
+          // No UI surface for this yet (cosmetic, out of scope for F2/F3) —
           // `connected` simply never turns true, same as any other
           // unreachable host today.
           console.error("tailnet-sidecar failed to join the tailnet:", err);
@@ -264,7 +279,7 @@ export function useRelayClient(
           if (!cancelled) setConnectingTailnet(false);
         }
       }
-      const client = new RelayClient(host, port, sessionId, callbacks, profile.connectToken);
+      const client = new RelayClient(host, port, sessionId, callbacks, wsToken);
       clientRef.current = client;
       client.connect();
     }
@@ -283,6 +298,8 @@ export function useRelayClient(
     profile.tailnetAuthKey,
     profile.tailnetControlUrl,
     profile.tailnetTarget,
+    profile.brokerUrl,
+    profile.brokerNodeId,
     sessionId,
   ]);
 

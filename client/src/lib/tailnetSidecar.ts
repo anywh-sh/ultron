@@ -28,8 +28,15 @@ function parseAddr(addr: string): TailnetEndpoint {
  * instead of racing a second join. Must be paired with exactly one
  * `releaseTailnetSidecar(profile.id)` call, even if this promise rejects —
  * that's what lets a failed join be retried by the next caller instead of
- * being stuck forever on a cached rejection. */
-export function acquireTailnetSidecar(profile: Profile): Promise<TailnetEndpoint> {
+ * being stuck forever on a cached rejection.
+ *
+ * `target` (`host:port` inside the tailnet to dial) only matters for
+ * whichever call actually starts the join — a tab that finds one already
+ * running (journal/62 F3: e.g. a second tab on a brokered profile, which
+ * resolves its own target fresh from the broker every time) just gets that
+ * one's address regardless of what it passed. The sidecar only re-resolves
+ * a new target on the next *cold* start, once every tab has released it. */
+export function acquireTailnetSidecar(profile: Profile, target: string): Promise<TailnetEndpoint> {
   const existing = entries.get(profile.id);
   if (existing) {
     existing.refCount += 1;
@@ -40,7 +47,7 @@ export function acquireTailnetSidecar(profile: Profile): Promise<TailnetEndpoint
         profileId: profile.id,
         authKey: profile.tailnetAuthKey,
         controlUrl: profile.tailnetControlUrl,
-        target: profile.tailnetTarget,
+        target,
       }).then(parseAddr)
     : Promise.reject(new Error("tailnet mode needs the Tauri sidecar, not available in a plain browser"));
   entries.set(profile.id, { refCount: 1, endpoint });

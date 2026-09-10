@@ -39,15 +39,42 @@ export interface Profile {
    * `isTailnetProfile`. */
   tailnetAuthKey?: string;
   tailnetControlUrl?: string;
+  /** Static fallback target (F2) — dialed by the sidecar's tailnet-up when
+   * there's no broker to ask instead. A brokered profile (`isBrokeredProfile`
+   * below) resolves the real target fresh on every connection and ignores
+   * this field entirely; it only matters for a manually-configured tailnet
+   * profile with no broker at all. */
   tailnetTarget?: string;
+  /** The broker contract (journal/62 CT-1/F3) — a generic
+   * `POST <brokerUrl>`, signed with the device identity, that answers with
+   * a fresh `{endpoint, token}` before every new connection (never reused,
+   * journal/49 D4). Set together with `brokerNodeId`, e.g. by importing a
+   * profile via deep link (F4) — see `isBrokeredProfile`. */
+  brokerUrl?: string;
+  /** The id this device is known as *to the broker* — sent as the
+   * `X-Node-Id` header CT-1 defines. Distinct from `Profile.id` above,
+   * which is only this local install's UI slug and never leaves the
+   * device. */
+  brokerNodeId?: string;
 }
 
-/** A profile is in tailnet mode iff all three tailnet fields are present —
- * `useRelayClient` and `tailnetSidecar.ts` both branch on this instead of
- * checking the fields individually, so the "all or nothing" invariant only
- * needs to be enforced in one place. */
+/** A profile is in tailnet mode iff it can join the tailnet
+ * (`tailnetAuthKey` + `tailnetControlUrl`) and has some way to know what to
+ * dial once joined — either a static `tailnetTarget` (F2) or a broker to
+ * ask fresh each time (F3, see `isBrokeredProfile`). `useRelayClient` and
+ * `tailnetSidecar.ts` both branch on this instead of checking the fields
+ * individually, so the invariant only needs to be enforced in one place. */
 export function isTailnetProfile(profile: Profile): boolean {
-  return Boolean(profile.tailnetAuthKey && profile.tailnetControlUrl && profile.tailnetTarget);
+  const canJoin = Boolean(profile.tailnetAuthKey && profile.tailnetControlUrl);
+  return canJoin && Boolean(profile.tailnetTarget || isBrokeredProfile(profile));
+}
+
+/** A profile can call the broker (journal/62 CT-1/F3) iff both halves of
+ * the contract are set together — the URL to call and the id this device
+ * is known as there. Never partially, same "all or nothing" reasoning as
+ * `isTailnetProfile`. */
+export function isBrokeredProfile(profile: Profile): boolean {
+  return Boolean(profile.brokerUrl && profile.brokerNodeId);
 }
 
 const STORAGE_KEY = "ultron:profiles";
@@ -159,7 +186,9 @@ function profileFieldsEqual(a: Profile, b: Profile): boolean {
     a.connectToken === b.connectToken &&
     a.tailnetAuthKey === b.tailnetAuthKey &&
     a.tailnetControlUrl === b.tailnetControlUrl &&
-    a.tailnetTarget === b.tailnetTarget
+    a.tailnetTarget === b.tailnetTarget &&
+    a.brokerUrl === b.brokerUrl &&
+    a.brokerNodeId === b.brokerNodeId
   );
 }
 
@@ -221,6 +250,8 @@ export function syncProfilesForHost(host: string, remote: RemoteProfile[]): void
         tailnetAuthKey: existing?.tailnetAuthKey,
         tailnetControlUrl: existing?.tailnetControlUrl,
         tailnetTarget: existing?.tailnetTarget,
+        brokerUrl: existing?.brokerUrl,
+        brokerNodeId: existing?.brokerNodeId,
       };
     }),
   ];

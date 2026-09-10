@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it } from "vitest";
-import { getProfiles, isTailnetProfile, setProfiles, syncProfilesForHost, type Profile } from "./profiles";
+import { getProfiles, isBrokeredProfile, isTailnetProfile, setProfiles, syncProfilesForHost, type Profile } from "./profiles";
 import type { RemoteProfile } from "@/lib/relay-types";
 
 function remote(overrides: Partial<RemoteProfile> & Pick<RemoteProfile, "id" | "host">): RemoteProfile {
@@ -97,6 +97,26 @@ describe("syncProfilesForHost", () => {
     expect(synced?.tailnetTarget).toBe("100.64.0.5:8765");
   });
 
+  it("preserves locally set broker fields across a sync that reports the same id — same reasoning as tailnet fields above (journal/62 F3)", () => {
+    const imported: Profile = {
+      id: "brokered",
+      label: "Brokered device",
+      host: "127.0.0.1",
+      relayPort: 8765,
+      tailnetAuthKey: "tskey-auth-xyz",
+      tailnetControlUrl: "https://headscale.example",
+      brokerUrl: "https://api.example/v1/connect/workspace-1",
+      brokerNodeId: "node-1",
+    };
+    setProfiles([imported]);
+
+    syncProfilesForHost("127.0.0.1", [remote({ id: "brokered", host: "127.0.0.1", label: "Brokered device" })]);
+
+    const synced = getProfiles().find((p) => p.id === "brokered");
+    expect(synced?.brokerUrl).toBe("https://api.example/v1/connect/workspace-1");
+    expect(synced?.brokerNodeId).toBe("node-1");
+  });
+
   it("regression: a sync that reports the same data back is a no-op on the array/object identity, not just the values", () => {
     // useForegroundSync (client/src/hooks/useForegroundSync.ts) reruns this
     // every 30s and on window focus. Before this fix, every successful sync
@@ -128,7 +148,7 @@ describe("isTailnetProfile", () => {
     expect(isTailnetProfile({ ...base, tailnetAuthKey: "key", tailnetControlUrl: "https://hs.example" })).toBe(false);
   });
 
-  it("is true only once all three tailnet fields are set", () => {
+  it("is true once tailnetAuthKey/tailnetControlUrl/tailnetTarget are all set (F2's static, broker-less shape)", () => {
     expect(
       isTailnetProfile({
         ...base,
@@ -136,6 +156,43 @@ describe("isTailnetProfile", () => {
         tailnetControlUrl: "https://hs.example",
         tailnetTarget: "100.64.0.5:8765",
       }),
+    ).toBe(true);
+  });
+
+  it("journal/62 F3: a broker can stand in for the static tailnetTarget — authKey/controlUrl + brokerUrl/brokerNodeId is enough, no tailnetTarget needed", () => {
+    expect(
+      isTailnetProfile({
+        ...base,
+        tailnetAuthKey: "key",
+        tailnetControlUrl: "https://hs.example",
+        brokerUrl: "https://api.example/v1/connect/workspace-1",
+        brokerNodeId: "node-1",
+      }),
+    ).toBe(true);
+  });
+
+  it("a broker alone, with no way to join the tailnet, is still not tailnet mode", () => {
+    expect(
+      isTailnetProfile({ ...base, brokerUrl: "https://api.example/v1/connect/workspace-1", brokerNodeId: "node-1" }),
+    ).toBe(false);
+  });
+});
+
+describe("isBrokeredProfile", () => {
+  const base: Profile = { id: "p", label: "P", host: "127.0.0.1", relayPort: 8765 };
+
+  it("is false when neither brokerUrl nor brokerNodeId is set", () => {
+    expect(isBrokeredProfile(base)).toBe(false);
+  });
+
+  it("is false when only one of brokerUrl/brokerNodeId is set — never partially brokered", () => {
+    expect(isBrokeredProfile({ ...base, brokerUrl: "https://api.example/v1/connect/workspace-1" })).toBe(false);
+    expect(isBrokeredProfile({ ...base, brokerNodeId: "node-1" })).toBe(false);
+  });
+
+  it("is true once both are set", () => {
+    expect(
+      isBrokeredProfile({ ...base, brokerUrl: "https://api.example/v1/connect/workspace-1", brokerNodeId: "node-1" }),
     ).toBe(true);
   });
 });
