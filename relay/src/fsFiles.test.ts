@@ -450,3 +450,69 @@ test("resolveChatPath: an already-absolute path under the root resolves the same
     });
   });
 });
+
+// The session's root is a workspace folder one level above the repo the
+// mention is actually relative to (real bug: root `~/anywh`, mention
+// `relay/scripts/ultron-bg`, real file at `~/anywh/ultron/relay/scripts/ultron-bg`)
+// — the first segment doesn't exist directly under root, so a naive join
+// fails outright and used to return an empty `existingDirs`, expanding
+// nothing in the tree. The suffix-search fallback below is what fixes that.
+
+test("resolveChatPath: a multi-segment path relative to a repo nested under the root falls back to a suffix search", () => {
+  withTempDir((root) => {
+    mkdirSync(join(root, "ultron", "relay", "scripts"), { recursive: true });
+    writeFileSync(join(root, "ultron", "relay", "scripts", "ultron-bg"), "");
+
+    const result = resolveChatPath(root, "relay/scripts/ultron-bg");
+    assert.deepEqual(result, {
+      target: join(root, "ultron", "relay", "scripts", "ultron-bg"),
+      isDirectory: false,
+      existingDirs: [join(root, "ultron"), join(root, "ultron", "relay"), join(root, "ultron", "relay", "scripts")],
+    });
+  });
+});
+
+test("resolveChatPath: a directory relative to a repo nested under the root also falls back to a suffix search", () => {
+  withTempDir((root) => {
+    mkdirSync(join(root, "ultron", "prototypes", "voice-jarvis"), { recursive: true });
+
+    const result = resolveChatPath(root, "prototypes/voice-jarvis/");
+    assert.deepEqual(result, {
+      target: null,
+      isDirectory: true,
+      existingDirs: [
+        join(root, "ultron"),
+        join(root, "ultron", "prototypes"),
+        join(root, "ultron", "prototypes", "voice-jarvis"),
+      ],
+    });
+  });
+});
+
+test("resolveChatPath: the suffix fallback rejects a same-named leaf whose parent chain doesn't match", () => {
+  withTempDir((root) => {
+    // A `scripts/ultron-bg` exists, but not inside a `relay` folder — the
+    // mention's middle segment doesn't match, so this must NOT be treated
+    // as a hit even though the final segment's name matches.
+    mkdirSync(join(root, "other", "scripts"), { recursive: true });
+    writeFileSync(join(root, "other", "scripts", "ultron-bg"), "");
+
+    const result = resolveChatPath(root, "relay/scripts/ultron-bg");
+    assert.deepEqual(result, { target: join(root, "relay", "scripts", "ultron-bg"), isDirectory: false, existingDirs: [] });
+  });
+});
+
+test("resolveChatPath: a multi-segment path present directly under the root is trusted without searching", () => {
+  withTempDir((root) => {
+    // Same basename pair exists in two places — the direct join (matching
+    // what's actually given) must win over the search fallback, which would
+    // otherwise be free to return either (BFS visits `nested` first).
+    mkdirSync(join(root, "nested", "relay", "scripts"), { recursive: true });
+    writeFileSync(join(root, "nested", "relay", "scripts", "ultron-bg"), "decoy");
+    mkdirSync(join(root, "relay", "scripts"), { recursive: true });
+    writeFileSync(join(root, "relay", "scripts", "ultron-bg"), "real");
+
+    const result = resolveChatPath(root, "relay/scripts/ultron-bg");
+    assert.equal(result.target, join(root, "relay", "scripts", "ultron-bg"));
+  });
+});

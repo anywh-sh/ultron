@@ -273,19 +273,27 @@ export function createFile(rawRoot: string, rawDir: string | null, name: string,
 
 /**
  * Breadth-first search under `root` (already resolved by
- * `resolveWithinRoot`) for a file whose basename is exactly `name`, same
- * hidden/`node_modules` skip as `listFiles`. Used for a bare filename
- * mentioned in chat text (`App.tsx`, no directory) — the model rarely
- * writes the file's full path in prose, and joining it directly against the
- * session root is almost always wrong once the file lives more than one
- * level deep. BFS (not depth-first) so the *shallowest* match wins when the
- * same filename exists at more than one depth. `maxVisited` bounds the
- * total directories scanned — this is a one-shot, click-triggered search,
- * not the recursive tree *rendering* `listFiles`'s own doc comment warns
- * against (docs/41); a repo any real project's size stays far under the
- * cap, and a huge non-hidden tree just gets a bounded, not unbounded, scan.
+ * `resolveWithinRoot`) for an entry (file, or directory when `isDirectory`)
+ * whose path relative to `root` ends with exactly `segments`, in order —
+ * `["voice-jarvis"]` matches any `voice-jarvis` directly under `root`,
+ * `["prototypes","voice-jarvis"]` only matches one sitting inside a
+ * `prototypes` folder, wherever that pair occurs under `root`. Generalizes
+ * a bare-filename search (`segments.length === 1`) to a full relative-path
+ * *suffix* match, for when the session's root is some ancestor above where
+ * the chat-mentioned path actually starts — e.g. root is a multi-repo
+ * workspace folder and the model wrote a path relative to one repo inside
+ * it (a real case: root `~/anywh`, mention `relay/scripts/ultron-bg`, real
+ * location `~/anywh/ultron/relay/scripts/ultron-bg`). Same hidden/
+ * `node_modules` skip as `listFiles`. BFS (not depth-first) so the
+ * *shallowest* match wins when the same suffix occurs at more than one
+ * depth. `maxVisited` bounds the total directories scanned — this is a
+ * one-shot, click-triggered search, not the recursive tree *rendering*
+ * `listFiles`'s own doc comment warns against (docs/41); a repo any real
+ * project's size stays far under the cap, and a huge non-hidden tree just
+ * gets a bounded, not unbounded, scan.
  */
-function findFileByName(root: string, name: string, maxVisited = 20_000): string | null {
+function findBySuffix(root: string, segments: string[], isDirectory: boolean, maxVisited = 20_000): string | null {
+  const lastName = segments[segments.length - 1];
   const queue: string[] = [root];
   let visited = 0;
 
@@ -299,7 +307,10 @@ function findFileByName(root: string, name: string, maxVisited = 20_000): string
       continue;
     }
     for (const dirent of dirents) {
-      if (!isHidden(dirent.name) && dirent.isFile() && dirent.name === name) return join(dir, dirent.name);
+      if (isHidden(dirent.name) || dirent.name !== lastName) continue;
+      if (dirent.isDirectory() !== isDirectory) continue;
+      const candidate = join(dir, dirent.name);
+      if (matchesSuffix(root, candidate, segments)) return candidate;
     }
     for (const dirent of dirents) {
       if (!isHidden(dirent.name) && dirent.isDirectory()) queue.push(join(dir, dirent.name));
@@ -308,9 +319,20 @@ function findFileByName(root: string, name: string, maxVisited = 20_000): string
   return null;
 }
 
+/** Whether `candidate`'s path relative to `root` ends with `segments`, in
+ * order — the trailing-segment check `findBySuffix` uses once it's already
+ * found a name match, to reject e.g. a `voice-jarvis` that isn't actually
+ * inside a `prototypes` folder when the mention was `prototypes/voice-jarvis`. */
+function matchesSuffix(root: string, candidate: string, segments: string[]): boolean {
+  const relative = candidate.slice(root.length).split(sep).filter(Boolean);
+  if (relative.length < segments.length) return false;
+  const tail = relative.slice(relative.length - segments.length);
+  return tail.every((part, i) => part === segments[i]);
+}
+
 /** Ancestor directories of `absolute` (itself excluded), root-to-leaf,
  * confined to `root` — `absolute` is assumed to already be a real path
- * under `root` (only called with a `findFileByName` hit or a directory
+ * under `root` (only called with a `findBySuffix` hit or a directory
  * confirmed by `resolveChatPath`'s own walk), so every segment is known to
  * exist without re-checking the filesystem. */
 function ancestorsOf(root: string, absolute: string): string[] {
@@ -342,38 +364,13 @@ export interface ChatPathResolution {
   existingDirs: string[];
 }
 
-/**
- * Resolves a path as written in chat text (relative to the session's cwd,
- * already absolute, a bare filename, or a directory — trailing `/`) into
- * something the file panel can act on. Two strategies, chosen by shape:
- * a bare filename (no `/` at all) is searched for (`findFileByName`, most
- * chat mentions of a single file don't include its directory); anything
- * with a `/` is joined against the root (or used as-is if already absolute)
- * and its ancestor chain is walked from the root down, stopping at the
- * first segment that doesn't exist — so even a path the model got wrong
- * past some point still resolves as far as it validly can.
- */
-export function resolveChatPath(rawRoot: string, rawPath: string): ChatPathResolution {
-  const rootResolved = resolveWithinRoot(rawRoot, null);
-  if (!rootResolved.ok) return { target: null, isDirectory: false, existingDirs: [] };
-  const root = rootResolved.root;
-
-  const isDirectory = rawPath.endsWith("/");
-  const trimmed = isDirectory ? rawPath.replace(/\/+$/, "") : rawPath;
-  if (!trimmed) return { target: null, isDirectory: false, existingDirs: [] };
-
-  if (!trimmed.includes("/")) {
-    const found = findFileByName(root, trimmed);
-    if (!found) return { target: null, isDirectory: false, existingDirs: [] };
-    return { target: found, isDirectory: false, existingDirs: ancestorsOf(root, found) };
-  }
-
-  const absolute = isAbsolute(trimmed) ? trimmed : join(root, trimmed);
-  const normalizedRoot = root.endsWith(sep) ? root : root + sep;
-  if (absolute !== root && !absolute.startsWith(normalizedRoot)) {
-    return { target: null, isDirectory: false, existingDirs: [] };
-  }
-
+/** Ancestor chain of `absolute` walked from `root` down, stopping at the
+ * first segment that doesn't exist as a directory — the confirmed prefix is
+ * what a caller expands in the tree even when the full path doesn't
+ * resolve. `isDirectory` decides whether the last segment is itself a
+ * directory to include (`existingDirs`) or a filename to leave out of the
+ * walk (only its parent chain matters). */
+function walkAncestors(root: string, absolute: string, isDirectory: boolean): ChatPathResolution {
   const relativeSegments = absolute === root ? [] : absolute.slice(root.length).split(sep).filter(Boolean);
   const dirSegments = isDirectory ? relativeSegments : relativeSegments.slice(0, -1);
 
@@ -393,6 +390,68 @@ export function resolveChatPath(rawRoot: string, rawPath: string): ChatPathResol
   }
 
   return { target: isDirectory ? null : absolute, isDirectory, existingDirs };
+}
+
+/** `findBySuffix` hit → the resolution shape `resolveChatPath` returns:
+ * ancestors (self included when it's a directory, so the tree reveals its
+ * own contents too) plus the target itself. */
+function resolutionFromMatch(root: string, found: string, isDirectory: boolean): ChatPathResolution {
+  const dirs = ancestorsOf(root, found);
+  return { target: isDirectory ? null : found, isDirectory, existingDirs: isDirectory ? [...dirs, found] : dirs };
+}
+
+/**
+ * Resolves a path as written in chat text (relative to the session's cwd,
+ * already absolute, a bare filename, or a directory — trailing `/`) into
+ * something the file panel can act on.
+ *
+ * An already-absolute path is trusted exactly (confined to the root, its
+ * ancestor chain walked from there) — the model gave a full path, no need
+ * to guess. A relative path with no `/` at all (a bare filename, `App.tsx`)
+ * always searches (`findBySuffix`): most chat mentions of a single file
+ * don't include its directory, and joining it straight onto the root is
+ * almost never right once it lives more than one level deep. A relative
+ * path *with* a `/` is joined against the root first — the common case,
+ * where the session's root really is what the model had in mind — but
+ * falls back to the same suffix search when even the *first* segment
+ * doesn't exist directly under the root: a strong signal the root is some
+ * ancestor above where the mention actually starts (a multi-repo workspace
+ * folder, the mention relative to one repo inside it), not that the model
+ * made something up. Either way the search still requires every given
+ * segment to match, in order, just not to start exactly at the root.
+ */
+export function resolveChatPath(rawRoot: string, rawPath: string): ChatPathResolution {
+  const rootResolved = resolveWithinRoot(rawRoot, null);
+  if (!rootResolved.ok) return { target: null, isDirectory: false, existingDirs: [] };
+  const root = rootResolved.root;
+
+  const isDirectory = rawPath.endsWith("/");
+  const trimmed = isDirectory ? rawPath.replace(/\/+$/, "") : rawPath;
+  if (!trimmed) return { target: null, isDirectory: false, existingDirs: [] };
+
+  if (isAbsolute(trimmed)) {
+    const normalizedRoot = root.endsWith(sep) ? root : root + sep;
+    if (trimmed !== root && !trimmed.startsWith(normalizedRoot)) {
+      return { target: null, isDirectory: false, existingDirs: [] };
+    }
+    return walkAncestors(root, trimmed, isDirectory);
+  }
+
+  const segments = trimmed.split("/").filter(Boolean);
+  if (segments.length === 0) return { target: null, isDirectory: false, existingDirs: [] };
+
+  if (segments.length === 1) {
+    const found = findBySuffix(root, segments, isDirectory);
+    return found ? resolutionFromMatch(root, found, isDirectory) : { target: null, isDirectory: false, existingDirs: [] };
+  }
+
+  if (existsSync(join(root, segments[0]))) {
+    return walkAncestors(root, join(root, ...segments), isDirectory);
+  }
+
+  const found = findBySuffix(root, segments, isDirectory);
+  if (found) return resolutionFromMatch(root, found, isDirectory);
+  return { target: isDirectory ? null : join(root, ...segments), isDirectory, existingDirs: [] };
 }
 
 export type RawResult = { ok: true; path: string; mime: string } | { ok: false; error: FilesError };
