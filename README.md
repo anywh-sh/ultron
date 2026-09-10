@@ -1,4 +1,22 @@
+<div align="center">
+
+<img src="assets/logo.svg" width="120" alt="ultron logo">
+
 # ultron
+
+### A self-hosted remote control for your coding agents — chat, voice, and a file browser from any device, while they keep running on your own machine
+
+**Agent-agnostic by design** — Claude Code, Codex CLI, and more
+
+[![CI](https://github.com/anywh-sh/ultron/actions/workflows/pr.yml/badge.svg?branch=main)](https://github.com/anywh-sh/ultron/actions/workflows/pr.yml)
+[![License: Apache 2.0](https://img.shields.io/badge/license-Apache%202.0-blue.svg?style=flat)](LICENSE)
+[![Platforms](https://img.shields.io/badge/platforms-Windows%20%7C%20macOS%20%7C%20iOS-informational?style=flat)](#getting-started-self-host)
+
+[Website](https://anywh.sh) • [Getting started](#getting-started-self-host) • [Issues](https://github.com/anywh-sh/ultron/issues)
+
+</div>
+
+---
 
 A thin wrapper around the [Claude Code](https://claude.ai/code) CLI: chat, voice input, image upload, multi-session, and a file browser from a native app on desktop (Windows/macOS, Linux untested — Tauri supports it, but nobody has run it there yet) or iOS — while the actual `claude` process keeps running on a machine you control.
 
