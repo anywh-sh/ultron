@@ -200,6 +200,14 @@ export function useRelayClient(
     setConnectingTailnet(tailnetMode);
 
     let cancelled = false;
+    // Whether this effect run holds a reference on the profile's sidecar —
+    // the cleanup below must only release one it actually took. `start()` is
+    // deferred and can be cancelled before ever reaching the acquire (or
+    // bail out earlier, on a broker failure), and the sidecar is shared
+    // between every tab open on the same profile: an unpaired release
+    // decrements *another* tab's reference and tears down the tailnet join
+    // out from under it.
+    let acquiredSidecar = false;
     const callbacks: RelayClientCallbacks = {
       onEvent: (event) => {
         // `compact_boundary` already passes through the generic `claude_event`
@@ -265,7 +273,13 @@ export function useRelayClient(
             wsToken = grant.token;
           }
           if (!target) throw new Error("tailnet profile has no target to dial (no tailnetTarget and no broker)");
-          const endpoint = await acquireTailnetSidecar(profile, target);
+          // Flagged synchronously with the call, before the first await:
+          // the reference is taken the moment `acquireTailnetSidecar`
+          // runs, so a cleanup landing while the join is still in flight
+          // has to see it.
+          const acquisition = acquireTailnetSidecar(profile, target);
+          acquiredSidecar = true;
+          const endpoint = await acquisition;
           if (cancelled) return;
           host = endpoint.host;
           port = endpoint.port;
@@ -305,7 +319,7 @@ export function useRelayClient(
       clearTimeout(startTimer);
       clientRef.current?.disconnect();
       clientRef.current = null;
-      if (tailnetMode) releaseTailnetSidecar(profile.id);
+      if (acquiredSidecar) releaseTailnetSidecar(profile.id);
     };
   }, [
     profile.id,
