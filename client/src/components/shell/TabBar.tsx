@@ -11,12 +11,18 @@ import { SortableContext, horizontalListSortingStrategy, useSortable } from "@dn
 import { CSS } from "@dnd-kit/utilities";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
-import { cn } from "@/lib/utils";
+import { cn, truncateWords } from "@/lib/utils";
 import type { Tab } from "@/hooks/useTabs";
 import { profileActiveBgClass } from "@/lib/profiles";
 import { useContextMenu } from "@/hooks/useContextMenu";
 import { SessionDeleteMenu } from "@/components/shell/SessionDeleteMenu";
 import { RenameSessionDialog } from "@/components/shell/RenameSessionDialog";
+
+// A long enough session title (auto-inferred from the first prompt, or
+// hand-typed via rename) could otherwise stretch the tooltip arbitrarily
+// wide — this caps it to roughly a glance's worth of text, same idea as the
+// `max-w-64` on TooltipContent below.
+const MAX_TOOLTIP_TITLE_WORDS = 12;
 
 interface TabBarProps {
   tabs: Tab[];
@@ -132,7 +138,9 @@ function SortableTab({ tab, onClose, onRename, onDelete }: SortableTabProps) {
           />
         </div>
       </TooltipTrigger>
-      <TooltipContent side="bottom">{tab.title ?? "Nova sessão"}</TooltipContent>
+      <TooltipContent side="bottom" className="max-w-64">
+        {truncateWords(tab.title ?? "Nova sessão", MAX_TOOLTIP_TITLE_WORDS)}
+      </TooltipContent>
     </Tooltip>
   );
 }

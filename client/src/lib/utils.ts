@@ -5,6 +5,18 @@ export function cn(...inputs: ClassValue[]) {
   return twMerge(clsx(inputs));
 }
 
+/** Cuts `text` down to its first `maxWords` words, appending `...` if
+ * anything was cut. Word-count truncation, not CSS's char/pixel-based
+ * `truncate` — for text where the natural bound is "how much someone can
+ * read at a glance" rather than a fixed box width (TabBar's tab tooltip: the
+ * tab itself already truncates by width, but the tooltip exists specifically
+ * to show the rest of a long title, and an unbounded one could still run
+ * arbitrarily long for a pathological title). */
+export function truncateWords(text: string, maxWords: number): string {
+  const words = text.trim().split(/\s+/);
+  return words.length <= maxWords ? text : `${words.slice(0, maxWords).join(" ")}...`;
+}
+
 /** `mm:ss` — used by the voice recording timer (Composer). */
 export function formatDuration(seconds: number): string {
   const m = Math.floor(seconds / 60)

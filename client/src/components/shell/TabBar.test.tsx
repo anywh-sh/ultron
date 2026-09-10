@@ -71,4 +71,18 @@ describe("TabBar", () => {
     await user.hover(screen.getByRole("tab", { name: t.title! }));
     expect(await screen.findByRole("tooltip")).toHaveTextContent(t.title!);
   });
+
+  it("truncates a tooltip title past 12 words instead of letting it run arbitrarily long", async () => {
+    const user = userEvent.setup();
+    const longTitle = "Uma sessão com um título absurdamente comprido que passa longe do limite razoável de doze palavras";
+    const t = tab({ title: longTitle });
+    renderTabBar([t], t.id);
+
+    await user.hover(screen.getByRole("tab"));
+    const tooltip = await screen.findByRole("tooltip");
+    expect(tooltip).toHaveTextContent(
+      "Uma sessão com um título absurdamente comprido que passa longe do limite...",
+    );
+    expect(tooltip).not.toHaveTextContent("razoável");
+  });
 });
