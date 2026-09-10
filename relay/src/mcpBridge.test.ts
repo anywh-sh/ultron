@@ -2,7 +2,13 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import { EventEmitter } from "node:events";
 import type { IncomingMessage, ServerResponse } from "node:http";
-import { CHOICE_ALLOWED_TOOL, McpChoiceBridge, type ChoiceAnswer, type ChoiceQuestion } from "./mcpBridge.js";
+import {
+  CHOICE_ALLOWED_TOOL,
+  CHOICE_ALREADY_PENDING_TEXT,
+  CHOICE_DEFERRED_RESPONSE_TEXT,
+  McpChoiceBridge,
+  type ChoiceQuestion,
+} from "./mcpBridge.js";
 
 /** Minimal fakes for the two Node HTTP objects `handleRequest` touches — no
  * real socket needed, `readJsonBody` only uses the `data`/`end`/`error`
@@ -67,7 +73,7 @@ test("unknown token: 404, never reaches any host", async () => {
 
 test("non-POST: 405", async () => {
   const bridge = new McpChoiceBridge();
-  const { token } = bridge.registerTurn({ presentChoice: async () => [] });
+  const { token } = bridge.registerTurn({ presentChoice: () => true });
   const { res, state } = fakeResponse();
   await bridge.handleRequest(token, fakeRequest({}, "GET"), res);
   assert.equal(state.status, 405);
@@ -75,7 +81,7 @@ test("non-POST: 405", async () => {
 
 test("initialize: echoes the client's protocolVersion, reports the tool capability", async () => {
   const bridge = new McpChoiceBridge();
-  const { token } = bridge.registerTurn({ presentChoice: async () => [] });
+  const { token } = bridge.registerTurn({ presentChoice: () => true });
   const { res, state } = fakeResponse();
   await bridge.handleRequest(token, fakeRequest({ jsonrpc: "2.0", id: 0, method: "initialize", params: { protocolVersion: "2099-01-01" } }), res);
   const body = parsedBody(state);
@@ -86,7 +92,7 @@ test("initialize: echoes the client's protocolVersion, reports the tool capabili
 
 test("notifications/initialized (no id): 202, empty body — never touches the host", async () => {
   const bridge = new McpChoiceBridge();
-  const { token } = bridge.registerTurn({ presentChoice: async () => [] });
+  const { token } = bridge.registerTurn({ presentChoice: () => true });
   const { res, state } = fakeResponse();
   await bridge.handleRequest(token, fakeRequest({ jsonrpc: "2.0", method: "notifications/initialized" }), res);
   assert.equal(state.status, 202);
@@ -95,7 +101,7 @@ test("notifications/initialized (no id): 202, empty body — never touches the h
 
 test("tools/list: exposes exactly the present_choice tool, matching CHOICE_ALLOWED_TOOL's name", async () => {
   const bridge = new McpChoiceBridge();
-  const { token } = bridge.registerTurn({ presentChoice: async () => [] });
+  const { token } = bridge.registerTurn({ presentChoice: () => true });
   const { res, state } = fakeResponse();
   await bridge.handleRequest(token, fakeRequest({ jsonrpc: "2.0", id: 1, method: "tools/list" }), res);
   const body = parsedBody(state);
@@ -104,15 +110,14 @@ test("tools/list: exposes exactly the present_choice tool, matching CHOICE_ALLOW
   assert.equal(`mcp__ultron-choice__${tools[0].name}`, CHOICE_ALLOWED_TOOL);
 });
 
-test("tools/call present_choice: forwards questions to the host, returns its answers as JSON text", async () => {
+test("tools/call present_choice: forwards questions to the host, replies immediately with the end-turn instruction (deferred lifecycle, docs/46 Descoberta 8)", async () => {
   const bridge = new McpChoiceBridge();
   const questions: ChoiceQuestion[] = [{ question: "SQLite or Postgres?", options: [{ label: "SQLite" }, { label: "Postgres" }] }];
-  const answers: ChoiceAnswer[] = [{ question: questions[0].question, selected: ["SQLite"] }];
   let receivedQuestions: ChoiceQuestion[] | undefined;
   const { token } = bridge.registerTurn({
-    presentChoice: async (q) => {
+    presentChoice: (q) => {
       receivedQuestions = q;
-      return answers;
+      return true;
     },
   });
   const { res, state } = fakeResponse();
@@ -124,61 +129,63 @@ test("tools/call present_choice: forwards questions to the host, returns its ans
   assert.deepEqual(receivedQuestions, questions);
   const body = parsedBody(state);
   const content = (body.result as { content?: { type: string; text: string }[] }).content ?? [];
-  assert.deepEqual(JSON.parse(content[0].text), { answers });
+  assert.equal(content[0].text, CHOICE_DEFERRED_RESPONSE_TEXT);
+  assert.equal((body.result as { isError?: boolean }).isError, undefined);
 });
 
-test("tools/call present_choice: a host that never resolves genuinely blocks the response (no timeout of our own)", async () => {
+test("tools/call present_choice: a second call while one is still pending is rejected with isError, doesn't touch the first", async () => {
   const bridge = new McpChoiceBridge();
-  let releaseHost: (() => void) | undefined;
+  let calls = 0;
   const { token } = bridge.registerTurn({
-    presentChoice: () =>
-      new Promise((resolve) => {
-        releaseHost = () => resolve([]);
-      }),
+    presentChoice: () => {
+      calls += 1;
+      // First call is accepted, every call after it is rejected — mirrors
+      // `SharedSession.presentChoice`'s real "only one at a time" behavior
+      // without needing `SharedSession` itself in this unit test.
+      return calls === 1;
+    },
   });
-  const { res, state } = fakeResponse();
-  const pending = bridge.handleRequest(
-    token,
-    fakeRequest({ jsonrpc: "2.0", id: 3, method: "tools/call", params: { name: "present_choice", arguments: { questions: [] } } }),
-    res,
-  );
-  await new Promise((r) => setTimeout(r, 20));
-  assert.equal(state.writableEnded, false, "must still be waiting — no response written yet");
-  releaseHost?.();
-  await pending;
-  assert.equal(state.writableEnded, true);
-});
-
-test("resolving after the connection already ended (turn interrupted mid-wait, docs/46) doesn't throw or double-write", async () => {
-  const bridge = new McpChoiceBridge();
-  let releaseHost: (() => void) | undefined;
-  const { token } = bridge.registerTurn({
-    presentChoice: () =>
-      new Promise((resolve) => {
-        releaseHost = () => resolve([]);
-      }),
-  });
-  const { res, state } = fakeResponse();
-  const pending = bridge.handleRequest(
+  const { res: res1, state: state1 } = fakeResponse();
+  await bridge.handleRequest(
     token,
     fakeRequest({ jsonrpc: "2.0", id: 4, method: "tools/call", params: { name: "present_choice", arguments: { questions: [] } } }),
+    res1,
+  );
+  const body1 = parsedBody(state1);
+  assert.equal((body1.result as { content?: { text: string }[] }).content?.[0].text, CHOICE_DEFERRED_RESPONSE_TEXT);
+
+  const { res: res2, state: state2 } = fakeResponse();
+  await bridge.handleRequest(
+    token,
+    fakeRequest({ jsonrpc: "2.0", id: 5, method: "tools/call", params: { name: "present_choice", arguments: { questions: [] } } }),
+    res2,
+  );
+  const body2 = parsedBody(state2);
+  assert.equal((body2.result as { isError?: boolean }).isError, true);
+  assert.equal((body2.result as { content?: { text: string }[] }).content?.[0].text, CHOICE_ALREADY_PENDING_TEXT);
+});
+
+test("resolving after the connection already ended doesn't throw or double-write (defensive — presentChoice is synchronous today, but sendJson's guard predates that)", async () => {
+  const bridge = new McpChoiceBridge();
+  const { token } = bridge.registerTurn({ presentChoice: () => true });
+  const { res, state } = fakeResponse();
+  // Simulates the connection already being gone (e.g. the `claude` child
+  // got SIGINT'd) by the time `sendJson` would write to it.
+  state.writableEnded = true;
+  await bridge.handleRequest(
+    token,
+    fakeRequest({ jsonrpc: "2.0", id: 6, method: "tools/call", params: { name: "present_choice", arguments: { questions: [] } } }),
     res,
   );
-  await new Promise((r) => setTimeout(r, 20));
-  // Simulates the client's HTTP connection dying (e.g. the `claude` child
-  // got SIGINT'd) before the human ever answered.
-  state.writableEnded = true;
-  assert.doesNotThrow(() => releaseHost?.());
-  await pending;
   assert.equal(state.body, undefined, "sendJson must have no-op'd, not tried to write to the dead connection");
 });
 
 test("unrecognized method with an id: empty result instead of hanging or erroring (e.g. the server/discover preflight)", async () => {
   const bridge = new McpChoiceBridge();
-  const { token } = bridge.registerTurn({ presentChoice: async () => [] });
+  const { token } = bridge.registerTurn({ presentChoice: () => true });
   const { res, state } = fakeResponse();
-  await bridge.handleRequest(token, fakeRequest({ jsonrpc: "2.0", id: 5, method: "server/discover" }), res);
+  await bridge.handleRequest(token, fakeRequest({ jsonrpc: "2.0", id: 7, method: "server/discover" }), res);
   const body = parsedBody(state);
-  assert.equal(body.id, 5);
+  assert.equal(body.id, 7);
   assert.deepEqual(body.result, {});
 });

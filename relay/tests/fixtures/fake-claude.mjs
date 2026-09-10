@@ -28,6 +28,25 @@
 //                        (`session.stopTurn()`) against a turn that's
 //                        genuinely still in flight, not one that already
 //                        raced to completion before the test could send it.
+//   FAKE_CLAUDE_PRESENT_CHOICE - if set (a JSON `ChoiceQuestion[]`), speaks
+//                        the real MCP "Streamable HTTP" handshake
+//                        (initialize -> tools/call) against the
+//                        `ultron-choice` server URL found in this
+//                        invocation's own `--mcp-config`, exactly like the
+//                        real `claude` binary calling `present_choice` mid-
+//                        turn (docs/46) — but deterministically, no model
+//                        involved. This is what lets the deferred-lifecycle
+//                        rework (relay/tests/choicePrompt.test.ts) be
+//                        exercised against the REAL McpChoiceBridge/
+//                        SharedSession/HTTP stack end to end (only the
+//                        model's decision to call the tool at all is faked;
+//                        everything downstream of that decision is real).
+//                        The tool call's response (should be
+//                        `CHOICE_DEFERRED_RESPONSE_TEXT`, mcpBridge.ts) is
+//                        folded into the turn's final assistant text so a
+//                        test can assert on it, then the turn ends normally
+//                        — proving the process doesn't stay blocked waiting
+//                        for a human the way the pre-rework version did.
 
 import { randomUUID } from "node:crypto";
 
@@ -40,6 +59,33 @@ function emit(event) {
 function flagValue(name) {
   const index = args.indexOf(name);
   return index >= 0 ? args[index + 1] : undefined;
+}
+
+// Must match `CHOICE_MCP_SERVER_NAME` in mcpBridge.ts.
+const CHOICE_SERVER_NAME = "ultron-choice";
+
+/** Speaks just enough of the real MCP "Streamable HTTP" handshake to call
+ * `present_choice` against the relay's own `McpChoiceBridge` — see
+ * `FAKE_CLAUDE_PRESENT_CHOICE` above for why this exists. Returns the tool
+ * call's response text (`CHOICE_DEFERRED_RESPONSE_TEXT` on the happy path,
+ * `mcpBridge.ts`), not an answer — under the deferred lifecycle there isn't
+ * one yet. */
+async function callPresentChoice(mcpConfigJson, questions) {
+  const { mcpServers } = JSON.parse(mcpConfigJson);
+  const url = mcpServers[CHOICE_SERVER_NAME].url;
+  let nextId = 0;
+  const rpc = async (method, params) => {
+    nextId += 1;
+    const res = await fetch(url, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ jsonrpc: "2.0", id: nextId, method, params }),
+    });
+    return res.json();
+  };
+  await rpc("initialize", { protocolVersion: "2025-06-18" });
+  const callResult = await rpc("tools/call", { name: "present_choice", arguments: { questions } });
+  return callResult.result?.content?.[0]?.text ?? "";
 }
 
 if (args[0] === "auth" && args[1] === "status") {
@@ -97,6 +143,29 @@ if (args[0] === "auth" && args[1] === "status") {
     });
     // Keep the process alive indefinitely while waiting for that signal.
     setInterval(() => {}, 1000);
+  } else if (process.env.FAKE_CLAUDE_PRESENT_CHOICE && outputFormat === "stream-json") {
+    // Calls the real bridge, gets back the deferred `tool_result`, and ends
+    // the turn immediately with that text as the "assistant reply" — this
+    // is the behavioral claim under test: the process does NOT block
+    // waiting for a human, unlike the pre-rework version of this mechanism.
+    const questions = JSON.parse(process.env.FAKE_CLAUDE_PRESENT_CHOICE);
+    const toolResultText = await callPresentChoice(flagValue("--mcp-config"), questions);
+    emit({
+      type: "assistant",
+      session_id: sessionId,
+      message: {
+        content: [{ type: "text", text: toolResultText }],
+        usage: { input_tokens: 10, cache_creation_input_tokens: 0, cache_read_input_tokens: 0 },
+      },
+    });
+    emit({
+      type: "result",
+      session_id: sessionId,
+      is_error: false,
+      result: toolResultText,
+      modelUsage: { [model]: { contextWindow: 200000 } },
+    });
+    process.exit(0);
   } else {
     emit({
       type: "assistant",

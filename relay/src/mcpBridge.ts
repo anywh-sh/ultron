@@ -32,9 +32,23 @@ export interface ChoiceAnswer {
 /** What a turn (`SharedSession.runTurn`) must provide to have its pending
  * `present_choice` calls actually go somewhere — kept minimal on purpose so
  * `SharedSession` doesn't need to know anything about MCP/JSON-RPC framing,
- * only "here's a question, here's how you'll eventually get an answer". */
+ * only "here's a question, publish it".
+ *
+ * Synchronous and fire-and-forget on purpose (docs/46 Descoberta 8 — this
+ * used to be `Promise<ChoiceAnswer[]>`, held open by `handleRequest` until a
+ * human answered): the CLI kills any MCP `tools/call` that takes longer than
+ * ~6 minutes to resolve, no documented override actually prevents it, and a
+ * human reading a prompt on their phone routinely takes longer than that.
+ * `presentChoice` now just records the question and returns immediately —
+ * `handleRequest` replies to the tool call right away (see
+ * `CHOICE_DEFERRED_RESPONSE_TEXT` below), the turn ends normally, and the
+ * eventual human answer arrives as a brand new turn instead of a resolved
+ * promise (`SharedSession.answerChoice`). Returns `false` instead of `true`
+ * if a previous prompt from this same host is still unanswered — only one
+ * can be pending at a time, and silently overwriting it would either lose
+ * the first question or leave two answers racing for the same UI slot. */
 export interface ChoiceHost {
-  presentChoice(questions: ChoiceQuestion[]): Promise<ChoiceAnswer[]>;
+  presentChoice(questions: ChoiceQuestion[]): boolean;
 }
 
 export const CHOICE_MCP_SERVER_NAME = "ultron-choice";
@@ -72,6 +86,29 @@ export const CHOICE_USAGE_HINT =
   "closed multiple-choice question — never write the options out as plain text instead, even when " +
   `that feels like the natural way to ask. ${TOOL_NAME} is the only way the human's answer becomes ` +
   "a real UI selection instead of a message they have to type by hand.";
+
+// docs/46 (deferred lifecycle, Descoberta 8) — the `tool_result` text for a
+// successful `present_choice` call. Doesn't carry any answer (there isn't
+// one yet): its whole job is to get the model to stop turning, imperatively,
+// since the only way the human's eventual answer reaches the conversation is
+// as the FIRST message of a brand new turn (`SharedSession.answerChoice`),
+// not as this call's return value. A model that ignores this and keeps
+// working anyway is an accepted, degraded outcome (see `SharedSession`'s
+// `pendingChoice` doc comment) — the prompt is already on screen and the
+// answer still lands correctly, it's just not guaranteed to be the very next
+// thing the model does.
+export const CHOICE_DEFERRED_RESPONSE_TEXT =
+  "Question presented to the user. End your turn now without further tool calls; the user's answer " +
+  "will arrive as their next message.";
+
+// Returned instead of the text above when a previous `present_choice` call
+// from the SAME turn is still unanswered (`ChoiceHost.presentChoice` ->
+// `false`) — e.g. the model ignored `CHOICE_DEFERRED_RESPONSE_TEXT` above
+// and called the tool a second time. `isError: true` (see `handleRequest`)
+// so the model sees this as a rejected call, not a second real question.
+export const CHOICE_ALREADY_PENDING_TEXT =
+  "A previous present_choice question is still waiting on the user's answer. Do not call this tool " +
+  "again until they respond — end your turn now without further tool calls.";
 
 const TOOL_SCHEMA = {
   name: TOOL_NAME,
@@ -132,11 +169,15 @@ function readJsonBody(req: IncomingMessage): Promise<unknown> {
   });
 }
 
-/** Guards against writing to a connection that's already gone — real case:
- * the `claude` child that made this `tools/call` gets SIGINT'd mid-wait
- * (docs/46, `SharedSession.cancelPendingChoice`), which tears down this
- * exact HTTP connection well before our `await host.presentChoice(...)`
- * below gets a chance to settle and try to respond to it. */
+/** Guards against writing to a connection that's already gone. Mostly
+ * theoretical for this bridge now that `presentChoice` is synchronous (the
+ * response goes out in the same tick it's requested — there's no `await`
+ * left in between for the connection to die during), kept because it's
+ * cheap and still real for the sibling bridge this pattern was copied from
+ * (`permissionBridge.ts`'s `checkPermission`, which still genuinely blocks:
+ * the `claude` child that made a `tools/call` can get SIGINT'd mid-wait
+ * there, tearing down the HTTP connection before `await
+ * host.checkPermission(...)` settles). */
 function sendJson(res: ServerResponse, status: number, body: unknown): void {
   if (res.writableEnded || res.destroyed) return;
   res.writeHead(status, { "Content-Type": "application/json" });
@@ -150,8 +191,17 @@ function sendJson(res: ServerResponse, status: number, body: unknown): void {
  * one tool `present_choice` needs, validated by hand against the real
  * `claude` binary before writing this (docs/46: confirmed `--mcp-config`
  * accepts a `"type": "http"` server, confirmed the exact request/response
- * shapes below, confirmed a slow `tools/call` genuinely blocks the CLI
- * mid-turn without any token cost).
+ * shapes below).
+ *
+ * `tools/call` used to hold the HTTP response open until a human answered —
+ * confirmed working (no token cost while waiting) but abandoned (docs/46
+ * Descoberta 8): the CLI kills a `tools/call` that takes longer than ~6
+ * minutes to resolve, with no working override, and a human on their phone
+ * routinely takes longer than that. `ChoiceHost.presentChoice` is now
+ * synchronous — this bridge replies immediately, telling the model to end
+ * its turn, and the human's actual answer arrives as a new turn instead
+ * (`SharedSession.answerChoice`). See `ChoiceHost`'s doc comment for the
+ * full reasoning.
  *
  * Runs in-process on the relay's own `httpServer` (`server.ts`) — no
  * separate subprocess. That matters: a subprocess-based MCP server (the
@@ -231,17 +281,20 @@ export class McpChoiceBridge {
     if (method === "tools/call" && params?.name === TOOL_NAME) {
       const args = params.arguments as { questions?: ChoiceQuestion[] } | undefined;
       const questions = args?.questions ?? [];
-      try {
-        const answers = await host.presentChoice(questions);
+      const accepted = host.presentChoice(questions);
+      if (!accepted) {
         sendJson(res, 200, {
           jsonrpc: "2.0",
           id,
-          result: { content: [{ type: "text", text: JSON.stringify({ answers }) }] },
+          result: { content: [{ type: "text", text: CHOICE_ALREADY_PENDING_TEXT }], isError: true },
         });
-      } catch (error) {
-        const text = error instanceof Error ? error.message : String(error);
-        sendJson(res, 200, { jsonrpc: "2.0", id, result: { content: [{ type: "text", text }], isError: true } });
+        return;
       }
+      sendJson(res, 200, {
+        jsonrpc: "2.0",
+        id,
+        result: { content: [{ type: "text", text: CHOICE_DEFERRED_RESPONSE_TEXT }] },
+      });
       return;
     }
 

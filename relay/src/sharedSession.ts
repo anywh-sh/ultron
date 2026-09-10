@@ -242,22 +242,57 @@ export class SharedSession {
    * survives (or not) between restarts — this list is just a mirror of
    * what it knows RIGHT NOW. */
   private backgroundJobs: BackgroundJobSummary[] = [];
-  /** docs/46 — a choice prompt currently waiting for a human answer, if any.
-   * Two unrelated mechanisms feed this, told apart by `kind`: `"mcp"` is a
-   * real `present_choice` tool call blocked mid-turn (the CLI process is
-   * still alive, waiting on `resolve` to produce its `tool_result`); `"planText"`
-   * is the `plan`-mode text-marker fallback (`planChoiceMarker.ts`) — that
-   * turn already finished by the time this exists, so there's no live call
-   * to resolve, only a future turn to enqueue once the human answers (see
-   * `answerChoice`). In-memory only, same reasoning as `backgroundJobs`: on
-   * a relay restart there's nothing meaningful left to resume either way
-   * (the `"mcp"` case loses its underlying `claude` child too, see
+  /** docs/46 (deferred lifecycle, Descoberta 8) — two SEPARATE slots, not one
+   * discriminated union anymore. They used to share a single field (told
+   * apart by a `kind: "mcp" | "planText"` tag) because both were "a question
+   * waiting for a human" — but they now have genuinely incompatible
+   * lifecycles, and a model that calls `present_choice` and then keeps
+   * working in the same turn (an accepted, if degraded, outcome — see
+   * `presentChoice` below) can make BOTH exist at once for the same turn:
+   * `present_choice` publishes into `pendingChoice` and returns immediately,
+   * which doesn't stop the model from then calling e.g. `Write`, which
+   * triggers a REAL `checkPermission` approval into `pendingApproval`. One
+   * shared slot would force one of the two to silently clobber the other's
+   * UI; separate fields don't.
+   *
+   * `pendingApproval` backs `--permission-prompt-tool`
+   * (`checkPermission`/`presentApprovalChoice`) and stays BLOCKING on
+   * purpose: the CLI itself is paused mid-turn waiting for exactly this HTTP
+   * response to decide whether to run a tool call — there's no "answer
+   * arrives as a later turn" option for it, so `runTurn`'s `finally` must
+   * still force-resolve it via `cancelPendingApproval` no matter how the
+   * turn ends (success, error, `stopTurn`/SIGINT).
+   *
+   * `pendingChoice` backs the model-facing `present_choice` tool AND the
+   * `plan`-mode text-marker fallback (`planChoiceMarker.ts`) — both are
+   * DEFERRED: the turn that asked has already ended, or ends right away
+   * (`presentChoice` replies to the tool call immediately, see
+   * `mcpBridge.ts`'s `ChoiceHost`), by the time a human answers, so the
+   * answer becomes a brand new turn instead of resolving anything in flight.
+   * This is the field whose lifecycle INVERTED with this feature: it used to
+   * be force-cleared by `runTurn`'s `finally` same as `pendingApproval` still
+   * is; now it must survive the turn that created it, on purpose — cleared
+   * only by `answerChoice` (human answered) or `discardStaleChoice` (human
+   * moved on without answering: new message, edit, `/clear`).
+   *
+   * Both in-memory only, same reasoning as `backgroundJobs`: on a relay
+   * restart there's nothing meaningful left to resume for `pendingApproval`
+   * either way (its underlying `claude` child dies too, see
    * `McpChoiceBridge`'s per-turn `unregister`) — a fresh `SharedSession`
-   * simply has no pending prompt, which is correct. */
-  private pendingChoice:
-    | { kind: "mcp"; promptId: string; questions: ChoiceQuestion[]; resolve: (answers: ChoiceAnswer[]) => void }
-    | { kind: "planText"; promptId: string; questions: ChoiceQuestion[] }
+   * simply has no pending approval, which is correct. `pendingChoice` is the
+   * one case where a restart now has real (if rare) user-visible cost — an
+   * unanswered `present_choice`/plan-marker prompt just disappears, same as
+   * it silently already did for the plan-marker case since Fase 3. Accepted
+   * rather than persisted (no `sessionStore.ts` entry): the conversation
+   * itself survives a restart fine via the persisted `session_id`, the human
+   * only loses the one pending question and can just ask the model to repeat
+   * it — not worth the complexity of persisting a JSON blob for a window
+   * this narrow (a relay restart landing in the exact gap between "prompt
+   * shown" and "human answers"). */
+  private pendingApproval:
+    | { promptId: string; questions: ChoiceQuestion[]; resolve: (answers: ChoiceAnswer[]) => void }
     | undefined;
+  private pendingChoice: { promptId: string; questions: ChoiceQuestion[] } | undefined;
 
   constructor(
     private readonly homeOverride: string | undefined,
@@ -363,33 +398,37 @@ export class SharedSession {
     this.options.onCancelBackgroundJob?.(jobId);
   }
 
-  /** docs/46 — called by the MCP bridge (`McpChoiceBridge`) when the model
-   * calls `present_choice` mid-turn. Only one at a time can be pending: a
-   * turn is a single `claude -p` process handling one tool call at a time,
-   * so there's no scenario where a second call would arrive before this one
-   * resolves. The returned promise only settles from `answerChoice` below —
-   * genuinely unbounded wait, by design (docs/46: matches how the real
-   * interactive CLI already behaves, and every lifecycle path that could
-   * leave this dangling — client disconnect, session delete, relay
-   * shutdown — already resolves through the SAME turn-in-progress machinery
-   * `stopTurn`/`waitForIdle` use, see the comment on `pendingChoice`). */
-  presentChoice(questions: ChoiceQuestion[]): Promise<ChoiceAnswer[]> {
-    return new Promise((resolve) => {
-      const promptId = randomUUID();
-      this.pendingChoice = { kind: "mcp", promptId, questions, resolve };
-      this.broadcastChoicePrompt();
-    });
-  }
-
-  /** docs/46 — plan-mode counterpart to `presentChoice`, called by `runTurn`
-   * after it sees a `>>>QUESTION:` marker in a turn that has ALREADY
-   * finished (unlike the MCP path, there's no live `claude` process to keep
-   * waiting). Just publishes the prompt for the UI — `answerChoice` is what
-   * turns the eventual answer into the next real turn. */
-  private presentPlanChoice(questions: ChoiceQuestion[]): void {
+  /** docs/46 (deferred lifecycle, Descoberta 8) — called by the MCP bridge
+   * (`McpChoiceBridge`, `ChoiceHost.presentChoice`) when the model calls
+   * `present_choice`. Used to return a `Promise<ChoiceAnswer[]>` and hold the
+   * tool call open until `answerChoice` resolved it — abandoned because the
+   * CLI kills a `tools/call` after ~6 minutes with no working override
+   * (Descoberta 8), and a human reading a prompt on their phone routinely
+   * takes longer than that. Now synchronous: publishes the prompt and
+   * returns immediately, `true` if accepted. `McpChoiceBridge.handleRequest`
+   * turns that into the tool's `tool_result` (an instruction to end the
+   * turn, see `CHOICE_DEFERRED_RESPONSE_TEXT`) — the eventual human answer
+   * becomes a brand new turn instead (`answerChoice` below), exactly like
+   * the `plan`-mode text-marker fallback always had to work.
+   *
+   * Returns `false` without touching `pendingChoice` if one is already
+   * pending — only one at a time (same invariant this always had), enforced
+   * explicitly now that a slow human can't be told apart from "the model
+   * called this again before ending its turn" by anything other than this
+   * check (the old blocking version didn't need this: a turn only ever has
+   * one tool call in flight, so a second `present_choice` literally couldn't
+   * arrive before the first resolved). Called directly (no separate wrapper
+   * anymore) by the `plan`-mode marker path at the tail of `runTurn` too —
+   * that path can't practically collide with this one (plan mode never
+   * registers the `present_choice` MCP tool at all, `choiceRegistration` in
+   * `runTurn`), but routing both through the same function keeps that
+   * invariant enforced in one place instead of two. */
+  presentChoice(questions: ChoiceQuestion[]): boolean {
+    if (this.pendingChoice) return false;
     const promptId = randomUUID();
-    this.pendingChoice = { kind: "planText", promptId, questions };
-    this.broadcastChoicePrompt();
+    this.pendingChoice = { promptId, questions };
+    this.broadcastChoicePrompt(this.pendingChoice);
+    return true;
   }
 
   /** docs/46 Fase 5 — called by the permission-prompt-tool bridge
@@ -409,26 +448,59 @@ export class SharedSession {
    * differently than "approve this action"), everything else gets a
    * generic question built from `describeToolCall` below.
    *
-   * Reuses `presentChoice` as-is instead of inventing a parallel pending-
-   * approval mechanism: a single yes/no `ChoiceQuestion` renders fine with
-   * the existing `ChoiceCard`, and `presentChoice`/`answerChoice` already
-   * handle every lifecycle edge case (multi-device "first answer wins",
-   * cancellation on any form of turn end, Stop button) that a fresh
-   * mechanism would need to reimplement — this is why Fase 5 needed no new
-   * turn-state UI despite the scope in docs/46 "Ressalvas": the mechanism
-   * was already generic, only Fase 4's policy was narrow. */
+   * Reuses `presentApprovalChoice` (below) as-is instead of inventing a
+   * parallel pending-approval mechanism: a single yes/no `ChoiceQuestion`
+   * renders fine with the existing `ChoiceCard`, and
+   * `presentApprovalChoice`/`answerChoice` already handle every lifecycle
+   * edge case (multi-device "first answer wins", cancellation on any form of
+   * turn end, Stop button) that a fresh mechanism would need to reimplement
+   * — this is why Fase 5 needed no new turn-state UI despite the scope in
+   * docs/46 "Ressalvas": the mechanism was already generic, only Fase 4's
+   * policy was narrow. */
   private async checkPermission(toolName: string, input: unknown, _toolUseId: string | undefined): Promise<PermissionDecision> {
     const isExitPlanMode = toolName === "ExitPlanMode";
     const question = isExitPlanMode
       ? "O modelo quer sair do modo Plan e continuar a execução. Aprovar?"
       : `O modelo quer executar \`${toolName}\`: ${describeToolCall(toolName, input)}. Aprovar?`;
-    const answers = await this.presentChoice([{ question, options: [{ label: "Aprovar" }, { label: "Recusar" }] }]);
+    const answers = await this.presentApprovalChoice([{ question, options: [{ label: "Aprovar" }, { label: "Recusar" }] }]);
     const approved = answers[0]?.selected.includes("Aprovar") ?? false;
     if (approved) return { behavior: "allow", updatedInput: input };
     return {
       behavior: "deny",
       message: isExitPlanMode ? "O usuário optou por continuar no modo Plan." : "O usuário recusou a execução.",
     };
+  }
+
+  /** docs/46 (deferred lifecycle) — the permission-approval counterpart to
+   * `presentChoice`, kept BLOCKING on purpose: `--permission-prompt-tool`
+   * calls stay open in `McpPermissionBridge` (`permissionBridge.ts`) because
+   * the CLI itself is paused mid-turn waiting for a verdict to decide
+   * whether to run the pending tool call — there's no "answer arrives as a
+   * later turn" for that, the decision has to come back as the result of
+   * THIS call, same as it always did before this feature existed (this is
+   * the old shared `presentChoice`, renamed and given its own `pendingApproval`
+   * slot now that the model-facing tool it used to share a field with no
+   * longer blocks — see the doc comment on `pendingApproval`/`pendingChoice`
+   * above for why they needed to split). Only one at a time can be pending:
+   * a turn is a single `claude -p` process handling one tool call at a
+   * time, so there's no scenario where a second call would arrive before
+   * this one resolves — unlike `presentChoice`, no acceptance check is
+   * needed here. The returned promise only settles from `answerChoice`
+   * below — genuinely unbounded wait, by design (docs/46: matches how the
+   * real interactive CLI already behaves, still subject to the SAME ~6
+   * minute CLI timeout as `present_choice` used to be, Descoberta 8 — that
+   * remains a known, open limitation for THIS path, deliberately out of
+   * scope for the present rework, see `runTurn`'s `mcpServers` comment).
+   * Every lifecycle path that could leave this dangling — client disconnect,
+   * session delete, relay shutdown — resolves through the SAME
+   * turn-in-progress machinery `stopTurn`/`waitForIdle` use, via
+   * `cancelPendingApproval` in `runTurn`'s `finally`. */
+  private presentApprovalChoice(questions: ChoiceQuestion[]): Promise<ChoiceAnswer[]> {
+    return new Promise((resolve) => {
+      const promptId = randomUUID();
+      this.pendingApproval = { promptId, questions, resolve };
+      this.broadcastChoicePrompt(this.pendingApproval);
+    });
   }
 
   /** docs/46 Fase 4 — the CLI reports its own permission-mode transitions
@@ -451,70 +523,87 @@ export class SharedSession {
     this.broadcastPermissionMode();
   }
 
-  /** Whatever's left pending when a turn ends, for ANY reason (normal
-   * completion, error, or `stopTurn`/SIGINT — `runTurn`'s `finally` calls
-   * this unconditionally), must be force-resolved for the `"mcp"` kind: the
+  /** Whatever's left pending in `pendingApproval` when a turn ends, for ANY
+   * reason (normal completion, error, or `stopTurn`/SIGINT — `runTurn`'s
+   * `finally` calls this unconditionally), must be force-resolved: the
    * `claude` child that would have received the answer no longer exists by
    * the time this runs (`sendTurn`'s promise only resolves after the
    * child's `close` event), so the actual answer content is moot — but
-   * without this, `pendingChoice` would linger forever (a reconnecting
-   * device would see a picker for a conversation that will never continue),
-   * and the `await` inside `McpChoiceBridge.handleRequest` for that call
-   * would never settle (`unregister` only removes it from future lookups,
-   * it doesn't reach into an already-in-flight call). A `"planText"` prompt
-   * has nothing to resolve (no call is blocked on it) — this only runs for
-   * one anyway because `presentPlanChoice` is called AFTER `runTurn`'s own
-   * `finally`, on that same turn's tail, never before it. */
-  private cancelPendingChoice(): void {
-    if (!this.pendingChoice) return;
-    const pending = this.pendingChoice;
-    this.pendingChoice = undefined;
+   * without this, `pendingApproval` would linger forever (a reconnecting
+   * device would see an approval card for a conversation that will never
+   * continue), and the `await` inside `McpPermissionBridge.handleRequest`
+   * for that call would never settle (`unregister` only removes it from
+   * future lookups, it doesn't reach into an already-in-flight call).
+   *
+   * Deliberately does NOT touch `pendingChoice` — that's the entire point of
+   * this feature (docs/46 deferred lifecycle): a `present_choice`/plan-marker
+   * prompt must survive the turn that created it, precisely so a slow human
+   * can still answer it after the turn (and the `claude` child that asked)
+   * is long gone. See the doc comment on `pendingApproval`/`pendingChoice`
+   * above for the full reasoning on why they're two fields now instead of
+   * one union cleared by a single function (the old `cancelPendingChoice`,
+   * pre-rework, cleared both kinds here). */
+  private cancelPendingApproval(): void {
+    if (!this.pendingApproval) return;
+    const pending = this.pendingApproval;
+    this.pendingApproval = undefined;
     this.broadcastChoiceResolved(pending.promptId);
-    if (pending.kind === "mcp") pending.resolve([]);
+    pending.resolve([]);
   }
 
-  /** A `"planText"` prompt outlives the turn that created it (unlike
-   * `"mcp"`, which is tied to a live `claude` call and already gets cleaned
-   * up by `cancelPendingChoice` as soon as that turn ends, one way or
-   * another). If the human moves on without answering it — sends a new
-   * message directly, edits an earlier one, or clears the conversation —
-   * the stale card needs this explicit dismissal, called from those exact
-   * three sites, or it would keep showing a question for a plan the
-   * conversation has already left behind. A `"mcp"` prompt is never touched
-   * here: it's already covered by `stopTurn`/`SIGINT` unblocking it via
-   * `cancelPendingChoice`. */
-  private discardStalePlanChoice(): void {
-    if (this.pendingChoice?.kind !== "planText") return;
+  /** `pendingChoice` outlives the turn that created it by design (unlike
+   * `pendingApproval`, cleaned up by `cancelPendingApproval` as soon as its
+   * turn ends, one way or another). If the human moves on without answering
+   * it — sends a new message directly, edits an earlier one, or clears the
+   * conversation — the stale card needs this explicit dismissal, called from
+   * those exact three sites, or it would keep showing a question for a
+   * conversation that has already moved past it. Covers both origins that
+   * feed `pendingChoice` (the MCP `present_choice` tool and the `plan`-mode
+   * text marker) uniformly — from here on they're indistinguishable, both
+   * just "a deferred prompt nobody answered yet". */
+  private discardStaleChoice(): void {
+    if (!this.pendingChoice) return;
     const { promptId } = this.pendingChoice;
     this.pendingChoice = undefined;
     this.broadcastChoiceResolved(promptId);
   }
 
   /** Called from the WS handler (`server.ts`) when any connected device
-   * answers. "First answer wins" (docs/46 multi-device requirement): once
-   * resolved, `pendingChoice` is cleared immediately, so a second device
-   * racing to answer the same prompt simply gets `false` back (its answer
-   * is a no-op) instead of a confusing double-resolution — and every device
-   * (including the one that didn't answer) is told the prompt is gone via
-   * `choice_resolved`, so a stale picker doesn't linger on a screen the
-   * user isn't looking at anymore. For `"mcp"`, the answer resolves the
-   * blocked tool call directly; for `"planText"` there's no call left to
-   * resolve, so the answer is enqueued as an ordinary new turn instead
-   * (`origin: undefined` — no client rendered a bubble for it locally the
-   * way `submitTurn` callers do, so everyone connected needs the synthetic
-   * `user_prompt` broadcast, not just "the others"). */
+   * answers. Checks `pendingApproval` first, then `pendingChoice` — a
+   * `promptId` only ever matches one of the two (they're independent random
+   * UUIDs, docs/46), the order just picks which lookup happens first.
+   * "First answer wins" (docs/46 multi-device requirement) applies to each
+   * slot independently: once resolved, that slot is cleared immediately, so
+   * a second device racing to answer the same prompt simply gets `false`
+   * back (its answer is a no-op) instead of a confusing double-resolution —
+   * and every device (including the one that didn't answer) is told the
+   * prompt is gone via `choice_resolved`, so a stale card doesn't linger on
+   * a screen the user isn't looking at anymore.
+   *
+   * `pendingApproval`'s answer resolves the blocked tool call directly —
+   * the `claude` child spawned this turn is still alive waiting for it.
+   * `pendingChoice`'s answer has no call left to resolve (the turn that
+   * asked already ended, or ended immediately after asking) — it's enqueued
+   * as an ordinary new turn instead (`origin: undefined` — no client
+   * rendered a bubble for it locally the way `submitTurn` callers do, so
+   * everyone connected needs the synthetic `user_prompt` broadcast, not just
+   * "the others"). */
   answerChoice(promptId: string, answers: ChoiceAnswer[]): boolean {
-    if (!this.pendingChoice || this.pendingChoice.promptId !== promptId) return false;
-    const pending = this.pendingChoice;
-    this.pendingChoice = undefined;
-    this.broadcastChoiceResolved(promptId);
-    if (pending.kind === "mcp") {
+    if (this.pendingApproval?.promptId === promptId) {
+      const pending = this.pendingApproval;
+      this.pendingApproval = undefined;
+      this.broadcastChoiceResolved(promptId);
       pending.resolve(answers);
-    } else {
+      return true;
+    }
+    if (this.pendingChoice?.promptId === promptId) {
+      this.pendingChoice = undefined;
+      this.broadcastChoiceResolved(promptId);
       const text = formatPlanChoiceAnswerText(answers);
       this.turnQueue = this.turnQueue.then(() => this.runTurn(undefined, text));
+      return true;
     }
-    return true;
+    return false;
   }
 
   addClient(socket: WebSocket): void {
@@ -529,7 +618,14 @@ export class SharedSession {
     this.sendSuggestion(socket);
     this.sendTurnState(socket);
     this.sendBackgroundJobs(socket);
+    // Both can legitimately be set at once (see the doc comment on the
+    // fields) — `pendingApproval` sent LAST so, if the client just keeps
+    // whichever `choice_prompt` arrived most recently as "the" current one
+    // (it does, `useRelayClient.ts`), the time-critical one (the CLI is
+    // actually blocked waiting on it) is the one a reconnecting device sees,
+    // not the deferred one that's fine to answer whenever.
     if (this.pendingChoice) this.sendChoicePrompt(socket, this.pendingChoice);
+    if (this.pendingApproval) this.sendChoicePrompt(socket, this.pendingApproval);
 
     this.ensureHistoryLoaded();
     // Phase 2 (docs/30) — only the recent tail (`INITIAL_HISTORY_TAIL_TURNS`
@@ -600,10 +696,11 @@ export class SharedSession {
     // clear it right away (don't wait for the turn to finish) so it doesn't
     // stay hanging around for the whole duration of the turn in progress.
     this.clearSuggestion();
-    // A `"planText"` prompt the human ignored in favor of typing a normal
-    // message directly is now stale — dismiss it rather than leave the card
-    // showing a question for a plan the conversation has already moved past.
-    this.discardStalePlanChoice();
+    // A deferred `pendingChoice` the human ignored in favor of typing a
+    // normal message directly is now stale — dismiss it rather than leave
+    // the card showing a question for a plan/tool call the conversation has
+    // already moved past.
+    this.discardStaleChoice();
     // Enqueue: only one `claude -p` turn runs at a time in this session.
     this.turnQueue = this.turnQueue.then(() => this.runTurn(origin, text));
   }
@@ -649,10 +746,10 @@ export class SharedSession {
       return;
     }
     this.clearSuggestion();
-    // `claude.stop()` below only unblocks a live `"mcp"` prompt (it's tied
-    // to the turn being interrupted) — a `"planText"` one outlives its turn
-    // and needs the same explicit dismissal as `submitTurn`.
-    this.discardStalePlanChoice();
+    // `claude.stop()` below only unblocks a live `pendingApproval` (it's
+    // tied to the turn being interrupted) — a deferred `pendingChoice`
+    // outlives its turn and needs the same explicit dismissal as `submitTurn`.
+    this.discardStaleChoice();
     this.claude.stop();
     this.turnQueue = this.turnQueue.then(() => this.performEdit(origin, target, text));
   }
@@ -732,7 +829,7 @@ export class SharedSession {
    * lock in `runTurn`), so the session can pick another one again, just
    * like a new session. */
   clearConversation(): void {
-    this.discardStalePlanChoice();
+    this.discardStaleChoice();
     this.turnQueue = this.turnQueue.then(() => {
       this.claude.resetSessionId();
       this.history.length = 0;
@@ -850,41 +947,53 @@ export class SharedSession {
             checkPermission: (toolName, input, toolUseId) => this.checkPermission(toolName, input, toolUseId),
           })
         : undefined;
-    // Both bridges wait on a real human (a picker click, an approve/deny
-    // decision) with no bytes sent back until that happens — from the CLI's
-    // point of view that's indistinguishable from a hung connection. Real
-    // finding (2026-09-09): the CLI's own default idle timeout for `"http"`
-    // MCP servers is 5 minutes (undocumented in `--help`, confirmed against
-    // the CLI's own docs), well inside how long a human can plausibly take
-    // to notice a prompt and answer it — the panel was observed disappearing
-    // out from under the human mid-decision. `timeout` here is meant to
-    // override that per server (also acts as a floor under the idle
-    // timeout, per the same docs).
+    // `permissionRegistration`'s server (`ultron-permission`) still waits on
+    // a real human (an approve/deny decision) with no bytes sent back until
+    // that happens — from the CLI's point of view that's indistinguishable
+    // from a hung connection. Real finding (2026-09-09): the CLI's own
+    // default idle timeout for `"http"` MCP servers is 5 minutes
+    // (undocumented in `--help`, confirmed against the CLI's own docs), well
+    // inside how long a human can plausibly take to notice a prompt and
+    // answer it — the panel was observed disappearing out from under the
+    // human mid-decision. `timeout` here is meant to override that per
+    // server (also acts as a floor under the idle timeout, per the same
+    // docs).
     //
     // UPDATE (2026-09-09, journal/46 Descoberta 8): this override does NOT
-    // actually work — confirmed live, a `present_choice` call that never
-    // resolves still errors out with "The operation timed out" at ~6
-    // minutes with this field set to 24h, matching a known upstream
-    // regression (per-server `timeout` silently ignored for HTTP transport
-    // since CLI v2.1.113). Two more mitigations were tried and also failed
-    // live at the same ~6-minute mark: `requestTimeout = 0` on both of this
-    // relay's own HTTP servers (server.ts, ruling out our own server as the
-    // culprit) and `CLAUDE_CODE_MCP_TOOL_IDLE_TIMEOUT=0` as an env var on
-    // the child (claudeSession.ts's `buildChildEnv`, a separate code path
-    // from this JSON field, confirmed reaching the child's env and still
-    // not preventing the timeout). All three are kept here anyway — they
-    // cost nothing and may start working if Anthropic fixes the underlying
-    // CLI bug(s) — but treat this as an OPEN, unfixed limitation of the CLI
-    // itself, not a solved problem: `present_choice` and permission-approval
-    // will still degrade to a plain-text question after ~6 minutes of no
-    // human answer. See journal/46 Descoberta 8 for the full investigation.
+    // actually work — confirmed live, a call that never resolves still
+    // errors out with "The operation timed out" at ~6 minutes with this
+    // field set to 24h, matching a known upstream regression (per-server
+    // `timeout` silently ignored for HTTP transport since CLI v2.1.113). Two
+    // more mitigations were tried and also failed live at the same
+    // ~6-minute mark: `requestTimeout = 0` on both of this relay's own HTTP
+    // servers (server.ts, ruling out our own server as the culprit) and
+    // `CLAUDE_CODE_MCP_TOOL_IDLE_TIMEOUT=0` as an env var on the child
+    // (claudeSession.ts's `buildChildEnv`, a separate code path from this
+    // JSON field, confirmed reaching the child's env and still not
+    // preventing the timeout). All three are kept anyway — they cost nothing
+    // and may start working if Anthropic fixes the underlying CLI bug(s) —
+    // but treat this as an OPEN, unfixed limitation of the CLI itself, not a
+    // solved problem: permission-approval will still degrade to an
+    // auto-deny after ~6 minutes of no human answer (`sendTurn` surfaces
+    // that as a normal tool error, same as any other `claude` failure — the
+    // turn doesn't hang, it just can't get the approval it asked for). See
+    // journal/46 Descoberta 8 for the full investigation.
+    //
+    // `choiceRegistration`'s server (`ultron-choice`) no longer needs any of
+    // this: `presentChoice` (mcpBridge.ts's `ChoiceHost`) replies to
+    // `present_choice` immediately now (the deferred lifecycle this feature
+    // introduced), so there's nothing left for the CLI's idle/wall-clock
+    // timeout to ever catch — the call is already done well within the
+    // default before either limit could apply. No `timeout` override is set
+    // for it below; the field only matters for `permissionRegistration`.
     //
     // `alwaysLoad` is a separate, CONFIRMED-working fix for a different bug
-    // in the same area: the CLI's MCP tool search can leave `present_choice`
-    // listed by name only, schema deferred, and a follow-up system-prompt
-    // reminder telling the model to `ToolSearch` for it before calling it
-    // was observed live to still get skipped (journal/46) — the model had
-    // that exact instruction in context and didn't reach for it anyway, a
+    // in the same area, unrelated to timeouts, still needed by BOTH servers:
+    // the CLI's MCP tool search can leave `present_choice` listed by name
+    // only, schema deferred, and a follow-up system-prompt reminder telling
+    // the model to `ToolSearch` for it before calling it was observed live
+    // to still get skipped (journal/46) — the model had that exact
+    // instruction in context and didn't reach for it anyway, a
     // prompt-adherence gap no wording reliably closes. `alwaysLoad: true`
     // sidesteps the model's choice entirely: the CLI docs confirm it keeps
     // a server's tools out of deferral regardless of `ENABLE_TOOL_SEARCH`,
@@ -893,12 +1002,11 @@ export class SharedSession {
     // Both servers qualify for the doc's own stated use case ("a small
     // number of tools that Claude needs on every turn").
     const HUMAN_RESPONSE_TIMEOUT_MS = 24 * 60 * 60 * 1000;
-    const mcpServers: Record<string, { type: "http"; url: string; timeout: number; alwaysLoad: true }> = {};
+    const mcpServers: Record<string, { type: "http"; url: string; timeout?: number; alwaysLoad: true }> = {};
     if (choiceRegistration) {
       mcpServers[CHOICE_MCP_SERVER_NAME] = {
         type: "http",
         url: `${this.options.mcpBridgeBaseUrl}/${choiceRegistration.token}`,
-        timeout: HUMAN_RESPONSE_TIMEOUT_MS,
         alwaysLoad: true,
       };
     }
@@ -925,9 +1033,13 @@ export class SharedSession {
         : undefined;
 
     // Hoisted out of the `try` below so the plan-mode marker check after it
-    // can see the turn's outcome — needs to run AFTER `finally`'s
-    // `cancelPendingChoice`, not before, or that same cleanup would
-    // immediately cancel the `"planText"` prompt this is about to create.
+    // can see the turn's outcome — needs to run AFTER the `finally` block,
+    // not before: `finally`'s `cancelPendingApproval` only ever touches
+    // `pendingApproval` (never `pendingChoice`, see that method's doc
+    // comment), so ordering relative to it doesn't actually matter anymore
+    // for THIS specific prompt the way it used to pre-rework — kept in this
+    // position regardless, since the turn's outcome (`stopped`,
+    // `lastAssistantText`) genuinely isn't known until `sendTurn` resolves.
     let turnStopped = false;
     let planChoiceText: string | undefined;
     try {
@@ -990,7 +1102,16 @@ export class SharedSession {
     } finally {
       choiceRegistration?.unregister();
       permissionRegistration?.unregister();
-      this.cancelPendingChoice();
+      // Only `pendingApproval` — `pendingChoice` deliberately survives the
+      // turn that created it (docs/46 deferred lifecycle, see the doc
+      // comment on `cancelPendingApproval`). This is THE inversion this
+      // feature made: before it, this line cleared BOTH kinds
+      // unconditionally, which is exactly why the `"planText"` prompt (the
+      // plan-mode marker below) always had to be created AFTER this
+      // `finally` ran — otherwise this same cleanup would have wiped it out
+      // the instant it was created. `present_choice` now needs that same
+      // survival property, which is what motivated splitting the field.
+      this.cancelPendingApproval();
       this.turnStartedAt = null;
       this.broadcastTurnState();
     }
@@ -1000,10 +1121,16 @@ export class SharedSession {
     // a genuinely closed question only shows up as a text marker in the
     // final response. Checked here, after the turn (and its `finally`
     // cleanup) has fully finished, not inside the `try` — see the comment
-    // on `turnStopped`/`planChoiceText`.
+    // on `turnStopped`/`planChoiceText`. Goes through the same `presentChoice`
+    // the MCP tool uses (not a separate method anymore): both origins feed
+    // the same deferred `pendingChoice` slot now, so there's no reason for
+    // two publish paths. The acceptance check inside `presentChoice` is a
+    // no-op here in practice — plan mode never registers the `present_choice`
+    // MCP tool (`choiceRegistration` above), so nothing else could have set
+    // `pendingChoice` for this same turn to collide with.
     if (!turnStopped && !synthetic && this.permissionMode === "plan" && planChoiceText) {
       const questions = parsePlanChoiceMarkers(planChoiceText);
-      if (questions.length > 0) this.presentPlanChoice(questions);
+      if (questions.length > 0) this.presentChoice(questions);
     }
   }
 
@@ -1027,9 +1154,13 @@ export class SharedSession {
     target.send(JSON.stringify({ type: "choice_prompt", promptId: prompt.promptId, questions: prompt.questions }));
   }
 
-  private broadcastChoicePrompt(): void {
-    if (!this.pendingChoice) return;
-    for (const client of this.clients) this.sendChoicePrompt(client, this.pendingChoice);
+  /** Takes the prompt explicitly (rather than reading `this.pendingChoice`/
+   * `this.pendingApproval` itself) since both `presentChoice` and
+   * `presentApprovalChoice` call this right after setting their own
+   * respective field — passing it in keeps this function agnostic to which
+   * of the two slots it's broadcasting for. */
+  private broadcastChoicePrompt(prompt: { promptId: string; questions: ChoiceQuestion[] }): void {
+    for (const client of this.clients) this.sendChoicePrompt(client, prompt);
   }
 
   /** Tells every connected device the prompt is gone — including whichever

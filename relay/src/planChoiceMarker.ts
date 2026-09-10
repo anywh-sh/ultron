@@ -44,11 +44,14 @@ export function parsePlanChoiceMarkers(text: string): ChoiceQuestion[] {
   return questions;
 }
 
-/** Turns the human's answer back into plain text. Unlike the MCP path,
- * there's no live `claude` process holding a tool call open to return a
- * `tool_result` to — the turn that asked already ended by the time a human
- * gets to answer — so the answer becomes the next ordinary user message
- * instead, same as if they'd typed it in the composer themselves
+/** Turns the human's answer back into plain text. Named for the plan-mode
+ * marker path but shared verbatim by the MCP `present_choice` path too
+ * (docs/46 deferred lifecycle) — both feed the same `pendingChoice` slot in
+ * `SharedSession` now, and both have the exact same problem this solves:
+ * there's no live `claude` process holding a tool call open to return an
+ * answer to (the turn that asked already ended, or ended immediately after
+ * asking), so the answer becomes the next ordinary user message instead,
+ * same as if they'd typed it in the composer themselves
  * (`SharedSession.answerChoice` enqueues it as a real turn). Kept in
  * Portuguese on purpose, like `buildBackgroundJobFollowupPrompt` in
  * sharedSession.ts — this is the literal text of a synthetic user turn, so

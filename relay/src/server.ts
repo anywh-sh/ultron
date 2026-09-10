@@ -1035,15 +1035,18 @@ export const httpServer = createServer((req, res) => {
   res.end();
 });
 
-// Real-session finding (2026-09-09): the `present_choice`/permission-approval
-// MCP bridges (mcpBridge.ts, permissionBridge.ts) hold a `tools/call` POST
-// open for as long as a human takes to answer — genuinely minutes, not
-// milliseconds. Node's `http.Server` has defaulted `requestTimeout` to
+// Real-session finding (2026-09-09): the permission-approval MCP bridge
+// (permissionBridge.ts) holds a `tools/call` POST open for as long as a
+// human takes to answer — genuinely minutes, not milliseconds (the
+// present_choice bridge, mcpBridge.ts, USED to as well, but its deferred
+// lifecycle rework replies immediately now, see the comment on
+// `SharedSession.presentChoice` — kept the request timeout disabled below
+// regardless, since it's still real for the permission bridge and costs
+// nothing for every other route on this server, which all respond in
+// milliseconds). Node's `http.Server` has defaulted `requestTimeout` to
 // 300000ms (5 minutes) since Node 18: past that, Node itself would abort
 // the request on its own, regardless of anything passed to the `claude`
-// child's own `--mcp-config`. Kept disabled here as a reasonable safety
-// measure (every other route on this server responds in milliseconds, so
-// this costs nothing) — but live testing (journal/46 Descoberta 8) showed
+// child's own `--mcp-config`. Live testing (journal/46 Descoberta 8) showed
 // this was NOT the actual cause of the real "The operation timed out"
 // failure a session hit at ~5m53s: an isolated reproduction with this exact
 // override applied still failed at ~6 minutes. The real culprit is still
