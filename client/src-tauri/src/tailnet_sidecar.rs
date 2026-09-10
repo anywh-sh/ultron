@@ -34,6 +34,49 @@ struct Running {
     addr: String,
 }
 
+/// Where a profile's tailnet node keeps the identity it earned when its
+/// pre-auth key was spent. That key is single use and expires in 15 minutes
+/// (anywh-control-plane's network/pairing.ts, journal/50 3.1), so this
+/// directory surviving is the only thing that lets the profile rejoin the
+/// tailnet later — losing it means re-pairing, not just a slower start.
+/// Per profile: two profiles sharing one directory would fight over a
+/// single node identity.
+fn tailnet_state_dir(app: &tauri::AppHandle, profile_id: &str) -> Result<PathBuf, String> {
+    let dir = app
+        .path()
+        .app_data_dir()
+        .map_err(|e| e.to_string())?
+        .join("tailnet-state")
+        .join(sanitize_for_path(profile_id));
+    std::fs::create_dir_all(&dir).map_err(|e| e.to_string())?;
+    Ok(dir)
+}
+
+/// Keeps a profile id usable as both a directory name and part of a tailnet
+/// hostname — profile ids are generated locally (a UUID for an imported
+/// profile, a slug for a hand-made one) and never validated against either
+/// alphabet.
+fn sanitize_for_path(profile_id: &str) -> String {
+    let cleaned: String = profile_id
+        .chars()
+        .map(|c| if c.is_ascii_alphanumeric() || c == '-' { c.to_ascii_lowercase() } else { '-' })
+        .collect();
+    if cleaned.is_empty() {
+        "profile".to_string()
+    } else {
+        cleaned
+    }
+}
+
+/// The name this device shows up as in the tenant's tailnet. Derived from
+/// the profile so two profiles on one machine are distinguishable, and kept
+/// short — a Tailscale hostname is a DNS label.
+fn tailnet_hostname(profile_id: &str) -> String {
+    let cleaned = sanitize_for_path(profile_id);
+    let short: String = cleaned.chars().take(12).collect();
+    format!("ultron-{}", short.trim_matches('-'))
+}
+
 /// Where the device's Ed25519 identity file lives — same directory Tauri
 /// already uses for other per-install state (`voice.rs`'s Whisper model),
 /// not guaranteed to exist yet on a fresh install.
@@ -123,6 +166,7 @@ pub async fn tailnet_sidecar_start(
         return Ok(existing.addr.clone());
     }
 
+    let state_dir = tailnet_state_dir(&app, &profile_id)?;
     let sidecar = app
         .shell()
         .sidecar("tailnet-sidecar")
@@ -137,6 +181,10 @@ pub async fn tailnet_sidecar_start(
             &target,
             "-listen",
             "127.0.0.1:0",
+            "-state-dir",
+            &state_dir.to_string_lossy(),
+            "-hostname",
+            &tailnet_hostname(&profile_id),
         ]);
     let (mut rx, child) = sidecar.spawn().map_err(|e| e.to_string())?;
 
@@ -208,4 +256,31 @@ pub async fn tailnet_sidecar_stop(
         entry.child.kill().map_err(|e| e.to_string())?;
     }
     Ok(())
+}
+
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn hostname_is_a_usable_dns_label() {
+        let name = tailnet_hostname("77974f6e-e0ac-4d07-a0f0-0a8791c23e66");
+        assert_eq!(name, "ultron-77974f6e-e0a");
+        assert!(name.len() <= 63);
+        assert!(name.chars().all(|c| c.is_ascii_alphanumeric() || c == '-'));
+    }
+
+    #[test]
+    fn hostname_survives_a_profile_id_that_is_not_a_uuid() {
+        assert_eq!(tailnet_hostname("Trabalho Pessoal!"), "ultron-trabalho-pes");
+    }
+
+    #[test]
+    fn state_dir_segment_never_escapes_its_parent() {
+        // A profile id is generated locally and never validated — it must not
+        // be able to name a directory outside the app's own data dir.
+        assert_eq!(sanitize_for_path("../../etc"), "------etc");
+        assert!(!sanitize_for_path("../../etc").contains('.'));
+    }
 }

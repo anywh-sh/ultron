@@ -9,6 +9,7 @@ package main
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"flag"
 	"fmt"
 	"log"
@@ -120,8 +121,8 @@ func runTailnetUp(args []string) {
 	controlURL := fs.String("control-url", "", "Headscale control URL (required)")
 	target := fs.String("target", "", "host:port to dial inside the tailnet (required)")
 	listen := fs.String("listen", "127.0.0.1:0", "local address to listen on")
-	hostname := fs.String("hostname", "tailnet-sidecar-spike", "tsnet hostname")
-	stateDir := fs.String("state-dir", "", "tsnet state dir (defaults to a temp dir)")
+	hostname := fs.String("hostname", "", "tsnet hostname (required)")
+	stateDir := fs.String("state-dir", "", "where this node keeps its identity (required)")
 	if err := fs.Parse(args); err != nil {
 		log.Fatalf("parse flags: %v", err)
 	}
@@ -130,12 +131,15 @@ func runTailnetUp(args []string) {
 		os.Exit(2)
 	}
 
-	srv := &tsnet.Server{
-		Hostname:   *hostname,
-		ControlURL: *controlURL,
-		AuthKey:    *authKey,
-		Dir:        *stateDir,
-		Ephemeral:  true,
+	srv, err := newTsnetServer(tsnetConfig{
+		hostname:   *hostname,
+		controlURL: *controlURL,
+		authKey:    *authKey,
+		stateDir:   *stateDir,
+	})
+	if err != nil {
+		fmt.Fprintln(os.Stderr, err)
+		os.Exit(2)
 	}
 	defer srv.Close()
 
@@ -166,4 +170,48 @@ func runTailnetUp(args []string) {
 		},
 	}
 	log.Fatal(tnSrv.Serve(ln))
+}
+
+// tsnetConfig is everything the sidecar's tailnet node is built from. It
+// stays a plain struct so the decisions below can be asserted in a test
+// without a real tailnet.
+type tsnetConfig struct {
+	hostname   string
+	controlURL string
+	authKey    string
+	stateDir   string
+}
+
+// newTsnetServer builds the tsnet node this sidecar runs as. Two of these
+// fields are load-bearing, and both were wrong for as long as the spike's
+// configuration survived into F2:
+//
+// Ephemeral must be false. An ephemeral node is deleted from the tailnet the
+// moment it disconnects, so every start has to register again — and
+// registering needs a pre-auth key, which the control plane mints single-use
+// with a 15-minute TTL and considers spent on first use (journal/50 3.1). A
+// profile paired an hour ago has no usable key left, so an ephemeral node
+// could join exactly once and was permanently unable to come back
+// afterwards: "backend: authkey expired", which is precisely what a paired
+// Windows client reported on every start after its first.
+//
+// Dir is where the node identity earned by that single registration is kept,
+// so it has to be a stable per-profile path. Empty makes tsnet fall back to
+// a path derived from the hostname alone, shared by every profile on the
+// machine — two profiles would then fight over one identity. Refused rather
+// than defaulted: a silent fallback is the failure this exists to prevent.
+func newTsnetServer(cfg tsnetConfig) (*tsnet.Server, error) {
+	if cfg.stateDir == "" {
+		return nil, errors.New("state-dir is required: without it the node identity does not survive a restart")
+	}
+	if cfg.hostname == "" {
+		return nil, errors.New("hostname is required")
+	}
+	return &tsnet.Server{
+		Hostname:   cfg.hostname,
+		ControlURL: cfg.controlURL,
+		AuthKey:    cfg.authKey,
+		Dir:        cfg.stateDir,
+		Ephemeral:  false,
+	}, nil
 }
