@@ -49,89 +49,91 @@ function SortableTab({ tab, onClose, onRename, onDelete }: SortableTabProps) {
   const menu = useContextMenu();
 
   return (
-    <div
-      ref={setNodeRef}
-      {...listeners}
-      onContextMenu={menu.onContextMenu}
-      // Chrome-style middle-click-to-close, anywhere on the tab (not just
-      // the X). `onMouseDown` (not `onClick`, which never fires for the
-      // middle button) prevents the browser's autoscroll-mode cursor —
-      // that starts on mousedown, so `onAuxClick` alone would still flash it.
-      onMouseDown={(event) => {
-        if (event.button === 1) event.preventDefault();
-      }}
-      onAuxClick={(event) => {
-        if (event.button === 1) onClose(tab.id);
-      }}
-      style={{
-        transform: CSS.Transform.toString(transform),
-        transition,
-        opacity: isDragging ? 0.5 : 1,
-        zIndex: isDragging ? 1 : undefined,
-      }}
-      className="group relative flex min-w-[72px] flex-[0_1_168px] items-center"
-    >
-      <Tooltip>
-        {/* `asChild` merges the tooltip's own `data-state` (open/closed) onto
-            whatever it wraps — landed directly on `TabsTrigger`, that clobbers
-            Radix Tabs' `data-state` (active/inactive), since Tabs' own
-            implementation spreads incoming props *after* setting it
-            (`@radix-ui/react-tabs`). The tab silently stopped carrying
-            `data-state="active"` at all, so neither the profile tint nor the
-            border override could ever match. This `contents` span is layout-
-            transparent (no box of its own) and absorbs that merge instead,
-            leaving TabsTrigger's own state untouched. */}
-        <TooltipTrigger asChild>
-          <span className="contents">
-            <TabsTrigger
-              value={tab.id}
-              // No more active-tab bar (ui/tabs.tsx no longer paints one for the
-              // "line" variant) — the selected tab is now marked by tinting its
-              // own background with the session's profile color instead.
-              className={cn(
-                "min-w-0 gap-1.5 rounded-none py-2 pr-7 pl-3 font-mono text-xs",
-                profileActiveBgClass(tab.profileId),
-              )}
-            >
-              {tab.isRunning ? (
-                <Loader2 className="size-3 shrink-0 animate-spin text-foreground" aria-label="Agente trabalhando nesta sessão" />
-              ) : (
-                tab.hasUnreadCompletion && (
-                  <span className="size-1.5 shrink-0 rounded-full bg-status-done" aria-label="Sessão finalizada" />
-                )
-              )}
-              <span className="min-w-0 flex-1 truncate">{tab.title ?? "Nova sessão"}</span>
-            </TabsTrigger>
-          </span>
-        </TooltipTrigger>
-        <TooltipContent side="bottom">{tab.title ?? "Nova sessão"}</TooltipContent>
-      </Tooltip>
-      <button
-        type="button"
-        onClick={(event) => {
-          event.stopPropagation();
-          onClose(tab.id);
-        }}
-        aria-label={`Fechar aba ${tab.title ?? "nova sessão"}`}
-        className={cn(
-          // `z-20`: `TabsTrigger` sits at `z-10` (see `ui/tabs.tsx`) and,
-          // being `position: relative`, paints above this sibling `button`
-          // otherwise — its clickable box covers the full row including the
-          // `pr-7` padding reserved for this button, so without a higher
-          // z-index the trigger intercepts every click meant for the X.
-          "absolute right-1.5 z-20 cursor-pointer rounded p-0.5 opacity-0 transition-opacity",
-          "hover:bg-border group-hover:opacity-100",
-        )}
-      >
-        <X className="size-3" />
-      </button>
-      <SessionDeleteMenu
-        menu={menu}
-        title={tab.title ?? "nova sessão"}
-        onRename={() => onRename(tab)}
-        onDelete={() => onDelete(tab.id)}
-      />
-    </div>
+    <Tooltip>
+      {/* Wraps the whole row (not just TabsTrigger) for two reasons: (1) this
+          plain `div` has no Radix `data-state` of its own, so the tooltip's
+          `asChild` prop merge landing on it can't clobber anything — an
+          earlier attempt wrapped TabsTrigger directly, which merged the
+          tooltip's own open/closed `data-state` on top of Tabs' own
+          active/inactive one (`@radix-ui/react-tabs` spreads incoming props
+          *after* setting it), silently breaking both the profile tint and
+          the border override that key off it. (2) unlike a `display:contents`
+          wrapper (tried first, to dodge exactly that collision), this `div`
+          has a real box — Radix Popper positions the tooltip off the
+          trigger's `getBoundingClientRect()`, which is empty for a `contents`
+          element, so it anchored at the viewport's top-left instead of under
+          the tab. */}
+      <TooltipTrigger asChild>
+        <div
+          ref={setNodeRef}
+          {...listeners}
+          onContextMenu={menu.onContextMenu}
+          // Chrome-style middle-click-to-close, anywhere on the tab (not just
+          // the X). `onMouseDown` (not `onClick`, which never fires for the
+          // middle button) prevents the browser's autoscroll-mode cursor —
+          // that starts on mousedown, so `onAuxClick` alone would still flash it.
+          onMouseDown={(event) => {
+            if (event.button === 1) event.preventDefault();
+          }}
+          onAuxClick={(event) => {
+            if (event.button === 1) onClose(tab.id);
+          }}
+          style={{
+            transform: CSS.Transform.toString(transform),
+            transition,
+            opacity: isDragging ? 0.5 : 1,
+            zIndex: isDragging ? 1 : undefined,
+          }}
+          className="group relative flex min-w-[72px] flex-[0_1_168px] items-center"
+        >
+          <TabsTrigger
+            value={tab.id}
+            // No more active-tab bar (ui/tabs.tsx no longer paints one for the
+            // "line" variant) — the selected tab is now marked by tinting its
+            // own background with the session's profile color instead.
+            className={cn(
+              "min-w-0 gap-1.5 rounded-none py-2 pr-7 pl-3 font-mono text-xs",
+              profileActiveBgClass(tab.profileId),
+            )}
+          >
+            {tab.isRunning ? (
+              <Loader2 className="size-3 shrink-0 animate-spin text-foreground" aria-label="Agente trabalhando nesta sessão" />
+            ) : (
+              tab.hasUnreadCompletion && (
+                <span className="size-1.5 shrink-0 rounded-full bg-status-done" aria-label="Sessão finalizada" />
+              )
+            )}
+            <span className="min-w-0 flex-1 truncate">{tab.title ?? "Nova sessão"}</span>
+          </TabsTrigger>
+          <button
+            type="button"
+            onClick={(event) => {
+              event.stopPropagation();
+              onClose(tab.id);
+            }}
+            aria-label={`Fechar aba ${tab.title ?? "nova sessão"}`}
+            className={cn(
+              // `z-20`: `TabsTrigger` sits at `z-10` (see `ui/tabs.tsx`) and,
+              // being `position: relative`, paints above this sibling `button`
+              // otherwise — its clickable box covers the full row including the
+              // `pr-7` padding reserved for this button, so without a higher
+              // z-index the trigger intercepts every click meant for the X.
+              "absolute right-1.5 z-20 cursor-pointer rounded p-0.5 opacity-0 transition-opacity",
+              "hover:bg-border group-hover:opacity-100",
+            )}
+          >
+            <X className="size-3" />
+          </button>
+          <SessionDeleteMenu
+            menu={menu}
+            title={tab.title ?? "nova sessão"}
+            onRename={() => onRename(tab)}
+            onDelete={() => onDelete(tab.id)}
+          />
+        </div>
+      </TooltipTrigger>
+      <TooltipContent side="bottom">{tab.title ?? "Nova sessão"}</TooltipContent>
+    </Tooltip>
   );
 }
 
