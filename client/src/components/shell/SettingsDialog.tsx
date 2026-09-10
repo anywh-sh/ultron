@@ -23,7 +23,14 @@ import {
   type ModelPreferenceMode,
 } from "@/hooks/useModelPreference";
 import { getKnownModels, labelForModel } from "@/lib/modelCatalog";
-import { addProfile, PROFILE_COLOR_COUNT, profileColorClassForIndex, removeProfile, type Profile } from "@/lib/profiles";
+import {
+  addProfile,
+  isTailnetProfile,
+  PROFILE_COLOR_COUNT,
+  profileColorClassForIndex,
+  removeProfile,
+  type Profile,
+} from "@/lib/profiles";
 import { deleteProfile, updateProfileMeta } from "@/lib/relayClient";
 import { resolveConnection } from "@/lib/connectionResolver";
 import { useProfiles } from "@/hooks/useProfiles";
@@ -198,6 +205,25 @@ function ProfileIdentityRow({ profile, effectiveColorIndex }: { profile: Profile
   );
 }
 
+/** Picks another profile on the same relay as `scopedProfile` to run an
+ * operation that must never execute through the profile's own relay
+ * (docs/45 Fase 6: deleting would make that relay disable its own systemd
+ * instance mid-request). Exported for `SettingsDialog.test.tsx` — pure
+ * logic, no need to render anything to exercise it.
+ *
+ * A tailnet profile never has a valid executor: each one is its own
+ * isolated sandbox behind the "127.0.0.1" sidecar placeholder every
+ * tailnet profile shares (see ThemeSection's registry comment), so a host
+ * match there proves nothing about actually sharing a machine — in either
+ * direction. `isTailnetProfile(scopedProfile)` rules out the first
+ * direction (another tailnet profile looking like a same-host sibling);
+ * excluding a tailnet `p` from the candidates rules out the second (a real
+ * loopback direct profile matching a tailnet profile's placeholder host). */
+export function findSameHostExecutor(scopedProfile: Profile, allProfiles: Profile[]): Profile | undefined {
+  if (isTailnetProfile(scopedProfile)) return undefined;
+  return allProfiles.find((p) => p.id !== scopedProfile.id && p.host === scopedProfile.host && !isTailnetProfile(p));
+}
+
 function DangerZone({
   scopedProfile,
   allProfiles,
@@ -211,10 +237,7 @@ function DangerZone({
   const [deleting, setDeleting] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  // A different relay on the same host executes the deletion — sending it
-  // to the profile's own relay would make it disable its own systemd
-  // instance mid-request (docs/45 Fase 6).
-  const executor = allProfiles.find((p) => p.id !== scopedProfile.id && p.host === scopedProfile.host);
+  const executor = findSameHostExecutor(scopedProfile, allProfiles);
 
   async function handleDeleteFromServer(): Promise<void> {
     if (!executor) return;
