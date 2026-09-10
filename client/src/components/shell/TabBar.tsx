@@ -58,11 +58,11 @@ function SortableTab({ tab, onClose, onRename, onDelete }: SortableTabProps) {
         opacity: isDragging ? 0.5 : 1,
         zIndex: isDragging ? 1 : undefined,
       }}
-      className="group relative flex items-center"
+      className="group relative flex min-w-[72px] flex-[0_1_168px] items-center"
     >
       <TabsTrigger
         value={tab.id}
-        className="gap-1.5 rounded-none py-2 pr-7 pl-3 font-mono text-xs data-[state=active]:bg-bg-elevated"
+        className="min-w-0 gap-1.5 rounded-none py-2 pr-7 pl-3 font-mono text-xs data-[state=active]:bg-bg-elevated"
       >
         <span
           className={cn(
@@ -73,7 +73,7 @@ function SortableTab({ tab, onClose, onRename, onDelete }: SortableTabProps) {
           aria-label={tab.isRunning ? "Agente trabalhando nesta sessão" : undefined}
         />
         {tab.hasUnreadCompletion && <span className="size-1.5 shrink-0 rounded-full bg-primary" />}
-        <span className="max-w-[120px] truncate">{tab.title ?? "Nova sessão"}</span>
+        <span className="min-w-0 flex-1 truncate">{tab.title ?? "Nova sessão"}</span>
       </TabsTrigger>
       <button
         type="button"
@@ -138,7 +138,7 @@ export function TabBar({
         <SortableContext items={tabs.map((tab) => tab.id)} strategy={horizontalListSortingStrategy}>
           <TabsList
             variant="line"
-            className="h-auto w-full justify-start gap-0 rounded-none border-b border-border-soft bg-transparent p-0"
+            className="scrollbar-thin h-auto w-full flex-nowrap justify-start gap-0 overflow-x-auto rounded-none border-b border-border-soft bg-transparent p-0"
           >
             {tabs.map((tab) => (
               <SortableTab
