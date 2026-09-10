@@ -42,7 +42,7 @@ If you run Claude Code on a headless machine (a home server, a NAS, an always-on
 
 Functional MVP, self-hosted and used daily by its author: chat, voice, image upload, multi-session, multi-profile, a terminal panel and a read-only file browser for the session's working directory — validated on Windows, macOS and iOS.
 
-Setting up your own instance means pointing the client at your relay by hand (below) — there's no pairing/QR flow or one-command setup yet.
+Setting up your own instance means pointing the client at your relay by hand (below), or implementing the [pairing protocol](./docs/pairing.md) if your relay isn't directly reachable. There's no one-command setup yet.
 
 ## Getting started (self-host)
 
@@ -70,7 +70,7 @@ npm install
 npm run tauri dev       # desktop app
 ```
 
-By default the client points at a relay on the same machine (`127.0.0.1:8765`). Until the pairing flow mentioned in [Status](#status) exists, there are two ways to point it at your own relay instead:
+By default the client points at a relay on the same machine (`127.0.0.1:8765`). There are two ways to point it at your own relay instead:
 
 - **Build-time env var** — works on both desktop and iOS:
   ```bash
@@ -87,6 +87,8 @@ By default the client points at a relay on the same machine (`127.0.0.1:8765`). 
   then reload.
 
 iOS has no DevTools, so an iOS build today assumes you're building from source with the env var set — see `client/README.md` for iOS-specific commands.
+
+For a relay that isn't directly reachable (behind NAT, on a tailnet), the client can instead be pointed at it by pairing: an `ultron://import-profile` deep link, or a `<code>@<host>` code pasted under **Adicionar máquina remota** in the profile switcher. Both need the relay side to implement the endpoints in [`docs/pairing.md`](./docs/pairing.md) — the client hardcodes no server.
 
 ## Profiles
 
