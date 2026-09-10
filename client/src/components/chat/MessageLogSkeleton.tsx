@@ -22,16 +22,18 @@ const ROWS: SkeletonRow[] = [
  */
 export function MessageLogSkeleton() {
   return (
-    <div className="flex flex-1 flex-col gap-4 overflow-hidden px-4 py-3" role="status" aria-label="Carregando conversa…">
-      {ROWS.map((row, i) => (
-        <div key={i} className={cn("flex", row.align === "right" ? "justify-end" : "justify-start")} aria-hidden="true">
-          <div className={cn("flex flex-col gap-1.5", row.align === "right" && "items-end")}>
-            {row.widths.map((width, j) => (
-              <div key={j} className={cn("h-3 animate-pulse rounded-full bg-border", width)} />
-            ))}
+    <div className="flex flex-1 flex-col overflow-hidden px-4 py-3" role="status" aria-label="Carregando conversa…">
+      <div className="mx-auto flex w-full max-w-3xl flex-col gap-4">
+        {ROWS.map((row, i) => (
+          <div key={i} className={cn("flex", row.align === "right" ? "justify-end" : "justify-start")} aria-hidden="true">
+            <div className={cn("flex flex-col gap-1.5", row.align === "right" && "items-end")}>
+              {row.widths.map((width, j) => (
+                <div key={j} className={cn("h-3 animate-pulse rounded-full bg-border", width)} />
+              ))}
+            </div>
           </div>
-        </div>
-      ))}
+        ))}
+      </div>
     </div>
   );
 }
