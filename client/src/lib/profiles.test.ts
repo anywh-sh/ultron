@@ -67,6 +67,16 @@ describe("syncProfilesForHost", () => {
     expect(getProfiles()).toEqual([only]);
   });
 
+  it("preserves a locally set connectToken across a sync that reports the same id — the host's own response never carries one", () => {
+    const imported: Profile = { id: "paired", label: "Paired device", host: "1.2.3.4", relayPort: 8443, connectToken: "secret-token" };
+    setProfiles([imported]);
+
+    syncProfilesForHost("1.2.3.4", [remote({ id: "paired", host: "1.2.3.4", label: "Paired device" })]);
+
+    const synced = getProfiles().find((p) => p.id === "paired");
+    expect(synced?.connectToken).toBe("secret-token");
+  });
+
   it("regression: a sync that reports the same data back is a no-op on the array/object identity, not just the values", () => {
     // useForegroundSync (client/src/hooks/useForegroundSync.ts) reruns this
     // every 30s and on window focus. Before this fix, every successful sync

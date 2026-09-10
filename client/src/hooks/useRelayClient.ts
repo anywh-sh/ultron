@@ -221,7 +221,7 @@ export function useRelayClient(
       onChoiceResolved: (promptId) => {
         if (choicePromptRef.current?.promptId === promptId) setChoicePrompt(null);
       },
-    });
+    }, profile.connectToken);
     clientRef.current = client;
     client.connect();
 

@@ -19,6 +19,13 @@ export interface Profile {
    * from the host registry on every sync (never written locally on its own)
    * so switching theme on one device shows up on the others. */
   themeId?: string;
+  /** Opaque bearer value sent as a `token` query param on the relay
+   * WebSocket URL (see `RelayClient.connect`) — for a host sitting behind a
+   * reverse proxy that gates access on a static credential the browser
+   * `WebSocket` API can't carry as a header. Never synced from a host's own
+   * `/control/profiles` (the host has no notion of it); only ever set
+   * locally, e.g. by importing a profile via deep link. */
+  connectToken?: string;
 }
 
 const STORAGE_KEY = "ultron:profiles";
@@ -126,7 +133,8 @@ function profileFieldsEqual(a: Profile, b: Profile): boolean {
     a.host === b.host &&
     a.relayPort === b.relayPort &&
     a.colorIndex === b.colorIndex &&
-    a.themeId === b.themeId
+    a.themeId === b.themeId &&
+    a.connectToken === b.connectToken
   );
 }
 
@@ -167,6 +175,12 @@ export function syncProfilesForHost(host: string, remote: RemoteProfile[]): void
   const dropStale = LOOPBACK_HOSTS.has(host)
     ? (p: Profile) => p.host !== host && !remoteIds.has(p.id)
     : (p: Profile) => p.host !== host && !remoteIds.has(p.id) && !LOOPBACK_HOSTS.has(p.host);
+  // `connectToken` has no host-side counterpart (the control API response
+  // never carries it), so a synced entry has to inherit whatever this
+  // device already had for that id — otherwise a profile imported via deep
+  // link would lose its token the moment its host's `/control/profiles`
+  // also happens to report the same id.
+  const existingById = new Map(profiles.map((p) => [p.id, p]));
   const merged = [
     ...profiles.filter(dropStale),
     ...remote.map((entry) => ({
@@ -176,6 +190,7 @@ export function syncProfilesForHost(host: string, remote: RemoteProfile[]): void
       relayPort: entry.port,
       colorIndex: entry.colorIndex,
       themeId: entry.themeId,
+      connectToken: existingById.get(entry.id)?.connectToken,
     })),
   ];
   if (merged.length === 0) return;

@@ -358,14 +358,18 @@ export class RelayClient {
     private readonly port: number,
     private readonly sessionId: string,
     private readonly callbacks: RelayClientCallbacks,
+    /** See `Profile.connectToken` — sent as a query param because the
+     * browser `WebSocket` constructor has no way to set a header. */
+    private readonly connectToken?: string,
   ) {}
 
   connect(): void {
     this.connectCount += 1;
     if (this.connectCount > 1) this.callbacks.onReconnecting?.();
 
+    const tokenParam = this.connectToken ? `&token=${encodeURIComponent(this.connectToken)}` : "";
     const socket = new WebSocket(
-      `ws://${this.host}:${this.port}/?session=${encodeURIComponent(this.sessionId)}`,
+      `ws://${this.host}:${this.port}/?session=${encodeURIComponent(this.sessionId)}${tokenParam}`,
     );
     this.socket = socket;
 
