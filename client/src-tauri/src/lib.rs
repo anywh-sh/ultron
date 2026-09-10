@@ -43,7 +43,7 @@ pub fn run() {
     // make a redundant second process exit as early as possible, and a
     // plugin registered ahead of it would be one this doomed process paid
     // for anyway. On Windows and Linux that second process is how the OS
-    // delivers an `ultron://` link to an app that's already running (it
+    // delivers an `anywh://` link to an app that's already running (it
     // passes the URL in argv rather than notifying the live instance), so
     // this is also what makes `onOpenUrl` fire on those two platforms
     // instead of only `getCurrent()` at a cold launch — see

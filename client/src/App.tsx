@@ -213,7 +213,7 @@ export default function App() {
     focusSession(profileId, sessionId);
   });
 
-  // Deep-link profile import (`ultron://import-profile`) — see
+  // Deep-link profile import (`anywh://import-profile`) — see
   // useProfileImport.ts. Switches straight to the newly added profile,
   // same as picking one in the switcher.
   useProfileImport((profileId) => {

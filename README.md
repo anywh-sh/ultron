@@ -100,7 +100,7 @@ By default the client points at a relay on the same machine (`127.0.0.1:8765`). 
 
 iOS has no DevTools, so an iOS build today assumes you're building from source with the env var set — see `client/README.md` for iOS-specific commands.
 
-For a relay that isn't directly reachable (behind NAT, on a tailnet), the client can instead be pointed at it by pairing: an `ultron://import-profile` deep link, or a `<code>@<host>` code pasted under **Adicionar máquina remota** in the profile switcher. Both need the relay side to implement the endpoints in [`docs/pairing.md`](./docs/pairing.md) — the client hardcodes no server.
+For a relay that isn't directly reachable (behind NAT, on a tailnet), the client can instead be pointed at it by pairing: an `anywh://import-profile` deep link, or a `<code>@<host>` code pasted under **Adicionar máquina remota** in the profile switcher. Both need the relay side to implement the endpoints in [`docs/pairing.md`](./docs/pairing.md) — the client hardcodes no server.
 
 ## Profiles
 

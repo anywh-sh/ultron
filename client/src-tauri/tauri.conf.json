@@ -27,11 +27,11 @@
   "plugins": {
     "deep-link": {
       "desktop": {
-        "schemes": ["ultron"]
+        "schemes": ["anywh"]
       },
       "mobile": [
         {
-          "scheme": ["ultron"],
+          "scheme": ["anywh"],
           "appLink": false
         }
       ]

@@ -4,7 +4,7 @@ import { inTauri } from "@/lib/tauri";
 import { importProfile, parseImportProfileUrl } from "@/lib/profileImport";
 
 /**
- * Listens for `ultron://import-profile` deep links (see profileImport.ts
+ * Listens for `anywh://import-profile` deep links (see profileImport.ts
  * for the URL format, src-tauri/tauri.conf.json for the OS-registered
  * scheme) and turns each into a new local profile, handing its id back so
  * the caller can switch to it — same "registration exists, caller decides
@@ -22,7 +22,7 @@ import { importProfile, parseImportProfileUrl } from "@/lib/profileImport";
  *
  * Neither path is the only way in: `AddRemoteMachineDialog` redeems a typed
  * pairing code through the same import, for whoever has a code but no
- * working link (a platform where `ultron://` isn't registered, a browser
+ * working link (a platform where `anywh://` isn't registered, a browser
  * that swallowed it, a code read off another screen).
  */
 export function useProfileImport(onImported: (profileId: string) => void): void {

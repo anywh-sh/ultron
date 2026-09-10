@@ -72,7 +72,7 @@ cpal = "0.15"
 whisper-rs = "0.16"
 rubato = "0.15"
 tauri-plugin-shell = "2"
-# journal/62: on Windows and Linux the OS answers an `ultron://` link by
+# journal/62: on Windows and Linux the OS answers an `anywh://` link by
 # spawning a *second* process with the URL in argv, instead of notifying the
 # running one — so without this, `onOpenUrl` never fired there and only a
 # cold launch could import a profile. The `deep-link` feature is what makes

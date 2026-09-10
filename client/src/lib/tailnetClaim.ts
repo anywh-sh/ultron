@@ -14,7 +14,7 @@ export interface ClaimedBundle {
   /** Opaque — where to ask for a fresh connection before every dial (the
    * CT-1 broker contract, `Profile.brokerUrl`). Optional for two independent
    * reasons: a self-hoster's claim endpoint may have no broker at all, and
-   * an `ultron://import-profile` link can name the broker itself, in which
+   * an `anywh://import-profile` link can name the broker itself, in which
    * case the link's value is the one that stands (profileImport.ts). It
    * exists here because a *typed* pairing code (pairingCode.ts) has nowhere
    * else to learn it — a code carries only a host, and the broker is

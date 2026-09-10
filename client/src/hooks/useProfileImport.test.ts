@@ -3,7 +3,7 @@ import { cleanup, renderHook } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 const getCurrentMock = vi.fn(async (): Promise<string[]> => [
-  "ultron://import-profile/?label=test&joinCode=ABC123&claimUrl=https%3A%2F%2Fexample.test%2Fclaim&brokerUrl=https%3A%2F%2Fexample.test%2Fconnect%2Fw1",
+  "anywh://import-profile/?label=test&joinCode=ABC123&claimUrl=https%3A%2F%2Fexample.test%2Fclaim&brokerUrl=https%3A%2F%2Fexample.test%2Fconnect%2Fw1",
 ]);
 const onOpenUrlMock = vi.fn((_handler: (urls: string[]) => void) => Promise.resolve(() => {}));
 vi.mock("@tauri-apps/plugin-deep-link", () => ({

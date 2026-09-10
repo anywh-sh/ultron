@@ -9,19 +9,19 @@ beforeEach(() => {
 describe("parseImportProfileUrl", () => {
   it("parses a well-formed direct-mode import-profile link", () => {
     const parsed = parseImportProfileUrl(
-      "ultron://import-profile?host=1.2.3.4&port=8443&label=Paired%20device&token=s3cr3t",
+      "anywh://import-profile?host=1.2.3.4&port=8443&label=Paired%20device&token=s3cr3t",
     );
     expect(parsed).toEqual({ label: "Paired device", host: "1.2.3.4", port: 8443, connectToken: "s3cr3t" });
   });
 
   it("omits connectToken when the link carries no token param", () => {
-    const parsed = parseImportProfileUrl("ultron://import-profile?host=1.2.3.4&port=8443&label=Device");
+    const parsed = parseImportProfileUrl("anywh://import-profile?host=1.2.3.4&port=8443&label=Device");
     expect(parsed).toEqual({ label: "Device", host: "1.2.3.4", port: 8443, connectToken: undefined });
   });
 
   it("journal/62 F4: parses a well-formed tailnet-mode import-profile link (claimUrl/joinCode/brokerUrl)", () => {
     const parsed = parseImportProfileUrl(
-      "ultron://import-profile?label=Paired%20device&claimUrl=https%3A%2F%2Fapi.example%2Fv1%2Fnodes%2Fclaim&joinCode=ABCDEF-GHJKMNPQ&brokerUrl=https%3A%2F%2Fapi.example%2Fv1%2Fconnect%2Fws-1",
+      "anywh://import-profile?label=Paired%20device&claimUrl=https%3A%2F%2Fapi.example%2Fv1%2Fnodes%2Fclaim&joinCode=ABCDEF-GHJKMNPQ&brokerUrl=https%3A%2F%2Fapi.example%2Fv1%2Fconnect%2Fws-1",
     );
     expect(parsed).toEqual({
       label: "Paired device",
@@ -32,7 +32,7 @@ describe("parseImportProfileUrl", () => {
   });
 
   it("accepts a tailnet-mode link with no brokerUrl — the claim response can name one instead", () => {
-    expect(parseImportProfileUrl("ultron://import-profile?label=Device&claimUrl=https://api.example/claim&joinCode=CODE")).toEqual({
+    expect(parseImportProfileUrl("anywh://import-profile?label=Device&claimUrl=https://api.example/claim&joinCode=CODE")).toEqual({
       label: "Device",
       claimUrl: "https://api.example/claim",
       joinCode: "CODE",
@@ -41,28 +41,28 @@ describe("parseImportProfileUrl", () => {
   });
 
   it("rejects a tailnet-mode link missing claimUrl or joinCode — neither has a fallback anywhere", () => {
-    expect(parseImportProfileUrl("ultron://import-profile?label=Device&joinCode=CODE&brokerUrl=https://api.example/connect")).toBeNull();
-    expect(parseImportProfileUrl("ultron://import-profile?label=Device&claimUrl=https://api.example/claim")).toBeNull();
+    expect(parseImportProfileUrl("anywh://import-profile?label=Device&joinCode=CODE&brokerUrl=https://api.example/connect")).toBeNull();
+    expect(parseImportProfileUrl("anywh://import-profile?label=Device&claimUrl=https://api.example/claim")).toBeNull();
   });
 
   it("rejects a different scheme", () => {
     expect(parseImportProfileUrl("https://import-profile?host=1.2.3.4&port=8443&label=Device")).toBeNull();
   });
 
-  it("rejects a different ultron:// action", () => {
-    expect(parseImportProfileUrl("ultron://something-else?host=1.2.3.4&port=8443&label=Device")).toBeNull();
+  it("rejects a different anywh:// action", () => {
+    expect(parseImportProfileUrl("anywh://something-else?host=1.2.3.4&port=8443&label=Device")).toBeNull();
   });
 
   it("rejects a missing required field", () => {
-    expect(parseImportProfileUrl("ultron://import-profile?port=8443&label=Device")).toBeNull();
-    expect(parseImportProfileUrl("ultron://import-profile?host=1.2.3.4&label=Device")).toBeNull();
-    expect(parseImportProfileUrl("ultron://import-profile?host=1.2.3.4&port=8443")).toBeNull();
+    expect(parseImportProfileUrl("anywh://import-profile?port=8443&label=Device")).toBeNull();
+    expect(parseImportProfileUrl("anywh://import-profile?host=1.2.3.4&label=Device")).toBeNull();
+    expect(parseImportProfileUrl("anywh://import-profile?host=1.2.3.4&port=8443")).toBeNull();
   });
 
   it("rejects a non-numeric or non-positive port", () => {
-    expect(parseImportProfileUrl("ultron://import-profile?host=1.2.3.4&port=abc&label=Device")).toBeNull();
-    expect(parseImportProfileUrl("ultron://import-profile?host=1.2.3.4&port=0&label=Device")).toBeNull();
-    expect(parseImportProfileUrl("ultron://import-profile?host=1.2.3.4&port=-1&label=Device")).toBeNull();
+    expect(parseImportProfileUrl("anywh://import-profile?host=1.2.3.4&port=abc&label=Device")).toBeNull();
+    expect(parseImportProfileUrl("anywh://import-profile?host=1.2.3.4&port=0&label=Device")).toBeNull();
+    expect(parseImportProfileUrl("anywh://import-profile?host=1.2.3.4&port=-1&label=Device")).toBeNull();
   });
 
   it("rejects a malformed URL outright", () => {

@@ -4,8 +4,8 @@ import { claimTailnetBundle } from "@/lib/tailnetClaim";
 
 /**
  * Generic remote-profile import via a deep link:
- * `ultron://import-profile?label=&host=&port=&token=` (direct mode) or
- * `ultron://import-profile?label=&claimUrl=&joinCode=&brokerUrl=` (tailnet
+ * `anywh://import-profile?label=&host=&port=&token=` (direct mode) or
+ * `anywh://import-profile?label=&claimUrl=&joinCode=&brokerUrl=` (tailnet
  * mode, journal/62 F4). Nothing here is specific to any one hosted service
  * — it's the same shape a self-hoster could hand out for their own relay
  * (`host`/`port` to reach it directly, an optional `token` for a reverse
@@ -32,7 +32,7 @@ const IMPORT_PROFILE_ACTION = "import-profile";
 
 /**
  * Parses a deep link URL into import params, or `null` if it isn't a
- * recognized `ultron://import-profile` link, is missing `label`, or has
+ * recognized `anywh://import-profile` link, is missing `label`, or has
  * neither a complete direct-mode (`host`+`port`) nor tailnet-mode
  * (`claimUrl`+`joinCode`) set of fields. Pure — no side effect — so the
  * parsing itself is testable without touching
@@ -51,7 +51,7 @@ export function parseImportProfileUrl(url: string): ImportedProfileParams | null
   } catch {
     return null;
   }
-  if (parsed.protocol !== "ultron:") return null;
+  if (parsed.protocol !== "anywh:") return null;
   // A custom scheme has no real authority component — most URL parsers
   // (including this one) still put the part right after `://` into
   // `.hostname`, which is where `import-profile` lands here.

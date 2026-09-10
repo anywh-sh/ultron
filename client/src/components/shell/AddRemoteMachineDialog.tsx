@@ -27,7 +27,7 @@ interface AddRemoteMachineDialogProps {
  * This is the deep link's fallback, and it exists because the deep link
  * can't be the only path: it's desktop-only, and on Linux/Windows it only
  * fires on a cold launch. Whoever is holding a code with the app already
- * open — or on a platform where `ultron://` was never registered — needs
+ * open — or on a platform where `anywh://` was never registered — needs
  * somewhere to put it.
  *
  * Deliberately *not* `AddProfileDialog`: that one creates another Claude

@@ -13,13 +13,13 @@ the stock client, with no fork and no code change on either side.
 Both converge on the same redemption, and both are optional to implement —
 a deployment can offer either or both.
 
-### 1. Deep link — `ultron://import-profile`
+### 1. Deep link — `anywh://import-profile`
 
-The client registers the `ultron://` scheme (desktop and iOS). A link
+The client registers the `anywh://` scheme (desktop and iOS). A link
 carries everything needed, so nothing is typed:
 
 ```
-ultron://import-profile?label=<name>&claimUrl=<url>&joinCode=<code>&brokerUrl=<url>
+anywh://import-profile?label=<name>&claimUrl=<url>&joinCode=<code>&brokerUrl=<url>
 ```
 
 | Param | Required | Meaning |
@@ -61,7 +61,7 @@ Parsing rules the client applies:
 
 Since a typed code carries only a host, the client has to discover the rest.
 
-## Discovery — `GET /.well-known/ultron-pairing`
+## Discovery — `GET /.well-known/anywh-pairing`
 
 Served over HTTPS from the origin in the code, `Content-Type:
 application/json`. A static file is a perfectly good implementation.

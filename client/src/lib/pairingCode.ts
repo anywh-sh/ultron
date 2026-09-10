@@ -1,7 +1,7 @@
 /**
  * Self-describing pairing codes — `<join-code>@<host>` (e.g.
  * `ABCDEF-GHJKMNPQ@example.com`), the typed counterpart of the
- * `ultron://import-profile` deep link (profileImport.ts).
+ * `anywh://import-profile` deep link (profileImport.ts).
  *
  * Why the host is part of the code at all: a bare join code is meaningless
  * without knowing *where* to redeem it, and this client is not allowed to
@@ -24,7 +24,7 @@
  * service conforms to this spec, this client never learns that service's
  * own route names.
  */
-export const WELL_KNOWN_PAIRING_PATH = "/.well-known/ultron-pairing";
+export const WELL_KNOWN_PAIRING_PATH = "/.well-known/anywh-pairing";
 
 export interface ParsedPairingCode {
   /** The secret half, passed through to the claim endpoint untouched. */
