@@ -140,16 +140,22 @@ pub async fn tailnet_sidecar_start(
         ]);
     let (mut rx, child) = sidecar.spawn().map_err(|e| e.to_string())?;
 
+    let mut listening: Option<String> = None;
     while let Some(event) = rx.recv().await {
         match event {
             CommandEvent::Stdout(bytes) => {
                 let line = String::from_utf8_lossy(&bytes);
                 if let Some(addr) = line.trim().strip_prefix("LISTENING ") {
-                    let addr = addr.to_string();
-                    running.insert(profile_id, Running { child, addr: addr.clone() });
-                    return Ok(addr);
+                    listening = Some(addr.to_string());
+                    break;
                 }
             }
+            // Everything the Go side has to say goes to stderr (tsnet join
+            // progress on the way up, then every dial it makes into the
+            // tailnet). Discarding it made a sidecar that came up but can't
+            // reach its target indistinguishable from one that works — the
+            // only observable difference is a chat socket that never opens.
+            CommandEvent::Stderr(bytes) => log_sidecar(&profile_id, &bytes),
             CommandEvent::Error(err) => return Err(err),
             CommandEvent::Terminated(payload) => {
                 return Err(format!("tailnet-sidecar exited before printing LISTENING: {payload:?}"));
@@ -157,7 +163,36 @@ pub async fn tailnet_sidecar_start(
             _ => {}
         }
     }
-    Err("tailnet-sidecar stdout closed without a LISTENING line".to_string())
+    let Some(addr) = listening else {
+        return Err("tailnet-sidecar stdout closed without a LISTENING line".to_string());
+    };
+
+    running.insert(profile_id.clone(), Running { child, addr: addr.clone() });
+    // The child outlives this command, so someone has to keep reading its
+    // output — an unread channel would both lose the log above and, once
+    // full, block the sidecar on its own writes.
+    drop(running);
+    tauri::async_runtime::spawn(async move {
+        while let Some(event) = rx.recv().await {
+            match event {
+                CommandEvent::Stdout(bytes) | CommandEvent::Stderr(bytes) => log_sidecar(&profile_id, &bytes),
+                CommandEvent::Terminated(payload) => {
+                    eprintln!("[tailnet-sidecar] {profile_id} exited: {payload:?}");
+                    break;
+                }
+                _ => {}
+            }
+        }
+    });
+    Ok(addr)
+}
+
+fn log_sidecar(profile_id: &str, bytes: &[u8]) {
+    let line = String::from_utf8_lossy(bytes);
+    let line = line.trim_end();
+    if !line.is_empty() {
+        eprintln!("[tailnet-sidecar] {profile_id}: {line}");
+    }
 }
 
 /// Kills the `tailnet-up` child for `profile_id`, if any — a no-op if it
