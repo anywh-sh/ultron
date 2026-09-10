@@ -4,6 +4,7 @@ import { SessionPanel } from "@/components/shell/SessionPanel";
 import { TerminalView } from "@/components/terminal/TerminalView";
 import type { useTerminalTabs } from "@/hooks/useTerminalTabs";
 import { closeTerminal } from "@/lib/relayClient";
+import { resolveConnection } from "@/lib/connectionResolver";
 import type { Profile } from "@/lib/profiles";
 
 interface TerminalPanelProps {
@@ -80,9 +81,11 @@ export function TerminalPanel({
 
   function handleCloseTerminal(terminalId: string): void {
     terminalTabs.closeTerminal(chatSessionId, terminalId);
-    closeTerminal(profile.host, profile.relayPort, chatSessionId, terminalId).catch((error: unknown) => {
-      console.error("[ultron] failed to close terminal:", error);
-    });
+    resolveConnection(profile)
+      .then(({ host, port, token }) => closeTerminal(host, port, chatSessionId, terminalId, token))
+      .catch((error: unknown) => {
+        console.error("[ultron] failed to close terminal:", error);
+      });
   }
 
   return (

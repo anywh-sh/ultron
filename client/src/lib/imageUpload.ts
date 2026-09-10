@@ -1,4 +1,5 @@
 import type { Profile } from "@/lib/profiles";
+import { authHeaders, resolveConnection } from "@/lib/connectionResolver";
 
 export interface UploadResult {
   path: string;
@@ -11,8 +12,10 @@ export async function uploadAttachment(profile: Profile, file: File): Promise<Up
   const ext = file.name.includes(".") ? (file.name.split(".").pop() ?? "png") : "png";
   const buffer = await file.arrayBuffer();
 
-  const response = await fetch(`http://${profile.host}:${profile.relayPort}/upload?ext=${encodeURIComponent(ext)}`, {
+  const { host, port, token } = await resolveConnection(profile);
+  const response = await fetch(`http://${host}:${port}/upload?ext=${encodeURIComponent(ext)}`, {
     method: "POST",
+    headers: authHeaders(token),
     body: buffer,
   });
   if (!response.ok) {

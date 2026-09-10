@@ -1,4 +1,5 @@
 import type { Profile } from "@/lib/profiles";
+import { authHeaders, resolveConnection } from "@/lib/connectionResolver";
 
 export interface FsEntry {
   name: string;
@@ -16,7 +17,8 @@ export interface FsListResult {
  * default. */
 export async function listDirectories(profile: Profile, path?: string): Promise<FsListResult> {
   const qs = path ? `?path=${encodeURIComponent(path)}` : "";
-  const response = await fetch(`http://${profile.host}:${profile.relayPort}/fs/list${qs}`);
+  const { host, port, token } = await resolveConnection(profile);
+  const response = await fetch(`http://${host}:${port}/fs/list${qs}`, { headers: authHeaders(token) });
   if (!response.ok) {
     const body = (await response.json().catch(() => ({}))) as { error?: string };
     throw new Error(body.error ?? `HTTP ${response.status}`);

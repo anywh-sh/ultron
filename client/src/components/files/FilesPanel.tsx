@@ -10,6 +10,7 @@ import { Button } from "@/components/ui/button";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import type { useFileTabs } from "@/hooks/useFileTabs";
 import { listFiles, uploadFile } from "@/lib/filesClient";
+import { resolveConnection } from "@/lib/connectionResolver";
 import { physicalPositionToClientPoint } from "@/lib/dragDropPosition";
 import type { Profile } from "@/lib/profiles";
 import { cn } from "@/lib/utils";
@@ -46,33 +47,46 @@ function useFilesWatch(profile: Profile, sessionId: string, dirs: string[], file
       ws.send(JSON.stringify({ type: "watch", dirs: watchedDirs, files: watchedFiles }));
     }
 
+    // A tailnet connection needs its own fresh, unspent connect token on
+    // every new TCP connection (journal/49 D4, journal/62) — a reconnect
+    // after `close` is a brand-new one, so this resolves again on every
+    // call instead of reusing whatever `connect()` used the first time.
     function connect(): void {
       if (cancelled) return;
-      const params = new URLSearchParams({ session: sessionId });
-      const ws = new WebSocket(`ws://${profile.host}:${profile.relayPort}/files?${params.toString()}`);
-      socket = ws;
-      sendRef.current = () => sendWatchState(ws);
+      resolveConnection(profile)
+        .then(({ host, port, token }) => {
+          if (cancelled) return;
+          const params = new URLSearchParams({ session: sessionId });
+          if (token) params.set("token", token);
+          const ws = new WebSocket(`ws://${host}:${String(port)}/files?${params.toString()}`);
+          socket = ws;
+          sendRef.current = () => sendWatchState(ws);
 
-      ws.addEventListener("open", () => sendWatchState(ws));
-      ws.addEventListener("message", (event) => {
-        let parsed: unknown;
-        try {
-          parsed = JSON.parse(event.data as string);
-        } catch {
-          return;
-        }
-        if (typeof parsed !== "object" || parsed === null) return;
-        const type = (parsed as { type?: unknown }).type;
-        const path = (parsed as { path?: unknown }).path;
-        if (typeof path !== "string") return;
-        tokenRef.current += 1;
-        if (type === "dir_changed") setDirChanged({ path, token: tokenRef.current });
-        else if (type === "file_changed") setFileChanged({ path, token: tokenRef.current });
-      });
-      ws.addEventListener("close", () => {
-        if (socket !== ws || cancelled) return;
-        reconnectTimer = window.setTimeout(connect, 2000);
-      });
+          ws.addEventListener("open", () => sendWatchState(ws));
+          ws.addEventListener("message", (event) => {
+            let parsed: unknown;
+            try {
+              parsed = JSON.parse(event.data as string);
+            } catch {
+              return;
+            }
+            if (typeof parsed !== "object" || parsed === null) return;
+            const type = (parsed as { type?: unknown }).type;
+            const path = (parsed as { path?: unknown }).path;
+            if (typeof path !== "string") return;
+            tokenRef.current += 1;
+            if (type === "dir_changed") setDirChanged({ path, token: tokenRef.current });
+            else if (type === "file_changed") setFileChanged({ path, token: tokenRef.current });
+          });
+          ws.addEventListener("close", () => {
+            if (socket !== ws || cancelled) return;
+            reconnectTimer = window.setTimeout(connect, 2000);
+          });
+        })
+        .catch((error: unknown) => {
+          console.error("[ultron] failed to resolve a connection for the files watch:", error);
+          if (!cancelled) reconnectTimer = window.setTimeout(connect, 2000);
+        });
     }
     connect();
 

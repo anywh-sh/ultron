@@ -5,6 +5,7 @@ import { WebglAddon } from "@xterm/addon-webgl";
 import "@xterm/xterm/css/xterm.css";
 import type { Profile } from "@/lib/profiles";
 import { useResolvedProfileTheme } from "@/hooks/useThemes";
+import { resolveConnection } from "@/lib/connectionResolver";
 
 interface TerminalViewProps {
   profile: Profile;
@@ -118,43 +119,61 @@ export function TerminalView({ profile, chatSessionId, terminalId, cwd }: Termin
     let reconnectTimer: number | undefined;
     let resizeSendTimer: number | undefined;
 
+    // A tailnet connection needs its own fresh, unspent connect token on
+    // every new TCP connection (journal/49 D4, journal/62) — a reconnect
+    // after `close` is a brand-new one, so this resolves again on every
+    // call instead of reusing whatever `connect()` used the first time.
     function connect(): void {
-      const params = new URLSearchParams({
-        session: chatSessionId,
-        term: terminalId,
-        cols: String(term.cols),
-        rows: String(term.rows),
-      });
-      if (cwd) params.set("cwd", cwd);
-      const ws = new WebSocket(`ws://${profile.host}:${profile.relayPort}/terminal?${params.toString()}`);
-      socket = ws;
+      if (!shouldReconnect) return;
+      resolveConnection(profile)
+        .then(({ host, port, token }) => {
+          if (!shouldReconnect) return;
+          const params = new URLSearchParams({
+            session: chatSessionId,
+            term: terminalId,
+            cols: String(term.cols),
+            rows: String(term.rows),
+          });
+          if (cwd) params.set("cwd", cwd);
+          if (token) params.set("token", token);
+          const ws = new WebSocket(`ws://${host}:${String(port)}/terminal?${params.toString()}`);
+          socket = ws;
 
-      ws.addEventListener("open", () => {
-        reconnectAttempt = 0;
-        setReconnecting(false);
-      });
-      ws.addEventListener("message", (event) => {
-        let parsed: unknown;
-        try {
-          parsed = JSON.parse(event.data as string);
-        } catch {
-          return;
-        }
-        if (!isTerminalMessage(parsed)) return;
-        if (parsed.type === "data") {
-          term.write(parsed.data);
-        } else if (parsed.type === "exit") {
-          term.write(`\r\n\x1b[90m[processo encerrado]\x1b[0m\r\n`);
-        }
-      });
-      ws.addEventListener("close", () => {
-        if (socket !== ws) return;
-        if (!shouldReconnect) return;
-        setReconnecting(true);
-        const delay = Math.min(RECONNECT_BASE_DELAY_MS * 2 ** reconnectAttempt, RECONNECT_MAX_DELAY_MS);
-        reconnectAttempt += 1;
-        reconnectTimer = window.setTimeout(connect, delay);
-      });
+          ws.addEventListener("open", () => {
+            reconnectAttempt = 0;
+            setReconnecting(false);
+          });
+          ws.addEventListener("message", (event) => {
+            let parsed: unknown;
+            try {
+              parsed = JSON.parse(event.data as string);
+            } catch {
+              return;
+            }
+            if (!isTerminalMessage(parsed)) return;
+            if (parsed.type === "data") {
+              term.write(parsed.data);
+            } else if (parsed.type === "exit") {
+              term.write(`\r\n\x1b[90m[processo encerrado]\x1b[0m\r\n`);
+            }
+          });
+          ws.addEventListener("close", () => {
+            if (socket !== ws) return;
+            if (!shouldReconnect) return;
+            setReconnecting(true);
+            const delay = Math.min(RECONNECT_BASE_DELAY_MS * 2 ** reconnectAttempt, RECONNECT_MAX_DELAY_MS);
+            reconnectAttempt += 1;
+            reconnectTimer = window.setTimeout(connect, delay);
+          });
+        })
+        .catch((error: unknown) => {
+          console.error("[ultron] failed to resolve a connection for the terminal:", error);
+          if (!shouldReconnect) return;
+          setReconnecting(true);
+          const delay = Math.min(RECONNECT_BASE_DELAY_MS * 2 ** reconnectAttempt, RECONNECT_MAX_DELAY_MS);
+          reconnectAttempt += 1;
+          reconnectTimer = window.setTimeout(connect, delay);
+        });
     }
     connect();
 
@@ -227,7 +246,18 @@ export function TerminalView({ profile, chatSessionId, terminalId, cwd }: Termin
       term.dispose();
       termRef.current = null;
     };
-  }, [profile.host, profile.relayPort, chatSessionId, terminalId, cwd]);
+  }, [
+    profile.host,
+    profile.relayPort,
+    profile.tailnetAuthKey,
+    profile.tailnetControlUrl,
+    profile.tailnetTarget,
+    profile.brokerUrl,
+    profile.brokerNodeId,
+    chatSessionId,
+    terminalId,
+    cwd,
+  ]);
 
   // Live theme swap. Assigning `options.theme` repaints the existing
   // instance, so switching theme keeps the scrollback and the pty — which

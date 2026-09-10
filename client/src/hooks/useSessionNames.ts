@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useState } from "react";
 import { fetchSessions } from "@/lib/relayClient";
+import { resolveConnection } from "@/lib/connectionResolver";
 import type { SessionSummary } from "@/lib/relay-types";
 import type { Profile } from "@/lib/profiles";
 
@@ -20,7 +21,8 @@ export function useSessionNames(profile: Profile): {
   useEffect(() => {
     let cancelled = false;
     setLoading(true);
-    fetchSessions(profile.host, profile.relayPort)
+    resolveConnection(profile)
+      .then(({ host, port, token }) => fetchSessions(host, port, token))
       .then((list) => {
         if (!cancelled) setSessions(list);
       })
@@ -34,7 +36,16 @@ export function useSessionNames(profile: Profile): {
     return () => {
       cancelled = true;
     };
-  }, [profile.id, profile.host, profile.relayPort]);
+  }, [
+    profile.id,
+    profile.host,
+    profile.relayPort,
+    profile.tailnetAuthKey,
+    profile.tailnetControlUrl,
+    profile.tailnetTarget,
+    profile.brokerUrl,
+    profile.brokerNodeId,
+  ]);
 
   // Optimistic update: a session only actually exists in the relay's list
   // once it gets a title (first prompt processed, or manual rename) — without
@@ -83,27 +94,40 @@ export function useSessionNames(profile: Profile): {
     let socket: WebSocket | undefined;
     let reconnectTimer: number | undefined;
 
+    // A tailnet connection needs its own fresh, unspent connect token on
+    // every new TCP connection (journal/49 D4, journal/62) — a reconnect
+    // after `close` is a brand-new one, so this resolves again on every
+    // call instead of reusing whatever `connect()` used the first time.
     function connect(): void {
       if (cancelled) return;
-      const ws = new WebSocket(`ws://${profile.host}:${profile.relayPort}/sessions/watch`);
-      socket = ws;
-      ws.addEventListener("message", (event) => {
-        let parsed: unknown;
-        try {
-          parsed = JSON.parse(event.data as string);
-        } catch {
-          return;
-        }
-        if (typeof parsed !== "object" || parsed === null) return;
-        const { type, id, title } = parsed as { type?: unknown; id?: unknown; title?: unknown };
-        if (typeof id !== "string") return;
-        if (type === "session_list_upsert" && typeof title === "string") upsertTitle(id, title);
-        else if (type === "session_list_removed") removeSession(id);
-      });
-      ws.addEventListener("close", () => {
-        if (socket !== ws || cancelled) return;
-        reconnectTimer = window.setTimeout(connect, 2000);
-      });
+      resolveConnection(profile)
+        .then(({ host, port, token }) => {
+          if (cancelled) return;
+          const query = token ? `?token=${encodeURIComponent(token)}` : "";
+          const ws = new WebSocket(`ws://${host}:${String(port)}/sessions/watch${query}`);
+          socket = ws;
+          ws.addEventListener("message", (event) => {
+            let parsed: unknown;
+            try {
+              parsed = JSON.parse(event.data as string);
+            } catch {
+              return;
+            }
+            if (typeof parsed !== "object" || parsed === null) return;
+            const { type, id, title } = parsed as { type?: unknown; id?: unknown; title?: unknown };
+            if (typeof id !== "string") return;
+            if (type === "session_list_upsert" && typeof title === "string") upsertTitle(id, title);
+            else if (type === "session_list_removed") removeSession(id);
+          });
+          ws.addEventListener("close", () => {
+            if (socket !== ws || cancelled) return;
+            reconnectTimer = window.setTimeout(connect, 2000);
+          });
+        })
+        .catch((error: unknown) => {
+          console.error("[ultron] failed to resolve a connection for sessions/watch", error);
+          if (!cancelled) reconnectTimer = window.setTimeout(connect, 2000);
+        });
     }
     connect();
 
@@ -112,7 +136,18 @@ export function useSessionNames(profile: Profile): {
       window.clearTimeout(reconnectTimer);
       socket?.close();
     };
-  }, [profile.id, profile.host, profile.relayPort, upsertTitle, removeSession]);
+  }, [
+    profile.id,
+    profile.host,
+    profile.relayPort,
+    profile.tailnetAuthKey,
+    profile.tailnetControlUrl,
+    profile.tailnetTarget,
+    profile.brokerUrl,
+    profile.brokerNodeId,
+    upsertTitle,
+    removeSession,
+  ]);
 
   return { sessions, loading, upsertTitle, removeSession, touch };
 }

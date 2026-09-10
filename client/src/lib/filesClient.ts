@@ -1,5 +1,6 @@
 import type { EditorLocality } from "@/lib/editorLinks";
 import type { Profile } from "@/lib/profiles";
+import { authHeaders, resolveConnection } from "@/lib/connectionResolver";
 
 // Client for the work dir file panel's protocol (docs/41) — mirrors
 // `fsBrowse.ts`'s pattern (thin fetch wrappers over the relay's HTTP API),
@@ -25,12 +26,17 @@ export type FileReadResult =
   | { kind: "image"; path: string; size: number; mtimeMs: number; mime: string }
   | { kind: "binary"; path: string; size: number; mtimeMs: number };
 
-function baseUrl(profile: Profile): string {
-  return `http://${profile.host}:${profile.relayPort}`;
+/** Resolves the relay's actual base URL for `profile` — the sidecar's local
+ * address for a tailnet profile, `host`/`relayPort` straight for a direct
+ * one (`resolveConnection`, journal/62) — plus the connect token, if any,
+ * that has to ride along on every one of these requests. */
+async function resolveBase(profile: Profile): Promise<{ base: string; token?: string }> {
+  const { host, port, token } = await resolveConnection(profile);
+  return { base: `http://${host}:${port}`, token };
 }
 
-async function getJson<T>(url: string): Promise<T> {
-  const response = await fetch(url);
+async function getJson<T>(url: string, token?: string): Promise<T> {
+  const response = await fetch(url, { headers: authHeaders(token) });
   if (!response.ok) {
     const body = (await response.json().catch(() => ({}))) as { error?: string };
     throw new Error(body.error ?? `HTTP ${String(response.status)}`);
@@ -38,10 +44,10 @@ async function getJson<T>(url: string): Promise<T> {
   return response.json() as Promise<T>;
 }
 
-async function postJson<T>(url: string, payload: unknown): Promise<T> {
+async function postJson<T>(url: string, payload: unknown, token?: string): Promise<T> {
   const response = await fetch(url, {
     method: "POST",
-    headers: { "Content-Type": "application/json" },
+    headers: { "Content-Type": "application/json", ...authHeaders(token) },
     body: JSON.stringify(payload),
   });
   if (!response.ok) {
@@ -57,12 +63,14 @@ export async function listFiles(profile: Profile, sessionId: string, path?: stri
   const params = new URLSearchParams({ session: sessionId });
   if (path) params.set("path", path);
   if (showHidden) params.set("all", "1");
-  return getJson<FilesListResult>(`${baseUrl(profile)}/files/list?${params.toString()}`);
+  const { base, token } = await resolveBase(profile);
+  return getJson<FilesListResult>(`${base}/files/list?${params.toString()}`, token);
 }
 
 export async function readFile(profile: Profile, sessionId: string, path: string): Promise<FileReadResult> {
   const params = new URLSearchParams({ session: sessionId, path });
-  return getJson<FileReadResult>(`${baseUrl(profile)}/files/read?${params.toString()}`);
+  const { base, token } = await resolveBase(profile);
+  return getJson<FileReadResult>(`${base}/files/read?${params.toString()}`, token);
 }
 
 export interface ChatPathResolution {
@@ -77,22 +85,52 @@ export interface ChatPathResolution {
  * of which the client can do cheaply (see relay/src/fsFiles.ts). */
 export async function resolveChatPath(profile: Profile, sessionId: string, path: string): Promise<ChatPathResolution> {
   const params = new URLSearchParams({ session: sessionId, path });
-  return getJson<ChatPathResolution>(`${baseUrl(profile)}/files/resolve?${params.toString()}`);
+  const { base, token } = await resolveBase(profile);
+  return getJson<ChatPathResolution>(`${base}/files/resolve?${params.toString()}`, token);
 }
 
-/** `?v=<mtimeMs>` busts the webview's cache so a changed image (agent
- * overwrote it, or the watch — docs/41 phase 5 — noticed a change) actually
- * reloads instead of showing stale bytes. */
-export function rawFileUrl(profile: Profile, sessionId: string, path: string, mtimeMs: number): string {
+function rawFilePath(sessionId: string, path: string, mtimeMs: number): string {
+  // `?v=<mtimeMs>` busts the webview's cache so a changed image (agent
+  // overwrote it, or the watch — docs/41 phase 5 — noticed a change) actually
+  // reloads instead of showing stale bytes.
   const params = new URLSearchParams({ session: sessionId, path, v: String(mtimeMs) });
-  return `${baseUrl(profile)}/files/raw?${params.toString()}`;
+  return `/files/raw?${params.toString()}`;
+}
+
+/** Direct URL for a plain `<img src>` — only valid for a direct-mode
+ * profile, whose `host`/`relayPort` are real, dialable values. A tailnet
+ * profile's are the sidecar placeholder (`isTailnetProfile`), and every
+ * connection through the tunnel needs its own fresh, single-use connect
+ * token (journal/49 D4) — something a plain image tag has no way to attach,
+ * and that a *second* image load (e.g. after the watch reports a change)
+ * would just get rejected as a replay if it somehow could. See
+ * `fetchRawFile` below for that case. */
+export function rawFileUrl(profile: Profile, sessionId: string, path: string, mtimeMs: number): string {
+  return `http://${profile.host}:${profile.relayPort}${rawFilePath(sessionId, path, mtimeMs)}`;
+}
+
+/** Tailnet-mode counterpart of `rawFileUrl` — fetches the bytes with a
+ * proper `Authorization` header and hands back a `Blob`, unchanged from the
+ * relay (no re-encoding, so no quality loss); the caller turns it into an
+ * object URL (`URL.createObjectURL`) for an `<img src>`. Works for a direct
+ * profile too (the header is simply absent), so a caller doesn't need to
+ * branch on profile mode itself if it doesn't already for other reasons —
+ * `FileViewer` still does, to keep paying zero extra cost (no JS-mediated
+ * fetch, native browser caching/progressive decode) for the common
+ * self-host case, which is the majority of `ultron/`'s users. */
+export async function fetchRawFile(profile: Profile, sessionId: string, path: string, mtimeMs: number): Promise<Blob> {
+  const { base, token } = await resolveBase(profile);
+  const response = await fetch(`${base}${rawFilePath(sessionId, path, mtimeMs)}`, { headers: authHeaders(token) });
+  if (!response.ok) throw new Error(`HTTP ${String(response.status)}`);
+  return response.blob();
 }
 
 /** `dir` omitted creates at the session's root — today the only caller
  * (`FileTree`'s panel-level "new file" context menu) never creates inside a
  * specific folder. */
 export async function createFile(profile: Profile, sessionId: string, name: string, dir?: string): Promise<{ path: string }> {
-  return postJson(`${baseUrl(profile)}/files/create`, { session: sessionId, dir: dir ?? null, name });
+  const { base, token } = await resolveBase(profile);
+  return postJson(`${base}/files/create`, { session: sessionId, dir: dir ?? null, name }, token);
 }
 
 /** `dir` omitted uploads at the session's root — mirrors `createFile`'s
@@ -103,8 +141,10 @@ export async function createFile(profile: Profile, sessionId: string, name: stri
 export async function uploadFile(profile: Profile, sessionId: string, name: string, content: ArrayBuffer, dir?: string): Promise<{ path: string }> {
   const params = new URLSearchParams({ session: sessionId, name });
   if (dir) params.set("dir", dir);
-  const response = await fetch(`${baseUrl(profile)}/files/upload?${params.toString()}`, {
+  const { base, token } = await resolveBase(profile);
+  const response = await fetch(`${base}/files/upload?${params.toString()}`, {
     method: "POST",
+    headers: authHeaders(token),
     body: content,
   });
   if (!response.ok) {
@@ -117,14 +157,16 @@ export async function uploadFile(profile: Profile, sessionId: string, name: stri
 /** File-only write surface — the context menu that drives these (`FileTree`)
  * never shows delete/rename for a directory row. */
 export async function deleteFile(profile: Profile, sessionId: string, path: string): Promise<void> {
-  await postJson(`${baseUrl(profile)}/files/delete`, { session: sessionId, path });
+  const { base, token } = await resolveBase(profile);
+  await postJson(`${base}/files/delete`, { session: sessionId, path }, token);
 }
 
 /** Renames within the same directory — `newName` is a bare filename, never
  * a full path (see `relay/src/fsFiles.ts`). Returns the new absolute path
  * so the caller can move an open tab to follow the file. */
 export async function renameFile(profile: Profile, sessionId: string, path: string, newName: string): Promise<{ path: string }> {
-  return postJson(`${baseUrl(profile)}/files/rename`, { session: sessionId, path, newName });
+  const { base, token } = await resolveBase(profile);
+  return postJson(`${base}/files/rename`, { session: sessionId, path, newName }, token);
 }
 
 export interface HostInfo {
@@ -138,5 +180,6 @@ export interface HostInfo {
  * `ULTRON_EDITOR_SSH` are unset relay-side, and the feature should be
  * hidden entirely (see `relay/src/editorHostInfo.ts`). */
 export async function getHostInfo(profile: Profile): Promise<HostInfo> {
-  return getJson<HostInfo>(`${baseUrl(profile)}/host-info`);
+  const { base, token } = await resolveBase(profile);
+  return getJson<HostInfo>(`${base}/host-info`, token);
 }

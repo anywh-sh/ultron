@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import type { ChangeSignal } from "@/components/files/FilesPanel";
-import { readFile, rawFileUrl, type FileReadResult } from "@/lib/filesClient";
-import type { Profile } from "@/lib/profiles";
+import { fetchRawFile, readFile, rawFileUrl, type FileReadResult } from "@/lib/filesClient";
+import { isTailnetProfile, type Profile } from "@/lib/profiles";
 import { CodeFileView } from "@/components/files/CodeFileView";
 import { MarkdownFileView } from "@/components/files/MarkdownFileView";
 
@@ -19,6 +19,54 @@ function formatBytes(bytes: number): string {
   if (bytes < 1024) return `${String(bytes)} B`;
   if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
   return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
+}
+
+/**
+ * A direct-mode profile's `host`/`relayPort` are real, dialable — a plain
+ * `<img src>` works as-is, at zero extra cost (native browser caching and
+ * progressive decode, no JS in the loop). A tailnet profile's connect token
+ * is single-use per connection (journal/49 D4), which a bare image tag has
+ * no way to attach, so that case instead fetches the bytes with the right
+ * header and swaps in an object URL — same raw bytes, no re-encoding, so no
+ * quality loss, just paid only by the profiles that actually need it.
+ */
+function RawImage({
+  profile,
+  sessionId,
+  path,
+  mtimeMs,
+  alt,
+}: {
+  profile: Profile;
+  sessionId: string;
+  path: string;
+  mtimeMs: number;
+  alt: string;
+}) {
+  const [blobUrl, setBlobUrl] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (!isTailnetProfile(profile)) return;
+    let objectUrl: string | null = null;
+    let cancelled = false;
+    fetchRawFile(profile, sessionId, path, mtimeMs)
+      .then((blob) => {
+        if (cancelled) return;
+        objectUrl = URL.createObjectURL(blob);
+        setBlobUrl(objectUrl);
+      })
+      .catch((error: unknown) => {
+        console.error("[ultron] failed to fetch raw image over the tailnet tunnel:", error);
+      });
+    return () => {
+      cancelled = true;
+      if (objectUrl) URL.revokeObjectURL(objectUrl);
+    };
+  }, [profile, sessionId, path, mtimeMs]);
+
+  const src = isTailnetProfile(profile) ? blobUrl : rawFileUrl(profile, sessionId, path, mtimeMs);
+  if (!src) return null;
+  return <img src={src} alt={alt} className="max-h-full max-w-full object-contain" />;
 }
 
 /**
@@ -74,11 +122,7 @@ export function FileViewer({ profile, sessionId, path, changedFile }: FileViewer
   if (result.kind === "image") {
     return (
       <div className="flex h-full flex-col items-center justify-center gap-2 overflow-auto p-4">
-        <img
-          src={rawFileUrl(profile, sessionId, result.path, result.mtimeMs)}
-          alt={path}
-          className="max-h-full max-w-full object-contain"
-        />
+        <RawImage profile={profile} sessionId={sessionId} path={result.path} mtimeMs={result.mtimeMs} alt={path} />
         <span className="text-xs text-muted-foreground">{formatBytes(result.size)}</span>
       </div>
     );

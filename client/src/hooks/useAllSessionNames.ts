@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import { fetchSessions } from "@/lib/relayClient";
+import { resolveConnection } from "@/lib/connectionResolver";
 import type { SessionSummary } from "@/lib/relay-types";
 import { useProfiles } from "@/hooks/useProfiles";
 
@@ -24,7 +25,8 @@ export function useAllSessionNames(enabled: boolean): {
 
     Promise.all(
       profiles.map((profile) =>
-        fetchSessions(profile.host, profile.relayPort)
+        resolveConnection(profile)
+          .then(({ host, port, token }) => fetchSessions(host, port, token))
           .then((sessions): [string, SessionSummary[]] => [profile.id, sessions])
           .catch((error: unknown) => {
             console.error("[ultron] failed to list sessions", profile.id, error);
