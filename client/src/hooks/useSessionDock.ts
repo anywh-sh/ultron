@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 
 /** Right-side dock, one per chat session (tab) — replaces `useSessionPanels.ts`
  * (see docs/41 for why): terminal and the work dir file viewer aren't
@@ -27,8 +27,16 @@ const MIN_WIDTH = 320;
 // The file pane is a tree + content side by side — below this the two
 // become unusable, unlike the terminal alone which tolerates the narrower
 // default.
-const MIN_WIDTH_WITH_FILES = 420;
+export const MIN_WIDTH_WITH_FILES = 420;
 const MAX_WIDTH = 900;
+// Floor for how much of a group's own width should stay usable as chat once
+// a dock with the files pane sits at its own minimum (`MIN_WIDTH_WITH_FILES`)
+// next to it — feeds `useGroupSizeDrag`'s `MIN_GROUP_PX`. Doesn't protect
+// against the dock being dragged wider than its minimum in an already-narrow
+// group (that would need `clampWidth` to know the group's live rendered
+// width, not just its own pane kind — not wired yet, tracked as a known gap
+// rather than solved preventively here).
+export const MIN_USABLE_CHAT_PX = 480;
 const DEFAULT_WIDTH = 480;
 const MIN_SPLIT_RATIO = 0.2;
 const MAX_SPLIT_RATIO = 0.8;
@@ -81,8 +89,18 @@ function withoutPane(dock: DockState, kind: DockPaneKind): DockState {
  */
 export function useSessionDock() {
   const [docks, setDocks] = useState<DockMap>(loadPersisted);
+  // Set right before a `setDocks` call driven by a per-frame drag update
+  // (width/split-ratio resize), so the effect below skips that write —
+  // `commitDock` flushes the final value once the drag ends instead. Reset
+  // after every skip, so a change from any other setter (not drag-driven)
+  // persists immediately as before.
+  const suppressPersistRef = useRef(false);
 
   useEffect(() => {
+    if (suppressPersistRef.current) {
+      suppressPersistRef.current = false;
+      return;
+    }
     localStorage.setItem(STORAGE_KEY, JSON.stringify(docks));
   }, [docks]);
 
@@ -125,6 +143,7 @@ export function useSessionDock() {
   }, []);
 
   const setWidth = useCallback((tabId: string, width: number) => {
+    suppressPersistRef.current = true;
     setDocks((prev) => {
       const existing = prev[tabId];
       if (!existing) return prev;
@@ -133,10 +152,22 @@ export function useSessionDock() {
   }, []);
 
   const setSplitRatio = useCallback((tabId: string, ratio: number) => {
+    suppressPersistRef.current = true;
     setDocks((prev) => {
       const existing = prev[tabId];
       if (!existing) return prev;
       return { ...prev, [tabId]: { ...existing, splitRatio: clampSplitRatio(ratio) } };
+    });
+  }, []);
+
+  /** Flushes the current dock state to storage — call on drag end (pointer
+   * up) after a `setWidth`/`setSplitRatio` sequence, whose per-frame calls
+   * skip the write via `suppressPersistRef` to avoid blocking the main
+   * thread on every `pointermove` (same fix as `useResizableSidebar.ts`). */
+  const commitDock = useCallback(() => {
+    setDocks((prev) => {
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(prev));
+      return prev;
     });
   }, []);
 
@@ -161,5 +192,5 @@ export function useSessionDock() {
     });
   }, []);
 
-  return { getDock, togglePane, openPane, closePane, setWidth, setSplitRatio, toggleMaximized, removeSession };
+  return { getDock, togglePane, openPane, closePane, setWidth, setSplitRatio, commitDock, toggleMaximized, removeSession };
 }

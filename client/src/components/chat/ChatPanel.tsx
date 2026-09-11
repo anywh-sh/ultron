@@ -398,7 +398,7 @@ export function ChatPanel({
   // the user is actively typing here. Same "apply once" idiom as
   // `appliedDefaultPathRef` above; never resets because `ChatPanel` is
   // mounted once per tab for its whole lifetime (`key={tab.id}` in App.tsx,
-  // `forceMount` in TabBar).
+  // TabGroupLayout's flat panel layer).
   const appliedDraftRef = useRef(false);
   useEffect(() => {
     if (draft === null || appliedDraftRef.current) return;

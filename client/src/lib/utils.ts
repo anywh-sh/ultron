@@ -9,7 +9,7 @@ export function cn(...inputs: ClassValue[]) {
 /** Cuts `text` down to its first `maxWords` words, appending `...` if
  * anything was cut. Word-count truncation, not CSS's char/pixel-based
  * `truncate` — for text where the natural bound is "how much someone can
- * read at a glance" rather than a fixed box width (TabBar's tab tooltip: the
+ * read at a glance" rather than a fixed box width (TabGroupStrip's tab tooltip: the
  * tab itself already truncates by width, but the tooltip exists specifically
  * to show the rest of a long title, and an unbounded one could still run
  * arbitrarily long for a pathological title). */
@@ -19,7 +19,7 @@ export function truncateWords(text: string, maxWords: number): string {
 }
 
 /** Redirects vertical wheel input to horizontal scroll — for tab strips that
- * only ever scroll on the x-axis (TabBar, PaneTabStrip), where a plain mouse
+ * only ever scroll on the x-axis (TabGroupStrip, PaneTabStrip), where a plain mouse
  * wheel would otherwise do nothing (no vertical overflow to catch it) and
  * let the scroll fall through to whatever's behind the strip. Trackpad
  * horizontal swipes already arrive as `deltaX` and are left alone. */

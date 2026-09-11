@@ -6,7 +6,12 @@ import { useCallback, useRef, useState } from "react";
  * panes split *the column's own* current height, not an absolute size, so
  * the pointer delta is converted using the container's height measured at
  * drag start. */
-export function useSplitDrag(splitRatio: number, onChange: (ratio: number) => void, containerRef: React.RefObject<HTMLElement | null>) {
+export function useSplitDrag(
+  splitRatio: number,
+  onChange: (ratio: number) => void,
+  containerRef: React.RefObject<HTMLElement | null>,
+  onDragEnd?: () => void,
+) {
   const [isDragging, setIsDragging] = useState(false);
   const draggingRef = useRef(false);
 
@@ -32,12 +37,13 @@ export function useSplitDrag(splitRatio: number, onChange: (ratio: number) => vo
         setIsDragging(false);
         window.removeEventListener("pointermove", onMove);
         window.removeEventListener("pointerup", onUp);
+        onDragEnd?.();
       }
 
       window.addEventListener("pointermove", onMove);
       window.addEventListener("pointerup", onUp);
     },
-    [splitRatio, onChange, containerRef],
+    [splitRatio, onChange, containerRef, onDragEnd],
   );
 
   return { isDragging, startDrag };

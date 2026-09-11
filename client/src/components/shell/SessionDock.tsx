@@ -8,6 +8,9 @@ interface SessionDockProps {
   dock: DockState;
   onWidthChange: (width: number) => void;
   onSplitRatioChange: (ratio: number) => void;
+  /** Fires once, on pointer up, after a width or split-ratio drag — flushes
+   * the size to storage instead of writing on every `pointermove`. */
+  onDragEnd: () => void;
   /** One entry per possible pane kind — `undefined`/absent for a kind that
    * isn't mounted at all (e.g. files pane not implemented yet, or lazily
    * not mounted). Only kinds present in `dock.panes` are actually rendered. */
@@ -29,10 +32,10 @@ interface SessionDockProps {
  * both act on the column/split as a whole, not on an individual pane, which
  * is why `SessionPanel` no longer has an `onStartDrag`.
  */
-export function SessionDock({ dock, onWidthChange, onSplitRatioChange, panes }: SessionDockProps) {
+export function SessionDock({ dock, onWidthChange, onSplitRatioChange, onDragEnd, panes }: SessionDockProps) {
   const stackRef = useRef<HTMLDivElement>(null);
-  const { isDragging, startDrag } = usePanelDrag(dock.width, onWidthChange);
-  const { isDragging: isSplitDragging, startDrag: startSplitDrag } = useSplitDrag(dock.splitRatio, onSplitRatioChange, stackRef);
+  const { isDragging, startDrag } = usePanelDrag(dock.width, onWidthChange, onDragEnd);
+  const { isDragging: isSplitDragging, startDrag: startSplitDrag } = useSplitDrag(dock.splitRatio, onSplitRatioChange, stackRef, onDragEnd);
 
   const open = dock.panes.length > 0;
   const maximizedOpen = open && dock.maximized !== null;

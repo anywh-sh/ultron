@@ -7,7 +7,7 @@ import { useCallback, useRef, useState } from "react";
  * outside (`useSessionDock`, per-session state), this hook just
  * translates pointer events into `onChange` calls.
  */
-export function usePanelDrag(width: number, onChange: (width: number) => void) {
+export function usePanelDrag(width: number, onChange: (width: number) => void, onDragEnd?: () => void) {
   const [isDragging, setIsDragging] = useState(false);
   const draggingRef = useRef(false);
 
@@ -30,12 +30,13 @@ export function usePanelDrag(width: number, onChange: (width: number) => void) {
         setIsDragging(false);
         window.removeEventListener("pointermove", onMove);
         window.removeEventListener("pointerup", onUp);
+        onDragEnd?.();
       }
 
       window.addEventListener("pointermove", onMove);
       window.addEventListener("pointerup", onUp);
     },
-    [width, onChange],
+    [width, onChange, onDragEnd],
   );
 
   return { isDragging, startDrag };

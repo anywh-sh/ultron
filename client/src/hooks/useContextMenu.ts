@@ -14,7 +14,7 @@ export interface ContextMenuState {
  * default left-click — reuses the design system's `DropdownMenu`
  * (controlled via `open`/`onOpenChange` + an invisible trigger positioned
  * at the cursor) instead of bringing in Radix's `ContextMenu` primitive
- * just for this. Used by `SessionListItem` (left panel) and `TabBar` (tab).
+ * just for this. Used by `SessionListItem` (left panel) and `TabGroupStrip` (tab).
  */
 export function useContextMenu(): ContextMenuState {
   const [open, setOpen] = useState(false);

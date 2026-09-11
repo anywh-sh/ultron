@@ -7,7 +7,7 @@ import { Sidebar } from "@/components/shell/Sidebar";
 import { EmptyState } from "@/components/shell/EmptyState";
 import { SessionSearch } from "@/components/shell/SessionSearch";
 import { SettingsDialog } from "@/components/shell/SettingsDialog";
-import { TabBar } from "@/components/shell/TabBar";
+import { TabGroupLayout } from "@/components/shell/TabGroupLayout";
 import { TitleBar } from "@/components/shell/TitleBar";
 import { MobileShell } from "@/components/shell/MobileShell";
 import { RevokedProfileBanners } from "@/components/shell/RevokedProfileBanner";
@@ -91,10 +91,10 @@ export default function App() {
   const [settingsOpen, setSettingsOpen] = useState(false);
   // Connection state per tab — used by TitleBar/MobileTopBar (docs/24), which
   // live outside ChatPanel. Fed by `renderPanel`'s `onConnectedChange` below.
-  // Keyed by tab id (not a single flag) because desktop's TabBar keeps every
-  // tab's ChatPanel mounted at once (forceMount, see the `key={tab.id}`
-  // comment in `renderPanel`): a background tab's `connected` can flip while
-  // it's not the active one, and nothing re-fires once it becomes active
+  // Keyed by tab id (not a single flag) because desktop's TabGroupLayout keeps
+  // every tab's ChatPanel mounted at once (its flat panel layer, see the
+  // `key={tab.id}` comment in `renderPanel`): a background tab's `connected`
+  // can flip while it's not the active one, and nothing re-fires once it becomes active
   // again. A single flag reset to `false` on every tab switch (the previous
   // approach) got stuck showing "Reconectando…" forever for a tab that was
   // already connected, since its `connected` value wasn't changing anymore
@@ -324,12 +324,34 @@ export default function App() {
   // is the OS's own app switcher (never reaches the app), so the real
   // convention for cycling tabs there is also literal Ctrl+Tab, same as
   // browser/VS Code — using `metaKey` here would just create a dead shortcut.
+  // Cycles within the focused group only — with more than one group open,
+  // cycling through every tab in the app regardless of which group it's in
+  // would jump the view to a different group out from under Ctrl+Tab, which
+  // isn't what "next tab" means once tabs are split into columns.
   function handleCycleTab(direction: 1 | -1): void {
-    const { tabs } = tabsState;
-    if (tabs.length < 2) return;
-    const currentIndex = tabs.findIndex((tab) => tab.id === tabsState.activeTabId);
-    const nextIndex = (currentIndex + direction + tabs.length) % tabs.length;
-    tabsState.setActiveTab(tabs[nextIndex].id);
+    const focusedGroup = tabsState.groups.find((group) => group.id === tabsState.focusedGroupId);
+    if (!focusedGroup || focusedGroup.tabIds.length < 2) return;
+    const currentIndex = focusedGroup.tabIds.indexOf(focusedGroup.activeTabId ?? "");
+    if (currentIndex === -1) return;
+    const nextIndex = (currentIndex + direction + focusedGroup.tabIds.length) % focusedGroup.tabIds.length;
+    tabsState.setActiveTab(focusedGroup.tabIds[nextIndex]);
+  }
+
+  // `Ctrl+\` (VS Code's own "split editor") — moves the focused group's
+  // active tab into a new group immediately to its right. Desktop only, same
+  // gate as the dock: on compact/iOS there's only ever one group (point 12
+  // of the split design — narrow viewports fall back to one flat strip), so
+  // splitting wouldn't have anywhere to put a second column anyway.
+  function handleSplitActiveTab(): void {
+    if (isCompact || isIOS() || !activeTabId) return;
+    tabsState.splitTabToNewGroup(activeTabId, tabsState.focusedGroupId);
+  }
+
+  // Ctrl+1/2/3 — focuses the Nth group left to right. No-op past however
+  // many groups are actually open (never more than MAX_GROUPS anyway).
+  function handleFocusGroupByIndex(index: number): void {
+    const group = tabsState.groups[index];
+    if (group) tabsState.focusGroup(group.id);
   }
 
   // Standard shortcuts for any app (Ctrl on Windows/Linux and Cmd on macOS,
@@ -360,6 +382,14 @@ export default function App() {
         handleToggleFilesPanel();
         return;
       }
+      // `Ctrl+\` — VS Code's own "split editor" shortcut, literal Ctrl even
+      // on macOS, same reasoning as `Ctrl+\`` above (distinct key: backslash,
+      // not backtick).
+      if (event.ctrlKey && event.key === "\\") {
+        event.preventDefault();
+        handleSplitActiveTab();
+        return;
+      }
       if (!(event.metaKey || event.ctrlKey)) return;
       switch (event.key.toLowerCase()) {
         case "n":
@@ -374,6 +404,12 @@ export default function App() {
           event.preventDefault();
           handleToggleSidebarShortcut();
           break;
+        case "1":
+        case "2":
+        case "3":
+          event.preventDefault();
+          handleFocusGroupByIndex(Number(event.key) - 1);
+          break;
       }
     }
     window.addEventListener("keydown", handleKeyDown);
@@ -387,6 +423,10 @@ export default function App() {
     tabsState.closeTab,
     tabsState.openTab,
     tabsState.setActiveTab,
+    tabsState.splitTabToNewGroup,
+    tabsState.focusGroup,
+    tabsState.focusedGroupId,
+    tabsState.groups,
     resizable.toggleCollapsed,
   ]);
 
@@ -428,10 +468,18 @@ export default function App() {
   const renderPanel = (tab: Tab) => {
     const profile = findProfile(tab.profileId) ?? getProfiles()[0];
     const dock = sessionDock.getDock(tab.id);
-    const isTabActive = tab.id === activeTabId;
+    // Two different gates, now that a group split can put more than one tab
+    // on screen at once: `isVisible` is "this tab is the active one of its
+    // own group" (drives panel visibility, dock mounting, MessageLog's
+    // scroll re-sync, and the native drag-drop guard below) — up to one per
+    // group can be true simultaneously. `isFocused` narrows that to "...and
+    // that group is also the one the user's actually interacting with right
+    // now" (drives unread-badge clearing, TitleBar.connected, nav history) —
+    // at most one tab in the whole app.
+    const isVisible = tabsState.visibleTabIds.has(tab.id);
     const chatContent = (
       <ChatPanel
-        // On iOS (no TabBar/forceMount), `activeTab && renderPanel(activeTab)`
+        // On iOS (no TabGroupLayout/flat panel layer), `activeTab && renderPanel(activeTab)`
         // is a single JSX slot whose `sessionId` just changes value — without
         // a `key` tied to the session, React reuses the same instance when
         // switching conversations (only updates props), and internal state
@@ -441,9 +489,10 @@ export default function App() {
         // creates a new instance. The result was a real bug: clicking "+"
         // would open a genuinely new session (connecting,
         // "Reconnecting"→"Connected") but the screen kept showing the
-        // previous conversation's log. On desktop this didn't happen (TabBar
-        // already has `key={tab.id}` on TabsContent, each tab with its own
-        // instance) — here it's just made explicit in the same spot.
+        // previous conversation's log. On desktop this didn't happen
+        // (TabGroupLayout's flat panel layer already has `key={tab.id}` on
+        // each tab's panel wrapper) — here it's just made explicit in the
+        // same spot.
         key={tab.id}
         profile={profile}
         sessionId={tab.id}
@@ -484,31 +533,33 @@ export default function App() {
             : { open: dock.panes.includes("files"), onToggle: () => sessionDock.togglePane(tab.id, "files") }
         }
         onOpenPath={isCompact || isIOS() ? undefined : (path) => handleOpenFilePath(profile, tab.id, path)}
-        isActiveTab={isTabActive}
+        isActiveTab={isVisible}
       />
     );
 
     if (isCompact || isIOS()) return chatContent;
 
     // Embedded terminal (docs/30) and files pane (docs/41), desktop only.
-    // `isTabActive` is what implements "switching sessions closes the dock on
-    // its own, coming back reopens it the way it was": `TabBar` keeps ALL
-    // tabs mounted in the background (forceMount, to keep the chat WS alive
-    // — see comment further below), so without this gate the dock's panes
-    // would stay connected for out-of-focus sessions too. Only the active
-    // tab actually mounts `SessionDock`; the others don't even exist in the
-    // DOM, so they don't open any terminal/watch WS either — the cost of
-    // several chat tabs open at once (multiple profiles, multiple contexts)
-    // stays limited to a single live dock at a time, not one per session.
+    // `isVisible` is what implements "switching to another tab in this same
+    // group closes the dock on its own, coming back reopens it the way it
+    // was": `TabGroupLayout` keeps ALL tabs mounted in the background (its
+    // flat panel layer, to keep the chat WS alive — see comment further
+    // below), so without this gate the dock's panes would stay connected for
+    // every backgrounded tab too. Only each group's own visible tab actually
+    // mounts `SessionDock`; the others don't even exist in the DOM, so they
+    // don't open any terminal/watch WS either. With up to 3 groups now, that
+    // means up to 3 live docks at once (up to 3 terminal + 3 watch WS) — not
+    // the single live dock this comment used to promise back when there was
+    // only ever one active tab in the whole app.
     //
     // The gate here doesn't include `dock.panes.length === 0` — that's how
     // the open/close animation (same as the left sidebar's,
     // useResizableSidebar) works: `SessionDock` stays mounted the whole time
-    // the tab is active, and IT (internally, lightweight) is what decides the
-    // width (0 closed, animating to `dock.width` when open). Without this the
-    // dock's content only existed in the DOM while open — there was nothing
-    // for the CSS transition to animate, it just popped in/out.
-    const chatHidden = isTabActive && dock.maximized !== null;
+    // the tab is visible, and IT (internally, lightweight) is what decides
+    // the width (0 closed, animating to `dock.width` when open). Without this
+    // the dock's content only existed in the DOM while open — there was
+    // nothing for the CSS transition to animate, it just popped in/out.
+    const chatHidden = isVisible && dock.maximized !== null;
 
     // The wrapper (this `div` + the `div` right below wrapping
     // `chatContent`) is rendered unconditionally, with the SAME shape
@@ -524,17 +575,18 @@ export default function App() {
     return (
       <div className="relative flex h-full min-w-0">
         {/* `invisible absolute inset-0` instead of shrinking to 0 — same
-         * trick (and same reason) as `TabBar.tsx`'s `forceMount`: `MessageLog`
+         * trick (and same reason) as `TabGroupLayout.tsx`'s flat panel layer: `MessageLog`
          * uses `@tanstack/react-virtual`, whose `ResizeObserver` corrupts the
          * height cache if the container measures size 0 even briefly (which
          * is exactly what would happen when maximizing a pane if the chat
          * were hidden via `display:none`/zero width). */}
         <div className={cn("min-w-0 flex-1", chatHidden && "invisible absolute inset-0")}>{chatContent}</div>
-        {isTabActive && (
+        {isVisible && (
           <SessionDock
             dock={dock}
             onWidthChange={(width) => sessionDock.setWidth(tab.id, width)}
             onSplitRatioChange={(ratio) => sessionDock.setSplitRatio(tab.id, ratio)}
+            onDragEnd={sessionDock.commitDock}
             panes={{
               terminal: dock.panes.includes("terminal") ? (
                 <TerminalPanelSlot
@@ -581,16 +633,22 @@ export default function App() {
       ) : isIOS() ? (
         // iOS (docs/23, Phase B): the MVP is one session in focus at a time,
         // without keeping several WebSocket connections alive in parallel in
-        // the background — only mounts the active session, without TabBar's
-        // tab mechanism (forceMount/dnd-kit, designed for desktop).
+        // the background — only mounts the active session, without
+        // TabGroupLayout's tab mechanism (forceMount/dnd-kit, designed for
+        // desktop).
         activeTab && renderPanel(activeTab)
       ) : (
-        <TabBar
+        <TabGroupLayout
           tabs={tabsState.tabs}
+          groups={tabsState.groups}
           activeTabId={activeTabId}
+          splitEnabled={!isCompact}
           onSelect={tabsState.setActiveTab}
+          onFocusGroup={tabsState.focusGroup}
           onClose={tabsState.closeTab}
-          onReorder={tabsState.reorderTabs}
+          onMoveTab={tabsState.moveTab}
+          onSplitTabToNewGroup={tabsState.splitTabToNewGroup}
+          onCommitSizes={tabsState.setGroupSizes}
           onRenameSession={(tabId, title) => {
             const tab = tabsState.tabs.find((t) => t.id === tabId);
             if (tab) handleRenameSession(tab.profileId, tabId, title);

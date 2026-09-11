@@ -27,7 +27,7 @@ interface TerminalPanelProps {
  * and tmux redraws the screen on its own.
  *
  * All of the panel's terminal tabs stay mounted at the same time
- * (`forceMount`, same trick as `TabBar.tsx`) — only the whole panel
+ * (same trick as `TabGroupLayout.tsx`'s flat panel layer) — only the whole panel
  * connects/disconnects on entering/leaving focus, switching between
  * terminal tabs inside an already-open panel is instant, no reconnecting.
  * The number of tabs per panel tends to be small (a handful), so the cost

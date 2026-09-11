@@ -151,7 +151,7 @@ export interface UseRelayClientResult {
 
 /**
  * One instance per open tab — including background tabs, which stay
- * mounted (see TabBar/forceMount) to keep the WebSocket alive even without
+ * mounted (see TabGroupLayout's flat panel layer) to keep the WebSocket alive even without
  * focus, per docs/18. Callback-based: the caller decides where events
  * end up (e.g. the `useMessageLog` reducer) instead of the hook accumulating its
  * own duplicated array.

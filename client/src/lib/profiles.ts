@@ -310,7 +310,7 @@ export function profileColorClass(profileId: string): string {
 
 // A softened, opaque cousin of `PROFILE_COLOR_CLASSES` (index.css's
 // `--profile-N-soft`, mixed toward a fixed literal rather than
-// `transparent`) — TabBar's selected tab paints its own background with
+// `transparent`) — TabGroupStrip's selected tab paints its own background with
 // this instead of the old "selected" indicator bar, so the tint alone
 // carries both "this tab is active" and "this is the profile it belongs
 // to". Deliberately not the `/15` opacity modifier: that composites with
