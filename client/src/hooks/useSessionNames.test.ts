@@ -2,6 +2,7 @@ import { cleanup, renderHook } from "@testing-library/react";
 import { act } from "react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { Profile } from "@/lib/profiles";
+import { BrokerRevokedError } from "@/lib/tailnetBroker";
 
 const { fetchSessionsMock, resolveConnectionMock } = vi.hoisted(() => ({
   fetchSessionsMock: vi.fn(async () => []),
@@ -103,5 +104,28 @@ describe("useSessionNames", () => {
     // reusing the first one would be rejected as a replay by the proxy.
     expect(secondSocket.url).not.toBe(firstSocket.url);
     expect(secondSocket.url).toContain("grant-token-3");
+  });
+
+  it("stops retrying the sessions/watch socket once the device's connection was permanently revoked", async () => {
+    resolveConnectionMock.mockReset();
+    resolveConnectionMock.mockRejectedValue(new BrokerRevokedError());
+    const consoleErrorSpy = vi.spyOn(console, "error").mockImplementation(() => {});
+
+    await act(async () => {
+      renderHook(() => useSessionNames(tailnetProfile));
+      await vi.runAllTimersAsync();
+    });
+
+    expect(FakeWebSocket.instances).toHaveLength(0);
+    const callsAfterInitialFailure = resolveConnectionMock.mock.calls.length;
+
+    // A generous window well past the fixed 2s retry this socket otherwise
+    // uses — if a reconnect were still scheduled, this would fire several.
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(10_000);
+    });
+
+    expect(resolveConnectionMock.mock.calls.length).toBe(callsAfterInitialFailure);
+    consoleErrorSpy.mockRestore();
   });
 });

@@ -1,5 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { RelayClient, type RelayClientCallbacks } from "@/lib/relayClient";
+import { BrokerRevokedError } from "@/lib/tailnetBroker";
 
 /** Minimal stand-in for the browser `WebSocket` — records the URL it was
  * opened with and lets a test drive `open`/`close` by hand. */
@@ -88,5 +89,34 @@ describe("RelayClient connect token", () => {
     client.connect();
 
     expect(tokenOf(FakeWebSocket.instances[0])).toBe("static-secret");
+  });
+
+  it("stops retrying and fires onRevoked when the broker permanently revoked this device (410)", async () => {
+    const resolve = vi.fn(() => Promise.reject(new BrokerRevokedError()));
+    const onRevoked = vi.fn();
+    const client = new RelayClient("127.0.0.1", 12345, "session-1", { ...noopCallbacks, onRevoked }, resolve);
+
+    client.connect();
+    await vi.runAllTimersAsync();
+
+    expect(onRevoked).toHaveBeenCalledTimes(1);
+    expect(FakeWebSocket.instances).toHaveLength(0);
+
+    // A generous window well past any exponential backoff (capped at 30s) —
+    // if a reconnect were still scheduled, this would fire it.
+    await vi.advanceTimersByTimeAsync(120_000);
+    expect(resolve).toHaveBeenCalledTimes(1);
+    expect(FakeWebSocket.instances).toHaveLength(0);
+  });
+
+  it("keeps retrying for any other token-resolution failure (transient, not revoked)", async () => {
+    const resolve = vi.fn(() => Promise.reject(new Error("network unreachable")));
+    const client = new RelayClient("127.0.0.1", 12345, "session-1", noopCallbacks, resolve);
+
+    client.connect();
+    await vi.advanceTimersByTimeAsync(1000);
+    await vi.advanceTimersByTimeAsync(2000);
+
+    expect(resolve.mock.calls.length).toBeGreaterThan(1);
   });
 });
