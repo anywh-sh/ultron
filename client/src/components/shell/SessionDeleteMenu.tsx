@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { Columns2, Pencil, Trash2 } from "lucide-react";
-import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem } from "@/components/ui/dropdown-menu";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -11,7 +11,7 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
-import type { ContextMenuState } from "@/hooks/useContextMenu";
+import { ContextMenuAnchor, type ContextMenuState } from "@/hooks/useContextMenu";
 
 interface SessionDeleteMenuProps {
   menu: ContextMenuState;
@@ -41,9 +41,7 @@ export function SessionDeleteMenu({ menu, title, onDelete, onRename, onMoveToNew
   return (
     <>
       <DropdownMenu open={menu.open} onOpenChange={menu.setOpen}>
-        <DropdownMenuTrigger asChild>
-          <span className="pointer-events-none fixed" style={{ left: menu.position.x, top: menu.position.y }} />
-        </DropdownMenuTrigger>
+        <ContextMenuAnchor position={menu.position} />
         <DropdownMenuContent align="start">
           {onRename && (
             <DropdownMenuItem

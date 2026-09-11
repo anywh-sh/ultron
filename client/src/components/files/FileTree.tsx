@@ -23,13 +23,12 @@ import {
   DropdownMenuSub,
   DropdownMenuSubContent,
   DropdownMenuSubTrigger,
-  DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import { useContextMenu } from "@/hooks/useContextMenu";
+import { ContextMenuAnchor, useContextMenu } from "@/hooks/useContextMenu";
 import { detectEditors, type DetectedEditor } from "@/lib/editors";
 import { buildEditorUrl, type EditorId, type EditorLocality } from "@/lib/editorLinks";
-import { createFile, deleteFile, getHostInfo, listFiles, renameFile, type FileEntry } from "@/lib/filesClient";
 import { downloadFile, downloadFolder } from "@/lib/fileDownload";
+import { createFile, deleteFile, getHostInfo, listFiles, renameFile, type FileEntry } from "@/lib/filesClient";
 import { isIOS } from "@/lib/platform";
 import type { Profile } from "@/lib/profiles";
 import { cn } from "@/lib/utils";
@@ -363,9 +362,7 @@ export function FileTree({
         onBulkDownload={(paths) => void handleBulkDownload(paths)}
       />
       <DropdownMenu open={panelMenu.open} onOpenChange={panelMenu.setOpen}>
-        <DropdownMenuTrigger asChild>
-          <span className="pointer-events-none fixed" style={{ left: panelMenu.position.x, top: panelMenu.position.y }} />
-        </DropdownMenuTrigger>
+        <ContextMenuAnchor position={panelMenu.position} />
         <DropdownMenuContent align="start">
           <DropdownMenuItem
             onSelect={(event) => {
@@ -632,9 +629,7 @@ function FileTreeNode({
         <span className="truncate">{entry.name}</span>
         {!isDir && (
           <DropdownMenu open={menu.open} onOpenChange={menu.setOpen}>
-            <DropdownMenuTrigger asChild>
-              <span className="pointer-events-none fixed" style={{ left: menu.position.x, top: menu.position.y }} />
-            </DropdownMenuTrigger>
+            <ContextMenuAnchor position={menu.position} />
             <DropdownMenuContent align="start">
               {isMultiSelected ? (
                 <>
@@ -719,9 +714,7 @@ function FileTreeNode({
         )}
         {isDir && (
           <DropdownMenu open={menu.open} onOpenChange={menu.setOpen}>
-            <DropdownMenuTrigger asChild>
-              <span className="pointer-events-none fixed" style={{ left: menu.position.x, top: menu.position.y }} />
-            </DropdownMenuTrigger>
+            <ContextMenuAnchor position={menu.position} />
             <DropdownMenuContent align="start">
               <DropdownMenuItem
                 onSelect={(event) => {
