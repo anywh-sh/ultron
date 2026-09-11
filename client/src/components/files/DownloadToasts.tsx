@@ -30,7 +30,13 @@ export function DownloadToasts() {
       {notifications.map((notification) => (
         <div
           key={notification.id}
-          className="pointer-events-auto flex max-w-72 items-center gap-2.5 rounded-md border bg-popover px-3.5 py-2.5 text-sm text-popover-foreground shadow-lg"
+          // `min-w-87.5` = 87.5 * the theme's 4px spacing unit = 350px
+          // (Tailwind v4's spacing scale computes any numeric class against
+          // `--spacing` instead of a fixed lookup table, so this is the
+          // standard-scale way to hit an exact pixel target). `max-w-96`
+          // raised alongside it — `min-w` past a smaller `max-w` would just
+          // win and make the `max-w` dead weight.
+          className="pointer-events-auto flex min-w-87.5 max-w-96 items-center gap-2.5 rounded-md border bg-popover px-4 py-3 text-sm text-popover-foreground shadow-lg"
           title={notification.fileName}
         >
           {notification.done ? (
@@ -46,7 +52,9 @@ export function DownloadToasts() {
             type="button"
             onClick={() => dismissDownloadNotification(notification.id)}
             aria-label="Dispensar notificação"
-            className="ml-auto shrink-0 rounded text-muted-foreground hover:text-foreground"
+            // Same close-button treatment as PaneTabStrip/TabGroupStrip's tab
+            // close "X" — cursor-pointer + hover:bg-border, not a bespoke look.
+            className="ml-auto shrink-0 cursor-pointer rounded p-0.5 text-muted-foreground hover:bg-border hover:text-foreground"
           >
             <X className="size-3.5" />
           </button>
