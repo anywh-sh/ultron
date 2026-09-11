@@ -103,21 +103,27 @@ export function peekTailnetSidecar(profileId: string): Promise<TailnetEndpoint> 
  * to call for a profile that was never acquired (a no-op) — e.g. cleanup
  * running for a tab that switched profile before its first render.
  *
- * The actual teardown is deferred, not immediate: React 18 StrictMode
- * (dev only) double-invokes the effect that owns this profile's sidecar —
- * mount, cleanup, mount again — all synchronously, before the first
- * `tsnet` join has had any chance to finish. Tearing down on that first
- * cleanup killed the join mid-flight every time, so the second mount
- * always started cold, and any caller ahead of the second `acquireTailnetSidecar`
- * (the chat `RelayClient`, `useSessionNames`, ...) was left racing a
- * WebSocket against a sidecar with no port yet — this is the concrete bug
- * behind the client connecting to `127.0.0.1:0` and looping on
- * "reconnecting" forever. `setTimeout(0)` is enough: StrictMode's
- * mount/cleanup/mount replay happens inside the same tick, well before any
- * timer fires, so a genuine same-profile reacquire always lands before this
- * runs and cancels it (see `acquireTailnetSidecar`); only a real
- * "nobody wants this anymore" reaches the timeout body. */
-export function releaseTailnetSidecar(profileId: string): void {
+ * The actual teardown is deferred, not immediate, by `graceMs`. The default
+ * (`0`) exists for React 18 StrictMode (dev only), which double-invokes the
+ * effect that owns this profile's sidecar — mount, cleanup, mount again —
+ * all synchronously, before the first `tsnet` join has had any chance to
+ * finish. Tearing down on that first cleanup killed the join mid-flight
+ * every time, so the second mount always started cold, and any caller ahead
+ * of the second `acquireTailnetSidecar` (the chat `RelayClient`,
+ * `useSessionNames`, ...) was left racing a WebSocket against a sidecar with
+ * no port yet — this is the concrete bug behind the client connecting to
+ * `127.0.0.1:0` and looping on "reconnecting" forever. `0` is enough for
+ * that case: StrictMode's mount/cleanup/mount replay happens inside the same
+ * tick, well before any timer fires, so a genuine same-profile reacquire
+ * always lands before this runs and cancels it (see `acquireTailnetSidecar`).
+ *
+ * A non-zero `graceMs` covers a slower handover: `profileSetup.ts`'s
+ * `ProfileSetupDialog` holds a reference across "Continuar para novo
+ * perfil", and the real new owner (`useTailnetSidecarOwner`) only reclaims
+ * it after a passive-effect flush plus its own internal deferral plus a
+ * round-trip to the broker — far more than one tick. Either way, only a
+ * real "nobody wants this anymore" reaches the timeout body. */
+export function releaseTailnetSidecar(profileId: string, graceMs = 0): void {
   const entry = entries.get(profileId);
   if (!entry) return;
   entry.refCount -= 1;
@@ -127,5 +133,5 @@ export function releaseTailnetSidecar(profileId: string): void {
     // Fire-and-forget: nothing downstream needs to await the child actually
     // dying, and outside Tauri there's nothing to stop in the first place.
     if (inTauri()) void invoke("tailnet_sidecar_stop", { profileId });
-  }, 0);
+  }, graceMs);
 }

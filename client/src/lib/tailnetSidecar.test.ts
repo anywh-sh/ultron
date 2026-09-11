@@ -102,4 +102,36 @@ describe("tailnetSidecar", () => {
 
     expect(invokeMock).toHaveBeenCalledWith("tailnet_sidecar_stop", { profileId: id });
   });
+
+  it("honors a non-zero graceMs — no teardown before the deadline", async () => {
+    const { acquireTailnetSidecar, releaseTailnetSidecar } = await import("@/lib/tailnetSidecar");
+    const id = "grace-not-elapsed";
+
+    await acquireTailnetSidecar(profile(id), "target:1");
+    releaseTailnetSidecar(id, 15_000);
+
+    await vi.advanceTimersByTimeAsync(14_999);
+    expect(invokeMock).not.toHaveBeenCalledWith("tailnet_sidecar_stop", expect.anything());
+
+    await vi.advanceTimersByTimeAsync(1);
+    expect(invokeMock).toHaveBeenCalledWith("tailnet_sidecar_stop", { profileId: id });
+  });
+
+  it("cancels a graced teardown when reacquired inside the window", async () => {
+    const { acquireTailnetSidecar, releaseTailnetSidecar } = await import("@/lib/tailnetSidecar");
+    const id = "grace-reacquired";
+
+    const first = await acquireTailnetSidecar(profile(id), "target:1");
+    releaseTailnetSidecar(id, 15_000);
+
+    await vi.advanceTimersByTimeAsync(5_000);
+    const second = await acquireTailnetSidecar(profile(id), "target:1");
+    expect(second).toEqual(first);
+
+    await vi.advanceTimersByTimeAsync(15_000);
+    expect(invokeMock).not.toHaveBeenCalledWith("tailnet_sidecar_stop", expect.anything());
+
+    releaseTailnetSidecar(id);
+    await vi.runAllTimersAsync();
+  });
 });
