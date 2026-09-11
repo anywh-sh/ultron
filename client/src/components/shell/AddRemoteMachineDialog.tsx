@@ -9,20 +9,19 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { parsePairingCode } from "@/lib/pairingCode";
-import { claimAndSaveProfile, resolvePairingCodeParams } from "@/lib/profileImport";
+import { enqueueProfileSetup } from "@/lib/profileSetup";
 
 interface AddRemoteMachineDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
-  /** Called with the new profile's id so the caller can switch to it — same
-   * contract as `useProfileImport`'s callback, since this is the same import
-   * reached by typing instead of by deep link. */
-  onImported: (profileId: string) => void;
 }
 
 /**
- * Redeems a typed `<join-code>@<host>` pairing code (pairingCode.ts) into a
- * new remote profile.
+ * Takes a typed `<join-code>@<host>` pairing code (pairingCode.ts) and hands
+ * it to `profileSetup.ts`'s queue — the same runner the deep link feeds
+ * (`useProfileImport`). Redemption, connection, and the resulting UI all
+ * live in `ProfileSetupDialog` now; this dialog's only job is collecting a
+ * label and a code and closing itself.
  *
  * This is the deep link's fallback, and it exists because the deep link
  * can't be the only path: it's desktop-only, and on Linux/Windows it only
@@ -35,43 +34,31 @@ interface AddRemoteMachineDialogProps {
  * needs a working connection to do it. This one has no connection yet —
  * it's how you get the first one to a machine you can't otherwise reach.
  */
-export function AddRemoteMachineDialog({ open, onOpenChange, onImported }: AddRemoteMachineDialogProps) {
+export function AddRemoteMachineDialog({ open, onOpenChange }: AddRemoteMachineDialogProps) {
   const [label, setLabel] = useState("");
   const [code, setCode] = useState("");
-  const [pairing, setPairing] = useState(false);
-  const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
     if (!open) return;
     setLabel("");
     setCode("");
-    setError(null);
-    setPairing(false);
   }, [open]);
 
   // Parsed up front so the host is on screen before anything is sent: the
   // code names the machine that's about to receive this device's public key,
   // and that's worth seeing rather than trusting blind.
   const parsed = code.trim() ? parsePairingCode(code) : null;
-  const canSubmit = Boolean(label.trim() && parsed) && !pairing;
+  const canSubmit = Boolean(label.trim() && parsed);
 
-  async function handlePair(): Promise<void> {
+  function handlePair(): void {
     if (!canSubmit) return;
-    setPairing(true);
-    setError(null);
-    try {
-      const params = await resolvePairingCodeParams(label.trim(), code);
-      const { profile } = await claimAndSaveProfile(params);
-      onOpenChange(false);
-      onImported(profile.id);
-    } catch (err) {
-      console.error("[anywh] failed to pair from code", err);
-      setError(
-        "Não foi possível parear com esse código. Ele pode ter expirado, já ter sido usado, ou a máquina pode estar fora do ar.",
-      );
-    } finally {
-      setPairing(false);
-    }
+    onOpenChange(false);
+    // Deferred a tick: this dialog closing and ProfileSetupDialog opening
+    // are two Radix dialogs changing `open` in the same tick, which leaves
+    // `pointer-events: none` stuck on `<body>` under WKWebView (macOS/iOS).
+    setTimeout(() => {
+      enqueueProfileSetup({ source: "pairingCode", label: label.trim(), code });
+    }, 0);
   }
 
   return (
@@ -124,15 +111,14 @@ export function AddRemoteMachineDialog({ open, onOpenChange, onImported }: AddRe
               O código tem o formato <span className="font-mono">CÓDIGO@servidor</span>.
             </p>
           )}
-          {error && <p className="text-sm text-destructive">{error}</p>}
         </div>
 
         <DialogFooter>
           <Button type="button" size="sm" variant="outline" onClick={() => onOpenChange(false)}>
             Cancelar
           </Button>
-          <Button type="button" size="sm" disabled={!canSubmit} onClick={() => void handlePair()}>
-            {pairing ? "Pareando…" : "Parear"}
+          <Button type="button" size="sm" disabled={!canSubmit} onClick={handlePair}>
+            Parear
           </Button>
         </DialogFooter>
       </DialogContent>

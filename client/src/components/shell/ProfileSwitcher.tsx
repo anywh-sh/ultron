@@ -81,7 +81,7 @@ export function ProfileSwitcher({ activeProfile, supported, onChange }: ProfileS
         </DropdownMenuContent>
       </DropdownMenu>
 
-      <AddRemoteMachineDialog open={pairOpen} onOpenChange={setPairOpen} onImported={onChange} />
+      <AddRemoteMachineDialog open={pairOpen} onOpenChange={setPairOpen} />
 
       {supported && (
         <AddProfileDialog open={addOpen} onOpenChange={setAddOpen} activeProfile={activeProfile} />

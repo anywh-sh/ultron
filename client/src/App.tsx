@@ -11,6 +11,7 @@ import { TabGroupLayout } from "@/components/shell/TabGroupLayout";
 import { TitleBar } from "@/components/shell/TitleBar";
 import { MobileShell } from "@/components/shell/MobileShell";
 import { RevokedProfileBanners } from "@/components/shell/RevokedProfileBanner";
+import { ProfileSetupDialog } from "@/components/shell/ProfileSetupDialog";
 import { ChatPanel } from "@/components/chat/ChatPanel";
 import { SessionDock } from "@/components/shell/SessionDock";
 import { FilesPanelSlot } from "@/components/files/FilesPanelSlot";
@@ -27,10 +28,13 @@ import { useFileTabs } from "@/hooks/useFileTabs";
 import { useWindowFocus } from "@/hooks/useWindowFocus";
 import { useNotificationClick } from "@/hooks/useNotificationClick";
 import { useProfileImport } from "@/hooks/useProfileImport";
+import { useProfileSetup } from "@/hooks/useProfileSetup";
 import { useActiveTheme, useThemeSync } from "@/hooks/useThemes";
 import { useProfileSync } from "@/hooks/useProfileSync";
 import { useTailnetSidecarOwner } from "@/hooks/useTailnetSidecarOwner";
-import { findProfile, getProfiles, type Profile } from "@/lib/profiles";
+import { addProfile, findProfile, getProfiles, removeProfile, type Profile } from "@/lib/profiles";
+import { clearProfileRevoked, isProfileRevoked } from "@/lib/profileRevocation";
+import { completeProfileSetup, dismissProfileSetup, retryProfileSetup } from "@/lib/profileSetup";
 import { resolveChatPath } from "@/lib/filesClient";
 import { resolveConnection } from "@/lib/connectionResolver";
 import { ensureNotificationPermission, notifyTurnComplete } from "@/lib/notifications";
@@ -177,6 +181,48 @@ export default function App() {
     setDrawerOpen(false);
   }
 
+  /** "Continuar para novo perfil" on `ProfileSetupDialog` — the only place
+   * that ever switches to a profile `enqueueProfileSetup` just set up.
+   * Order matters: `handleProfileChange` runs first so React has already
+   * scheduled the render that makes `useTailnetSidecarOwner` reclaim the
+   * tailnet-sidecar reference `profileSetup.ts` is about to hand over,
+   * before `completeProfileSetup` releases it (with `HANDOVER_GRACE_MS` to
+   * spare). `tabsState.openTab` takes `profileId` explicitly rather than
+   * going through `handleNewConversation` — that one reads
+   * `activeProfile.id` from the closure, which still has the old value in
+   * this same tick. */
+  function handleSetupContinue(profileId: string): void {
+    handleProfileChange(profileId);
+    tabsState.openTab(profileId, crypto.randomUUID(), null, true);
+    completeProfileSetup();
+  }
+
+  /** "Ir para o perfil existente" on `ProfileSetupDialog`'s duplicate
+   * notice — decision 4: normally just drops the freshly claimed duplicate
+   * profile, but if the existing one was revoked, migrates the fresh
+   * credentials onto its id first (`addProfile` replaces in place) so a
+   * dismissed `RevokedProfileBanner` doesn't leave that profile stuck dead.
+   * `removeProfile` refusing to empty the list is never a concern here — a
+   * duplicate existing means there are already at least two profiles.
+   * Ends the setup request via `dismissProfileSetup` (not `completeProfileSetup`):
+   * the just-claimed profile is being thrown away, not adopted, so its held
+   * tailnet-sidecar reference (if any) should be released right away, with
+   * no handover grace. */
+  function handleSetupUseExisting(existingId: string): void {
+    if (setupSnapshot.state?.status !== "ready") return;
+    const newProfile = setupSnapshot.state.profile;
+
+    if (isProfileRevoked(existingId)) {
+      addProfile({ ...newProfile, id: existingId });
+      clearProfileRevoked(existingId);
+    }
+    removeProfile(newProfile.id);
+
+    dismissProfileSetup();
+    handleProfileChange(existingId);
+    tabsState.openTab(existingId, crypto.randomUUID(), null, true);
+  }
+
   // Creates the session implicitly: opens a blank tab right away, without
   // asking for a name — the title is inferred from the first prompt the user
   // sends (the relay fires this in parallel with the turn, see
@@ -215,11 +261,11 @@ export default function App() {
   });
 
   // Deep-link profile import (`anywh://import-profile`) — see
-  // useProfileImport.ts. Switches straight to the newly added profile,
-  // same as picking one in the switcher.
-  useProfileImport((profileId) => {
-    setActiveProfileId(profileId);
-  });
+  // useProfileImport.ts. Only feeds the profileSetup.ts queue now; nothing
+  // switches profile until the user clicks "Continuar" on ProfileSetupDialog
+  // below (decision 1 — the old silent auto-switch is gone).
+  useProfileImport();
+  const setupSnapshot = useProfileSetup();
 
   /** Explicit `profileId` (not always `activeProfile`) for the same reason as
    * `handleDeleteSession` right below: it's also called from a tab belonging
@@ -663,6 +709,21 @@ export default function App() {
     </div>
   );
 
+  // Mounted in both layout branches below — iOS has no `ProfileSwitcher`
+  // (the only other UI that used to trigger a profile import) to hang this
+  // off of, and the desktop sidebar unmounts entirely while collapsed, same
+  // reasoning `RevokedProfileBanners` already followed right above it.
+  const profileSetupDialog = (
+    <ProfileSetupDialog
+      state={setupSnapshot.state}
+      queuedCount={setupSnapshot.queuedCount}
+      onContinue={handleSetupContinue}
+      onUseExisting={handleSetupUseExisting}
+      onRetry={retryProfileSetup}
+      onDismiss={dismissProfileSetup}
+    />
+  );
+
   if (isIOS()) {
     return (
       // `h-full`, not `h-screen`/`h-dvh` — both are independent viewport-height
@@ -673,6 +734,7 @@ export default function App() {
       // journal/46 follow-up).
       <div className="flex h-full w-screen flex-col overflow-hidden bg-background text-foreground">
         <RevokedProfileBanners />
+        {profileSetupDialog}
         <SessionSearch open={searchOpen} onOpenChange={setSearchOpen} onSelectSession={handleSearchSelectSession} />
         <MobileShell
           activeProfile={activeProfile}
@@ -711,6 +773,7 @@ export default function App() {
         connected={activeConnected}
       />
       <RevokedProfileBanners />
+      {profileSetupDialog}
 
       <SessionSearch open={searchOpen} onOpenChange={setSearchOpen} onSelectSession={handleSearchSelectSession} />
       <SettingsDialog open={settingsOpen} onOpenChange={setSettingsOpen} activeProfile={activeProfile} />
