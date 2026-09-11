@@ -160,6 +160,24 @@ describe("profileSetup", () => {
     expect(discoverPairingEndpointsMock).toHaveBeenCalledTimes(1);
   });
 
+  it("survives an app restart — a redeemed link is never re-claimed after the module reloads", async () => {
+    const request = tailnetRequest({ claimUrl: "https://api.test/restart", joinCode: "RESTART-CODE" });
+
+    expect(enqueueProfileSetup(request)).toBe(true);
+    await vi.runAllTimersAsync();
+    expect(getProfileSetupState().state?.status).toBe("ready");
+    expect(claimTailnetBundleMock).toHaveBeenCalledTimes(1);
+
+    // Simulates a real app restart: a fresh module instance (its in-memory
+    // dedup Set starts empty) re-reading whatever `localStorage` — the one
+    // thing that actually survives a restart — was left with.
+    vi.resetModules();
+    const restarted = await import("./profileSetup");
+    expect(restarted.enqueueProfileSetup(request)).toBe(false);
+    await vi.runAllTimersAsync();
+    expect(claimTailnetBundleMock).toHaveBeenCalledTimes(1);
+  });
+
   it("processes the queue strictly serially — the next request waits for the current one to be dismissed or completed", async () => {
     const requestA = tailnetRequest({ claimUrl: "https://api.test/a", joinCode: "A" });
     const requestB = tailnetRequest({ claimUrl: "https://api.test/b", joinCode: "B" });

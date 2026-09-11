@@ -86,13 +86,35 @@ interface QueueItem {
 // Dedup guard — reserved at enqueue time, before any network call, so the
 // two mounts of a React 18 StrictMode replay (or `getCurrent()` and
 // `onOpenUrl` independently delivering the same cold-launch URL) can never
-// both start redeeming the same single-use join code. Released only when a
+// both start redeeming the same single-use join code. Persisted to
+// `localStorage`, not just held in memory: `getCurrent()` (Tauri's
+// deep-link plugin) can hand back the *same* launch URL again on a later
+// cold start of the app, not only within one run (observed live — the
+// setup dialog replayed on a plain app restart for a link that had already
+// redeemed successfully) — an in-memory-only Set would forget that and
+// redeem the same single-use code a second time. Released only when a
 // request ends in `failed/claim` and the user dismisses it (see
 // `dismissProfileSetup`) — every other outcome means the code is already
-// spent and the profile already exists, so the key stays reserved for the
-// rest of this app run; there is nothing useful a second attempt at the
-// same key could do.
-const reservedKeys = new Set<string>();
+// spent and the profile already exists, so the key stays reserved for
+// good; there is nothing useful a second attempt at the same key could do.
+const REDEEMED_KEYS_STORAGE_KEY = "anywh:profileSetup:redeemedKeys";
+
+function loadReservedKeys(): Set<string> {
+  const raw = localStorage.getItem(REDEEMED_KEYS_STORAGE_KEY);
+  if (!raw) return new Set();
+  try {
+    const parsed: unknown = JSON.parse(raw);
+    return Array.isArray(parsed) ? new Set(parsed.filter((v): v is string => typeof v === "string")) : new Set();
+  } catch {
+    return new Set();
+  }
+}
+
+function persistReservedKeys(): void {
+  localStorage.setItem(REDEEMED_KEYS_STORAGE_KEY, JSON.stringify([...reservedKeys]));
+}
+
+const reservedKeys = loadReservedKeys();
 
 const queue: QueueItem[] = [];
 let current: SetupState | null = null;
@@ -248,6 +270,7 @@ export function enqueueProfileSetup(request: SetupRequest): boolean {
   const key = computeKey(request);
   if (key === null || reservedKeys.has(key)) return false;
   reservedKeys.add(key);
+  persistReservedKeys();
   queue.push({ key, request });
   publish();
   pump();
@@ -300,6 +323,7 @@ export function dismissProfileSetup(): void {
   if (current === null) return;
   if (current.status === "failed" && current.stage === "claim" && currentKey !== undefined) {
     reservedKeys.delete(currentKey);
+    persistReservedKeys();
   }
   if (heldSidecarProfileId !== undefined) {
     releaseTailnetSidecar(heldSidecarProfileId, 0);
@@ -311,6 +335,7 @@ export function dismissProfileSetup(): void {
 export function __resetProfileSetupForTests(): void {
   queue.length = 0;
   reservedKeys.clear();
+  persistReservedKeys();
   current = null;
   currentKey = undefined;
   activeDuplicates = [];
