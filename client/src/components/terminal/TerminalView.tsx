@@ -6,6 +6,7 @@ import "@xterm/xterm/css/xterm.css";
 import type { Profile } from "@/lib/profiles";
 import { useResolvedProfileTheme } from "@/hooks/useThemes";
 import { resolveConnection } from "@/lib/connectionResolver";
+import { BrokerRevokedError } from "@/lib/tailnetBroker";
 
 interface TerminalViewProps {
   profile: Profile;
@@ -169,6 +170,10 @@ export function TerminalView({ profile, chatSessionId, terminalId, cwd }: Termin
         .catch((error: unknown) => {
           console.error("[anywh] failed to resolve a connection for the terminal:", error);
           if (!shouldReconnect) return;
+          // Terminal — this device's connection was deliberately revoked and
+          // will never succeed again, unlike every other reason this could
+          // fail (network blip, relay down), which are worth retrying.
+          if (error instanceof BrokerRevokedError) return;
           setReconnecting(true);
           const delay = Math.min(RECONNECT_BASE_DELAY_MS * 2 ** reconnectAttempt, RECONNECT_MAX_DELAY_MS);
           reconnectAttempt += 1;

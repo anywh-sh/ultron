@@ -11,6 +11,7 @@ import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip
 import type { useFileTabs } from "@/hooks/useFileTabs";
 import { listFiles, uploadFile } from "@/lib/filesClient";
 import { resolveConnection } from "@/lib/connectionResolver";
+import { BrokerRevokedError } from "@/lib/tailnetBroker";
 import { physicalPositionToClientPoint } from "@/lib/dragDropPosition";
 import type { Profile } from "@/lib/profiles";
 import { cn } from "@/lib/utils";
@@ -85,7 +86,12 @@ function useFilesWatch(profile: Profile, sessionId: string, dirs: string[], file
         })
         .catch((error: unknown) => {
           console.error("[anywh] failed to resolve a connection for the files watch:", error);
-          if (!cancelled) reconnectTimer = window.setTimeout(connect, 2000);
+          if (cancelled) return;
+          // Terminal — this device's connection was deliberately revoked and
+          // will never succeed again, unlike every other reason this could
+          // fail (network blip, relay down), which are worth retrying.
+          if (error instanceof BrokerRevokedError) return;
+          reconnectTimer = window.setTimeout(connect, 2000);
         });
     }
     connect();

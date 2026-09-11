@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useState } from "react";
 import { fetchSessions } from "@/lib/relayClient";
 import { resolveConnection } from "@/lib/connectionResolver";
+import { BrokerRevokedError } from "@/lib/tailnetBroker";
 import type { SessionSummary } from "@/lib/relay-types";
 import type { Profile } from "@/lib/profiles";
 
@@ -126,7 +127,12 @@ export function useSessionNames(profile: Profile): {
         })
         .catch((error: unknown) => {
           console.error("[anywh] failed to resolve a connection for sessions/watch", error);
-          if (!cancelled) reconnectTimer = window.setTimeout(connect, 2000);
+          if (cancelled) return;
+          // Terminal — this device's connection was deliberately revoked and
+          // will never succeed again, unlike every other reason this could
+          // fail (network blip, relay down), which are worth retrying.
+          if (error instanceof BrokerRevokedError) return;
+          reconnectTimer = window.setTimeout(connect, 2000);
         });
     }
     connect();
