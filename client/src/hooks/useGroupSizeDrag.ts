@@ -1,11 +1,12 @@
 import { useCallback, useRef, useState } from "react";
+import { MIN_USABLE_CHAT_PX, MIN_WIDTH_WITH_FILES } from "@/hooks/useSessionDock";
 
 /** Floor for a group's width, in px — below this a chat column stops being
- * usable. Revisited once the dock (terminal/files pane) enters the picture:
- * a narrow group with the files pane open needs more than this alone (see
- * `useSessionDock.ts`'s `clampWidth`), but that's the dock's own problem to
- * solve against the group's available width, not this hook's. */
-export const MIN_GROUP_PX = 480;
+ * usable once a dock sits at its own minimum next to it. Sized as the
+ * dock's own floor with the files pane open plus a usable chat width (see
+ * `useSessionDock.ts`'s `MIN_USABLE_CHAT_PX`), not just an arbitrary chat-only
+ * number — a group can host a dock, so its own minimum has to account for one. */
+export const MIN_GROUP_PX = MIN_WIDTH_WITH_FILES + MIN_USABLE_CHAT_PX;
 
 /**
  * Drag for a handle between two adjacent tab groups — sibling of

@@ -27,8 +27,16 @@ const MIN_WIDTH = 320;
 // The file pane is a tree + content side by side — below this the two
 // become unusable, unlike the terminal alone which tolerates the narrower
 // default.
-const MIN_WIDTH_WITH_FILES = 420;
+export const MIN_WIDTH_WITH_FILES = 420;
 const MAX_WIDTH = 900;
+// Floor for how much of a group's own width should stay usable as chat once
+// a dock with the files pane sits at its own minimum (`MIN_WIDTH_WITH_FILES`)
+// next to it — feeds `useGroupSizeDrag`'s `MIN_GROUP_PX`. Doesn't protect
+// against the dock being dragged wider than its minimum in an already-narrow
+// group (that would need `clampWidth` to know the group's live rendered
+// width, not just its own pane kind — not wired yet, tracked as a known gap
+// rather than solved preventively here).
+export const MIN_USABLE_CHAT_PX = 480;
 const DEFAULT_WIDTH = 480;
 const MIN_SPLIT_RATIO = 0.2;
 const MAX_SPLIT_RATIO = 0.8;

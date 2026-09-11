@@ -428,7 +428,15 @@ export default function App() {
   const renderPanel = (tab: Tab) => {
     const profile = findProfile(tab.profileId) ?? getProfiles()[0];
     const dock = sessionDock.getDock(tab.id);
-    const isTabActive = tab.id === activeTabId;
+    // Two different gates, now that a group split can put more than one tab
+    // on screen at once: `isVisible` is "this tab is the active one of its
+    // own group" (drives panel visibility, dock mounting, MessageLog's
+    // scroll re-sync, and the native drag-drop guard below) — up to one per
+    // group can be true simultaneously. `isFocused` narrows that to "...and
+    // that group is also the one the user's actually interacting with right
+    // now" (drives unread-badge clearing, TitleBar.connected, nav history) —
+    // at most one tab in the whole app.
+    const isVisible = tabsState.visibleTabIds.has(tab.id);
     const chatContent = (
       <ChatPanel
         // On iOS (no TabGroupLayout/flat panel layer), `activeTab && renderPanel(activeTab)`
@@ -485,31 +493,33 @@ export default function App() {
             : { open: dock.panes.includes("files"), onToggle: () => sessionDock.togglePane(tab.id, "files") }
         }
         onOpenPath={isCompact || isIOS() ? undefined : (path) => handleOpenFilePath(profile, tab.id, path)}
-        isActiveTab={isTabActive}
+        isActiveTab={isVisible}
       />
     );
 
     if (isCompact || isIOS()) return chatContent;
 
     // Embedded terminal (docs/30) and files pane (docs/41), desktop only.
-    // `isTabActive` is what implements "switching sessions closes the dock on
-    // its own, coming back reopens it the way it was": `TabGroupLayout` keeps
-    // ALL tabs mounted in the background (its flat panel layer, to keep the chat WS alive
-    // — see comment further below), so without this gate the dock's panes
-    // would stay connected for out-of-focus sessions too. Only the active
-    // tab actually mounts `SessionDock`; the others don't even exist in the
-    // DOM, so they don't open any terminal/watch WS either — the cost of
-    // several chat tabs open at once (multiple profiles, multiple contexts)
-    // stays limited to a single live dock at a time, not one per session.
+    // `isVisible` is what implements "switching to another tab in this same
+    // group closes the dock on its own, coming back reopens it the way it
+    // was": `TabGroupLayout` keeps ALL tabs mounted in the background (its
+    // flat panel layer, to keep the chat WS alive — see comment further
+    // below), so without this gate the dock's panes would stay connected for
+    // every backgrounded tab too. Only each group's own visible tab actually
+    // mounts `SessionDock`; the others don't even exist in the DOM, so they
+    // don't open any terminal/watch WS either. With up to 3 groups now, that
+    // means up to 3 live docks at once (up to 3 terminal + 3 watch WS) — not
+    // the single live dock this comment used to promise back when there was
+    // only ever one active tab in the whole app.
     //
     // The gate here doesn't include `dock.panes.length === 0` — that's how
     // the open/close animation (same as the left sidebar's,
     // useResizableSidebar) works: `SessionDock` stays mounted the whole time
-    // the tab is active, and IT (internally, lightweight) is what decides the
-    // width (0 closed, animating to `dock.width` when open). Without this the
-    // dock's content only existed in the DOM while open — there was nothing
-    // for the CSS transition to animate, it just popped in/out.
-    const chatHidden = isTabActive && dock.maximized !== null;
+    // the tab is visible, and IT (internally, lightweight) is what decides
+    // the width (0 closed, animating to `dock.width` when open). Without this
+    // the dock's content only existed in the DOM while open — there was
+    // nothing for the CSS transition to animate, it just popped in/out.
+    const chatHidden = isVisible && dock.maximized !== null;
 
     // The wrapper (this `div` + the `div` right below wrapping
     // `chatContent`) is rendered unconditionally, with the SAME shape
@@ -531,7 +541,7 @@ export default function App() {
          * is exactly what would happen when maximizing a pane if the chat
          * were hidden via `display:none`/zero width). */}
         <div className={cn("min-w-0 flex-1", chatHidden && "invisible absolute inset-0")}>{chatContent}</div>
-        {isTabActive && (
+        {isVisible && (
           <SessionDock
             dock={dock}
             onWidthChange={(width) => sessionDock.setWidth(tab.id, width)}
