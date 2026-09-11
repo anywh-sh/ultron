@@ -26,13 +26,13 @@ interface PaneTabStripProps {
 /** Generic tab strip for a dock pane's header — "Terminal 1 / Terminal 2 / +"
  * for the terminal, open files for the file viewer. Was `TerminalTabStrip`
  * before docs/41 generalized it to both panes; no drag-to-reorder (unlike
- * the sessions' `TabBar`) — the number of tabs per pane tends to be small
+ * the sessions' `TabGroupStrip`) — the number of tabs per pane tends to be small
  * enough not to justify dnd-kit's complexity here. */
 export function PaneTabStrip({ tabs, activeId, onSelect, onClose, onAdd, addLabel }: PaneTabStripProps) {
   return (
     <div
       onWheel={scrollHorizontallyOnWheel}
-      // See TabBar's identical comment: `overflow-x-auto` alone implies
+      // See TabGroupStrip's identical comment: `overflow-x-auto` alone implies
       // `overflow-y: auto` too per spec, so this strip needs `overflow-y-hidden`
       // spelled out to stay horizontal-only when it gets squeezed.
       className="scrollbar-thin flex items-center gap-0.5 overflow-x-auto overflow-y-hidden px-1 py-1"

@@ -17,13 +17,13 @@ interface SessionDeleteMenuProps {
   menu: ContextMenuState;
   title: string;
   onDelete: () => void;
-  /** Optional: only TabBar passes this today (SessionList already has a
+  /** Optional: only TabGroupStrip passes this today (SessionList already has a
    * dedicated pencil button for rename, no need to duplicate it in the menu). */
   onRename?: () => void;
 }
 
 /** Invisible trigger anchored to the cursor (see useContextMenu). Reused by
- * SessionList (left panel) and TabBar (tab), the two places where a
+ * SessionList (left panel) and TabGroupStrip (tab), the two places where a
  * right-click opens this menu.
  *
  * The confirmation uses a design-system AlertDialog instead of

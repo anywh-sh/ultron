@@ -93,7 +93,7 @@ export function RevokedProfileBanner({ profile }: { profile: Profile }) {
 /**
  * One banner per revoked profile, not just `activeProfile` — a background
  * chat tab keeps its own `RelayClient` alive regardless of which profile the
- * sidebar has selected (`TabBar`'s `forceMount`, App.tsx), so its revocation
+ * sidebar has selected (`TabGroupLayout`'s flat panel layer, App.tsx), so its revocation
  * can be detected while the user is looking at a different profile entirely.
  * Gating the banner on `activeProfile` meant that detection was silent until
  * the user happened to switch back (journal/67) — this renders one per

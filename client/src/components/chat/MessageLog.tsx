@@ -43,7 +43,7 @@ interface MessageLogProps {
    * `Message.tsx`'s `AssistantText`). */
   onOpenPath?: (path: string) => void;
   /** Whether this tab is the one currently on screen — background tabs stay
-   * mounted (`forceMount`/`invisible` in `TabBar`, docs/18), so this is the
+   * mounted (`invisible` in `TabGroupLayout`'s flat panel layer, docs/18), so this is the
    * only signal telling this instance it just came back into view. See the
    * re-pin effect below for why that matters. */
   isActiveTab: boolean;
@@ -201,7 +201,7 @@ function renderItem(item: RenderItem, userActions: UserActionHandlers) {
 // Memoized: `ChatPanel` itself isn't memoized (its callback props are fresh
 // closures from `App`'s `renderPanel` on every render), so it re-renders on
 // any App-level state change — including for background tabs kept mounted
-// via TabBar's `forceMount` (docs/18). `entries`/`streamingEntries` stay
+// via TabGroupLayout's flat panel layer (docs/18). `entries`/`streamingEntries` stay
 // referentially stable across those unrelated re-renders (see useMessageLog),
 // so wrapping this in `memo` lets the expensive subtree (markdown parsing +
 // syntax highlighting in every row) bail out instead of re-rendering along
@@ -330,7 +330,7 @@ export const MessageLog = memo(function MessageLog({
   // (now short of the real one) instead of following the new messages.
   // `followOnAppend` is supposed to keep a backgrounded tab pinned on its
   // own (the box isn't collapsed while hidden — see the `invisible` comment
-  // in `TabBar` — so its measurements stay live), but there's evidently a
+  // in `TabGroupLayout` — so its measurements stay live), but there's evidently a
   // gap somewhere in that chain for a tab that isn't the one actually on
   // screen. Rather than chase that gap, re-sync straight from the live DOM
   // (same `scrollHeight`/`clientHeight` read as the effect above, not the

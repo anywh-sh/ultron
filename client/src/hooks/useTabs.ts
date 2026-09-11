@@ -5,7 +5,7 @@ export interface Tab {
   id: string;
   profileId: string;
   /** `null` until the title is inferred from the first prompt — the tab shows a
-   * generic placeholder in the meantime (see TabBar). */
+   * generic placeholder in the meantime (see TabGroupStrip). */
   title: string | null;
   hasUnreadCompletion: boolean;
   isRunning: boolean;

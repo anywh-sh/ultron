@@ -7,7 +7,7 @@ import { Sidebar } from "@/components/shell/Sidebar";
 import { EmptyState } from "@/components/shell/EmptyState";
 import { SessionSearch } from "@/components/shell/SessionSearch";
 import { SettingsDialog } from "@/components/shell/SettingsDialog";
-import { TabBar } from "@/components/shell/TabBar";
+import { TabGroupLayout } from "@/components/shell/TabGroupLayout";
 import { TitleBar } from "@/components/shell/TitleBar";
 import { MobileShell } from "@/components/shell/MobileShell";
 import { RevokedProfileBanners } from "@/components/shell/RevokedProfileBanner";
@@ -91,10 +91,10 @@ export default function App() {
   const [settingsOpen, setSettingsOpen] = useState(false);
   // Connection state per tab — used by TitleBar/MobileTopBar (docs/24), which
   // live outside ChatPanel. Fed by `renderPanel`'s `onConnectedChange` below.
-  // Keyed by tab id (not a single flag) because desktop's TabBar keeps every
-  // tab's ChatPanel mounted at once (forceMount, see the `key={tab.id}`
-  // comment in `renderPanel`): a background tab's `connected` can flip while
-  // it's not the active one, and nothing re-fires once it becomes active
+  // Keyed by tab id (not a single flag) because desktop's TabGroupLayout keeps
+  // every tab's ChatPanel mounted at once (its flat panel layer, see the
+  // `key={tab.id}` comment in `renderPanel`): a background tab's `connected`
+  // can flip while it's not the active one, and nothing re-fires once it becomes active
   // again. A single flag reset to `false` on every tab switch (the previous
   // approach) got stuck showing "Reconectando…" forever for a tab that was
   // already connected, since its `connected` value wasn't changing anymore
@@ -431,7 +431,7 @@ export default function App() {
     const isTabActive = tab.id === activeTabId;
     const chatContent = (
       <ChatPanel
-        // On iOS (no TabBar/forceMount), `activeTab && renderPanel(activeTab)`
+        // On iOS (no TabGroupLayout/flat panel layer), `activeTab && renderPanel(activeTab)`
         // is a single JSX slot whose `sessionId` just changes value — without
         // a `key` tied to the session, React reuses the same instance when
         // switching conversations (only updates props), and internal state
@@ -441,9 +441,10 @@ export default function App() {
         // creates a new instance. The result was a real bug: clicking "+"
         // would open a genuinely new session (connecting,
         // "Reconnecting"→"Connected") but the screen kept showing the
-        // previous conversation's log. On desktop this didn't happen (TabBar
-        // already has `key={tab.id}` on TabsContent, each tab with its own
-        // instance) — here it's just made explicit in the same spot.
+        // previous conversation's log. On desktop this didn't happen
+        // (TabGroupLayout's flat panel layer already has `key={tab.id}` on
+        // each tab's panel wrapper) — here it's just made explicit in the
+        // same spot.
         key={tab.id}
         profile={profile}
         sessionId={tab.id}
@@ -492,8 +493,8 @@ export default function App() {
 
     // Embedded terminal (docs/30) and files pane (docs/41), desktop only.
     // `isTabActive` is what implements "switching sessions closes the dock on
-    // its own, coming back reopens it the way it was": `TabBar` keeps ALL
-    // tabs mounted in the background (forceMount, to keep the chat WS alive
+    // its own, coming back reopens it the way it was": `TabGroupLayout` keeps
+    // ALL tabs mounted in the background (its flat panel layer, to keep the chat WS alive
     // — see comment further below), so without this gate the dock's panes
     // would stay connected for out-of-focus sessions too. Only the active
     // tab actually mounts `SessionDock`; the others don't even exist in the
@@ -524,7 +525,7 @@ export default function App() {
     return (
       <div className="relative flex h-full min-w-0">
         {/* `invisible absolute inset-0` instead of shrinking to 0 — same
-         * trick (and same reason) as `TabBar.tsx`'s `forceMount`: `MessageLog`
+         * trick (and same reason) as `TabGroupLayout.tsx`'s flat panel layer: `MessageLog`
          * uses `@tanstack/react-virtual`, whose `ResizeObserver` corrupts the
          * height cache if the container measures size 0 even briefly (which
          * is exactly what would happen when maximizing a pane if the chat
@@ -575,15 +576,6 @@ export default function App() {
   // Any `position: static` div in this chain up to `.mobile-canvas` breaks
   // the blur. Don't remove it even though it looks redundant — harmless for
   // desktop (doesn't change position/size of anything).
-  // Single group only, for now (the split feature reads/writes `groups`
-  // underneath, but `TabBar` still renders one flat strip — multi-group
-  // layout comes in a later commit). `tabById` maps the pool onto the
-  // focused group's own visual order, which is what a drag reorder now
-  // moves (`moveTab`), not the pool itself.
-  const focusedGroup = tabsState.groups.find((group) => group.id === tabsState.focusedGroupId) ?? tabsState.groups[0];
-  const tabById = new Map(tabsState.tabs.map((tab) => [tab.id, tab]));
-  const focusedGroupTabs = focusedGroup.tabIds.map((id) => tabById.get(id)).filter((tab): tab is Tab => tab !== undefined);
-
   const tabsContent = (
     <div className="relative min-h-0 flex-1">
       {tabsState.tabs.length === 0 ? (
@@ -591,19 +583,19 @@ export default function App() {
       ) : isIOS() ? (
         // iOS (docs/23, Phase B): the MVP is one session in focus at a time,
         // without keeping several WebSocket connections alive in parallel in
-        // the background — only mounts the active session, without TabBar's
-        // tab mechanism (forceMount/dnd-kit, designed for desktop).
+        // the background — only mounts the active session, without
+        // TabGroupLayout's tab mechanism (forceMount/dnd-kit, designed for
+        // desktop).
         activeTab && renderPanel(activeTab)
       ) : (
-        <TabBar
-          tabs={focusedGroupTabs}
-          activeTabId={activeTabId}
+        <TabGroupLayout
+          tabs={tabsState.tabs}
+          groups={tabsState.groups}
           onSelect={tabsState.setActiveTab}
+          onFocusGroup={tabsState.focusGroup}
           onClose={tabsState.closeTab}
-          onReorder={(tabId, overTabId) => {
-            const index = focusedGroup.tabIds.indexOf(overTabId);
-            if (index !== -1) tabsState.moveTab(tabId, focusedGroup.id, index);
-          }}
+          onMoveTab={tabsState.moveTab}
+          onCommitSizes={tabsState.setGroupSizes}
           onRenameSession={(tabId, title) => {
             const tab = tabsState.tabs.find((t) => t.id === tabId);
             if (tab) handleRenameSession(tab.profileId, tabId, title);
