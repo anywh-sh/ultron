@@ -641,6 +641,8 @@ export default function App() {
         <TabGroupLayout
           tabs={tabsState.tabs}
           groups={tabsState.groups}
+          activeTabId={activeTabId}
+          splitEnabled={!isCompact}
           onSelect={tabsState.setActiveTab}
           onFocusGroup={tabsState.focusGroup}
           onClose={tabsState.closeTab}

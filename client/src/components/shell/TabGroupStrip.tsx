@@ -29,6 +29,12 @@ interface TabGroupStripProps {
   groupId: string;
   tabs: Tab[];
   activeTabId: string | null;
+  /** Split is desktop-only (same gate as the dock) — below the compact
+   * breakpoint there's nowhere to put a second column, so the "Mover para
+   * novo grupo" context-menu item (the third of the three ways to split,
+   * alongside the edge drag and `Ctrl+\`) stays hidden regardless of how
+   * many tabs are in the group. */
+  allowSplit: boolean;
   onSelect: (tabId: string) => void;
   onClose: (tabId: string) => void;
   onRenameSession: (tabId: string, title: string) => void;
@@ -184,7 +190,7 @@ function SortableTab({ tab, isActive, canSplit, onSelect, onClose, onRename, onD
  * possible at all. This only contributes its `SortableContext` (for
  * same-strip reordering) and the trailing drop zone.
  */
-export function TabGroupStrip({ groupId, tabs, activeTabId, onSelect, onClose, onRenameSession, onDelete, onSplitToNewGroup }: TabGroupStripProps) {
+export function TabGroupStrip({ groupId, tabs, activeTabId, allowSplit, onSelect, onClose, onRenameSession, onDelete, onSplitToNewGroup }: TabGroupStripProps) {
   const [renaming, setRenaming] = useState<{ id: string; title: string } | null>(null);
   const buttonRefs = useRef(new Map<string, HTMLButtonElement>());
   // Fills whatever width the tabs don't — a separate, non-overlapping
@@ -233,7 +239,7 @@ export function TabGroupStrip({ groupId, tabs, activeTabId, onSelect, onClose, o
               key={tab.id}
               tab={tab}
               isActive={tab.id === activeTabId}
-              canSplit={tabs.length > 1}
+              canSplit={allowSplit && tabs.length > 1}
               onSelect={onSelect}
               onClose={onClose}
               onRename={(renamedTab) => setRenaming({ id: renamedTab.id, title: renamedTab.title ?? "" })}

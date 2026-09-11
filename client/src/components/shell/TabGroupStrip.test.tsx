@@ -29,6 +29,7 @@ function renderStrip(tabs: Tab[], activeTabId: string | null) {
           groupId="g1"
           tabs={tabs}
           activeTabId={activeTabId}
+          allowSplit
           onSelect={vi.fn()}
           onClose={vi.fn()}
           onRenameSession={vi.fn()}
@@ -99,6 +100,7 @@ describe("TabGroupStrip", () => {
             groupId="g1"
             tabs={[a, b]}
             activeTabId={a.id}
+            allowSplit
             onSelect={onSelect}
             onClose={vi.fn()}
             onRenameSession={vi.fn()}
@@ -114,5 +116,33 @@ describe("TabGroupStrip", () => {
 
     expect(onSelect).toHaveBeenCalledWith("s2");
     expect(screen.getByRole("tab", { name: "Segunda" })).toHaveFocus();
+  });
+
+  it("hides the split context-menu item when allowSplit is false", async () => {
+    const user = userEvent.setup();
+    const a = tab({ id: "s1", title: "Primeira" });
+    const b = tab({ id: "s2", title: "Segunda" });
+    render(
+      <TooltipProvider>
+        <DndContext>
+          <TabGroupStrip
+            groupId="g1"
+            tabs={[a, b]}
+            activeTabId={a.id}
+            allowSplit={false}
+            onSelect={vi.fn()}
+            onClose={vi.fn()}
+            onRenameSession={vi.fn()}
+            onDelete={vi.fn()}
+            onSplitToNewGroup={vi.fn()}
+          />
+        </DndContext>
+      </TooltipProvider>,
+    );
+
+    await user.pointer({ keys: "[MouseRight]", target: screen.getByRole("tab", { name: "Primeira" }) });
+
+    expect(await screen.findByText("Excluir sessão")).toBeInTheDocument();
+    expect(screen.queryByText("Mover para novo grupo")).not.toBeInTheDocument();
   });
 });

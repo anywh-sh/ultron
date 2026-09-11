@@ -49,6 +49,16 @@ export function resolveTabDrop(tabId: string, overId: string, groups: TabGroup[]
 interface TabGroupLayoutProps {
   tabs: Tab[];
   groups: TabGroup[];
+  /** The focused group's own active tab — the one visible tab in flat mode
+   * below (see `splitEnabled`). */
+  activeTabId: string | null;
+  /** Below the compact breakpoint (or on iOS, though iOS never reaches this
+   * component at all — see `App.tsx`), there's nowhere to put a second
+   * column: renders one flat strip over every group's tabs concatenated
+   * (`groups.flatMap`) and one full-width panel instead of the side-by-side
+   * layout, without touching `groups` itself — the real split stays intact
+   * underneath and comes back the moment the viewport widens again. */
+  splitEnabled: boolean;
   onSelect: (tabId: string) => void;
   onFocusGroup: (groupId: string) => void;
   onClose: (tabId: string) => void;
@@ -120,6 +130,8 @@ function EdgeDropZone({ id, side }: { id: string; side: "left" | "right" }) {
 export function TabGroupLayout({
   tabs,
   groups,
+  activeTabId,
+  splitEnabled,
   onSelect,
   onFocusGroup,
   onClose,
@@ -169,6 +181,45 @@ export function TabGroupLayout({
     }
   }
 
+  // Flat fallback — same-strip reordering (via the DndContext/onDragEnd
+  // above) stays available and resolves against the real `groups`, same as
+  // the split-capable layout; only the *visual* side-by-side split and its
+  // three creation entry points (edge drag, context-menu item, `Ctrl+\`) are
+  // unavailable here, never rendering the edge zones or the resize handles.
+  if (!splitEnabled) {
+    const flatTabIds = groups.flatMap((group) => group.tabIds);
+    const lastGroupId = groups[groups.length - 1]?.id ?? "";
+    return (
+      <DndContext sensors={sensors} onDragEnd={handleDragEnd}>
+        <div className="flex h-full min-w-0 flex-col">
+          <TabGroupStrip
+            groupId={lastGroupId}
+            tabs={flatTabIds.map((id) => tabById.get(id)).filter((tab): tab is Tab => tab !== undefined)}
+            activeTabId={activeTabId}
+            allowSplit={false}
+            onSelect={onSelect}
+            onClose={onClose}
+            onRenameSession={onRenameSession}
+            onDelete={onDelete}
+            onSplitToNewGroup={() => {}}
+          />
+          <div className="relative min-h-0 flex-1">
+            {tabs.map((tab) => (
+              <div
+                key={tab.id}
+                data-testid={`tab-panel-${tab.id}`}
+                className={cn("absolute inset-0 overflow-hidden", tab.id !== activeTabId && "invisible")}
+                style={{ contain: "layout paint" }}
+              >
+                {renderPanel(tab)}
+              </div>
+            ))}
+          </div>
+        </div>
+      </DndContext>
+    );
+  }
+
   return (
     <DndContext sensors={sensors} onDragStart={handleDragStart} onDragEnd={handleDragEnd} onDragCancel={() => setIsDraggingTab(false)}>
       <div ref={containerRef} className="flex h-full min-w-0 flex-col" style={groupCssVars(groups)}>
@@ -198,6 +249,7 @@ export function TabGroupLayout({
                   groupId={group.id}
                   tabs={group.tabIds.map((id) => tabById.get(id)).filter((tab): tab is Tab => tab !== undefined)}
                   activeTabId={group.activeTabId}
+                  allowSplit
                   onSelect={onSelect}
                   onClose={onClose}
                   onRenameSession={onRenameSession}

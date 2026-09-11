@@ -31,12 +31,14 @@ function group(id: string, tabIds: string[], size: number): TabGroup {
   return { id, tabIds, activeTabId: tabIds[0] ?? null, size };
 }
 
-function renderLayout(tabs: Tab[], groups: TabGroup[]) {
+function renderLayout(tabs: Tab[], groups: TabGroup[], overrides: { activeTabId?: string | null; splitEnabled?: boolean } = {}) {
   return render(
     <TooltipProvider>
       <TabGroupLayout
         tabs={tabs}
         groups={groups}
+        activeTabId={overrides.activeTabId ?? tabs[0]?.id ?? null}
+        splitEnabled={overrides.splitEnabled ?? true}
         onSelect={vi.fn()}
         onFocusGroup={vi.fn()}
         onClose={vi.fn()}
@@ -111,6 +113,38 @@ describe("TabGroupLayout geometry", () => {
     expect(hiddenPanel).toHaveClass("invisible");
     // Still in the DOM, not removed — that's the whole point of the flat layer.
     expect(hiddenPanel).toBeInTheDocument();
+  });
+});
+
+describe("TabGroupLayout — compact fallback (splitEnabled: false)", () => {
+  it("flattens every group's tabs into a single strip instead of one per group", () => {
+    const tabs = [tab("s1"), tab("s2"), tab("s3")];
+    const groups = [group("g1", ["s1", "s2"], 0.5), group("g2", ["s3"], 0.5)];
+    renderLayout(tabs, groups, { activeTabId: "s1", splitEnabled: false });
+
+    expect(screen.getAllByRole("tablist")).toHaveLength(1);
+    expect(screen.getAllByRole("tab").map((el) => el.textContent)).toEqual(["s1", "s2", "s3"]);
+  });
+
+  it("shows only the overall active tab's panel, full width", () => {
+    const tabs = [tab("s1"), tab("s2")];
+    const groups = [group("g1", ["s1"], 0.5), group("g2", ["s2"], 0.5)];
+    renderLayout(tabs, groups, { activeTabId: "s2", splitEnabled: false });
+
+    expect(screen.getByTestId("tab-panel-s1")).toHaveClass("invisible");
+    const visiblePanel = screen.getByTestId("tab-panel-s2");
+    expect(visiblePanel).not.toHaveClass("invisible");
+    expect(visiblePanel).toHaveClass("inset-0");
+  });
+
+  it("never drops a tab out of the DOM — both groups' tabs stay mounted", () => {
+    const tabs = [tab("s1"), tab("s2"), tab("s3")];
+    const groups = [group("g1", ["s1", "s2"], 0.5), group("g2", ["s3"], 0.5)];
+    renderLayout(tabs, groups, { activeTabId: "s1", splitEnabled: false });
+
+    expect(screen.getByTestId("tab-panel-s1")).toBeInTheDocument();
+    expect(screen.getByTestId("tab-panel-s2")).toBeInTheDocument();
+    expect(screen.getByTestId("tab-panel-s3")).toBeInTheDocument();
   });
 });
 
