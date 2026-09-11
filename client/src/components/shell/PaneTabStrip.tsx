@@ -1,7 +1,7 @@
 import { Plus, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
-import { cn } from "@/lib/utils";
+import { cn, scrollHorizontallyOnWheel } from "@/lib/utils";
 
 export interface PaneTab {
   id: string;
@@ -30,7 +30,13 @@ interface PaneTabStripProps {
  * enough not to justify dnd-kit's complexity here. */
 export function PaneTabStrip({ tabs, activeId, onSelect, onClose, onAdd, addLabel }: PaneTabStripProps) {
   return (
-    <div className="scrollbar-thin flex items-center gap-0.5 overflow-x-auto px-1 py-1">
+    <div
+      onWheel={scrollHorizontallyOnWheel}
+      // See TabBar's identical comment: `overflow-x-auto` alone implies
+      // `overflow-y: auto` too per spec, so this strip needs `overflow-y-hidden`
+      // spelled out to stay horizontal-only when it gets squeezed.
+      className="scrollbar-thin flex items-center gap-0.5 overflow-x-auto overflow-y-hidden px-1 py-1"
+    >
       {tabs.map((tab) => (
         <div
           key={tab.id}

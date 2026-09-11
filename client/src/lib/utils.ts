@@ -1,5 +1,6 @@
 import { type ClassValue, clsx } from "clsx";
 import { twMerge } from "tailwind-merge";
+import type { WheelEvent } from "react";
 
 export function cn(...inputs: ClassValue[]) {
   return twMerge(clsx(inputs));
@@ -15,6 +16,17 @@ export function cn(...inputs: ClassValue[]) {
 export function truncateWords(text: string, maxWords: number): string {
   const words = text.trim().split(/\s+/);
   return words.length <= maxWords ? text : `${words.slice(0, maxWords).join(" ")}...`;
+}
+
+/** Redirects vertical wheel input to horizontal scroll — for tab strips that
+ * only ever scroll on the x-axis (TabBar, PaneTabStrip), where a plain mouse
+ * wheel would otherwise do nothing (no vertical overflow to catch it) and
+ * let the scroll fall through to whatever's behind the strip. Trackpad
+ * horizontal swipes already arrive as `deltaX` and are left alone. */
+export function scrollHorizontallyOnWheel(event: WheelEvent<HTMLElement>): void {
+  if (event.deltaY === 0) return;
+  event.currentTarget.scrollLeft += event.deltaY;
+  event.preventDefault();
 }
 
 /** `mm:ss` — used by the voice recording timer (Composer). */

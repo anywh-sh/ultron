@@ -11,7 +11,7 @@ import { SortableContext, horizontalListSortingStrategy, useSortable } from "@dn
 import { CSS } from "@dnd-kit/utilities";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
-import { cn, truncateWords } from "@/lib/utils";
+import { cn, scrollHorizontallyOnWheel, truncateWords } from "@/lib/utils";
 import type { Tab } from "@/hooks/useTabs";
 import { profileActiveBgClass } from "@/lib/profiles";
 import { useContextMenu } from "@/hooks/useContextMenu";
@@ -187,7 +187,14 @@ export function TabBar({
         <SortableContext items={tabs.map((tab) => tab.id)} strategy={horizontalListSortingStrategy}>
           <TabsList
             variant="line"
-            className="scrollbar-thin h-auto w-full flex-nowrap justify-start gap-0 overflow-x-auto rounded-none border-b border-border-soft bg-transparent p-0"
+            onWheel={scrollHorizontallyOnWheel}
+            // `overflow-y-hidden` isn't decorative here: per the CSS overflow
+            // spec, `overflow-x: auto` with `overflow-y` left at its default
+            // `visible` gets that default computed up to `auto` too — so
+            // without this, shrinking the window narrow enough for a tab's
+            // content to wrap could pop a vertical scrollbar on a strip
+            // that's meant to only ever scroll horizontally.
+            className="scrollbar-thin h-auto w-full flex-nowrap justify-start gap-0 overflow-x-auto overflow-y-hidden rounded-none border-b border-border-soft bg-transparent p-0"
           >
             {tabs.map((tab) => (
               <SortableTab
