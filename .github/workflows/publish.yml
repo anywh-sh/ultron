@@ -1,0 +1,115 @@
+name: Publish
+
+# Separate from release.yml on purpose (journal/62-distribuicao-instalacao-
+# plano.md §8): this only fires once a release is actually published —
+# release.yml's checksums job is the only thing that flips draft->published,
+# after every build leg has uploaded its assets — so this workflow only ever
+# reads assets that already exist, never races the build matrix. Keeping it
+# separate also keeps the tap-repo PAT out of reach of the (much larger,
+# third-party-action-heavy) build workflow.
+on:
+  release:
+    types: [published]
+
+permissions:
+  contents: read
+
+jobs:
+  # Docker isn't here yet — deferred pending journal/62 §6 (decision 6,
+  # multi-profile-in-a-container needs the relay decoupled from systemd
+  # first, which is a real refactor to code the daily-used relay depends on
+  # today, not just new code — see journal/62 for the full trade-off).
+  homebrew:
+    runs-on: ubuntu-latest
+    steps:
+      # Reads the release's own SHA256SUMS instead of recomputing anything —
+      # same reasoning as release.yml's checksums job: the formula's sha256
+      # has to match the exact bytes a `brew install` downloads, and the
+      # only source of truth for that is the sum release.yml already
+      # published for this tag.
+      - name: Read the darwin-arm64 checksum for this release
+        id: sha
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          tag="${{ github.event.release.tag_name }}"
+          version="${tag#v}"
+          asset="anywh-relay-${version}-darwin-arm64.tar.gz"
+          gh release download "$tag" --repo "${{ github.repository }}" \
+            --pattern SHA256SUMS --output SHA256SUMS --clobber
+          sha="$(grep " $asset\$" SHA256SUMS | cut -d' ' -f1)"
+          if [ -z "$sha" ]; then
+            echo "::error::no SHA256SUMS entry for $asset in $tag — did release.yml's build-relay job run for this release?"
+            exit 1
+          fi
+          echo "version=$version" >> "$GITHUB_OUTPUT"
+          echo "sha256=$sha" >> "$GITHUB_OUTPUT"
+
+      - name: Check out the tap
+        uses: actions/checkout@v7
+        with:
+          repository: anywh-sh/homebrew-tap
+          token: ${{ secrets.HOMEBREW_TAP_TOKEN }}
+          path: tap
+
+      # macOS only, and only Apple Silicon — release.yml's build-relay job
+      # doesn't publish a darwin-x64 leg (journal/62 §4), so an Intel Mac
+      # has no asset to point at yet.
+      - name: Write the formula
+        env:
+          VERSION: ${{ steps.sha.outputs.version }}
+          SHA256: ${{ steps.sha.outputs.sha256 }}
+          REPO: ${{ github.repository }}
+        run: |
+          mkdir -p tap/Formula
+          cat > tap/Formula/anywh-relay.rb <<RUBY
+          class AnywhRelay < Formula
+            desc "Headless relay that lets the anywh app talk to a local Claude Code CLI"
+            homepage "https://anywh.sh"
+            version "${VERSION}"
+            url "https://github.com/${REPO}/releases/download/v${VERSION}/anywh-relay-${VERSION}-darwin-arm64.tar.gz"
+            sha256 "${SHA256}"
+            license "Apache-2.0"
+
+            depends_on arch: :arm64
+            depends_on "node"
+
+            def install
+              libexec.install Dir["*"]
+            end
+
+            service do
+              run [Formula["node"].opt_bin/"node", libexec/"relay/dist/server.js"]
+              working_dir libexec/"relay"
+              environment_variables ANYWH_PROFILE: "default"
+              keep_alive true
+              log_path var/"log/anywh-relay.log"
+              error_log_path var/"log/anywh-relay.error.log"
+            end
+
+            def caveats
+              <<~CAVEATS
+                Create the "default" profile once before starting the service:
+                  #{opt_libexec}/infra/systemd/add-profile.sh default --mode dev --relay-host <this-machine's-tailscale-or-lan-ip>
+
+                Then:
+                  brew services start anywh-relay
+              CAVEATS
+            end
+          end
+          RUBY
+
+      - name: Commit and push
+        env:
+          VERSION: ${{ steps.sha.outputs.version }}
+        run: |
+          cd tap
+          git config user.name "anywh-release-bot"
+          git config user.email "actions@github.com"
+          git add Formula/anywh-relay.rb
+          if git diff --cached --quiet; then
+            echo "No formula changes for ${VERSION} (already up to date)."
+            exit 0
+          fi
+          git commit -m "anywh-relay ${VERSION}"
+          git push
