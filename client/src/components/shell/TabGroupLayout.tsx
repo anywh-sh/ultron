@@ -1,6 +1,7 @@
 import { Fragment, useMemo, useRef, useState, type CSSProperties, type ReactNode } from "react";
 import {
   DndContext,
+  DragOverlay,
   PointerSensor,
   useDroppable,
   useSensor,
@@ -11,6 +12,7 @@ import {
 import { TabGroupStrip, groupEndDropId } from "@/components/shell/TabGroupStrip";
 import { useGroupSizeDrag } from "@/hooks/useGroupSizeDrag";
 import { MAX_GROUPS, type Tab, type TabGroup } from "@/hooks/useTabs";
+import { profileColorClass } from "@/lib/profiles";
 import { cn } from "@/lib/utils";
 
 const HANDLE_PX = 4;
@@ -88,22 +90,40 @@ function availExpr(total: number): string {
   return total > 1 ? `calc(100% - ${(total - 1) * HANDLE_PX}px)` : "100%";
 }
 
-/** Left/right sliver over the content area that turns a drop into "create a
- * new group here" instead of "move within/into an existing one" — only
- * rendered while a drag is in flight and there's room for one more group
- * (`MAX_GROUPS`), so there's never a live drop target promising a split that
- * `onSplitTabToNewGroup` would then silently refuse. */
+/** Covers roughly the left/right half of the content area (not a thin sliver
+ * at the very edge) — painting the actual area a new group would occupy,
+ * not just a narrow target to hit, so it reads as "drop here to fill this
+ * space" the way an editor's own split-preview does. Only rendered while a
+ * drag is in flight and there's room for one more group (`MAX_GROUPS`), so
+ * there's never a live drop target promising a split that
+ * `onSplitTabToNewGroup` would then silently refuse. A faint tint marks the
+ * zone as droppable throughout the drag; it brightens on actual hover. */
 function EdgeDropZone({ id, side }: { id: string; side: "left" | "right" }) {
   const { setNodeRef, isOver } = useDroppable({ id });
   return (
     <div
       ref={setNodeRef}
       className={cn(
-        "absolute inset-y-0 z-20 w-10 border-accent",
-        side === "left" ? "left-0 border-r-2" : "right-0 border-l-2",
-        isOver ? "bg-accent/30" : "bg-transparent",
+        "absolute inset-y-0 z-20 w-2/5 transition-colors",
+        side === "left" ? "left-0" : "right-0",
+        isOver ? "bg-accent/25" : "bg-accent/8",
       )}
     />
+  );
+}
+
+/** Floats with the pointer for the whole drag (`DragOverlay`) — without it,
+ * the dragged tab's own translate-transform (from `useSortable`) is still
+ * clipped the moment it crosses its strip's `overflow-x-auto` boundary, so
+ * dragging toward the content area to split looked like nothing was
+ * happening at all. Deliberately simpler than the real tab (no drag handle,
+ * no buttons) — it's a preview, not an interactive element. */
+function DragPreview({ tab }: { tab: Tab }) {
+  return (
+    <div className="flex max-w-56 items-center gap-1.5 rounded-md border border-border bg-bg-sidebar px-3 py-1.5 font-mono text-xs text-foreground shadow-lg">
+      <span className={cn("size-1.5 shrink-0 rounded-full", profileColorClass(tab.profileId))} />
+      <span className="truncate">{tab.title ?? "Nova sessão"}</span>
+    </div>
   );
 }
 
@@ -146,6 +166,7 @@ export function TabGroupLayout({
   const sizes = groups.map((group) => group.size);
   const { draggingIndex, startDrag } = useGroupSizeDrag(sizes, containerRef, onCommitSizes);
   const [isDraggingTab, setIsDraggingTab] = useState(false);
+  const [activeDragTab, setActiveDragTab] = useState<Tab | null>(null);
   const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 8 } }));
 
   const groupIndexByTabId = useMemo(() => {
@@ -159,12 +180,14 @@ export function TabGroupLayout({
   const tabById = useMemo(() => new Map(tabs.map((tab) => [tab.id, tab])), [tabs]);
   const avail = availExpr(groups.length);
 
-  function handleDragStart(_event: DragStartEvent): void {
+  function handleDragStart(event: DragStartEvent): void {
     setIsDraggingTab(true);
+    setActiveDragTab(tabById.get(String(event.active.id)) ?? null);
   }
 
   function handleDragEnd(event: DragEndEvent): void {
     setIsDraggingTab(false);
+    setActiveDragTab(null);
     const { active, over } = event;
     if (!over) return;
     const tabId = String(active.id);
@@ -190,7 +213,15 @@ export function TabGroupLayout({
     const flatTabIds = groups.flatMap((group) => group.tabIds);
     const lastGroupId = groups[groups.length - 1]?.id ?? "";
     return (
-      <DndContext sensors={sensors} onDragEnd={handleDragEnd}>
+      <DndContext
+        sensors={sensors}
+        onDragStart={handleDragStart}
+        onDragEnd={handleDragEnd}
+        onDragCancel={() => {
+          setIsDraggingTab(false);
+          setActiveDragTab(null);
+        }}
+      >
         <div className="flex h-full min-w-0 flex-col">
           <TabGroupStrip
             groupId={lastGroupId}
@@ -216,12 +247,21 @@ export function TabGroupLayout({
             ))}
           </div>
         </div>
+        <DragOverlay>{activeDragTab && <DragPreview tab={activeDragTab} />}</DragOverlay>
       </DndContext>
     );
   }
 
   return (
-    <DndContext sensors={sensors} onDragStart={handleDragStart} onDragEnd={handleDragEnd} onDragCancel={() => setIsDraggingTab(false)}>
+    <DndContext
+      sensors={sensors}
+      onDragStart={handleDragStart}
+      onDragEnd={handleDragEnd}
+      onDragCancel={() => {
+        setIsDraggingTab(false);
+        setActiveDragTab(null);
+      }}
+    >
       <div ref={containerRef} className="flex h-full min-w-0 flex-col" style={groupCssVars(groups)}>
         <div className="flex h-9 w-full shrink-0">
           {groups.map((group, index) => (
@@ -301,6 +341,7 @@ export function TabGroupLayout({
           )}
         </div>
       </div>
+      <DragOverlay>{activeDragTab && <DragPreview tab={activeDragTab} />}</DragOverlay>
     </DndContext>
   );
 }
