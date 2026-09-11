@@ -418,9 +418,12 @@ body {
 /* iOS (docs/24): WebKit faz auto-zoom da página inteira ao focar um input
  * com font-size < 16px — o meta viewport já desliga isso
  * (`user-scalable=no`), mas 16px aqui também é defesa em profundidade (e
- * combina com o texto maior do resto da UI mobile). */
+ * combina com o texto maior do resto da UI mobile). Fixo em px, não `rem`:
+ * a escala de fonte do app (`lib/fontScale.ts`) move o `font-size` da raiz,
+ * e esse pin de 16px não pode acompanhar — diminuir a escala não pode
+ * reabrir o auto-zoom. */
 .composer-editor.ios .ProseMirror {
-  font-size: 1rem;
+  font-size: 16px;
   /* `--composer-max-height` é calculado em JS a partir de
    * `visualViewport.height` (Composer.tsx) — o fixo de 480px acima não
    * reflete o espaço disponível quando o teclado do iOS está aberto. */

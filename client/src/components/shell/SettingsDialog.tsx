@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { Folder, X } from "lucide-react";
+import { Folder, Minus, Plus, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
   AlertDialog,
@@ -16,6 +16,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { FolderPickerDialog } from "@/components/chat/FolderPickerDialog";
 import { ThemeSection } from "@/components/shell/ThemeSection";
 import { useDefaultPaths } from "@/hooks/useDefaultPaths";
+import { DEFAULT_FONT_SCALE, FONT_SCALE_STEP, MAX_FONT_SCALE, MIN_FONT_SCALE, useFontScale } from "@/hooks/useFontScale";
 import {
   DEFAULT_MODEL_PREFERENCE,
   useModelPreference,
@@ -131,6 +132,44 @@ function ProfileModelRow({
             ))}
           </SelectContent>
         </Select>
+      )}
+    </div>
+  );
+}
+
+/** Device-local, not scoped to `scopedProfile` — unlike the rest of
+ * "Personalização" this never touches a relay, so it doesn't move when the
+ * profile selector above it changes. */
+function FontSizeRow() {
+  const { scale, setScale } = useFontScale();
+
+  return (
+    <div className="flex items-center justify-between gap-3 rounded-md border border-border px-3 py-2.5">
+      <div className="flex items-center gap-2">
+        <Button
+          variant="outline"
+          size="icon-sm"
+          aria-label="Diminuir fonte"
+          disabled={scale <= MIN_FONT_SCALE}
+          onClick={() => setScale(scale - FONT_SCALE_STEP)}
+        >
+          <Minus className="size-3.5" />
+        </Button>
+        <span className="w-10 text-center text-sm tabular-nums">{scale}%</span>
+        <Button
+          variant="outline"
+          size="icon-sm"
+          aria-label="Aumentar fonte"
+          disabled={scale >= MAX_FONT_SCALE}
+          onClick={() => setScale(scale + FONT_SCALE_STEP)}
+        >
+          <Plus className="size-3.5" />
+        </Button>
+      </div>
+      {scale !== DEFAULT_FONT_SCALE && (
+        <Button variant="ghost" size="sm" onClick={() => setScale(DEFAULT_FONT_SCALE)}>
+          Redefinir
+        </Button>
       )}
     </div>
   );
@@ -427,6 +466,15 @@ export function SettingsDialog({ open, onOpenChange, activeProfile }: SettingsDi
                 </div>
                 <ProfileIdentityRow profile={scopedProfile} effectiveColorIndex={effectiveColorIndex} />
                 <ThemeSection scopedProfile={scopedProfile} activeProfile={activeProfile} allProfiles={profiles} />
+
+                <div>
+                  <h3 className="text-sm font-medium">Tamanho da fonte</h3>
+                  <p className="text-xs text-muted-foreground">
+                    Escala todo o app — bom pra monitores pequenos ou grandes. Vale só pra este
+                    dispositivo, não é sincronizado entre perfis.
+                  </p>
+                </div>
+                <FontSizeRow />
               </div>
             )}
 
