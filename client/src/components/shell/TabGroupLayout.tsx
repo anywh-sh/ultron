@@ -1,10 +1,50 @@
-import { Fragment, useMemo, useRef, type CSSProperties, type ReactNode } from "react";
-import { TabGroupStrip } from "@/components/shell/TabGroupStrip";
+import { Fragment, useMemo, useRef, useState, type CSSProperties, type ReactNode } from "react";
+import {
+  DndContext,
+  PointerSensor,
+  useDroppable,
+  useSensor,
+  useSensors,
+  type DragEndEvent,
+  type DragStartEvent,
+} from "@dnd-kit/core";
+import { TabGroupStrip, groupEndDropId } from "@/components/shell/TabGroupStrip";
 import { useGroupSizeDrag } from "@/hooks/useGroupSizeDrag";
-import type { Tab, TabGroup } from "@/hooks/useTabs";
+import { MAX_GROUPS, type Tab, type TabGroup } from "@/hooks/useTabs";
 import { cn } from "@/lib/utils";
 
 const HANDLE_PX = 4;
+export const EDGE_START_DROP_ID = "group-edge-start";
+export const EDGE_END_DROP_ID = "group-edge-end";
+
+export type TabDropTarget =
+  | { type: "split-start" }
+  | { type: "split-end" }
+  | { type: "move"; groupId: string; index: number };
+
+/** Pure resolution of a drag's `over.id` into what should happen on drop —
+ * pulled out of `onDragEnd` so it's testable without simulating a real
+ * dnd-kit pointer gesture (happy-dom has no layout engine for dnd-kit's own
+ * collision detection to work with anyway). `null` means "no-op" — dropped
+ * on itself, or on something no longer valid (over is a snapshot of drag
+ * start's registered droppables, which could in principle include stale ids
+ * a moment after `groups` changes underneath). */
+export function resolveTabDrop(tabId: string, overId: string, groups: TabGroup[]): TabDropTarget | null {
+  if (overId === tabId) return null;
+  if (overId === EDGE_START_DROP_ID) return { type: "split-start" };
+  if (overId === EDGE_END_DROP_ID) return { type: "split-end" };
+
+  const endMatch = groups.find((group) => groupEndDropId(group.id) === overId);
+  if (endMatch) return { type: "move", groupId: endMatch.id, index: endMatch.tabIds.length };
+
+  // Otherwise `over` is another tab — reorder/move relative to it, same
+  // splice-based semantics as the single-group case (arrayMove: the index
+  // is read against the pre-drop array, applied after the dragged item is
+  // already removed from it).
+  const targetGroup = groups.find((group) => group.tabIds.includes(overId));
+  if (!targetGroup) return null;
+  return { type: "move", groupId: targetGroup.id, index: targetGroup.tabIds.indexOf(overId) };
+}
 
 interface TabGroupLayoutProps {
   tabs: Tab[];
@@ -13,6 +53,7 @@ interface TabGroupLayoutProps {
   onFocusGroup: (groupId: string) => void;
   onClose: (tabId: string) => void;
   onMoveTab: (tabId: string, groupId: string, index: number) => void;
+  onSplitTabToNewGroup: (tabId: string, afterGroupId: string | null) => void;
   onCommitSizes: (sizes: number[]) => void;
   onRenameSession: (tabId: string, title: string) => void;
   onDelete: (tabId: string) => void;
@@ -37,6 +78,25 @@ function availExpr(total: number): string {
   return total > 1 ? `calc(100% - ${(total - 1) * HANDLE_PX}px)` : "100%";
 }
 
+/** Left/right sliver over the content area that turns a drop into "create a
+ * new group here" instead of "move within/into an existing one" — only
+ * rendered while a drag is in flight and there's room for one more group
+ * (`MAX_GROUPS`), so there's never a live drop target promising a split that
+ * `onSplitTabToNewGroup` would then silently refuse. */
+function EdgeDropZone({ id, side }: { id: string; side: "left" | "right" }) {
+  const { setNodeRef, isOver } = useDroppable({ id });
+  return (
+    <div
+      ref={setNodeRef}
+      className={cn(
+        "absolute inset-y-0 z-20 w-10 border-accent",
+        side === "left" ? "left-0 border-r-2" : "right-0 border-l-2",
+        isOver ? "bg-accent/30" : "bg-transparent",
+      )}
+    />
+  );
+}
+
 /**
  * Replaces `TabBar` in `App.tsx` — renders every group's strip side by side
  * on top, and every tab's panel in one flat, absolutely-positioned layer
@@ -49,6 +109,13 @@ function availExpr(total: number): string {
  * (over the `--g{i}-frac`/`--g{i}-cum` custom properties from `groupCssVars`)
  * for their geometry, so they stay pixel-aligned by construction — no
  * measuring, no one-frame lag while dragging a resize handle.
+ *
+ * Owns the single `DndContext` covering every group's strip — dragging a tab
+ * only ever resolves its target (a specific tab to reorder next to, a
+ * group's trailing drop zone, or an edge zone to split into a new group) in
+ * `onDragEnd`, never in `onDragOver`: moving anything mid-drag would collapse
+ * the source group and jump the layout out from under the pointer the moment
+ * it emptied out.
  */
 export function TabGroupLayout({
   tabs,
@@ -57,6 +124,7 @@ export function TabGroupLayout({
   onFocusGroup,
   onClose,
   onMoveTab,
+  onSplitTabToNewGroup,
   onCommitSizes,
   onRenameSession,
   onDelete,
@@ -65,6 +133,8 @@ export function TabGroupLayout({
   const containerRef = useRef<HTMLDivElement>(null);
   const sizes = groups.map((group) => group.size);
   const { draggingIndex, startDrag } = useGroupSizeDrag(sizes, containerRef, onCommitSizes);
+  const [isDraggingTab, setIsDraggingTab] = useState(false);
+  const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 8 } }));
 
   const groupIndexByTabId = useMemo(() => {
     const map = new Map<string, number>();
@@ -77,79 +147,107 @@ export function TabGroupLayout({
   const tabById = useMemo(() => new Map(tabs.map((tab) => [tab.id, tab])), [tabs]);
   const avail = availExpr(groups.length);
 
-  return (
-    <div ref={containerRef} className="flex h-full min-w-0 flex-col" style={groupCssVars(groups)}>
-      <div className="flex h-9 w-full shrink-0">
-        {groups.map((group, index) => (
-          <Fragment key={group.id}>
-            {index > 0 && (
-              <div
-                onPointerDown={startDrag(index - 1)}
-                className={cn("z-10 w-1 shrink-0 cursor-col-resize hover:bg-border", draggingIndex === index - 1 && "bg-border")}
-              />
-            )}
-            <div
-              data-testid={`group-strip-${group.id}`}
-              className="min-w-0 shrink-0 grow-0 overflow-hidden"
-              style={{
-                flexBasis: `calc(${avail} * var(--g${index}-frac, ${group.size}))`,
-                transition: draggingIndex === null ? "flex-basis 150ms ease" : "none",
-              }}
-              // Foreground for "focus follows the pointer": clicking anywhere
-              // in a group's strip (not just its tabs) should re-focus that
-              // group — capture phase so it fires even when the click's
-              // actual target (e.g. a tab button) also has its own handler.
-              onPointerDownCapture={() => onFocusGroup(group.id)}
-            >
-              <TabGroupStrip
-                tabs={group.tabIds.map((id) => tabById.get(id)).filter((tab): tab is Tab => tab !== undefined)}
-                activeTabId={group.activeTabId}
-                onSelect={onSelect}
-                onClose={onClose}
-                onReorder={(tabId, overTabId) => {
-                  const index2 = group.tabIds.indexOf(overTabId);
-                  if (index2 !== -1) onMoveTab(tabId, group.id, index2);
-                }}
-                onRenameSession={onRenameSession}
-                onDelete={onDelete}
-              />
-            </div>
-          </Fragment>
-        ))}
-      </div>
+  function handleDragStart(_event: DragStartEvent): void {
+    setIsDraggingTab(true);
+  }
 
-      <div className="relative min-h-0 flex-1">
-        {tabs.map((tab) => {
-          const groupIndex = groupIndexByTabId.get(tab.id);
-          if (groupIndex === undefined) return null;
-          const group = groups[groupIndex];
-          const isVisible = group.activeTabId === tab.id;
-          return (
-            <div
-              key={tab.id}
-              data-testid={`tab-panel-${tab.id}`}
-              // `invisible`, never `display:none`/zero size — a hidden tab's
-              // panel keeps its group's box (a virtualized `MessageLog`'s
-              // `ResizeObserver` would corrupt its height cache the instant
-              // it measures 0, even for a single frame).
-              className={cn("absolute inset-y-0 overflow-hidden", !isVisible && "invisible")}
-              style={{
-                left: `calc(${avail} * var(--g${groupIndex}-cum, 0) + ${groupIndex * HANDLE_PX}px)`,
-                width: `calc(${avail} * var(--g${groupIndex}-frac, ${group.size}))`,
-                // Scopes layout/paint invalidation to this one panel — a
-                // resize of a sibling group must never force this one to
-                // re-layout too. Not `strict`/`size`: that would contain
-                // this box's own size against its content, which is exactly
-                // what would corrupt the virtualizer's measurement above.
-                contain: "layout paint",
-              }}
-              onPointerDownCapture={() => onFocusGroup(group.id)}
-            >
-              {renderPanel(tab)}
-            </div>
-          );
-        })}
+  function handleDragEnd(event: DragEndEvent): void {
+    setIsDraggingTab(false);
+    const { active, over } = event;
+    if (!over) return;
+    const tabId = String(active.id);
+    const target = resolveTabDrop(tabId, String(over.id), groups);
+    if (!target) return;
+
+    if (target.type === "split-start") {
+      onSplitTabToNewGroup(tabId, null);
+    } else if (target.type === "split-end") {
+      const lastGroup = groups[groups.length - 1];
+      if (lastGroup) onSplitTabToNewGroup(tabId, lastGroup.id);
+    } else {
+      onMoveTab(tabId, target.groupId, target.index);
+    }
+  }
+
+  return (
+    <DndContext sensors={sensors} onDragStart={handleDragStart} onDragEnd={handleDragEnd} onDragCancel={() => setIsDraggingTab(false)}>
+      <div ref={containerRef} className="flex h-full min-w-0 flex-col" style={groupCssVars(groups)}>
+        <div className="flex h-9 w-full shrink-0">
+          {groups.map((group, index) => (
+            <Fragment key={group.id}>
+              {index > 0 && (
+                <div
+                  onPointerDown={startDrag(index - 1)}
+                  className={cn("z-10 w-1 shrink-0 cursor-col-resize hover:bg-border", draggingIndex === index - 1 && "bg-border")}
+                />
+              )}
+              <div
+                data-testid={`group-strip-${group.id}`}
+                className="min-w-0 shrink-0 grow-0 overflow-hidden"
+                style={{
+                  flexBasis: `calc(${avail} * var(--g${index}-frac, ${group.size}))`,
+                  transition: draggingIndex === null ? "flex-basis 150ms ease" : "none",
+                }}
+                // Foreground for "focus follows the pointer": clicking anywhere
+                // in a group's strip (not just its tabs) should re-focus that
+                // group — capture phase so it fires even when the click's
+                // actual target (e.g. a tab button) also has its own handler.
+                onPointerDownCapture={() => onFocusGroup(group.id)}
+              >
+                <TabGroupStrip
+                  groupId={group.id}
+                  tabs={group.tabIds.map((id) => tabById.get(id)).filter((tab): tab is Tab => tab !== undefined)}
+                  activeTabId={group.activeTabId}
+                  onSelect={onSelect}
+                  onClose={onClose}
+                  onRenameSession={onRenameSession}
+                  onDelete={onDelete}
+                  onSplitToNewGroup={(tabId) => onSplitTabToNewGroup(tabId, group.id)}
+                />
+              </div>
+            </Fragment>
+          ))}
+        </div>
+
+        <div className="relative min-h-0 flex-1">
+          {tabs.map((tab) => {
+            const groupIndex = groupIndexByTabId.get(tab.id);
+            if (groupIndex === undefined) return null;
+            const group = groups[groupIndex];
+            const isVisible = group.activeTabId === tab.id;
+            return (
+              <div
+                key={tab.id}
+                data-testid={`tab-panel-${tab.id}`}
+                // `invisible`, never `display:none`/zero size — a hidden tab's
+                // panel keeps its group's box (a virtualized `MessageLog`'s
+                // `ResizeObserver` would corrupt its height cache the instant
+                // it measures 0, even for a single frame).
+                className={cn("absolute inset-y-0 overflow-hidden", !isVisible && "invisible")}
+                style={{
+                  left: `calc(${avail} * var(--g${groupIndex}-cum, 0) + ${groupIndex * HANDLE_PX}px)`,
+                  width: `calc(${avail} * var(--g${groupIndex}-frac, ${group.size}))`,
+                  // Scopes layout/paint invalidation to this one panel — a
+                  // resize of a sibling group must never force this one to
+                  // re-layout too. Not `strict`/`size`: that would contain
+                  // this box's own size against its content, which is exactly
+                  // what would corrupt the virtualizer's measurement above.
+                  contain: "layout paint",
+                }}
+                onPointerDownCapture={() => onFocusGroup(group.id)}
+              >
+                {renderPanel(tab)}
+              </div>
+            );
+          })}
+          {isDraggingTab && groups.length < MAX_GROUPS && (
+            <>
+              <EdgeDropZone id={EDGE_START_DROP_ID} side="left" />
+              <EdgeDropZone id={EDGE_END_DROP_ID} side="right" />
+            </>
+          )}
+        </div>
       </div>
-    </div>
+    </DndContext>
   );
 }

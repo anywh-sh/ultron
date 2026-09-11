@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { Pencil, Trash2 } from "lucide-react";
+import { Columns2, Pencil, Trash2 } from "lucide-react";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import {
   AlertDialog,
@@ -20,6 +20,11 @@ interface SessionDeleteMenuProps {
   /** Optional: only TabGroupStrip passes this today (SessionList already has a
    * dedicated pencil button for rename, no need to duplicate it in the menu). */
   onRename?: () => void;
+  /** Optional: only TabGroupStrip passes this — one of the three ways to
+   * split a tab into its own group (the other two: drag it to the content
+   * area's edge, or `Ctrl+\`). No-op (and hidden) when the tab is already
+   * alone in its group, same guard `splitTabToNewGroup` itself enforces. */
+  onMoveToNewGroup?: () => void;
 }
 
 /** Invisible trigger anchored to the cursor (see useContextMenu). Reused by
@@ -30,7 +35,7 @@ interface SessionDeleteMenuProps {
  * `window.confirm` — the WebView's native dialog isn't reliable across all
  * platforms (same class of problem documented in the backlog for
  * alert/confirm on macOS), so deletion would silently not happen. */
-export function SessionDeleteMenu({ menu, title, onDelete, onRename }: SessionDeleteMenuProps) {
+export function SessionDeleteMenu({ menu, title, onDelete, onRename, onMoveToNewGroup }: SessionDeleteMenuProps) {
   const [confirmOpen, setConfirmOpen] = useState(false);
 
   return (
@@ -50,6 +55,18 @@ export function SessionDeleteMenu({ menu, title, onDelete, onRename }: SessionDe
             >
               <Pencil />
               Renomear sessão
+            </DropdownMenuItem>
+          )}
+          {onMoveToNewGroup && (
+            <DropdownMenuItem
+              onSelect={(event) => {
+                event.preventDefault();
+                menu.setOpen(false);
+                onMoveToNewGroup();
+              }}
+            >
+              <Columns2 />
+              Mover para novo grupo
             </DropdownMenuItem>
           )}
           <DropdownMenuItem

@@ -1,7 +1,8 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { cleanup, render, screen } from "@testing-library/react";
 import { TooltipProvider } from "@/components/ui/tooltip";
-import { TabGroupLayout } from "./TabGroupLayout";
+import { TabGroupLayout, EDGE_START_DROP_ID, EDGE_END_DROP_ID, resolveTabDrop } from "./TabGroupLayout";
+import { groupEndDropId } from "./TabGroupStrip";
 import type { Tab, TabGroup } from "@/hooks/useTabs";
 
 afterEach(() => cleanup());
@@ -40,6 +41,7 @@ function renderLayout(tabs: Tab[], groups: TabGroup[]) {
         onFocusGroup={vi.fn()}
         onClose={vi.fn()}
         onMoveTab={vi.fn()}
+        onSplitTabToNewGroup={vi.fn()}
         onCommitSizes={vi.fn()}
         onRenameSession={vi.fn()}
         onDelete={vi.fn()}
@@ -109,5 +111,44 @@ describe("TabGroupLayout geometry", () => {
     expect(hiddenPanel).toHaveClass("invisible");
     // Still in the DOM, not removed — that's the whole point of the flat layer.
     expect(hiddenPanel).toBeInTheDocument();
+  });
+});
+
+// Dragging a tab between groups can't be exercised by simulating a real
+// dnd-kit pointer gesture in happy-dom (its collision detection depends on
+// element rects, and happy-dom has no layout engine — see the stubbed
+// `getBoundingClientRect` in tests/setup.ts). `resolveTabDrop` is the pure
+// function `onDragEnd` defers to for "what should this drop do", pulled out
+// specifically so it's testable on its own merits: given a tab id, an
+// `over.id`, and the current groups, what should happen.
+describe("resolveTabDrop", () => {
+  const groups = [group("g1", ["s1", "s2"], 0.5), group("g2", ["s3"], 0.5)];
+
+  it("drops on itself → no-op", () => {
+    expect(resolveTabDrop("s1", "s1", groups)).toBeNull();
+  });
+
+  it("drops on another tab in the same group → reorder within it", () => {
+    expect(resolveTabDrop("s1", "s2", groups)).toEqual({ type: "move", groupId: "g1", index: 1 });
+  });
+
+  it("drops on a tab in a different group → move into that group, at its index", () => {
+    expect(resolveTabDrop("s1", "s3", groups)).toEqual({ type: "move", groupId: "g2", index: 0 });
+  });
+
+  it("drops on a group's trailing drop zone → move to the end of that group", () => {
+    expect(resolveTabDrop("s3", groupEndDropId("g1"), groups)).toEqual({ type: "move", groupId: "g1", index: 2 });
+  });
+
+  it("drops on the left edge zone → split into a new first group", () => {
+    expect(resolveTabDrop("s1", EDGE_START_DROP_ID, groups)).toEqual({ type: "split-start" });
+  });
+
+  it("drops on the right edge zone → split into a new last group", () => {
+    expect(resolveTabDrop("s1", EDGE_END_DROP_ID, groups)).toEqual({ type: "split-end" });
+  });
+
+  it("drops on an id that matches nothing (stale over) → no-op", () => {
+    expect(resolveTabDrop("s1", "does-not-exist", groups)).toBeNull();
   });
 });

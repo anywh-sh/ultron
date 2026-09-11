@@ -595,6 +595,7 @@ export default function App() {
           onFocusGroup={tabsState.focusGroup}
           onClose={tabsState.closeTab}
           onMoveTab={tabsState.moveTab}
+          onSplitTabToNewGroup={tabsState.splitTabToNewGroup}
           onCommitSizes={tabsState.setGroupSizes}
           onRenameSession={(tabId, title) => {
             const tab = tabsState.tabs.find((t) => t.id === tabId);

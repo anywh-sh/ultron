@@ -1,6 +1,7 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { cleanup, render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
+import { DndContext } from "@dnd-kit/core";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { TabGroupStrip } from "./TabGroupStrip";
 import type { Tab } from "@/hooks/useTabs";
@@ -23,15 +24,18 @@ function tab(overrides: Partial<Tab> = {}): Tab {
 function renderStrip(tabs: Tab[], activeTabId: string | null) {
   return render(
     <TooltipProvider>
-      <TabGroupStrip
-        tabs={tabs}
-        activeTabId={activeTabId}
-        onSelect={vi.fn()}
-        onClose={vi.fn()}
-        onReorder={vi.fn()}
-        onRenameSession={vi.fn()}
-        onDelete={vi.fn()}
-      />
+      <DndContext>
+        <TabGroupStrip
+          groupId="g1"
+          tabs={tabs}
+          activeTabId={activeTabId}
+          onSelect={vi.fn()}
+          onClose={vi.fn()}
+          onRenameSession={vi.fn()}
+          onDelete={vi.fn()}
+          onSplitToNewGroup={vi.fn()}
+        />
+      </DndContext>
     </TooltipProvider>,
   );
 }
@@ -90,7 +94,18 @@ describe("TabGroupStrip", () => {
     const b = tab({ id: "s2", title: "Segunda" });
     render(
       <TooltipProvider>
-        <TabGroupStrip tabs={[a, b]} activeTabId={a.id} onSelect={onSelect} onClose={vi.fn()} onReorder={vi.fn()} onRenameSession={vi.fn()} onDelete={vi.fn()} />
+        <DndContext>
+          <TabGroupStrip
+            groupId="g1"
+            tabs={[a, b]}
+            activeTabId={a.id}
+            onSelect={onSelect}
+            onClose={vi.fn()}
+            onRenameSession={vi.fn()}
+            onDelete={vi.fn()}
+            onSplitToNewGroup={vi.fn()}
+          />
+        </DndContext>
       </TooltipProvider>,
     );
 

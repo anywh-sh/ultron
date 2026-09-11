@@ -1,12 +1,6 @@
 import { useRef, useState } from "react";
 import { Loader2, X } from "lucide-react";
-import {
-  DndContext,
-  PointerSensor,
-  type DragEndEvent,
-  useSensor,
-  useSensors,
-} from "@dnd-kit/core";
+import { useDroppable } from "@dnd-kit/core";
 import { SortableContext, horizontalListSortingStrategy, useSortable } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
@@ -23,23 +17,34 @@ import { RenameSessionDialog } from "@/components/shell/RenameSessionDialog";
 // line TooltipContent below forces with `whitespace-nowrap`.
 const MAX_TOOLTIP_TITLE_WORDS = 12;
 
+/** Id of a group's trailing drop zone — matched against `over.id` by
+ * `TabGroupLayout`'s single `onDragEnd` to mean "append at the end of this
+ * group" (also the only drop target an empty group has, since it has no
+ * tabs of its own to drop onto). */
+export function groupEndDropId(groupId: string): string {
+  return `group-end-${groupId}`;
+}
+
 interface TabGroupStripProps {
+  groupId: string;
   tabs: Tab[];
   activeTabId: string | null;
   onSelect: (tabId: string) => void;
   onClose: (tabId: string) => void;
-  onReorder: (activeTabId: string, overTabId: string) => void;
   onRenameSession: (tabId: string, title: string) => void;
   onDelete: (tabId: string) => void;
+  onSplitToNewGroup: (tabId: string) => void;
 }
 
 interface SortableTabProps {
   tab: Tab;
   isActive: boolean;
+  canSplit: boolean;
   onSelect: (tabId: string) => void;
   onClose: (tabId: string) => void;
   onRename: (tab: Tab) => void;
   onDelete: (tabId: string) => void;
+  onSplitToNewGroup: (tabId: string) => void;
   buttonRef: (id: string, el: HTMLButtonElement | null) => void;
 }
 
@@ -64,7 +69,7 @@ const TAB_TRIGGER_CLASS =
  * `TabGroupStrip`'s `handleTabListKeyDown`), would collide with "move
  * dragged item".
  */
-function SortableTab({ tab, isActive, onSelect, onClose, onRename, onDelete, buttonRef }: SortableTabProps) {
+function SortableTab({ tab, isActive, canSplit, onSelect, onClose, onRename, onDelete, onSplitToNewGroup, buttonRef }: SortableTabProps) {
   const { setNodeRef, listeners, transform, transition, isDragging } = useSortable({ id: tab.id });
   const menu = useContextMenu();
 
@@ -152,6 +157,7 @@ function SortableTab({ tab, isActive, onSelect, onClose, onRename, onDelete, but
             title={tab.title ?? "nova sessão"}
             onRename={() => onRename(tab)}
             onDelete={() => onDelete(tab.id)}
+            onMoveToNewGroup={canSplit ? () => onSplitToNewGroup(tab.id) : undefined}
           />
         </div>
       </TooltipTrigger>
@@ -172,16 +178,20 @@ function SortableTab({ tab, isActive, onSelect, onClose, onRename, onDelete, but
  * contained: no Radix `Tabs` ancestor needed (each strip owns its own
  * active-tab state via `activeTabId`/`onSelect`), which is exactly what lets
  * more than one of these be mounted at once with independently active tabs.
+ *
+ * No `DndContext`/sensors of its own — `TabGroupLayout` owns a single one
+ * covering every group, which is what makes dragging a tab *between* groups
+ * possible at all. This only contributes its `SortableContext` (for
+ * same-strip reordering) and the trailing drop zone.
  */
-export function TabGroupStrip({ tabs, activeTabId, onSelect, onClose, onReorder, onRenameSession, onDelete }: TabGroupStripProps) {
-  const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 8 } }));
+export function TabGroupStrip({ groupId, tabs, activeTabId, onSelect, onClose, onRenameSession, onDelete, onSplitToNewGroup }: TabGroupStripProps) {
   const [renaming, setRenaming] = useState<{ id: string; title: string } | null>(null);
   const buttonRefs = useRef(new Map<string, HTMLButtonElement>());
-
-  function handleDragEnd(event: DragEndEvent): void {
-    const { active, over } = event;
-    if (over && over.id !== active.id) onReorder(String(active.id), String(over.id));
-  }
+  // Fills whatever width the tabs don't — a separate, non-overlapping
+  // droppable rather than wrapping the whole strip, so it never competes
+  // with an individual tab's own droppable rect for `over` (dnd-kit doesn't
+  // give a nested droppable priority over its overlapping parent).
+  const { setNodeRef: setEndDropRef, isOver: isOverEnd } = useDroppable({ id: groupEndDropId(groupId) });
 
   // Manual roving focus (ArrowLeft/Right) — replaces the Radix `Tabs` root's
   // own `RovingFocusGroup`, which went away along with it. "Automatic
@@ -204,39 +214,40 @@ export function TabGroupStrip({ tabs, activeTabId, onSelect, onClose, onReorder,
 
   return (
     <>
-      <DndContext sensors={sensors} onDragEnd={handleDragEnd}>
-        <SortableContext items={tabs.map((tab) => tab.id)} strategy={horizontalListSortingStrategy}>
-          <div
-            role="tablist"
-            aria-orientation="horizontal"
-            onWheel={scrollHorizontallyOnWheel}
-            onKeyDown={handleTabListKeyDown}
-            // `overflow-y-hidden` isn't decorative here: per the CSS overflow
-            // spec, `overflow-x: auto` with `overflow-y` left at its default
-            // `visible` gets that default computed up to `auto` too — so
-            // without this, shrinking the window narrow enough for a tab's
-            // content to wrap could pop a vertical scrollbar on a strip
-            // that's meant to only ever scroll horizontally.
-            className="scrollbar-thin flex h-9 w-full flex-nowrap items-center justify-start gap-0 overflow-x-auto overflow-y-hidden rounded-none border-b border-border-soft bg-transparent p-0 text-muted-foreground"
-          >
-            {tabs.map((tab) => (
-              <SortableTab
-                key={tab.id}
-                tab={tab}
-                isActive={tab.id === activeTabId}
-                onSelect={onSelect}
-                onClose={onClose}
-                onRename={(renamedTab) => setRenaming({ id: renamedTab.id, title: renamedTab.title ?? "" })}
-                onDelete={onDelete}
-                buttonRef={(id, el) => {
-                  if (el) buttonRefs.current.set(id, el);
-                  else buttonRefs.current.delete(id);
-                }}
-              />
-            ))}
-          </div>
-        </SortableContext>
-      </DndContext>
+      <SortableContext items={tabs.map((tab) => tab.id)} strategy={horizontalListSortingStrategy}>
+        <div
+          role="tablist"
+          aria-orientation="horizontal"
+          onWheel={scrollHorizontallyOnWheel}
+          onKeyDown={handleTabListKeyDown}
+          // `overflow-y-hidden` isn't decorative here: per the CSS overflow
+          // spec, `overflow-x: auto` with `overflow-y` left at its default
+          // `visible` gets that default computed up to `auto` too — so
+          // without this, shrinking the window narrow enough for a tab's
+          // content to wrap could pop a vertical scrollbar on a strip
+          // that's meant to only ever scroll horizontally.
+          className="scrollbar-thin flex h-9 w-full flex-nowrap items-center justify-start gap-0 overflow-x-auto overflow-y-hidden rounded-none border-b border-border-soft bg-transparent p-0 text-muted-foreground"
+        >
+          {tabs.map((tab) => (
+            <SortableTab
+              key={tab.id}
+              tab={tab}
+              isActive={tab.id === activeTabId}
+              canSplit={tabs.length > 1}
+              onSelect={onSelect}
+              onClose={onClose}
+              onRename={(renamedTab) => setRenaming({ id: renamedTab.id, title: renamedTab.title ?? "" })}
+              onDelete={onDelete}
+              onSplitToNewGroup={onSplitToNewGroup}
+              buttonRef={(id, el) => {
+                if (el) buttonRefs.current.set(id, el);
+                else buttonRefs.current.delete(id);
+              }}
+            />
+          ))}
+          <div ref={setEndDropRef} className={cn("h-full min-w-2 flex-1", isOverEnd && "bg-border")} />
+        </div>
+      </SortableContext>
 
       <RenameSessionDialog
         open={renaming !== null}

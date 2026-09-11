@@ -367,17 +367,18 @@ export function useTabs() {
     });
   }, []);
 
-  /** Moves a tab into a brand-new group inserted right after `afterGroupId`.
+  /** Moves a tab into a brand-new group inserted right after `afterGroupId`
+   * (`null` inserts it as the new first group — the left-edge drop zone).
    * No-op past `MAX_GROUPS`, or if `tabId` is already alone in its group (the
    * resulting layout would be identical, since a tab can't appear in two
    * groups at once — no mirroring). */
-  const splitTabToNewGroup = useCallback((tabId: string, afterGroupId: string) => {
+  const splitTabToNewGroup = useCallback((tabId: string, afterGroupId: string | null) => {
     setState((prev) => {
       if (prev.groups.length >= MAX_GROUPS) return prev;
       const sourceGroup = findGroupOfTab(prev.groups, tabId);
       if (!sourceGroup || sourceGroup.tabIds.length === 1) return prev;
-      const afterIndex = prev.groups.findIndex((group) => group.id === afterGroupId);
-      if (afterIndex === -1) return prev;
+      const afterIndex = afterGroupId === null ? -1 : prev.groups.findIndex((group) => group.id === afterGroupId);
+      if (afterGroupId !== null && afterIndex === -1) return prev;
 
       const newGroup = createGroup([tabId], tabId, 0);
       const groups = prev.groups.map((group) => {
