@@ -37,7 +37,17 @@ export function SessionList({
   onDelete,
   size = "default",
 }: SessionListProps) {
-  if (loading) return <SessionListSkeleton size={size} />;
+  // Same sizing as the `ScrollArea` below (`min-h-0 flex-1`) — without it,
+  // the skeleton's own content height (a handful of fixed-width bars) is
+  // all the flex column gives this slot, and whatever sits after `SessionList`
+  // in the layout (`ProfileSwitcher`'s footer in Sidebar.tsx) gets pulled up
+  // instead of staying pinned to the bottom while sessions load.
+  if (loading)
+    return (
+      <div className="min-h-0 flex-1">
+        <SessionListSkeleton size={size} />
+      </div>
+    );
 
   return (
     <ScrollArea className="min-h-0 flex-1">
