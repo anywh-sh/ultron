@@ -15,6 +15,7 @@ vi.mock("@/lib/filesClient", () => ({
 }));
 vi.mock("@/lib/fileDownload", () => ({
   downloadFile: vi.fn(),
+  downloadFolder: vi.fn(),
 }));
 vi.mock("@/lib/editors", () => ({
   detectEditors: vi.fn(),
@@ -24,7 +25,7 @@ vi.mock("@tauri-apps/plugin-opener", () => ({
 }));
 
 import { createFile, deleteFile, getHostInfo, listFiles, renameFile } from "@/lib/filesClient";
-import { downloadFile } from "@/lib/fileDownload";
+import { downloadFile, downloadFolder } from "@/lib/fileDownload";
 import { detectEditors } from "@/lib/editors";
 import { openUrl } from "@tauri-apps/plugin-opener";
 
@@ -177,10 +178,22 @@ describe("FileTree context menu", () => {
     const row = await screen.findByText("src");
 
     await user.pointer({ keys: "[MouseRight]", target: row });
-    expect(screen.queryByText("Baixar")).toBeNull();
+    expect(screen.queryByText("Renomear")).toBeNull();
+    expect(screen.queryByText("Excluir")).toBeNull();
     await user.click(await screen.findByText("Abrir no terminal"));
 
     expect(onOpenTerminal).toHaveBeenCalledWith(`${root}/src`);
+  });
+
+  it("downloads a folder on Baixar from its context menu", async () => {
+    const user = userEvent.setup();
+    renderTree();
+    const row = await screen.findByText("src");
+
+    await user.pointer({ keys: "[MouseRight]", target: row });
+    await user.click(await screen.findByText("Baixar"));
+
+    expect(downloadFolder).toHaveBeenCalledWith(profile, "session-1", `${root}/src`, "src");
   });
 });
 

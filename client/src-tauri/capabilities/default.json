@@ -10,7 +10,9 @@
     "os:default",
     "core:window:allow-is-focused",
     "dialog:allow-save",
+    "dialog:allow-open",
     "fs:allow-write-file",
+    "fs:allow-mkdir",
     {
       "identifier": "opener:allow-open-url",
       "allow": [

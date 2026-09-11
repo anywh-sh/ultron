@@ -1,6 +1,6 @@
-import { save } from "@tauri-apps/plugin-dialog";
-import { writeFile } from "@tauri-apps/plugin-fs";
-import { rawFileUrl } from "@/lib/filesClient";
+import { open, save } from "@tauri-apps/plugin-dialog";
+import { mkdir, writeFile } from "@tauri-apps/plugin-fs";
+import { listFiles, rawFileUrl, type FileEntry } from "@/lib/filesClient";
 import type { Profile } from "@/lib/profiles";
 
 /**
@@ -21,4 +21,57 @@ export async function downloadFile(profile: Profile, sessionId: string, path: st
   if (!response.ok) throw new Error(`HTTP ${String(response.status)}`);
   const bytes = new Uint8Array(await response.arrayBuffer());
   await writeFile(target, bytes);
+}
+
+/** Walks `dirPath` with the tree's own lazy, one-folder-at-a-time `listFiles`
+ * (relay/src/fsFiles.ts stays non-recursive) to build a flat file list.
+ * `showHidden` is left at its default (off) regardless of the tree's current
+ * toggle — a folder download is the one place a stray `node_modules` would
+ * be expensive to pull down by accident, so it always gets the same
+ * dotfile/`node_modules` filter `listFiles` applies by default. */
+async function collectFiles(profile: Profile, sessionId: string, dirPath: string): Promise<FileEntry[]> {
+  const { entries } = await listFiles(profile, sessionId, dirPath);
+  const files: FileEntry[] = [];
+  for (const entry of entries) {
+    if (entry.kind === "file") files.push(entry);
+    else files.push(...(await collectFiles(profile, sessionId, entry.path)));
+  }
+  return files;
+}
+
+/**
+ * Downloads a whole folder as a real folder on disk — not a zip the user
+ * then has to extract — by walking it (`collectFiles`) and fetching each
+ * file individually through the same `/files/raw` route `downloadFile` uses,
+ * writing it to its place under `<destParent>/<dirName>/...`. Mirrors how
+ * Zed's remote project panel downloads a directory (`download_from_remote`,
+ * `project_panel.rs`): recurse, ask once for a destination, fetch file by
+ * file. An empty folder is a no-op before the destination dialog even opens,
+ * same as Zed. A per-file failure doesn't abort the rest of the folder — it's
+ * logged and counted, so one broken symlink doesn't lose everything else
+ * already fetched; the caller finds out via the thrown summary and can alert.
+ */
+export async function downloadFolder(profile: Profile, sessionId: string, dirPath: string, dirName: string): Promise<void> {
+  const files = await collectFiles(profile, sessionId, dirPath);
+  if (files.length === 0) return;
+
+  const destParent = await open({ directory: true, recursive: true, title: `Baixar "${dirName}"` });
+  if (!destParent) return;
+
+  let failed = 0;
+  for (const file of files) {
+    const relative = file.path.slice(dirPath.length).replace(/^\//, "");
+    const targetPath = `${destParent}/${dirName}/${relative}`;
+    try {
+      await mkdir(targetPath.slice(0, targetPath.lastIndexOf("/")), { recursive: true });
+      const response = await fetch(rawFileUrl(profile, sessionId, file.path, file.mtimeMs));
+      if (!response.ok) throw new Error(`HTTP ${String(response.status)}`);
+      const bytes = new Uint8Array(await response.arrayBuffer());
+      await writeFile(targetPath, bytes);
+    } catch (error) {
+      console.error("[anywh] failed to download file inside folder:", file.path, error);
+      failed++;
+    }
+  }
+  if (failed > 0) throw new Error(`${String(failed)} de ${String(files.length)} arquivos da pasta não puderam ser baixados.`);
 }

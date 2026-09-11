@@ -29,7 +29,7 @@ import { useContextMenu } from "@/hooks/useContextMenu";
 import { detectEditors, type DetectedEditor } from "@/lib/editors";
 import { buildEditorUrl, type EditorId, type EditorLocality } from "@/lib/editorLinks";
 import { createFile, deleteFile, getHostInfo, listFiles, renameFile, type FileEntry } from "@/lib/filesClient";
-import { downloadFile } from "@/lib/fileDownload";
+import { downloadFile, downloadFolder } from "@/lib/fileDownload";
 import { isIOS } from "@/lib/platform";
 import type { Profile } from "@/lib/profiles";
 import { cn } from "@/lib/utils";
@@ -565,6 +565,15 @@ function FileTreeNode({
     }
   }
 
+  async function handleDownloadFolder(): Promise<void> {
+    try {
+      await downloadFolder(profile, sessionId, entry.path, entry.name);
+    } catch (error) {
+      console.error("[anywh] failed to download folder:", error);
+      window.alert(error instanceof Error ? error.message : "Não foi possível baixar a pasta.");
+    }
+  }
+
   return (
     <div>
       <div
@@ -732,6 +741,17 @@ function FileTreeNode({
                 subTriggerLabel="Abrir com"
                 onSelected={() => menu.setOpen(false)}
               />
+              <DropdownMenuSeparator />
+              <DropdownMenuItem
+                onSelect={(event) => {
+                  event.preventDefault();
+                  menu.setOpen(false);
+                  void handleDownloadFolder();
+                }}
+              >
+                <Download />
+                Baixar
+              </DropdownMenuItem>
             </DropdownMenuContent>
           </DropdownMenu>
         )}
