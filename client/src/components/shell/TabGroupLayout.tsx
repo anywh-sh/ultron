@@ -1,4 +1,4 @@
-import { Fragment, useMemo, useRef, useState, type CSSProperties, type ReactNode } from "react";
+import { useMemo, useRef, useState, type CSSProperties, type ReactNode } from "react";
 import {
   DndContext,
   DragOverlay,
@@ -16,6 +16,10 @@ import { profileColorClass } from "@/lib/profiles";
 import { cn } from "@/lib/utils";
 
 const HANDLE_PX = 4;
+// Extra invisible hit area on each side of the handle's visible 4px gap —
+// the gap itself is grab-able but thin enough that a resize can otherwise
+// feel unresponsive just from missing the target.
+const RESIZE_HIT_PADDING_PX = 4;
 export const EDGE_START_DROP_ID = "group-edge-start";
 export const EDGE_END_DROP_ID = "group-edge-end";
 
@@ -109,6 +113,43 @@ function EdgeDropZone({ id, side }: { id: string; side: "left" | "right" }) {
         isOver ? "bg-accent/25" : "bg-accent/8",
       )}
     />
+  );
+}
+
+/** The draggable boundary between two adjacent groups — spans the container's
+ * full height (strip row down through the panel layer), not just the strip
+ * row, so it can be grabbed anywhere along the split, the way the panels it
+ * separates actually read on screen. Positioned with the same
+ * `--g{i}-cum`-based `calc()` the panel layer uses for its own `left`, so it
+ * lines up with the boundary by construction rather than by the flex layout
+ * `TabGroupStrip`'s row used to rely on (that's what confined the old handle
+ * to the strip row in the first place — flex siblings can't span past their
+ * own row). Widened past its own visible 4px line by `RESIZE_HIT_PADDING_PX`
+ * on each side for an easier grab target; the extra width is hit area only,
+ * revealed on hover via the `group`/`group-hover` pair below. */
+function GroupResizeHandle({
+  index,
+  avail,
+  isDragging,
+  onPointerDown,
+}: {
+  index: number;
+  avail: string;
+  isDragging: boolean;
+  onPointerDown: (event: React.PointerEvent) => void;
+}) {
+  return (
+    <div
+      data-testid={`group-resize-handle-${index}`}
+      onPointerDown={onPointerDown}
+      className="group absolute inset-y-0 z-30 cursor-col-resize"
+      style={{
+        left: `calc(${avail} * var(--g${index + 1}-cum, 0) + ${index * HANDLE_PX - RESIZE_HIT_PADDING_PX}px)`,
+        width: HANDLE_PX + RESIZE_HIT_PADDING_PX * 2,
+      }}
+    >
+      <div className={cn("mx-auto h-full w-1 transition-colors", isDragging ? "bg-border" : "group-hover:bg-border")} />
+    </div>
   );
 }
 
@@ -262,45 +303,41 @@ export function TabGroupLayout({
         setActiveDragTab(null);
       }}
     >
-      <div ref={containerRef} className="flex h-full min-w-0 flex-col" style={groupCssVars(groups)}>
+      <div ref={containerRef} className="relative flex h-full min-w-0 flex-col" style={groupCssVars(groups)}>
         <div className="flex h-9 w-full shrink-0">
           {groups.map((group, index) => (
-            <Fragment key={group.id}>
-              {index > 0 && (
-                <div
-                  data-testid={`group-resize-handle-${index - 1}`}
-                  onPointerDown={startDrag(index - 1)}
-                  className={cn("z-10 w-1 shrink-0 cursor-col-resize hover:bg-border", draggingIndex === index - 1 && "bg-border")}
-                />
-              )}
-              <div
-                data-testid={`group-strip-${group.id}`}
-                className="min-w-0 shrink-0 grow-0 overflow-hidden"
-                style={{
-                  flexBasis: `calc(${avail} * var(--g${index}-frac, ${group.size}))`,
-                  transition: draggingIndex === null ? "flex-basis 150ms ease" : "none",
-                }}
-                // Foreground for "focus follows the pointer": clicking anywhere
-                // in a group's strip (not just its tabs) should re-focus that
-                // group — capture phase so it fires even when the click's
-                // actual target (e.g. a tab button) also has its own handler.
-                onPointerDownCapture={() => onFocusGroup(group.id)}
-              >
-                <TabGroupStrip
-                  groupId={group.id}
-                  tabs={group.tabIds.map((id) => tabById.get(id)).filter((tab): tab is Tab => tab !== undefined)}
-                  activeTabId={group.activeTabId}
-                  allowSplit
-                  onSelect={onSelect}
-                  onClose={onClose}
-                  onRenameSession={onRenameSession}
-                  onDelete={onDelete}
-                  onSplitToNewGroup={(tabId) => onSplitTabToNewGroup(tabId, group.id)}
-                />
-              </div>
-            </Fragment>
+            <div
+              key={group.id}
+              data-testid={`group-strip-${group.id}`}
+              className="min-w-0 shrink-0 grow-0 overflow-hidden"
+              style={{
+                flexBasis: `calc(${avail} * var(--g${index}-frac, ${group.size}))`,
+                transition: draggingIndex === null ? "flex-basis 150ms ease" : "none",
+              }}
+              // Foreground for "focus follows the pointer": clicking anywhere
+              // in a group's strip (not just its tabs) should re-focus that
+              // group — capture phase so it fires even when the click's
+              // actual target (e.g. a tab button) also has its own handler.
+              onPointerDownCapture={() => onFocusGroup(group.id)}
+            >
+              <TabGroupStrip
+                groupId={group.id}
+                tabs={group.tabIds.map((id) => tabById.get(id)).filter((tab): tab is Tab => tab !== undefined)}
+                activeTabId={group.activeTabId}
+                allowSplit
+                onSelect={onSelect}
+                onClose={onClose}
+                onRenameSession={onRenameSession}
+                onDelete={onDelete}
+                onSplitToNewGroup={(tabId) => onSplitTabToNewGroup(tabId, group.id)}
+              />
+            </div>
           ))}
         </div>
+
+        {groups.slice(0, -1).map((_, index) => (
+          <GroupResizeHandle key={`resize-${index}`} index={index} avail={avail} isDragging={draggingIndex === index} onPointerDown={startDrag(index)} />
+        ))}
 
         <div className="relative min-h-0 flex-1">
           {tabs.map((tab) => {
