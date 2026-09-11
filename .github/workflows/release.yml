@@ -186,14 +186,35 @@ jobs:
       - run: npm prune --omit=dev
         working-directory: relay
 
+      # Staged into relay/ + infra/ subdirs (not flattened) so the tarball's
+      # own layout matches the repo's — infra/systemd/install.sh resolves
+      # RELAY_DIR as `../../relay` from its own location, and
+      # add-profile.sh sources `../lib.sh`; shipping infra/ alongside relay/
+      # in the same relative positions means both scripts work unmodified
+      # straight out of the extracted tarball (install.sh, Fase 3).
+      - name: Stage the relay + infra tree
+        run: |
+          mkdir -p stage/relay
+          cp -a relay/dist relay/node_modules relay/package.json stage/relay/
+          cp -a infra stage/infra
+
+      # Two names, same content: the versioned one is what a Homebrew
+      # formula pins url+sha256 to (formulas need a stable, reproducible
+      # URL per release, journal/62-distribuicao-instalacao-plano.md §8);
+      # the unversioned one is what install.sh (Fase 3) downloads via
+      # GitHub's `releases/latest/download/<name>` redirect, which needs a
+      # fixed filename to avoid a GitHub API call (and a jq dependency) in
+      # a shell script meant to run on a bare box.
       - name: Package and upload the tarball
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           version="${GITHUB_REF_NAME#v}"
-          asset="anywh-relay-${version}-${{ matrix.target }}.tar.gz"
-          tar czf "$asset" -C relay dist node_modules package.json
-          gh release upload "${GITHUB_REF_NAME}" "$asset" \
+          versioned="anywh-relay-${version}-${{ matrix.target }}.tar.gz"
+          latest="anywh-relay-${{ matrix.target }}.tar.gz"
+          tar czf "$versioned" -C stage relay infra
+          cp "$versioned" "$latest"
+          gh release upload "${GITHUB_REF_NAME}" "$versioned" "$latest" \
             --repo "${{ github.repository }}" --clobber
 
   # Runs after every platform has uploaded its assets to the same draft

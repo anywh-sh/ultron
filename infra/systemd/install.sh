@@ -4,7 +4,19 @@
 # committed to git). Run once per machine, not once per profile: the same
 # rendered unit template serves every profile via systemd's instance
 # mechanism (`anywh-relay@<profile>`), see infra/systemd/README.md.
+#
+# Default behavior only renders and prints the install steps, for a dev
+# checkout where a human reads them before running anything with sudo-like
+# effect on their own machine. `--apply` skips straight to performing
+# them — used by the top-level install.sh (curl | sh, Fase 3), which
+# extracts an already-built tarball non-interactively and has no human in
+# the loop to read instructions to.
 set -euo pipefail
+
+APPLY=0
+if [[ "${1:-}" == "--apply" ]]; then
+  APPLY=1
+fi
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 RELAY_DIR="$(cd "$SCRIPT_DIR/../../relay" && pwd)"
@@ -25,7 +37,8 @@ sed \
   -e "s|{{ENV_DIR}}|$ANYWH_ENV_DIR|g" \
   "$TEMPLATE" > "$OUTPUT"
 
-cat <<EOF
+if [[ "$APPLY" -eq 0 ]]; then
+  cat <<EOF
 Rendered: $OUTPUT
 
 Install it once per machine (user-scope unit — no sudo):
@@ -44,3 +57,11 @@ one), point it at a built relay and enable the instance:
   cp .env.example .env   # edit as needed — see infra/systemd/README.md
   systemctl --user enable --now anywh-relay@default
 EOF
+  exit 0
+fi
+
+mkdir -p "$HOME/.config/systemd/user"
+cp "$OUTPUT" "$HOME/.config/systemd/user/anywh-relay@.service"
+systemctl --user daemon-reload
+loginctl enable-linger "$(whoami)"
+echo "Installed the anywh-relay@ unit and enabled linger for $(whoami)."
