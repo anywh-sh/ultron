@@ -100,17 +100,27 @@ function availExpr(total: number): string {
  * space" the way an editor's own split-preview does. Only rendered while a
  * drag is in flight and there's room for one more group (`MAX_GROUPS`), so
  * there's never a live drop target promising a split that
- * `onSplitTabToNewGroup` would then silently refuse. A faint tint marks the
- * zone as droppable throughout the drag; it brightens on actual hover. */
+ * `onSplitTabToNewGroup` would then silently refuse.
+ *
+ * Invisible (`opacity-0`) until the dragged tab is actually over it — always
+ * painting both halves for the whole drag buried the one the pointer's
+ * actually near under noise from the one it isn't. `isOver` fades it in
+ * instead, a quick opacity transition rather than a color change, so the
+ * zone reads as appearing rather than just recoloring.
+ *
+ * Tinted with `foreground`, not `accent` (`border` in this theme, a dark
+ * olive close to `background`'s own darkness) — a dark tint at any opacity
+ * just reads as a smudge on a dark background, while a light tint at low
+ * opacity reads as an actual highlight. */
 function EdgeDropZone({ id, side }: { id: string; side: "left" | "right" }) {
   const { setNodeRef, isOver } = useDroppable({ id });
   return (
     <div
       ref={setNodeRef}
       className={cn(
-        "absolute inset-y-0 z-20 w-2/5 transition-colors",
-        side === "left" ? "left-0" : "right-0",
-        isOver ? "bg-accent/25" : "bg-accent/8",
+        "absolute inset-y-0 z-20 w-2/5 border-foreground/50 bg-foreground/20 transition-opacity duration-150",
+        side === "left" ? "left-0 border-r-2" : "right-0 border-l-2",
+        isOver ? "opacity-100" : "opacity-0",
       )}
     />
   );
