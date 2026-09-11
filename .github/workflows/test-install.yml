@@ -1,0 +1,68 @@
+name: Test install.sh
+
+# Exercises the full curl | sh path (Fase 3, journal/62-distribuicao-
+# instalacao-plano.md) on a disposable Linux runner instead of a real
+# machine — same reasoning as anywh-sh/homebrew-tap's test.yml.
+# install.sh's --apply step registers a real systemd user service and
+# runs `loginctl enable-linger` — exactly what this repo's own CLAUDE.md
+# says never to do on the author's dev machine without confirmation (the
+# session reading this file might be a child process of one of those
+# services already). A GitHub-hosted runner has no such history to break,
+# and is destroyed after the job either way.
+on:
+  workflow_run:
+    workflows: ["Release"]
+    types: [completed]
+  workflow_dispatch:
+
+jobs:
+  test:
+    if: github.event_name == 'workflow_dispatch' || github.event.workflow_run.conclusion == 'success'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: actions/setup-node@v7
+        with:
+          node-version: "lts/*"
+
+      # install.sh only checks that `claude` exists on PATH, never runs
+      # it — a stub is enough to test everything downstream. The real CLI
+      # needs an interactive login this runner can't do, and isn't what
+      # this test validates anyway.
+      - name: Stub the claude CLI prerequisite
+        run: |
+          sudo tee /usr/local/bin/claude > /dev/null <<'EOF'
+          #!/bin/sh
+          exit 0
+          EOF
+          sudo chmod +x /usr/local/bin/claude
+
+      - run: ./install.sh
+
+      # --mode prod (the default) is the real path — enables the systemd
+      # instance directly, same as decision 5's Linux/WSL2 story.
+      - name: Create the "default" profile and enable the systemd instance
+        run: |
+          install_dir="$HOME/.local/share/anywh"
+          "$install_dir/infra/systemd/add-profile.sh" default --relay-host 127.0.0.1
+
+      - name: Confirm the relay is running and listening
+        run: |
+          port="$(grep '^RELAY_PORT=' "$HOME/.config/anywh/env/default.env" | cut -d= -f2)"
+          echo "waiting on port $port"
+          for _ in $(seq 1 15); do
+            nc -z localhost "$port" && break
+            sleep 1
+          done
+          if ! nc -z localhost "$port"; then
+            echo "::error::relay never opened port $port"
+            systemctl --user status anywh-relay@default --no-pager || true
+            journalctl --user -u anywh-relay@default --no-pager || true
+            exit 1
+          fi
+          echo "relay is listening on port $port"
+
+      - name: Stop the service
+        if: always()
+        run: systemctl --user stop anywh-relay@default || true
