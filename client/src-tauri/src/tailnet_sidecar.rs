@@ -249,6 +249,7 @@ pub async fn tailnet_sidecar_start(
         return Err("tailnet-sidecar stdout closed without a LISTENING line".to_string());
     };
 
+    let pid = child.pid();
     running.insert(profile_id.clone(), Running { child, addr: addr.clone() });
     // The child outlives this command, so someone has to keep reading its
     // output — an unread channel would both lose the log above and, once
@@ -260,6 +261,22 @@ pub async fn tailnet_sidecar_start(
                 CommandEvent::Stdout(bytes) | CommandEvent::Stderr(bytes) => log_sidecar(&profile_id, &bytes),
                 CommandEvent::Terminated(payload) => {
                     eprintln!("[tailnet-sidecar] {profile_id} exited: {payload:?}");
+                    // Without this, a sidecar that dies on its own (crash, the
+                    // tailnet revoking this node mid-session, laptop
+                    // sleep/wake killing the child) leaves its stale entry in
+                    // the map — the next `tailnet_sidecar_start` for this
+                    // profile would find it "already running" (the check at
+                    // the top of this function) and hand back the dead
+                    // `addr` forever, instead of spawning a fresh one. Only
+                    // removes the entry if it still points at *this* child —
+                    // `tailnet_sidecar_stop`/a fresh cold start racing this
+                    // same event may have already replaced it with a live one.
+                    if let Some(state) = app.try_state::<TailnetSidecars>() {
+                        let mut running = state.0.lock().await;
+                        if running.get(&profile_id).is_some_and(|entry| entry.child.pid() == pid) {
+                            running.remove(&profile_id);
+                        }
+                    }
                     break;
                 }
                 _ => {}
