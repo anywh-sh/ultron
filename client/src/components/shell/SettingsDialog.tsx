@@ -33,6 +33,7 @@ import {
 } from "@/lib/profiles";
 import { deleteProfile, updateProfileMeta } from "@/lib/relayClient";
 import { resolveConnection } from "@/lib/connectionResolver";
+import { clearProfileRevoked } from "@/lib/profileRevocation";
 import { useProfiles } from "@/hooks/useProfiles";
 import { cn } from "@/lib/utils";
 
@@ -224,7 +225,11 @@ export function findSameHostExecutor(scopedProfile: Profile, allProfiles: Profil
   return allProfiles.find((p) => p.id !== scopedProfile.id && p.host === scopedProfile.host && !isTailnetProfile(p));
 }
 
-function DangerZone({
+/** Exported for `SettingsDialog.test.tsx` — same reasoning as
+ * `findSameHostExecutor` above: rendering the whole dialog just to reach
+ * this section would drag in every other tab's own dependencies (theme
+ * registry fetches, model preference, folder picker) for no benefit. */
+export function DangerZone({
   scopedProfile,
   allProfiles,
   onProfileRemoved,
@@ -238,6 +243,15 @@ function DangerZone({
   const [error, setError] = useState<string | null>(null);
 
   const executor = findSameHostExecutor(scopedProfile, allProfiles);
+  // A tailnet/brokered profile (paired via the dashboard's join code) has no
+  // `/control/profiles` host to call at all — `findSameHostExecutor` always
+  // returns `undefined` for one, by design (see its own comment). The
+  // "Excluir do servidor" flow below genuinely doesn't apply to it, so it
+  // gets its own local-only removal instead of a permanently disabled
+  // button with a hint ("precisa de outro perfil no mesmo host") that would
+  // be actively wrong here — no other profile could ever make that button
+  // work for a tailnet profile.
+  const tailnet = isTailnetProfile(scopedProfile);
 
   async function handleDeleteFromServer(): Promise<void> {
     if (!executor) return;
@@ -259,21 +273,38 @@ function DangerZone({
     }
   }
 
+  function handleRemoveLocal(): void {
+    // Nothing server-side to call — a paired device is disconnected from
+    // the dashboard, which is what actually revokes it; this only clears
+    // the local entry (same action `RevokedProfileBanner` offers once a
+    // profile is already revoked — this is the same thing, offered
+    // proactively instead of waiting for that to happen).
+    if (!removeProfile(scopedProfile.id)) {
+      setError("Não dá pra remover o único perfil que sobrou — adicione outro antes.");
+      return;
+    }
+    clearProfileRevoked(scopedProfile.id);
+    onProfileRemoved(scopedProfile.id);
+    setConfirmOpen(false);
+  }
+
   return (
     <div className="flex flex-col gap-3 rounded-md border border-destructive/40 p-3">
       <h3 className="text-sm font-medium text-destructive">Zona de risco</h3>
 
       <div className="flex items-center justify-between gap-3">
         <div className="flex min-w-0 flex-col">
-          <span className="text-sm">Excluir do servidor</span>
+          <span className="text-sm">{tailnet ? "Remover perfil" : "Excluir do servidor"}</span>
           <span className="text-xs text-muted-foreground">
-            {executor
-              ? "Some de todos os dispositivos — a conta e o histórico continuam no host."
-              : "Precisa de outro perfil no mesmo host pra executar a exclusão."}
+            {tailnet
+              ? "Só remove a entrada deste dispositivo — desconectar de verdade se faz pelo painel da conta."
+              : executor
+                ? "Some de todos os dispositivos — a conta e o histórico continuam no host."
+                : "Precisa de outro perfil no mesmo host pra executar a exclusão."}
           </span>
         </div>
-        <Button variant="destructive" size="sm" disabled={!executor} onClick={() => setConfirmOpen(true)}>
-          Excluir
+        <Button variant="destructive" size="sm" disabled={!tailnet && !executor} onClick={() => setConfirmOpen(true)}>
+          {tailnet ? "Remover" : "Excluir"}
         </Button>
       </div>
 
@@ -282,10 +313,13 @@ function DangerZone({
       <AlertDialog open={confirmOpen} onOpenChange={setConfirmOpen}>
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>Excluir perfil "{scopedProfile.label}"?</AlertDialogTitle>
+            <AlertDialogTitle>
+              {tailnet ? "Remover" : "Excluir"} perfil "{scopedProfile.label}"?
+            </AlertDialogTitle>
             <AlertDialogDescription>
-              Remove esse perfil de todos os dispositivos que apontam pra esse host. A conta Claude e
-              o histórico de conversas continuam intactos na máquina.
+              {tailnet
+                ? "Remove só a entrada local deste dispositivo. Se o dispositivo ainda estiver ativo do lado da conta, ele continua existindo lá — desconectar de verdade é uma ação separada, no painel."
+                : "Remove esse perfil de todos os dispositivos que apontam pra esse host. A conta Claude e o histórico de conversas continuam intactos na máquina."}
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
@@ -294,10 +328,11 @@ function DangerZone({
               disabled={deleting}
               onClick={(event) => {
                 event.preventDefault();
-                void handleDeleteFromServer();
+                if (tailnet) handleRemoveLocal();
+                else void handleDeleteFromServer();
               }}
             >
-              {deleting ? "Excluindo…" : "Excluir"}
+              {deleting ? "Excluindo…" : tailnet ? "Remover" : "Excluir"}
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
