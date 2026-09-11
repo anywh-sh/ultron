@@ -1,5 +1,6 @@
-import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import {
+  dismissDownloadNotification,
   finishBatchDownload,
   getDownloadNotifications,
   notifyFileDownloaded,
@@ -7,18 +8,6 @@ import {
   subscribeDownloadNotifications,
   tickBatchDownload,
 } from "@/lib/downloadNotifications";
-
-beforeEach(() => {
-  vi.useFakeTimers();
-});
-
-afterEach(() => {
-  // Flushes every auto-dismiss timer any test below scheduled, so a
-  // left-behind notification from one test can't leak into the next one's
-  // `getDownloadNotifications()` read.
-  vi.runAllTimers();
-  vi.useRealTimers();
-});
 
 describe("downloadNotifications", () => {
   it("starts a batch at 0/total and notifies subscribers", () => {
@@ -30,6 +19,7 @@ describe("downloadNotifications", () => {
     expect(getDownloadNotifications().find((entry) => entry.id === id)).toEqual({ id, total: 5, current: 0, done: false });
     expect(listener).toHaveBeenCalledTimes(1);
     unsubscribe();
+    dismissDownloadNotification(id);
   });
 
   it("ticks the current count as files complete, without touching total or done", () => {
@@ -38,26 +28,27 @@ describe("downloadNotifications", () => {
     tickBatchDownload(id, 2);
 
     expect(getDownloadNotifications().find((entry) => entry.id === id)).toEqual({ id, total: 3, current: 2, done: false });
+    dismissDownloadNotification(id);
   });
 
-  it("marks a batch done and auto-dismisses it a few seconds later", () => {
+  it("marks a batch done and keeps it until explicitly dismissed", () => {
     const id = startBatchDownload(2);
     tickBatchDownload(id, 2);
     finishBatchDownload(id);
 
     expect(getDownloadNotifications().find((entry) => entry.id === id)?.done).toBe(true);
 
-    vi.advanceTimersByTime(4000);
+    dismissDownloadNotification(id);
     expect(getDownloadNotifications().find((entry) => entry.id === id)).toBeUndefined();
   });
 
-  it("reports a lone-file download already done, carrying its file name", () => {
+  it("reports a lone-file download already done, carrying its file name, until dismissed", () => {
     notifyFileDownloaded("report.pdf");
 
     const entry = getDownloadNotifications().find((candidate) => candidate.fileName === "report.pdf");
     expect(entry).toMatchObject({ total: 1, current: 1, done: true, fileName: "report.pdf" });
 
-    vi.advanceTimersByTime(4000);
+    dismissDownloadNotification(entry!.id);
     expect(getDownloadNotifications().find((candidate) => candidate.fileName === "report.pdf")).toBeUndefined();
   });
 });

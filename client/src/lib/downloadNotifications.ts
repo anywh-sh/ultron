@@ -13,6 +13,9 @@
  * shows the completed "downloaded" toast for it. A folder or multi-select
  * batch is different: `total` is known up front and each file's completion
  * is visible, so the count ticks up live while it runs.
+ *
+ * A finished toast stays until the user dismisses it via the toast's own
+ * close button (`dismissDownloadNotification`) — no auto-dismiss timer.
  */
 export interface DownloadNotification {
   id: string;
@@ -24,8 +27,6 @@ export interface DownloadNotification {
   fileName?: string;
 }
 
-const AUTO_DISMISS_MS = 4000;
-
 let notifications: DownloadNotification[] = [];
 const listeners = new Set<() => void>();
 
@@ -35,13 +36,6 @@ function notify(): void {
 
 function nextId(): string {
   return `dl-${Date.now().toString(36)}-${Math.random().toString(36).slice(2)}`;
-}
-
-function scheduleDismiss(id: string): void {
-  window.setTimeout(() => {
-    notifications = notifications.filter((entry) => entry.id !== id);
-    notify();
-  }, AUTO_DISMISS_MS);
 }
 
 /** Starts the "Baixando X/Y arquivos" toast for a folder or bulk
@@ -59,23 +53,27 @@ export function tickBatchDownload(id: string, current: number): void {
   notify();
 }
 
-/** Flips the toast to "Baixado X/Y arquivos" and starts its auto-dismiss
- * timer. Safe to call even if the batch never ticked past 0 (an all-failed
- * batch still gets a completion toast — per-file failures are already
- * surfaced separately via `window.alert`). */
+/** Flips the toast to "Baixado X/Y arquivos". Safe to call even if the
+ * batch never ticked past 0 (an all-failed batch still gets a completion
+ * toast — per-file failures are already surfaced separately via
+ * `window.alert`). Stays on screen until the user dismisses it. */
 export function finishBatchDownload(id: string): void {
   notifications = notifications.map((entry) => (entry.id === id ? { ...entry, done: true } : entry));
   notify();
-  scheduleDismiss(id);
 }
 
 /** Lone-file download, reported only on success — straight into "done"
- * state, no separate "downloading" phase (see module doc comment). */
+ * state, no separate "downloading" phase (see module doc comment). Stays on
+ * screen until the user dismisses it. */
 export function notifyFileDownloaded(fileName: string): void {
   const id = nextId();
   notifications = [...notifications, { id, total: 1, current: 1, done: true, fileName }];
   notify();
-  scheduleDismiss(id);
+}
+
+export function dismissDownloadNotification(id: string): void {
+  notifications = notifications.filter((entry) => entry.id !== id);
+  notify();
 }
 
 export function getDownloadNotifications(): DownloadNotification[] {

@@ -1,18 +1,24 @@
-import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, describe, expect, it } from "vitest";
 import { act, cleanup, render, screen } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
 import { DownloadToasts } from "@/components/files/DownloadToasts";
-import { finishBatchDownload, notifyFileDownloaded, startBatchDownload, tickBatchDownload } from "@/lib/downloadNotifications";
-
-beforeEach(() => {
-  vi.useFakeTimers();
-});
+import {
+  dismissDownloadNotification,
+  finishBatchDownload,
+  getDownloadNotifications,
+  notifyFileDownloaded,
+  startBatchDownload,
+  tickBatchDownload,
+} from "@/lib/downloadNotifications";
 
 afterEach(() => {
   cleanup();
-  // Flushes every notification's auto-dismiss timer so one test's toast
-  // never lingers into the next.
-  vi.runAllTimers();
-  vi.useRealTimers();
+  // No auto-dismiss anymore (a toast only leaves via its own close button) —
+  // without this, a notification left over from one test would still be in
+  // the shared module store for the next one.
+  act(() => {
+    for (const entry of getDownloadNotifications()) dismissDownloadNotification(entry.id);
+  });
 });
 
 describe("DownloadToasts", () => {
@@ -49,5 +55,16 @@ describe("DownloadToasts", () => {
     const toast = screen.getByText(`Arquivo ${longName} baixado`);
     expect(toast).toHaveClass("truncate");
     expect(toast.closest("div[title]")).toHaveAttribute("title", longName);
+  });
+
+  it("keeps a done toast on screen until its close button is clicked", async () => {
+    const user = userEvent.setup();
+    render(<DownloadToasts />);
+
+    act(() => notifyFileDownloaded("report.pdf"));
+    expect(screen.getByText("Arquivo report.pdf baixado")).toBeInTheDocument();
+
+    await user.click(screen.getByRole("button", { name: "Dispensar notificação" }));
+    expect(screen.queryByText("Arquivo report.pdf baixado")).toBeNull();
   });
 });
