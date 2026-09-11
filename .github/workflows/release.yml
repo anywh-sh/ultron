@@ -15,6 +15,8 @@ jobs:
   # race to create the same tag and can end up with duplicates. Passing this
   # job's releaseId into every matrix job sidesteps the race entirely — this
   # is the pattern tauri-action's own docs recommend for multi-OS releases.
+  # Staying draft is temporary, not the end state: the checksums job below
+  # publishes it once every platform's assets are in.
   create-release:
     runs-on: ubuntu-latest
     outputs:
@@ -136,6 +138,12 @@ jobs:
   # release, so the sums cover the exact files a downloader will get —
   # generating this was fabricated by hand once already (journal/62-
   # distribuicao-instalacao-plano.md §2), this keeps it from happening again.
+  # Also the only place that flips the release out of draft: publishing from
+  # inside the `build` matrix would make the release publicly visible as
+  # soon as the fastest leg finished, minutes before the slowest one
+  # (Windows, ~4x slower than macOS arm64 in the dry run) had uploaded its
+  # assets — a downloader in that window would find a release missing most
+  # of its installers.
   checksums:
     needs: [create-release, build]
     runs-on: ubuntu-latest
@@ -148,3 +156,8 @@ jobs:
           gh release download "$tag" --repo "${{ github.repository }}" --dir dist --skip-existing
           (cd dist && sha256sum -- * > SHA256SUMS)
           gh release upload "$tag" dist/SHA256SUMS --repo "${{ github.repository }}" --clobber
+
+      - name: Publish the release
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: gh release edit "${GITHUB_REF_NAME}" --repo "${{ github.repository }}" --draft=false
