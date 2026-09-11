@@ -7,9 +7,27 @@ name: Publish
 # reads assets that already exist, never races the build matrix. Keeping it
 # separate also keeps the tap-repo PAT out of reach of the (much larger,
 # third-party-action-heavy) build workflow.
+#
+# Triggered by workflow_run, not `on: release: published` — the latter
+# never fires here. release.yml's checksums job flips draft->published
+# using the built-in GITHUB_TOKEN, and GitHub deliberately suppresses
+# events triggered by GITHUB_TOKEN from starting other workflow runs (loop
+# prevention). Confirmed live on v0.1.1 (2026-09-11): the release
+# published fine, this workflow just never started. workflow_run doesn't
+# have that restriction — it fires on the *workflow's* completion, which
+# happens after the exact same draft-flip either way.
 on:
-  release:
-    types: [published]
+  workflow_run:
+    workflows: ["Release"]
+    types: [completed]
+  # Manual replay for a tag whose workflow_run already fired and failed
+  # (e.g. a transient Homebrew push failure) — re-running the Release
+  # workflow would rebuild every platform for nothing just to retry this.
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: "Release tag to publish (e.g. v0.1.1)"
+        required: true
 
 permissions:
   contents: read
@@ -20,8 +38,16 @@ jobs:
   # first, which is a real refactor to code the daily-used relay depends on
   # today, not just new code — see journal/62 for the full trade-off).
   homebrew:
+    if: github.event_name == 'workflow_dispatch' || github.event.workflow_run.conclusion == 'success'
     runs-on: ubuntu-latest
     steps:
+      # workflow_run's head_branch is the tag name for a tag-triggered
+      # run (GitHub's own semantics, not anywh-specific) — there's no
+      # release object on this event to read tag_name from directly.
+      - name: Resolve the release tag
+        id: tag
+        run: echo "tag=${{ github.event.inputs.tag || github.event.workflow_run.head_branch }}" >> "$GITHUB_OUTPUT"
+
       # Reads the release's own SHA256SUMS instead of recomputing anything —
       # same reasoning as release.yml's checksums job: the formula's sha256
       # has to match the exact bytes a `brew install` downloads, and the
@@ -32,7 +58,7 @@ jobs:
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
-          tag="${{ github.event.release.tag_name }}"
+          tag="${{ steps.tag.outputs.tag }}"
           version="${tag#v}"
           asset="anywh-relay-${version}-darwin-arm64.tar.gz"
           gh release download "$tag" --repo "${{ github.repository }}" \
