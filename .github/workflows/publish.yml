@@ -103,10 +103,19 @@ jobs:
               libexec.install Dir["*"]
             end
 
+            # No systemd EnvironmentFile= here to load the profile's .env —
+            # Homebrew's service DSL has no equivalent, so the "default"
+            # profile's config has to come in via Node's own
+            # --env-file-if-exists instead (same mechanism relay/package.json's
+            # start:profile script uses, just spelled out here since there's
+            # no npm script wrapper in the installed tarball).
             service do
-              run [formula_opt_bin("node"), opt_libexec/"relay/dist/server.js"]
+              run [
+                formula_opt_bin("node"),
+                "--env-file-if-exists=#{Dir.home}/.config/anywh/env/default.env",
+                opt_libexec/"relay/dist/server.js",
+              ]
               working_dir opt_libexec/"relay"
-              environment_variables ANYWH_PROFILE: "default"
               keep_alive true
               log_path var/"log/anywh-relay.log"
               error_log_path var/"log/anywh-relay.error.log"
