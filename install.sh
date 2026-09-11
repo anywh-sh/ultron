@@ -96,6 +96,6 @@ cat <<EOF
 Next: create your first profile —
   "$INSTALL_DIR/infra/systemd/add-profile.sh" default --relay-host <this-machine's-tailscale-or-lan-ip>
 
-See infra/systemd/README.md (in the anywh repo) for what --relay-host
-should be and how multi-profile setups work.
+See https://github.com/${REPO}/blob/main/infra/systemd/README.md for what
+--relay-host should be and how multi-profile setups work.
 EOF
