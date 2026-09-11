@@ -2,7 +2,7 @@ import { useCallback, useRef, useState } from "react";
 import { fetchControlProfiles } from "@/lib/relayClient";
 import { resolveConnection } from "@/lib/connectionResolver";
 import { useForegroundSync } from "@/hooks/useForegroundSync";
-import { syncProfilesForHost, type Profile } from "@/lib/profiles";
+import { isTailnetProfile, syncProfilesForHost, type Profile } from "@/lib/profiles";
 
 interface ProfileSyncResult {
   /** `false` once a `GET /control/profiles` on this host has failed (404 on
@@ -46,10 +46,18 @@ export function useProfileSync(profile: Profile): ProfileSyncResult {
       .then(({ host, port, token }) => fetchControlProfiles(host, port, token))
       .then((remote) => {
         if (currentProfileId.current !== profileId) return;
-        // `syncProfilesForHost` keys off the profile's own advertised host
-        // (the tailnet placeholder for a tailnet profile, see its own doc
-        // comment) — never the sidecar's resolved local address above.
-        syncProfilesForHost(registryHost, remote);
+        // A tailnet profile's own `host`/`relayPort` are only a local
+        // placeholder, never a real dial target (profiles.ts's own doc on
+        // `tailnetAuthKey`) — every entry this call returns describes a
+        // profile on the *remote* machine's own loopback, which this client
+        // can never reach directly (only the one relay it's actually paired
+        // to, through the sidecar). Merging those in surfaced live as a
+        // phantom "Default" profile (the sandbox relay's own
+        // `ensureSelfRegistered`) that flickered in and out of the switcher
+        // depending on which profile was synced last, via the
+        // `LOOPBACK_HOSTS` handling in `syncProfilesForHost`. A direct
+        // profile's `host` is real, so the merge still applies there.
+        if (!isTailnetProfile(profile)) syncProfilesForHost(registryHost, remote);
         setSupported(true);
       })
       .catch(() => {
