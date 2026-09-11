@@ -1,0 +1,149 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - "v*"
+
+permissions:
+  contents: write
+
+jobs:
+  # A draft release is created once, up front, instead of letting each
+  # platform job in the matrix below get-or-create it by tag: tauri-action
+  # supports the latter, but four jobs starting within seconds of each other
+  # race to create the same tag and can end up with duplicates. Passing this
+  # job's releaseId into every matrix job sidesteps the race entirely — this
+  # is the pattern tauri-action's own docs recommend for multi-OS releases.
+  create-release:
+    runs-on: ubuntu-latest
+    outputs:
+      release_id: ${{ steps.create-release.outputs.result }}
+    steps:
+      - uses: actions/github-script@v7
+        id: create-release
+        with:
+          script: |
+            const tag = context.ref.replace("refs/tags/", "");
+            const { data } = await github.rest.repos.createRelease({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              tag_name: tag,
+              name: `anywh ${tag}`,
+              draft: true,
+              prerelease: false,
+            });
+            return data.id;
+
+  build:
+    needs: create-release
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          # sidecarTarget keys match client/scripts/build-sidecar.mjs's
+          # TARGETS map — the same script npm run build:sidecar already uses
+          # locally, just pointed at the target this runner (or, for the
+          # macOS Intel leg, this runner cross-compiling) needs to produce.
+          - platform: ubuntu-latest
+            sidecarTarget: linux-x64
+          - platform: windows-latest
+            sidecarTarget: win32-x64
+          - platform: macos-14
+            sidecarTarget: darwin-arm64
+            rustTarget: aarch64-apple-darwin
+          # Cross-compiled from the same arm64 runner rather than a second
+          # macos-13 (Intel) box — Xcode's clang is multi-arch out of the
+          # box (`-arch x86_64`), and Cargo's `cc` crate passes that flag
+          # automatically for this target, so whisper-rs/cpal's native C
+          # builds cross-compile without extra setup. Unvalidated until this
+          # job runs for real (journal/62-epico-5-client-tailnet-plano.md,
+          # risk 2 — macOS was never exercised in CI before this workflow).
+          - platform: macos-14
+            sidecarTarget: darwin-x64
+            rustTarget: x86_64-apple-darwin
+    runs-on: ${{ matrix.platform }}
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: actions/setup-node@v7
+        with:
+          node-version: "lts/*"
+          cache: npm
+          cache-dependency-path: client/package-lock.json
+
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: ${{ matrix.rustTarget }}
+
+      - uses: Swatinem/rust-cache@v2.9.2
+        with:
+          workspaces: client/src-tauri
+
+      - uses: actions/setup-go@v6
+        with:
+          go-version-file: client/tailnet-sidecar/go.mod
+
+      # Same packages pr.yml's client-e2e job installs, for the same reason:
+      # cpal (voice) needs ALSA headers and whisper-rs's bindgen needs
+      # libclang, neither of which ships on the bare ubuntu-latest image.
+      - name: Install Tauri Linux + audio/whisper build dependencies
+        if: matrix.platform == 'ubuntu-latest'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y \
+            libwebkit2gtk-4.1-dev \
+            libgtk-3-dev \
+            libayatana-appindicator3-dev \
+            librsvg2-dev \
+            libasound2-dev \
+            libclang-dev
+
+      # whisper-rs's bindgen needs libclang too, and windows-latest doesn't
+      # ship one either — unvalidated until this job runs for real (same
+      # journal/62 risk 2 as the macOS comment above: only Linux had ever
+      # built this app before this workflow existed).
+      - name: Install libclang for whisper-rs bindgen (Windows)
+        if: matrix.platform == 'windows-latest'
+        uses: KyleMayes/install-llvm-action@v2
+        with:
+          version: "18"
+
+      - run: npm ci
+        working-directory: client
+
+      # Must run before tauri-action: tauri-build's build.rs fails the whole
+      # cargo build if bundle.externalBin's binary isn't on disk yet
+      # (same reason pr.yml's client-e2e job builds it before `tauri build`).
+      # Pure Go, CGO_ENABLED=0 — confirmed working cross-compiled from a
+      # single Linux box for all five targets, so each runner producing its
+      # own (or, on the macOS Intel leg, the other arch's) binary is exactly
+      # what the script is for.
+      - name: Build the tailnet-sidecar Go binary
+        run: node scripts/build-sidecar.mjs --target ${{ matrix.sidecarTarget }}
+        working-directory: client
+
+      - uses: tauri-apps/tauri-action@v0
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          projectPath: client
+          args: ${{ matrix.rustTarget && format('--target {0}', matrix.rustTarget) || '' }}
+          releaseId: ${{ needs.create-release.outputs.release_id }}
+
+  # Runs after every platform has uploaded its assets to the same draft
+  # release, so the sums cover the exact files a downloader will get —
+  # generating this was fabricated by hand once already (journal/62-
+  # distribuicao-instalacao-plano.md §2), this keeps it from happening again.
+  checksums:
+    needs: [create-release, build]
+    runs-on: ubuntu-latest
+    steps:
+      - name: Download release assets and publish SHA256SUMS
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          tag="${GITHUB_REF_NAME}"
+          gh release download "$tag" --repo "${{ github.repository }}" --dir dist --skip-existing
+          (cd dist && sha256sum -- * > SHA256SUMS)
+          gh release upload "$tag" dist/SHA256SUMS --repo "${{ github.repository }}" --clobber
