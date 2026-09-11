@@ -10,6 +10,7 @@ import { SettingsDialog } from "@/components/shell/SettingsDialog";
 import { TabBar } from "@/components/shell/TabBar";
 import { TitleBar } from "@/components/shell/TitleBar";
 import { MobileShell } from "@/components/shell/MobileShell";
+import { RevokedProfileBanner } from "@/components/shell/RevokedProfileBanner";
 import { ChatPanel } from "@/components/chat/ChatPanel";
 import { SessionDock } from "@/components/shell/SessionDock";
 import { FilesPanelSlot } from "@/components/files/FilesPanelSlot";
@@ -613,6 +614,7 @@ export default function App() {
       // testing `ChoiceCard` clipping/leaving a gap under the composer on iOS,
       // journal/46 follow-up).
       <div className="flex h-full w-screen flex-col overflow-hidden bg-background text-foreground">
+        <RevokedProfileBanner profile={activeProfile} />
         <SessionSearch open={searchOpen} onOpenChange={setSearchOpen} onSelectSession={handleSearchSelectSession} />
         <MobileShell
           activeProfile={activeProfile}
@@ -650,6 +652,7 @@ export default function App() {
         onOpenSettings={() => setSettingsOpen(true)}
         connected={activeConnected}
       />
+      <RevokedProfileBanner profile={activeProfile} />
 
       <SessionSearch open={searchOpen} onOpenChange={setSearchOpen} onSelectSession={handleSearchSelectSession} />
       <SettingsDialog open={settingsOpen} onOpenChange={setSettingsOpen} activeProfile={activeProfile} />

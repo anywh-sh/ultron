@@ -12,6 +12,7 @@ import type { useFileTabs } from "@/hooks/useFileTabs";
 import { listFiles, uploadFile } from "@/lib/filesClient";
 import { resolveConnection } from "@/lib/connectionResolver";
 import { BrokerRevokedError } from "@/lib/tailnetBroker";
+import { markProfileRevoked } from "@/lib/profileRevocation";
 import { physicalPositionToClientPoint } from "@/lib/dragDropPosition";
 import type { Profile } from "@/lib/profiles";
 import { cn } from "@/lib/utils";
@@ -90,7 +91,10 @@ function useFilesWatch(profile: Profile, sessionId: string, dirs: string[], file
           // Terminal — this device's connection was deliberately revoked and
           // will never succeed again, unlike every other reason this could
           // fail (network blip, relay down), which are worth retrying.
-          if (error instanceof BrokerRevokedError) return;
+          if (error instanceof BrokerRevokedError) {
+            markProfileRevoked(profile.id);
+            return;
+          }
           reconnectTimer = window.setTimeout(connect, 2000);
         });
     }

@@ -13,7 +13,8 @@ import {
 } from "@/lib/relayClient";
 import { isBrokeredProfile, isTailnetProfile, type Profile } from "@/lib/profiles";
 import { acquireTailnetSidecar, releaseTailnetSidecar } from "@/lib/tailnetSidecar";
-import { fetchConnectGrant } from "@/lib/tailnetBroker";
+import { BrokerRevokedError, fetchConnectGrant } from "@/lib/tailnetBroker";
+import { markProfileRevoked } from "@/lib/profileRevocation";
 
 /** A received `compact_boundary`, with a timestamp — the timestamp guarantees a
  * fresh reference on every occurrence (even with repeated `trigger`/`preTokens`),
@@ -236,6 +237,7 @@ export function useRelayClient(
       onSessionDeleted: () => optionsRef.current.onSessionDeleted?.(),
       onConnectionChange: setConnected,
       onReconnecting: () => optionsRef.current.onReconnecting?.(),
+      onRevoked: () => markProfileRevoked(profile.id),
       onConversationReset: () => optionsRef.current.onConversationReset?.(),
       onHistoryPage: (page) => optionsRef.current.onHistoryPage?.(page),
       onOlderHistory: (page) => optionsRef.current.onOlderHistory?.(page),
@@ -297,10 +299,12 @@ export function useRelayClient(
           host = endpoint.host;
           port = endpoint.port;
         } catch (err) {
-          // No UI surface for this yet (cosmetic, out of scope for F2/F3) —
-          // `connected` simply never turns true, same as any other
-          // unreachable host today.
           console.error("tailnet-sidecar failed to join the tailnet:", err);
+          // Same terminal signal as `onRevoked` below, but for the very
+          // first connection attempt — this catch runs before `RelayClient`
+          // even exists, so there's no reconnect loop to stop, just the
+          // same "tell the banner" step.
+          if (err instanceof BrokerRevokedError) markProfileRevoked(profile.id);
           return;
         } finally {
           if (!cancelled) setConnectingTailnet(false);
