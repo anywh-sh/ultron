@@ -11,16 +11,19 @@ import type { Profile } from "@/lib/profiles";
  * added to the fs/asset-protocol scopes for the picked path only), so the
  * `fs:allow-write-file` capability here never has to allow arbitrary paths.
  * `null` back from `save()` means the user cancelled — a no-op, not an
- * error.
+ * error. Returns whether a file was actually written, so a caller reporting
+ * "downloaded" to the user (the toast in `DownloadToasts.tsx`) doesn't fire
+ * on a cancelled dialog.
  */
-export async function downloadFile(profile: Profile, sessionId: string, path: string, name: string, mtimeMs: number): Promise<void> {
+export async function downloadFile(profile: Profile, sessionId: string, path: string, name: string, mtimeMs: number): Promise<boolean> {
   const target = await save({ defaultPath: name });
-  if (!target) return;
+  if (!target) return false;
 
   const response = await fetch(rawFileUrl(profile, sessionId, path, mtimeMs));
   if (!response.ok) throw new Error(`HTTP ${String(response.status)}`);
   const bytes = new Uint8Array(await response.arrayBuffer());
   await writeFile(target, bytes);
+  return true;
 }
 
 /** Walks `dirPath` with the tree's own lazy, one-folder-at-a-time `listFiles`
@@ -50,8 +53,19 @@ async function collectFiles(profile: Profile, sessionId: string, dirPath: string
  * same as Zed. A per-file failure doesn't abort the rest of the folder — it's
  * logged and counted, so one broken symlink doesn't lose everything else
  * already fetched; the caller finds out via the thrown summary and can alert.
+ *
+ * `onProgress`, if given, fires after every file (success or failure) with
+ * `(completed, total)` — the caller uses it to drive the download toast's
+ * live count (`DownloadToasts.tsx`) without this function knowing anything
+ * about that UI.
  */
-export async function downloadFolder(profile: Profile, sessionId: string, dirPath: string, dirName: string): Promise<void> {
+export async function downloadFolder(
+  profile: Profile,
+  sessionId: string,
+  dirPath: string,
+  dirName: string,
+  onProgress?: (completed: number, total: number) => void,
+): Promise<void> {
   const files = await collectFiles(profile, sessionId, dirPath);
   if (files.length === 0) return;
 
@@ -59,7 +73,7 @@ export async function downloadFolder(profile: Profile, sessionId: string, dirPat
   if (!destParent) return;
 
   let failed = 0;
-  for (const file of files) {
+  for (const [index, file] of files.entries()) {
     const relative = file.path.slice(dirPath.length).replace(/^\//, "");
     const targetPath = `${destParent}/${dirName}/${relative}`;
     try {
@@ -72,6 +86,7 @@ export async function downloadFolder(profile: Profile, sessionId: string, dirPat
       console.error("[anywh] failed to download file inside folder:", file.path, error);
       failed++;
     }
+    onProgress?.(index + 1, files.length);
   }
   if (failed > 0) throw new Error(`${String(failed)} de ${String(files.length)} arquivos da pasta não puderam ser baixados.`);
 }

@@ -27,6 +27,7 @@ import {
 import { ContextMenuAnchor, useContextMenu } from "@/hooks/useContextMenu";
 import { detectEditors, type DetectedEditor } from "@/lib/editors";
 import { buildEditorUrl, type EditorId, type EditorLocality } from "@/lib/editorLinks";
+import { finishBatchDownload, notifyFileDownloaded, startBatchDownload, tickBatchDownload } from "@/lib/downloadNotifications";
 import { downloadFile, downloadFolder } from "@/lib/fileDownload";
 import { createFile, deleteFile, getHostInfo, listFiles, renameFile, type FileEntry } from "@/lib/filesClient";
 import { isIOS } from "@/lib/platform";
@@ -251,16 +252,20 @@ export function FileTree({
   }
 
   async function handleBulkDownload(paths: string[]): Promise<void> {
-    for (const path of paths) {
+    const jobId = startBatchDownload(paths.length);
+    for (const [index, path] of paths.entries()) {
       const entry = allEntriesByPath.get(path);
-      if (!entry) continue;
-      try {
-        await downloadFile(profile, sessionId, entry.path, entry.name, entry.mtimeMs);
-      } catch (error) {
-        console.error("[anywh] failed to download file:", path, error);
-        window.alert(`Não foi possível baixar "${entry.name}".`);
+      if (entry) {
+        try {
+          await downloadFile(profile, sessionId, entry.path, entry.name, entry.mtimeMs);
+        } catch (error) {
+          console.error("[anywh] failed to download file:", path, error);
+          window.alert(`Não foi possível baixar "${entry.name}".`);
+        }
       }
+      tickBatchDownload(jobId, index + 1);
     }
+    finishBatchDownload(jobId);
   }
 
   // "Open in editor" (journal/60): locality comes from the relay (declared,
@@ -534,7 +539,7 @@ function FileTreeNode({
 
   async function handleDownload(): Promise<void> {
     try {
-      await downloadFile(profile, sessionId, entry.path, entry.name, entry.mtimeMs);
+      if (await downloadFile(profile, sessionId, entry.path, entry.name, entry.mtimeMs)) notifyFileDownloaded(entry.name);
     } catch (error) {
       console.error("[anywh] failed to download file:", error);
       window.alert("Não foi possível baixar o arquivo.");
@@ -563,11 +568,17 @@ function FileTreeNode({
   }
 
   async function handleDownloadFolder(): Promise<void> {
+    let jobId: string | null = null;
     try {
-      await downloadFolder(profile, sessionId, entry.path, entry.name);
+      await downloadFolder(profile, sessionId, entry.path, entry.name, (completed, total) => {
+        jobId ??= startBatchDownload(total);
+        tickBatchDownload(jobId, completed);
+      });
     } catch (error) {
       console.error("[anywh] failed to download folder:", error);
       window.alert(error instanceof Error ? error.message : "Não foi possível baixar a pasta.");
+    } finally {
+      if (jobId !== null) finishBatchDownload(jobId);
     }
   }
 

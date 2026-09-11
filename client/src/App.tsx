@@ -14,6 +14,7 @@ import { RevokedProfileBanners } from "@/components/shell/RevokedProfileBanner";
 import { ProfileSetupDialog } from "@/components/shell/ProfileSetupDialog";
 import { ChatPanel } from "@/components/chat/ChatPanel";
 import { SessionDock } from "@/components/shell/SessionDock";
+import { DownloadToasts } from "@/components/files/DownloadToasts";
 import { FilesPanelSlot } from "@/components/files/FilesPanelSlot";
 import { TerminalPanelSlot } from "@/components/terminal/TerminalPanelSlot";
 import { useActiveProfile } from "@/hooks/useActiveProfile";
@@ -786,6 +787,7 @@ export default function App() {
       />
       <RevokedProfileBanners />
       {profileSetupDialog}
+      <DownloadToasts />
 
       <SessionSearch open={searchOpen} onOpenChange={setSearchOpen} onSelectSession={handleSearchSelectSession} />
       <SettingsDialog open={settingsOpen} onOpenChange={setSettingsOpen} activeProfile={activeProfile} />

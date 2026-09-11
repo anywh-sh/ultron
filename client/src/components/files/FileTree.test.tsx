@@ -193,7 +193,7 @@ describe("FileTree context menu", () => {
     await user.pointer({ keys: "[MouseRight]", target: row });
     await user.click(await screen.findByText("Baixar"));
 
-    expect(downloadFolder).toHaveBeenCalledWith(profile, "session-1", `${root}/src`, "src");
+    expect(downloadFolder).toHaveBeenCalledWith(profile, "session-1", `${root}/src`, "src", expect.any(Function));
   });
 });
 
