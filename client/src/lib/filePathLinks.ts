@@ -23,7 +23,27 @@ export function looksLikeFilePath(text: string): boolean {
   const trimmed = text.trim();
   if (!trimmed || trimmed !== text) return false;
   if (trimmed.includes("\n") || trimmed.includes(" ")) return false;
-  if (/^[a-zA-Z][a-zA-Z0-9+.-]*:\/\//.test(trimmed)) return false; // scheme://... (URLs)
+  if (looksLikeExternalUrl(trimmed)) return false;
   if (trimmed.includes("/")) return trimmed !== "/";
   return BARE_FILENAME_RE.test(trimmed);
+}
+
+/**
+ * Whether an `href` is a URL the opener plugin's allowlist actually knows
+ * how to open (`http(s)://`, `mailto:`, `tel:`, or the editor deep-link
+ * schemes in `capabilities/default.json`) — as opposed to a relative or
+ * absolute file path written as a real markdown link (`` [foo](bar/baz.ts) ``
+ * instead of backtick code). `MarkdownContent`'s `a` override calls this to
+ * decide between the external-open path (`handleExternalLinkClick`) and the
+ * file panel path (`onOpenPath`, same as `looksLikeFilePath` above): a path
+ * routed to `openUrl` fails the plugin's scope check and silently no-ops —
+ * `preventDefault` already stopped the webview's own in-place navigation, so
+ * there's no fallback and the click just does nothing.
+ *
+ * Requires `://` rather than a bare `scheme:` so a Windows absolute path
+ * (`C:\Users\...`) isn't mistaken for a URL with scheme `c` — same guard
+ * `looksLikeFilePath` already relies on above.
+ */
+export function looksLikeExternalUrl(href: string): boolean {
+  return /^[a-zA-Z][a-zA-Z0-9+.-]*:\/\//.test(href) || href.startsWith("mailto:") || href.startsWith("tel:");
 }

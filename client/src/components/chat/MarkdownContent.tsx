@@ -2,7 +2,7 @@ import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import rehypeHighlight from "rehype-highlight";
 import { handleExternalLinkClick } from "@/lib/externalLink";
-import { looksLikeFilePath } from "@/lib/filePathLinks";
+import { looksLikeExternalUrl, looksLikeFilePath } from "@/lib/filePathLinks";
 import { MarkdownCodeBlock } from "@/components/chat/MarkdownCodeBlock";
 
 /**
@@ -24,9 +24,29 @@ export function MarkdownContent({ text, onOpenPath }: { text: string; onOpenPath
       remarkPlugins={[remarkGfm]}
       rehypePlugins={[rehypeHighlight]}
       components={{
-        a: ({ href, ...props }) => (
-          <a {...props} href={href} rel="noopener noreferrer" onClick={(event) => href && handleExternalLinkClick(event, href)} />
-        ),
+        // A real markdown link (`[foo](bar/baz.ts)`, as opposed to the `code`
+        // override below) whose `href` isn't an external URL scheme: the
+        // opener plugin's scope only knows http(s)/mailto/tel/the editor
+        // deep links (capabilities/default.json), so handing it a bare path
+        // fails closed and the click silently does nothing. Route it through
+        // the same file panel affordance as an inline-code path instead.
+        a: ({ href, children, ...props }) => {
+          if (href && !looksLikeExternalUrl(href)) {
+            if (onOpenPath) {
+              return (
+                <button type="button" className="prose-chat-path-link" onClick={() => onOpenPath(href)}>
+                  {children}
+                </button>
+              );
+            }
+            return <span>{children}</span>;
+          }
+          return (
+            <a {...props} href={href} rel="noopener noreferrer" onClick={(event) => href && handleExternalLinkClick(event, href)}>
+              {children}
+            </a>
+          );
+        },
         pre: MarkdownCodeBlock,
         // Only inline spans (no `className` — react-markdown/remark only
         // stamps `language-xxx` on a fenced block's `code`, never on an

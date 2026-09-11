@@ -3,11 +3,15 @@ import { cleanup, render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { MarkdownContent } from "./MarkdownContent";
 
+const openUrl = vi.fn();
 vi.mock("@tauri-apps/plugin-opener", () => ({
-  openUrl: vi.fn(),
+  openUrl: (...args: unknown[]) => openUrl(...args),
 }));
 
-afterEach(cleanup);
+afterEach(() => {
+  cleanup();
+  openUrl.mockClear();
+});
 
 describe("MarkdownContent", () => {
   it("renders a path-like inline code span as a clickable button when onOpenPath is given", async () => {
@@ -39,5 +43,30 @@ describe("MarkdownContent", () => {
     render(<MarkdownContent text={"```\nscreenshots/PROJ-929/foo.png\n```"} onOpenPath={onOpenPath} />);
 
     expect(screen.queryByRole("button", { name: /foo\.png/ })).not.toBeInTheDocument();
+  });
+
+  it("opens a real http(s) markdown link via the platform opener", async () => {
+    render(<MarkdownContent text="Veja [aqui](https://example.com)." />);
+
+    await userEvent.click(screen.getByRole("link", { name: "aqui" }));
+    expect(openUrl).toHaveBeenCalledWith("https://example.com");
+  });
+
+  it("routes a markdown link whose href is a relative path to onOpenPath instead of the opener", async () => {
+    const onOpenPath = vi.fn();
+    render(<MarkdownContent text="Veja [o relatório](screenshots/PROJ-929/foo.png)." onOpenPath={onOpenPath} />);
+
+    const link = screen.getByRole("button", { name: "o relatório" });
+    await userEvent.click(link);
+    expect(onOpenPath).toHaveBeenCalledWith("screenshots/PROJ-929/foo.png");
+    expect(openUrl).not.toHaveBeenCalled();
+  });
+
+  it("renders a path-href markdown link as plain text when onOpenPath is omitted, instead of a dead link", () => {
+    render(<MarkdownContent text="Veja [o relatório](screenshots/PROJ-929/foo.png)." />);
+
+    expect(screen.queryByRole("link", { name: "o relatório" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "o relatório" })).not.toBeInTheDocument();
+    expect(screen.getByText("o relatório").tagName).toBe("SPAN");
   });
 });

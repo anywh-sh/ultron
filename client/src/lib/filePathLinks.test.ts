@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { looksLikeFilePath } from "./filePathLinks";
+import { looksLikeExternalUrl, looksLikeFilePath } from "./filePathLinks";
 
 describe("looksLikeFilePath", () => {
   it("accepts a nested relative path", () => {
@@ -47,5 +47,31 @@ describe("looksLikeFilePath", () => {
 
   it("rejects an empty string", () => {
     expect(looksLikeFilePath("")).toBe(false);
+  });
+});
+
+describe("looksLikeExternalUrl", () => {
+  it("accepts http(s) URLs", () => {
+    expect(looksLikeExternalUrl("http://example.com")).toBe(true);
+    expect(looksLikeExternalUrl("https://example.com/foo/bar")).toBe(true);
+  });
+
+  it("accepts mailto: and tel: links", () => {
+    expect(looksLikeExternalUrl("mailto:someone@example.com")).toBe(true);
+    expect(looksLikeExternalUrl("tel:+15551234567")).toBe(true);
+  });
+
+  it("accepts the editor deep-link schemes allowed in capabilities/default.json", () => {
+    expect(looksLikeExternalUrl("zed://file/foo.ts")).toBe(true);
+    expect(looksLikeExternalUrl("vscode://file/foo.ts")).toBe(true);
+  });
+
+  it("rejects a relative or absolute file path", () => {
+    expect(looksLikeExternalUrl("screenshots/PROJ-929/foo.png")).toBe(false);
+    expect(looksLikeExternalUrl("/home/user/project/README.md")).toBe(false);
+  });
+
+  it("rejects a Windows absolute path — the drive letter isn't a URL scheme", () => {
+    expect(looksLikeExternalUrl("C:\\Users\\foo\\bar.txt")).toBe(false);
   });
 });
