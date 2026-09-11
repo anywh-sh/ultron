@@ -52,3 +52,11 @@ globalThis.ResizeObserver = FakeResizeObserver;
 // 0x0 and every row stayed out of the computed visible range.
 Object.defineProperty(HTMLElement.prototype, "offsetHeight", { configurable: true, get: () => 600 });
 Object.defineProperty(HTMLElement.prototype, "offsetWidth", { configurable: true, get: () => 800 });
+
+// Same story, different reader: useGroupSizeDrag/useSplitDrag measure their
+// container via clientWidth/clientHeight (not offsetWidth/offsetHeight) at
+// drag start — without this, happy-dom reports 0, and the drag hook's own
+// `if (containerWidth === 0) return` guard would silently no-op every
+// simulated drag in tests/ui/tabGroups.test.tsx.
+Object.defineProperty(HTMLElement.prototype, "clientHeight", { configurable: true, get: () => 600 });
+Object.defineProperty(HTMLElement.prototype, "clientWidth", { configurable: true, get: () => 800 });

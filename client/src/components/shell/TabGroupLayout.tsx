@@ -228,6 +228,7 @@ export function TabGroupLayout({
             <Fragment key={group.id}>
               {index > 0 && (
                 <div
+                  data-testid={`group-resize-handle-${index - 1}`}
                   onPointerDown={startDrag(index - 1)}
                   className={cn("z-10 w-1 shrink-0 cursor-col-resize hover:bg-border", draggingIndex === index - 1 && "bg-border")}
                 />
