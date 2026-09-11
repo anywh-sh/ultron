@@ -12,7 +12,6 @@
 [![Latest release](https://img.shields.io/github/v/release/anywh-sh/anywh?style=flat)](https://github.com/anywh-sh/anywh/releases/latest)
 [![Downloads](https://img.shields.io/github/downloads/anywh-sh/anywh/total?style=flat)](https://github.com/anywh-sh/anywh/releases)
 [![License: Apache 2.0](https://img.shields.io/badge/license-Apache%202.0-blue.svg?style=flat)](LICENSE)
-[![Platforms](https://img.shields.io/badge/platforms-Windows%20%7C%20macOS%20%7C%20iOS-informational?style=flat)](#getting-started-self-host)
 
 [Website](https://anywh.sh) • [Getting started](#getting-started-self-host) • [Issues](https://github.com/anywh-sh/anywh/issues)
 
