@@ -83,6 +83,7 @@ jobs:
       - uses: actions/setup-go@v6
         with:
           go-version-file: client/tailnet-sidecar/go.mod
+          cache-dependency-path: client/tailnet-sidecar/go.sum
 
       # Same packages pr.yml's client-e2e job installs, for the same reason:
       # cpal (voice) needs ALSA headers and whisper-rs's bindgen needs

@@ -101,6 +101,7 @@ jobs:
       - uses: actions/setup-go@v6
         with:
           go-version-file: client/tailnet-sidecar/go.mod
+          cache-dependency-path: client/tailnet-sidecar/go.sum
       # tauri-build's build.rs (bundle.externalBin, journal/62 CT-2) fails
       # the whole cargo build if this binary isn't on disk yet — it isn't
       # committed (client/src-tauri/binaries/ is gitignored, one binary per
