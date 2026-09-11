@@ -1,5 +1,4 @@
-import { useCallback, useEffect, useRef, useState } from "react";
-import { arrayMove } from "@dnd-kit/sortable";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { getProfiles } from "@/lib/profiles";
 
 export interface Tab {
@@ -22,9 +21,27 @@ export interface Tab {
   isNew: boolean;
 }
 
-interface TabsState {
-  tabs: Tab[];
+/** One column of the split — up to `MAX_GROUPS` side by side (see the
+ * "split de grupos" journal entry for the full design). `tabIds` is the
+ * group's own visual order, independent of `tabs`' pool order below. */
+export interface TabGroup {
+  id: string;
+  tabIds: string[];
   activeTabId: string | null;
+  /** Fraction of the content area's width — every group's `size` sums to 1. */
+  size: number;
+}
+
+interface TabsState {
+  /** Flat pool, unordered w.r.t. display — every consumer that doesn't care
+   * about visual order (running/background-job lookups, the `tabId -> Tab`
+   * map) keeps reading this directly, same as before groups existed. Visual
+   * order lives on each `TabGroup.tabIds` instead. */
+  tabs: Tab[];
+  /** Left to right. Always at least one — a fully "empty" app is one group
+   * with `tabIds: []`, never zero groups. */
+  groups: TabGroup[];
+  focusedGroupId: string;
 }
 
 interface PersistedTab {
@@ -38,8 +55,25 @@ interface PersistedTabs {
   activeTabId: string | null;
 }
 
+interface PersistedTabGroup {
+  id: string;
+  tabIds: string[];
+  activeTabId: string | null;
+  size: number;
+}
+
+interface PersistedTabLayout {
+  version: 1;
+  groups: PersistedTabGroup[];
+  focusedGroupId: string;
+}
+
+export const MAX_GROUPS = 3;
+const MIN_GROUP_SIZE = 0.05;
+
 const TABS_KEY = "anywh:tabs";
 const ACTIVE_TAB_KEY = "anywh:active-tab";
+const TAB_LAYOUT_KEY = "anywh:tab-layout";
 
 /** Keys from when tabs were separated by profile (docs/28 and earlier) — used
  * only as a migration fallback for whoever already had tabs saved from before the
@@ -85,58 +119,284 @@ function migrateLegacyTabs(): PersistedTabs | null {
   return allTabs.length > 0 ? { tabs: allTabs, activeTabId } : null;
 }
 
+function createGroup(tabIds: string[] = [], activeTabId: string | null = null, size = 1): TabGroup {
+  return { id: crypto.randomUUID(), tabIds, activeTabId, size };
+}
+
+function initialState(): TabsState {
+  const group = createGroup();
+  return { tabs: [], groups: [group], focusedGroupId: group.id };
+}
+
+function findGroupOfTab(groups: TabGroup[], tabId: string): TabGroup | undefined {
+  return groups.find((group) => group.tabIds.includes(tabId));
+}
+
+/** Scales every group's `size` so they sum to 1, flooring each at
+ * `MIN_GROUP_SIZE` first — a group that lost its share (e.g. freshly split
+ * off with `size: 0`) still ends up with a usable sliver instead of vanishing,
+ * and the floor never breaks the sum-to-1 invariant since it's applied
+ * before the final scale. */
+function normalizeSizes(groups: TabGroup[]): TabGroup[] {
+  if (groups.length === 0) return groups;
+  const evenSize = 1 / groups.length;
+  const rawSizes = groups.map((group) => (Number.isFinite(group.size) && group.size > 0 ? group.size : evenSize));
+  const rawTotal = rawSizes.reduce((sum, size) => sum + size, 0);
+  const flooredSizes = rawSizes.map((size) => Math.max(MIN_GROUP_SIZE, size / rawTotal));
+  const flooredTotal = flooredSizes.reduce((sum, size) => sum + size, 0);
+  return groups.map((group, index) => ({ ...group, size: flooredSizes[index] / flooredTotal }));
+}
+
+/** The single choke point every operation below routes its result through —
+ * keeps the invariants true no matter which combination of ops produced the
+ * new state: always >=1 group, no tab in two groups (or missing from all of
+ * them), no empty group unless it's the only one, sizes summing to 1,
+ * `focusedGroupId` pointing at a real group, and each group's `activeTabId`
+ * one of its own `tabIds`. */
+function normalize(state: TabsState): TabsState {
+  const poolIds = new Set(state.tabs.map((tab) => tab.id));
+  const seen = new Set<string>();
+
+  let groups = state.groups.map((group) => ({
+    ...group,
+    tabIds: group.tabIds.filter((id) => {
+      if (!poolIds.has(id) || seen.has(id)) return false;
+      seen.add(id);
+      return true;
+    }),
+  }));
+
+  // Any pool tab that didn't land in any group (shouldn't happen from a
+  // correctly-written op, but a persisted blob could be hand-edited) goes
+  // into the first group rather than being silently dropped.
+  const orphanIds = state.tabs.map((tab) => tab.id).filter((id) => !seen.has(id));
+  if (orphanIds.length > 0) {
+    if (groups.length === 0) groups = [createGroup()];
+    groups = groups.map((group, index) => (index === 0 ? { ...group, tabIds: [...group.tabIds, ...orphanIds] } : group));
+  }
+
+  groups = groups.filter((group, index) => group.tabIds.length > 0 || (index === 0 && groups.length === 1));
+  if (groups.length === 0) groups = [createGroup()];
+
+  groups = normalizeSizes(groups).map((group) => ({
+    ...group,
+    activeTabId: group.activeTabId && group.tabIds.includes(group.activeTabId) ? group.activeTabId : (group.tabIds[group.tabIds.length - 1] ?? null),
+  }));
+
+  const focusedGroupId = groups.some((group) => group.id === state.focusedGroupId) ? state.focusedGroupId : groups[0].id;
+
+  return { tabs: state.tabs, groups, focusedGroupId };
+}
+
+function sanitizeTabIds(tabIds: unknown, poolIds: Set<string>, seen: Set<string>): string[] {
+  if (!Array.isArray(tabIds)) return [];
+  const result: string[] = [];
+  for (const id of tabIds) {
+    if (typeof id !== "string" || !poolIds.has(id) || seen.has(id)) continue;
+    seen.add(id);
+    result.push(id);
+  }
+  return result;
+}
+
+function fallbackLayout(tabs: PersistedTab[], activeTabId: string | null): { groups: TabGroup[]; focusedGroupId: string } {
+  const resolvedActiveTabId = activeTabId && tabs.some((tab) => tab.id === activeTabId) ? activeTabId : (tabs[tabs.length - 1]?.id ?? null);
+  const group = createGroup(
+    tabs.map((tab) => tab.id),
+    resolvedActiveTabId,
+  );
+  return { groups: [group], focusedGroupId: group.id };
+}
+
+/** Reads `anywh:tab-layout`, defensively — a blob referencing a `tabId` no
+ * longer in the pool, a corrupted/absent blob, or one predating this key
+ * (`version` missing) all fall back to a single group holding every tab in
+ * `tabs`' persisted order. That's also exactly what a user upgrading from
+ * before this feature sees on first boot. */
+function getPersistedLayout(tabs: PersistedTab[], fallbackActiveTabId: string | null): { groups: TabGroup[]; focusedGroupId: string } {
+  const raw = localStorage.getItem(TAB_LAYOUT_KEY);
+  if (raw === null) return fallbackLayout(tabs, fallbackActiveTabId);
+
+  try {
+    const parsed = JSON.parse(raw) as Partial<PersistedTabLayout>;
+    if (parsed.version !== 1 || !Array.isArray(parsed.groups)) return fallbackLayout(tabs, fallbackActiveTabId);
+
+    const poolIds = new Set(tabs.map((tab) => tab.id));
+    const seen = new Set<string>();
+    const groups: TabGroup[] = parsed.groups
+      .map((group) => {
+        const tabIds = sanitizeTabIds(group?.tabIds, poolIds, seen);
+        const activeTabId = typeof group?.activeTabId === "string" && tabIds.includes(group.activeTabId) ? group.activeTabId : (tabIds[tabIds.length - 1] ?? null);
+        return {
+          id: typeof group?.id === "string" ? group.id : crypto.randomUUID(),
+          tabIds,
+          activeTabId,
+          size: typeof group?.size === "number" ? group.size : 0,
+        };
+      })
+      .filter((group) => group.tabIds.length > 0);
+
+    if (groups.length === 0) return fallbackLayout(tabs, fallbackActiveTabId);
+
+    const focusedGroupId = groups.some((group) => group.id === parsed.focusedGroupId) ? (parsed.focusedGroupId as string) : groups[0].id;
+    return { groups, focusedGroupId };
+  } catch {
+    return fallbackLayout(tabs, fallbackActiveTabId);
+  }
+}
+
 /**
- * State of the whole app's tabs (docs/29) — no separation by profile: each
- * tab carries its own `profileId`, so tabs from different profiles
- * coexist in the same strip, with a single global active tab. All stay
- * mounted at all times (WS connection alive even in the background), same as
- * used to happen before, per profile.
+ * State of the whole app's tabs (docs/29), now grouped into side-by-side
+ * columns for the split feature: `tabs` stays the flat pool (no separation
+ * by profile — each tab carries its own `profileId`), while `groups` holds
+ * the left-to-right visual layout. All tabs stay mounted at all times (WS
+ * connection alive even in the background), same as before groups existed.
  */
 export function useTabs() {
-  const [state, setState] = useState<TabsState>({ tabs: [], activeTabId: null });
+  const [state, setState] = useState<TabsState>(initialState);
   // Becomes `true` as soon as the list stops being the initial mount
   // placeholder (via restoration or first tab opened) — prevents the persistence
-  // effect below from writing `[]` over what was already saved before
+  // effect below from writing an empty layout over what was already saved before
   // `App` runs the restoration effect (which runs after this one, see hook
   // ordering).
   const hydratedRef = useRef(false);
 
   useEffect(() => {
     if (!hydratedRef.current) return;
-    const persisted: PersistedTab[] = state.tabs.map((tab) => ({ id: tab.id, profileId: tab.profileId, title: tab.title }));
-    localStorage.setItem(TABS_KEY, JSON.stringify(persisted));
-    if (state.activeTabId) localStorage.setItem(ACTIVE_TAB_KEY, state.activeTabId);
+    const persistedTabs: PersistedTab[] = state.tabs.map((tab) => ({ id: tab.id, profileId: tab.profileId, title: tab.title }));
+    localStorage.setItem(TABS_KEY, JSON.stringify(persistedTabs));
+    const focusedGroup = state.groups.find((group) => group.id === state.focusedGroupId);
+    if (focusedGroup?.activeTabId) localStorage.setItem(ACTIVE_TAB_KEY, focusedGroup.activeTabId);
+
+    const layout: PersistedTabLayout = {
+      version: 1,
+      groups: state.groups.map((group) => ({ id: group.id, tabIds: group.tabIds, activeTabId: group.activeTabId, size: group.size })),
+      focusedGroupId: state.focusedGroupId,
+    };
+    localStorage.setItem(TAB_LAYOUT_KEY, JSON.stringify(layout));
   }, [state]);
 
   const openTab = useCallback((profileId: string, id: string, title: string | null = null, isNew = false) => {
     hydratedRef.current = true;
     setState((prev) => {
-      const exists = prev.tabs.some((tab) => tab.id === id);
-      const tabs = exists
-        ? prev.tabs
-        : [...prev.tabs, { id, profileId, title, hasUnreadCompletion: false, isRunning: false, hasBackgroundJob: false, isNew }];
-      return { tabs, activeTabId: id };
+      const existingGroup = findGroupOfTab(prev.groups, id);
+      if (existingGroup) {
+        return {
+          ...prev,
+          groups: prev.groups.map((group) => (group.id === existingGroup.id ? { ...group, activeTabId: id } : group)),
+          focusedGroupId: existingGroup.id,
+        };
+      }
+
+      const tabs = [...prev.tabs, { id, profileId, title, hasUnreadCompletion: false, isRunning: false, hasBackgroundJob: false, isNew }];
+      const groups = prev.groups.map((group) => (group.id === prev.focusedGroupId ? { ...group, tabIds: [...group.tabIds, id], activeTabId: id } : group));
+      return normalize({ tabs, groups, focusedGroupId: prev.focusedGroupId });
     });
   }, []);
 
   const closeTab = useCallback((tabId: string) => {
     setState((prev) => {
+      const ownerIndex = prev.groups.findIndex((group) => group.tabIds.includes(tabId));
+      if (ownerIndex === -1) return prev;
+
       const tabs = prev.tabs.filter((tab) => tab.id !== tabId);
-      const activeTabId = prev.activeTabId === tabId ? (tabs[tabs.length - 1]?.id ?? null) : prev.activeTabId;
-      return { tabs, activeTabId };
+      const groups = prev.groups.map((group, index) => {
+        if (index !== ownerIndex) return group;
+        const tabIds = group.tabIds.filter((id) => id !== tabId);
+        const activeTabId = group.activeTabId === tabId ? (tabIds[tabIds.length - 1] ?? null) : group.activeTabId;
+        return { ...group, tabIds, activeTabId };
+      });
+
+      // Focus only actually needs to move if the group that just emptied out
+      // was the focused one — closing a background tab in a group you're not
+      // even looking at shouldn't steal focus.
+      const ownerEmptied = groups[ownerIndex].tabIds.length === 0 && groups.length > 1;
+      let focusedGroupId = prev.focusedGroupId;
+      if (ownerEmptied && prev.focusedGroupId === groups[ownerIndex].id) {
+        const neighborIndex = ownerIndex > 0 ? ownerIndex - 1 : ownerIndex + 1;
+        focusedGroupId = groups[neighborIndex]?.id ?? focusedGroupId;
+      }
+
+      return normalize({ tabs, groups, focusedGroupId });
     });
   }, []);
 
   const setActiveTab = useCallback((tabId: string) => {
-    setState((prev) => ({ ...prev, activeTabId: tabId }));
+    setState((prev) => {
+      const owner = findGroupOfTab(prev.groups, tabId);
+      if (!owner) return prev;
+      return {
+        ...prev,
+        groups: prev.groups.map((group) => (group.id === owner.id ? { ...group, activeTabId: tabId } : group)),
+        focusedGroupId: owner.id,
+      };
+    });
   }, []);
 
-  const reorderTabs = useCallback((activeTabId: string, overTabId: string) => {
+  const focusGroup = useCallback((groupId: string) => {
+    setState((prev) => (prev.groups.some((group) => group.id === groupId) ? { ...prev, focusedGroupId: groupId } : prev));
+  }, []);
+
+  /** Reorders within a group, or moves a tab from its current group into
+   * another at a given index — replaces the old single-group `reorderTabs`.
+   * The destination group becomes focused either way, matching "drag follows
+   * the pointer". */
+  const moveTab = useCallback((tabId: string, groupId: string, index: number) => {
     setState((prev) => {
-      const oldIndex = prev.tabs.findIndex((tab) => tab.id === activeTabId);
-      const newIndex = prev.tabs.findIndex((tab) => tab.id === overTabId);
-      if (oldIndex === -1 || newIndex === -1 || oldIndex === newIndex) return prev;
-      return { ...prev, tabs: arrayMove(prev.tabs, oldIndex, newIndex) };
+      const sourceGroup = findGroupOfTab(prev.groups, tabId);
+      if (!sourceGroup || !prev.groups.some((group) => group.id === groupId)) return prev;
+
+      const groups = prev.groups.map((group) => {
+        if (group.id === sourceGroup.id && group.id === groupId) {
+          const withoutTab = group.tabIds.filter((id) => id !== tabId);
+          const clampedIndex = Math.max(0, Math.min(index, withoutTab.length));
+          return { ...group, tabIds: [...withoutTab.slice(0, clampedIndex), tabId, ...withoutTab.slice(clampedIndex)] };
+        }
+        if (group.id === sourceGroup.id) {
+          const tabIds = group.tabIds.filter((id) => id !== tabId);
+          return { ...group, tabIds, activeTabId: group.activeTabId === tabId ? (tabIds[tabIds.length - 1] ?? null) : group.activeTabId };
+        }
+        if (group.id === groupId) {
+          const clampedIndex = Math.max(0, Math.min(index, group.tabIds.length));
+          return { ...group, tabIds: [...group.tabIds.slice(0, clampedIndex), tabId, ...group.tabIds.slice(clampedIndex)], activeTabId: tabId };
+        }
+        return group;
+      });
+
+      return normalize({ ...prev, groups, focusedGroupId: groupId });
+    });
+  }, []);
+
+  /** Moves a tab into a brand-new group inserted right after `afterGroupId`.
+   * No-op past `MAX_GROUPS`, or if `tabId` is already alone in its group (the
+   * resulting layout would be identical, since a tab can't appear in two
+   * groups at once — no mirroring). */
+  const splitTabToNewGroup = useCallback((tabId: string, afterGroupId: string) => {
+    setState((prev) => {
+      if (prev.groups.length >= MAX_GROUPS) return prev;
+      const sourceGroup = findGroupOfTab(prev.groups, tabId);
+      if (!sourceGroup || sourceGroup.tabIds.length === 1) return prev;
+      const afterIndex = prev.groups.findIndex((group) => group.id === afterGroupId);
+      if (afterIndex === -1) return prev;
+
+      const newGroup = createGroup([tabId], tabId, 0);
+      const groups = prev.groups.map((group) => {
+        if (group.id !== sourceGroup.id) return group;
+        const tabIds = group.tabIds.filter((id) => id !== tabId);
+        return { ...group, tabIds, activeTabId: group.activeTabId === tabId ? (tabIds[tabIds.length - 1] ?? null) : group.activeTabId };
+      });
+      groups.splice(afterIndex + 1, 0, newGroup);
+
+      return normalize({ tabs: prev.tabs, groups, focusedGroupId: newGroup.id });
+    });
+  }, []);
+
+  /** One fraction per current group, left to right — from the resize drag,
+   * called once on pointer up (see `useGroupSizeDrag`), not per frame. */
+  const setGroupSizes = useCallback((sizes: number[]) => {
+    setState((prev) => {
+      if (sizes.length !== prev.groups.length) return prev;
+      return normalize({ ...prev, groups: prev.groups.map((group, index) => ({ ...group, size: sizes[index] })) });
     });
   }, []);
 
@@ -197,7 +457,7 @@ export function useTabs() {
   const restoreTabs = useCallback((persistedTabs: PersistedTab[], activeTabId: string | null) => {
     hydratedRef.current = true;
     setState(() => {
-      const tabs = persistedTabs.map((persisted) => ({
+      const tabs: Tab[] = persistedTabs.map((persisted) => ({
         id: persisted.id,
         profileId: persisted.profileId,
         title: persisted.title,
@@ -206,21 +466,35 @@ export function useTabs() {
         hasBackgroundJob: false,
         isNew: false,
       }));
-      return { tabs, activeTabId: activeTabId ?? tabs[tabs.length - 1]?.id ?? null };
+      const layout = getPersistedLayout(persistedTabs, activeTabId ?? tabs[tabs.length - 1]?.id ?? null);
+      return normalize({ tabs, groups: layout.groups, focusedGroupId: layout.focusedGroupId });
     });
   }, []);
 
+  const focusedGroup = state.groups.find((group) => group.id === state.focusedGroupId);
+  const activeTabId = focusedGroup?.activeTabId ?? null;
+  const visibleTabIds = useMemo(
+    () => new Set(state.groups.map((group) => group.activeTabId).filter((id): id is string => id !== null)),
+    [state.groups],
+  );
+
   return {
     tabs: state.tabs,
-    activeTabId: state.activeTabId,
+    groups: state.groups,
+    focusedGroupId: state.focusedGroupId,
+    activeTabId,
+    visibleTabIds,
     openTab,
     closeTab,
     setActiveTab,
+    focusGroup,
+    moveTab,
+    splitTabToNewGroup,
+    setGroupSizes,
     setUnread,
     setRunning,
     setHasBackgroundJob,
     setTabTitle,
-    reorderTabs,
     getPersistedTabs,
     restoreTabs,
   };

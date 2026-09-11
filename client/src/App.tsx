@@ -575,6 +575,15 @@ export default function App() {
   // Any `position: static` div in this chain up to `.mobile-canvas` breaks
   // the blur. Don't remove it even though it looks redundant — harmless for
   // desktop (doesn't change position/size of anything).
+  // Single group only, for now (the split feature reads/writes `groups`
+  // underneath, but `TabBar` still renders one flat strip — multi-group
+  // layout comes in a later commit). `tabById` maps the pool onto the
+  // focused group's own visual order, which is what a drag reorder now
+  // moves (`moveTab`), not the pool itself.
+  const focusedGroup = tabsState.groups.find((group) => group.id === tabsState.focusedGroupId) ?? tabsState.groups[0];
+  const tabById = new Map(tabsState.tabs.map((tab) => [tab.id, tab]));
+  const focusedGroupTabs = focusedGroup.tabIds.map((id) => tabById.get(id)).filter((tab): tab is Tab => tab !== undefined);
+
   const tabsContent = (
     <div className="relative min-h-0 flex-1">
       {tabsState.tabs.length === 0 ? (
@@ -587,11 +596,14 @@ export default function App() {
         activeTab && renderPanel(activeTab)
       ) : (
         <TabBar
-          tabs={tabsState.tabs}
+          tabs={focusedGroupTabs}
           activeTabId={activeTabId}
           onSelect={tabsState.setActiveTab}
           onClose={tabsState.closeTab}
-          onReorder={tabsState.reorderTabs}
+          onReorder={(tabId, overTabId) => {
+            const index = focusedGroup.tabIds.indexOf(overTabId);
+            if (index !== -1) tabsState.moveTab(tabId, focusedGroup.id, index);
+          }}
           onRenameSession={(tabId, title) => {
             const tab = tabsState.tabs.find((t) => t.id === tabId);
             if (tab) handleRenameSession(tab.profileId, tabId, title);
