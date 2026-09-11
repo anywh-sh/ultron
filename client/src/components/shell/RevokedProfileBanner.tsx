@@ -12,6 +12,7 @@ import {
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
 import { useProfileRevoked } from "@/hooks/useProfileRevoked";
+import { useProfiles } from "@/hooks/useProfiles";
 import { clearProfileRevoked } from "@/lib/profileRevocation";
 import { removeProfile, type Profile } from "@/lib/profiles";
 
@@ -86,5 +87,26 @@ export function RevokedProfileBanner({ profile }: { profile: Profile }) {
         </AlertDialogContent>
       </AlertDialog>
     </div>
+  );
+}
+
+/**
+ * One banner per revoked profile, not just `activeProfile` — a background
+ * chat tab keeps its own `RelayClient` alive regardless of which profile the
+ * sidebar has selected (`TabBar`'s `forceMount`, App.tsx), so its revocation
+ * can be detected while the user is looking at a different profile entirely.
+ * Gating the banner on `activeProfile` meant that detection was silent until
+ * the user happened to switch back (journal/67) — this renders one per
+ * profile in the list, and `RevokedProfileBanner` itself already no-ops for
+ * whichever ones aren't revoked.
+ */
+export function RevokedProfileBanners() {
+  const profiles = useProfiles();
+  return (
+    <>
+      {profiles.map((profile) => (
+        <RevokedProfileBanner key={profile.id} profile={profile} />
+      ))}
+    </>
   );
 }

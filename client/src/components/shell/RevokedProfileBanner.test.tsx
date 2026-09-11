@@ -11,15 +11,19 @@ vi.mock("@/lib/profiles", async (importOriginal) => {
   return { ...actual, removeProfile: removeProfileMock };
 });
 
-import { RevokedProfileBanner } from "@/components/shell/RevokedProfileBanner";
+import { RevokedProfileBanner, RevokedProfileBanners } from "@/components/shell/RevokedProfileBanner";
 import { clearProfileRevoked, markProfileRevoked } from "@/lib/profileRevocation";
+import { setProfiles } from "@/lib/profiles";
 
 const profile: Profile = { id: "p1", label: "Sandbox", host: "127.0.0.1", relayPort: 8765 };
+const otherProfile: Profile = { id: "p2", label: "Trabalho", host: "127.0.0.1", relayPort: 8766 };
 
 afterEach(() => {
   cleanup();
   clearProfileRevoked(profile.id);
+  clearProfileRevoked(otherProfile.id);
   removeProfileMock.mockClear();
+  localStorage.clear();
 });
 
 describe("RevokedProfileBanner", () => {
@@ -73,5 +77,38 @@ describe("RevokedProfileBanner", () => {
     // AlertDialog gets `aria-hidden`, so `getByRole` won't see it — a plain
     // text query still does).
     expect(screen.getByText("Remover perfil")).toBeInTheDocument();
+  });
+});
+
+describe("RevokedProfileBanners", () => {
+  it("shows a banner for a revoked profile even when a different one is active/selected", () => {
+    // journal/67: a background chat tab can detect a non-active profile's
+    // revocation (TabBar forceMount keeps its RelayClient alive) — the
+    // notification can't be gated on `activeProfile` for that to reach the
+    // user without them switching back on their own.
+    setProfiles([profile, otherProfile]);
+    markProfileRevoked(otherProfile.id);
+
+    render(<RevokedProfileBanners />);
+
+    expect(screen.getByText(otherProfile.label, { exact: false })).toBeInTheDocument();
+  });
+
+  it("renders nothing when no profile is revoked", () => {
+    setProfiles([profile, otherProfile]);
+
+    render(<RevokedProfileBanners />);
+
+    expect(screen.queryByText(/desconectado da conta/)).not.toBeInTheDocument();
+  });
+
+  it("stacks one banner per revoked profile", () => {
+    setProfiles([profile, otherProfile]);
+    markProfileRevoked(profile.id);
+    markProfileRevoked(otherProfile.id);
+
+    render(<RevokedProfileBanners />);
+
+    expect(screen.getAllByText(/desconectado da conta/)).toHaveLength(2);
   });
 });
