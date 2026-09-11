@@ -2,7 +2,7 @@ import { StrictMode } from "react";
 import { createRoot } from "react-dom/client";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import App from "./App";
-import { applyFontScale, readFontScale } from "@/lib/fontScale";
+import { applyFontSize, readFontSize } from "@/lib/fontSize";
 import { applyCachedTheme } from "@/lib/themeApply";
 import "./index.css";
 
@@ -10,10 +10,10 @@ import "./index.css";
 // lives on the relay, so without a local cache every cold start would paint
 // the built-in theme, mount, sync, and repaint.
 applyCachedTheme();
-// Font scale is device-local (no relay round trip), but still applied here
+// Font size is device-local (no relay round trip), but still applied here
 // rather than in a component's effect — otherwise the first frame paints at
-// 100% and snaps to the stored scale a tick later.
-applyFontScale(readFontScale());
+// the default size and snaps to the stored one a tick later.
+applyFontSize(readFontSize());
 
 const root = document.querySelector<HTMLDivElement>("#app");
 if (!root) {

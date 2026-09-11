@@ -411,17 +411,17 @@ body {
   max-height: 480px;
   overflow-y: auto;
   padding: 0.25rem;
-  font-size: 0.875rem;
+  font-size: var(--text-sm);
   line-height: 1.4;
   color: var(--foreground);
 }
 /* iOS (docs/24): WebKit faz auto-zoom da página inteira ao focar um input
  * com font-size < 16px — o meta viewport já desliga isso
  * (`user-scalable=no`), mas 16px aqui também é defesa em profundidade (e
- * combina com o texto maior do resto da UI mobile). Fixo em px, não `rem`:
- * a escala de fonte do app (`lib/fontScale.ts`) move o `font-size` da raiz,
- * e esse pin de 16px não pode acompanhar — diminuir a escala não pode
- * reabrir o auto-zoom. */
+ * combina com o texto maior do resto da UI mobile). Fixo em px, não
+ * `var(--text-sm)`: o ajuste de tamanho de fonte do app (`lib/fontSize.ts`)
+ * não pode reabrir o auto-zoom do WebKit se alguém diminuir o texto abaixo
+ * de 16px — esse pin é uma garantia de plataforma, não uma preferência. */
 .composer-editor.ios .ProseMirror {
   font-size: 16px;
   /* `--composer-max-height` é calculado em JS a partir de
