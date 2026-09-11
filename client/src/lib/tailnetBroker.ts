@@ -7,6 +7,22 @@ export interface ConnectGrant {
   token: string;
 }
 
+/**
+ * A 410 from the broker means this device's own identity was deliberately
+ * revoked (the account owner disconnected it) and will never work again —
+ * distinct from every other broker failure (network unreachable, 401/403/
+ * 409/429/5xx), all of which are potentially transient and worth retrying.
+ * Still fully generic: any self-hosted broker implementing the same "410
+ * means gone for good" HTTP semantic gets the same treatment, no anywh-
+ * specific string ever crosses this boundary.
+ */
+export class BrokerRevokedError extends Error {
+  constructor() {
+    super("the broker rejected this device's connection permanently (revoked)");
+    this.name = "BrokerRevokedError";
+  }
+}
+
 interface SignResult {
   ts: number;
   sig: string;
@@ -81,7 +97,10 @@ export async function fetchConnectGrant(profile: Profile): Promise<ConnectGrant>
       await delay(hint.retry_after_ms ?? DEFAULT_RETRY_AFTER_MS);
       continue;
     }
-    if (!response.ok) throw new Error(`broker refused the connection request (${String(response.status)})`);
+    if (!response.ok) {
+      if (response.status === 410) throw new BrokerRevokedError();
+      throw new Error(`broker refused the connection request (${String(response.status)})`);
+    }
     const body = (await response.json()) as Partial<ConnectGrant>;
     if (!body.endpoint || typeof body.token !== "string") throw new Error("broker response missing endpoint/token");
     return { endpoint: body.endpoint, token: body.token };

@@ -19,6 +19,7 @@ import type {
 import type { Theme, ThemeValidationError } from "@/lib/theme";
 import { recordAvailableModels } from "@/lib/modelCatalog";
 import { authHeaders } from "@/lib/connectionResolver";
+import { BrokerRevokedError } from "@/lib/tailnetBroker";
 
 export type {
   BackgroundJobSummary,
@@ -296,6 +297,12 @@ export interface RelayClientCallbacks {
    * whoever consumes this should reset the message log here, otherwise the replay
    * duplicates everything on top of what was already on screen (docs/23, Phase D1). */
   onReconnecting?: () => void;
+  /** The broker told us this device's own identity was deliberately revoked
+   * — a terminal state, not a connectivity blip. Fired once
+   * per revoked token-fetch attempt, no automatic reconnect follows;
+   * whoever consumes this should stop showing "reconnecting" and offer to
+   * remove the profile instead. */
+  onRevoked?: () => void;
   /** Recent tail of this session's history — sent once per connection,
    * right before `onCaughtUp` (Phase 2/3, docs/30). Optional only during the
    * migration: whoever doesn't yet hydrate the log in bulk (Phase 4) simply
@@ -393,6 +400,15 @@ export class RelayClient {
       },
       (err: unknown) => {
         if (generation !== this.connectGeneration) return;
+        if (err instanceof BrokerRevokedError) {
+          // Terminal, not transient — retrying would just repeat the same
+          // 410 forever, which is exactly the "reconnecting" loop with no
+          // way out that this distinction exists to break.
+          console.error("connection token permanently rejected:", err);
+          this.shouldReconnect = false;
+          this.callbacks.onRevoked?.();
+          return;
+        }
         // Same treatment as a socket that failed to open: the broker being
         // unreachable is as transient as the relay being unreachable.
         console.error("failed to resolve a connection token:", err);
