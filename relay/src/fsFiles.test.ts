@@ -453,37 +453,37 @@ test("resolveChatPath: an already-absolute path under the root resolves the same
 
 // The session's root is a workspace folder one level above the repo the
 // mention is actually relative to (real bug: root `~/anywh`, mention
-// `relay/scripts/anywh-bg`, real file at `~/anywh/ultron/relay/scripts/anywh-bg`)
+// `relay/scripts/anywh-bg`, real file at `~/anywh/anywh/relay/scripts/anywh-bg`)
 // — the first segment doesn't exist directly under root, so a naive join
 // fails outright and used to return an empty `existingDirs`, expanding
 // nothing in the tree. The suffix-search fallback below is what fixes that.
 
 test("resolveChatPath: a multi-segment path relative to a repo nested under the root falls back to a suffix search", () => {
   withTempDir((root) => {
-    mkdirSync(join(root, "ultron", "relay", "scripts"), { recursive: true });
-    writeFileSync(join(root, "ultron", "relay", "scripts", "anywh-bg"), "");
+    mkdirSync(join(root, "anywh", "relay", "scripts"), { recursive: true });
+    writeFileSync(join(root, "anywh", "relay", "scripts", "anywh-bg"), "");
 
     const result = resolveChatPath(root, "relay/scripts/anywh-bg");
     assert.deepEqual(result, {
-      target: join(root, "ultron", "relay", "scripts", "anywh-bg"),
+      target: join(root, "anywh", "relay", "scripts", "anywh-bg"),
       isDirectory: false,
-      existingDirs: [join(root, "ultron"), join(root, "ultron", "relay"), join(root, "ultron", "relay", "scripts")],
+      existingDirs: [join(root, "anywh"), join(root, "anywh", "relay"), join(root, "anywh", "relay", "scripts")],
     });
   });
 });
 
 test("resolveChatPath: a directory relative to a repo nested under the root also falls back to a suffix search", () => {
   withTempDir((root) => {
-    mkdirSync(join(root, "ultron", "prototypes", "voice-jarvis"), { recursive: true });
+    mkdirSync(join(root, "anywh", "prototypes", "voice-jarvis"), { recursive: true });
 
     const result = resolveChatPath(root, "prototypes/voice-jarvis/");
     assert.deepEqual(result, {
       target: null,
       isDirectory: true,
       existingDirs: [
-        join(root, "ultron"),
-        join(root, "ultron", "prototypes"),
-        join(root, "ultron", "prototypes", "voice-jarvis"),
+        join(root, "anywh"),
+        join(root, "anywh", "prototypes"),
+        join(root, "anywh", "prototypes", "voice-jarvis"),
       ],
     });
   });

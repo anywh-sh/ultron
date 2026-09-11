@@ -283,7 +283,7 @@ export function createFile(rawRoot: string, rawDir: string | null, name: string,
  * the chat-mentioned path actually starts — e.g. root is a multi-repo
  * workspace folder and the model wrote a path relative to one repo inside
  * it (a real case: root `~/anywh`, mention `relay/scripts/anywh-bg`, real
- * location `~/anywh/ultron/relay/scripts/anywh-bg`). Same hidden/
+ * location `~/anywh/anywh/relay/scripts/anywh-bg`). Same hidden/
  * `node_modules` skip as `listFiles`. BFS (not depth-first) so the
  * *shallowest* match wins when the same suffix occurs at more than one
  * depth. `maxVisited` bounds the total directories scanned — this is a

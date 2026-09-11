@@ -8,11 +8,11 @@
 
 **Agent-agnostic by design** — Claude Code, Codex CLI, and more
 
-[![CI](https://github.com/anywh-sh/ultron/actions/workflows/pr.yml/badge.svg?branch=main)](https://github.com/anywh-sh/ultron/actions/workflows/pr.yml)
+[![CI](https://github.com/anywh-sh/anywh/actions/workflows/pr.yml/badge.svg?branch=main)](https://github.com/anywh-sh/anywh/actions/workflows/pr.yml)
 [![License: Apache 2.0](https://img.shields.io/badge/license-Apache%202.0-blue.svg?style=flat)](LICENSE)
 [![Platforms](https://img.shields.io/badge/platforms-Windows%20%7C%20macOS%20%7C%20iOS-informational?style=flat)](#getting-started-self-host)
 
-[Website](https://anywh.sh) • [Getting started](#getting-started-self-host) • [Issues](https://github.com/anywh-sh/ultron/issues)
+[Website](https://anywh.sh) • [Getting started](#getting-started-self-host) • [Issues](https://github.com/anywh-sh/anywh/issues)
 
 </div>
 
