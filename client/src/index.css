@@ -544,6 +544,15 @@ body {
   text-decoration: underline;
   text-decoration-color: transparent;
   transition: text-decoration-color 0.1s ease;
+  /* It's a real `<button>` — WebKit's UA stylesheet defaults form controls to
+   * `user-select: none`, which wins over the `user-select: text` inherited
+   * from `.prose-chat` (inheritance loses to any explicit UA rule). Without
+   * this override, a click-drag that starts on the path text can't select
+   * it; the drag has to start outside the button and cross into it, since
+   * selection can only extend *through* a non-selectable element, not
+   * originate inside one. */
+  user-select: text;
+  -webkit-user-select: text;
 }
 .prose-chat-path-link:hover {
   text-decoration-color: currentColor;
