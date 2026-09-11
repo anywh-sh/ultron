@@ -324,12 +324,34 @@ export default function App() {
   // is the OS's own app switcher (never reaches the app), so the real
   // convention for cycling tabs there is also literal Ctrl+Tab, same as
   // browser/VS Code — using `metaKey` here would just create a dead shortcut.
+  // Cycles within the focused group only — with more than one group open,
+  // cycling through every tab in the app regardless of which group it's in
+  // would jump the view to a different group out from under Ctrl+Tab, which
+  // isn't what "next tab" means once tabs are split into columns.
   function handleCycleTab(direction: 1 | -1): void {
-    const { tabs } = tabsState;
-    if (tabs.length < 2) return;
-    const currentIndex = tabs.findIndex((tab) => tab.id === tabsState.activeTabId);
-    const nextIndex = (currentIndex + direction + tabs.length) % tabs.length;
-    tabsState.setActiveTab(tabs[nextIndex].id);
+    const focusedGroup = tabsState.groups.find((group) => group.id === tabsState.focusedGroupId);
+    if (!focusedGroup || focusedGroup.tabIds.length < 2) return;
+    const currentIndex = focusedGroup.tabIds.indexOf(focusedGroup.activeTabId ?? "");
+    if (currentIndex === -1) return;
+    const nextIndex = (currentIndex + direction + focusedGroup.tabIds.length) % focusedGroup.tabIds.length;
+    tabsState.setActiveTab(focusedGroup.tabIds[nextIndex]);
+  }
+
+  // `Ctrl+\` (VS Code's own "split editor") — moves the focused group's
+  // active tab into a new group immediately to its right. Desktop only, same
+  // gate as the dock: on compact/iOS there's only ever one group (point 12
+  // of the split design — narrow viewports fall back to one flat strip), so
+  // splitting wouldn't have anywhere to put a second column anyway.
+  function handleSplitActiveTab(): void {
+    if (isCompact || isIOS() || !activeTabId) return;
+    tabsState.splitTabToNewGroup(activeTabId, tabsState.focusedGroupId);
+  }
+
+  // Ctrl+1/2/3 — focuses the Nth group left to right. No-op past however
+  // many groups are actually open (never more than MAX_GROUPS anyway).
+  function handleFocusGroupByIndex(index: number): void {
+    const group = tabsState.groups[index];
+    if (group) tabsState.focusGroup(group.id);
   }
 
   // Standard shortcuts for any app (Ctrl on Windows/Linux and Cmd on macOS,
@@ -360,6 +382,14 @@ export default function App() {
         handleToggleFilesPanel();
         return;
       }
+      // `Ctrl+\` — VS Code's own "split editor" shortcut, literal Ctrl even
+      // on macOS, same reasoning as `Ctrl+\`` above (distinct key: backslash,
+      // not backtick).
+      if (event.ctrlKey && event.key === "\\") {
+        event.preventDefault();
+        handleSplitActiveTab();
+        return;
+      }
       if (!(event.metaKey || event.ctrlKey)) return;
       switch (event.key.toLowerCase()) {
         case "n":
@@ -374,6 +404,12 @@ export default function App() {
           event.preventDefault();
           handleToggleSidebarShortcut();
           break;
+        case "1":
+        case "2":
+        case "3":
+          event.preventDefault();
+          handleFocusGroupByIndex(Number(event.key) - 1);
+          break;
       }
     }
     window.addEventListener("keydown", handleKeyDown);
@@ -387,6 +423,10 @@ export default function App() {
     tabsState.closeTab,
     tabsState.openTab,
     tabsState.setActiveTab,
+    tabsState.splitTabToNewGroup,
+    tabsState.focusGroup,
+    tabsState.focusedGroupId,
+    tabsState.groups,
     resizable.toggleCollapsed,
   ]);
 
