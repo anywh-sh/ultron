@@ -1,5 +1,5 @@
 import { discoverPairingEndpoints, parsePairingCode } from "@/lib/pairingCode";
-import { addProfile } from "@/lib/profiles";
+import { addProfile, getProfiles, type Profile } from "@/lib/profiles";
 import { claimTailnetBundle } from "@/lib/tailnetClaim";
 
 /**
@@ -14,9 +14,10 @@ import { claimTailnetBundle } from "@/lib/tailnetClaim";
  * `DEFAULT_PROFILES`'s own comment in profiles.ts already anticipated a
  * flow like this calling `addProfile`.
  *
- * `importFromPairingCode` below is the same tailnet mode reached from a
+ * `resolvePairingCodeParams` below is the same tailnet mode reached from a
  * typed `<join-code>@<host>` code instead of a link — it resolves the same
- * fields through discovery and then joins this exact path.
+ * fields through discovery, without spending the code itself; the caller
+ * hands the result to `claimAndSaveProfile` to actually redeem it.
  */
 export interface ImportedProfileParams {
   label: string;
@@ -77,16 +78,29 @@ export function parseImportProfileUrl(url: string): ImportedProfileParams | null
   return null;
 }
 
+export interface ClaimAndSaveResult {
+  profile: Profile;
+  /** Profiles that already reach the same machine — same `brokerNodeId` in
+   * tailnet mode, same `host`:`relayPort` in direct mode — computed against
+   * the list as it stood *before* this import's `addProfile`, so the new
+   * profile never counts as its own duplicate. The caller decides what to
+   * do about it (profileSetup.ts's `ready` state); this function only ever
+   * saves, never rolls back — the code is already spent by the time this
+   * runs. */
+  duplicates: Profile[];
+}
+
 /**
- * Adds the imported profile to the local list (`addProfile`, profiles.ts)
- * and returns its generated id, so the caller can switch to it right away.
- * The id is always generated here (not by any server) — for a tailnet-mode
- * import this is still true even though `claimTailnetBundle` does hit the
- * network: that call registers this *device* on the account, it never
- * allocates a *local profile* id, which has no server-side counterpart at
- * all (same as `AddProfileDialog`'s direct-mode flow never had one).
+ * Redeems `params` (the join code, for tailnet mode) and adds the resulting
+ * profile to the local list (`addProfile`, profiles.ts), returning it
+ * alongside any pre-existing duplicate. The id is always generated here
+ * (not by any server) — for a tailnet-mode import this is still true even
+ * though `claimTailnetBundle` does hit the network: that call registers
+ * this *device* on the account, it never allocates a *local profile* id,
+ * which has no server-side counterpart at all (same as `AddProfileDialog`'s
+ * direct-mode flow never had one).
  */
-export async function importProfile(params: ImportedProfileParams): Promise<string> {
+export async function claimAndSaveProfile(params: ImportedProfileParams): Promise<ClaimAndSaveResult> {
   const id = crypto.randomUUID();
   if (params.claimUrl && params.joinCode) {
     const bundle = await claimTailnetBundle(params.claimUrl, params.joinCode);
@@ -94,7 +108,8 @@ export async function importProfile(params: ImportedProfileParams): Promise<stri
     // the link was chosen by whoever built the link, which is a stronger
     // statement than a server default.
     const brokerUrl = params.brokerUrl ?? bundle.brokerUrl;
-    addProfile({
+    const duplicates = getProfiles().filter((p) => p.brokerNodeId === bundle.nodeId);
+    const profile: Profile = {
       id,
       label: params.label,
       // Placeholder — useRelayClient (F2/F3) always replaces these with the
@@ -107,39 +122,46 @@ export async function importProfile(params: ImportedProfileParams): Promise<stri
       brokerUrl,
       brokerNodeId: bundle.nodeId,
       tailnetReportUrl: bundle.reportUrl,
-    });
-  } else {
-    addProfile({
-      id,
-      label: params.label,
-      host: params.host!,
-      relayPort: params.port!,
-      connectToken: params.connectToken,
-    });
+    };
+    addProfile(profile);
+    return { profile, duplicates };
   }
-  return id;
+  const duplicates = getProfiles().filter((p) => p.host === params.host && p.relayPort === params.port);
+  const profile: Profile = {
+    id,
+    label: params.label,
+    host: params.host!,
+    relayPort: params.port!,
+    connectToken: params.connectToken,
+  };
+  addProfile(profile);
+  return { profile, duplicates };
+}
+
+/** Thin wrapper kept for call sites that only ever want the id and never
+ * care about a duplicate (the deep-link path pre-profileSetup.ts, and
+ * `profileImport.test.ts`'s existing coverage). */
+export async function importProfile(params: ImportedProfileParams): Promise<string> {
+  const { profile } = await claimAndSaveProfile(params);
+  return profile.id;
 }
 
 /**
  * The typed-code counterpart of a tailnet-mode deep link: resolves
  * `<join-code>@<host>` through the host's own discovery document
- * (pairingCode.ts) and hands the result to `importProfile`, so both entry
- * points converge on one redemption path.
+ * (pairingCode.ts) into the same `ImportedProfileParams` shape a deep link
+ * would carry, so both entry points converge on one redemption path
+ * (`claimAndSaveProfile`).
  *
- * Split out rather than folded into `importProfile` because the two differ
- * in exactly one thing — where `claimUrl` comes from — and the extra step
- * is the only part that can fail before any code is spent. Rejecting a
- * malformed code here means a mistyped one never reaches the network, and
- * so never burns one of the five attempts the code allows.
+ * Split out from redemption because the two differ in exactly one thing —
+ * where `claimUrl` comes from — and this half is the only part that can
+ * fail before any code is spent. Rejecting a malformed code here means a
+ * mistyped one never reaches the network, and so never burns one of the
+ * five attempts the code allows.
  */
-export async function importFromPairingCode(label: string, code: string): Promise<string> {
+export async function resolvePairingCodeParams(label: string, code: string): Promise<ImportedProfileParams> {
   const parsed = parsePairingCode(code);
   if (!parsed) throw new Error("malformed pairing code");
   const endpoints = await discoverPairingEndpoints(parsed.origin);
-  return importProfile({
-    label,
-    claimUrl: endpoints.claimUrl,
-    joinCode: parsed.joinCode,
-    brokerUrl: endpoints.brokerUrl,
-  });
+  return { label, claimUrl: endpoints.claimUrl, joinCode: parsed.joinCode, brokerUrl: endpoints.brokerUrl };
 }

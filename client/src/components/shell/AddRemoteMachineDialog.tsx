@@ -9,7 +9,7 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { parsePairingCode } from "@/lib/pairingCode";
-import { importFromPairingCode } from "@/lib/profileImport";
+import { claimAndSaveProfile, resolvePairingCodeParams } from "@/lib/profileImport";
 
 interface AddRemoteMachineDialogProps {
   open: boolean;
@@ -60,9 +60,10 @@ export function AddRemoteMachineDialog({ open, onOpenChange, onImported }: AddRe
     setPairing(true);
     setError(null);
     try {
-      const id = await importFromPairingCode(label.trim(), code);
+      const params = await resolvePairingCodeParams(label.trim(), code);
+      const { profile } = await claimAndSaveProfile(params);
       onOpenChange(false);
-      onImported(id);
+      onImported(profile.id);
     } catch (err) {
       console.error("[anywh] failed to pair from code", err);
       setError(
