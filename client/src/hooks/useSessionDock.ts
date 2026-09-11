@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 
 /** Right-side dock, one per chat session (tab) — replaces `useSessionPanels.ts`
  * (see docs/41 for why): terminal and the work dir file viewer aren't
@@ -81,8 +81,18 @@ function withoutPane(dock: DockState, kind: DockPaneKind): DockState {
  */
 export function useSessionDock() {
   const [docks, setDocks] = useState<DockMap>(loadPersisted);
+  // Set right before a `setDocks` call driven by a per-frame drag update
+  // (width/split-ratio resize), so the effect below skips that write —
+  // `commitDock` flushes the final value once the drag ends instead. Reset
+  // after every skip, so a change from any other setter (not drag-driven)
+  // persists immediately as before.
+  const suppressPersistRef = useRef(false);
 
   useEffect(() => {
+    if (suppressPersistRef.current) {
+      suppressPersistRef.current = false;
+      return;
+    }
     localStorage.setItem(STORAGE_KEY, JSON.stringify(docks));
   }, [docks]);
 
@@ -125,6 +135,7 @@ export function useSessionDock() {
   }, []);
 
   const setWidth = useCallback((tabId: string, width: number) => {
+    suppressPersistRef.current = true;
     setDocks((prev) => {
       const existing = prev[tabId];
       if (!existing) return prev;
@@ -133,10 +144,22 @@ export function useSessionDock() {
   }, []);
 
   const setSplitRatio = useCallback((tabId: string, ratio: number) => {
+    suppressPersistRef.current = true;
     setDocks((prev) => {
       const existing = prev[tabId];
       if (!existing) return prev;
       return { ...prev, [tabId]: { ...existing, splitRatio: clampSplitRatio(ratio) } };
+    });
+  }, []);
+
+  /** Flushes the current dock state to storage — call on drag end (pointer
+   * up) after a `setWidth`/`setSplitRatio` sequence, whose per-frame calls
+   * skip the write via `suppressPersistRef` to avoid blocking the main
+   * thread on every `pointermove` (same fix as `useResizableSidebar.ts`). */
+  const commitDock = useCallback(() => {
+    setDocks((prev) => {
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(prev));
+      return prev;
     });
   }, []);
 
@@ -161,5 +184,5 @@ export function useSessionDock() {
     });
   }, []);
 
-  return { getDock, togglePane, openPane, closePane, setWidth, setSplitRatio, toggleMaximized, removeSession };
+  return { getDock, togglePane, openPane, closePane, setWidth, setSplitRatio, commitDock, toggleMaximized, removeSession };
 }

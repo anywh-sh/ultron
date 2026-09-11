@@ -535,6 +535,7 @@ export default function App() {
             dock={dock}
             onWidthChange={(width) => sessionDock.setWidth(tab.id, width)}
             onSplitRatioChange={(ratio) => sessionDock.setSplitRatio(tab.id, ratio)}
+            onDragEnd={sessionDock.commitDock}
             panes={{
               terminal: dock.panes.includes("terminal") ? (
                 <TerminalPanelSlot
