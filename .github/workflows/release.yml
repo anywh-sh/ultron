@@ -134,18 +134,80 @@ jobs:
           args: ${{ matrix.rustTarget && format('--target {0}', matrix.rustTarget) || '' }}
           releaseId: ${{ needs.create-release.outputs.release_id }}
 
+  # Ships the relay as a tarball with node_modules already compiled — separate
+  # from the client's `build` matrix above because it packages a Node
+  # service, not a Tauri bundle, and needs a different platform set.
+  # node-pty@1.1.0 only publishes darwin-*/win32-* prebuilds (journal/62-
+  # distribuicao-instalacao-plano.md §4), not linux-*, so npm falls back to
+  # node-gyp on both Linux legs — the one thing this job exists to do once
+  # in CI so a bare `curl | sh` on a clean Linux box (Fase 3) never has to
+  # compile anything itself.
+  build-relay:
+    needs: create-release
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - platform: ubuntu-latest
+            target: linux-x64
+          # Hosted arm64 Ubuntu runner, free for public repos same as the
+          # x64 ones — no cross-compilation, node-gyp just runs natively.
+          - platform: ubuntu-24.04-arm
+            target: linux-arm64
+          # No node-gyp toolchain needed here: node-pty already ships a
+          # darwin-arm64 prebuild, so `npm ci` just downloads it.
+          - platform: macos-14
+            target: darwin-arm64
+    runs-on: ${{ matrix.platform }}
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: actions/setup-node@v7
+        with:
+          node-version: "lts/*"
+          cache: npm
+          cache-dependency-path: relay/package-lock.json
+
+      - name: Install node-gyp build toolchain (Linux)
+        if: startsWith(matrix.platform, 'ubuntu')
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y python3 build-essential
+
+      - run: npm ci
+        working-directory: relay
+
+      - run: npm run build
+        working-directory: relay
+
+      # devDependencies (typescript, tsx, @types/*) compiled dist/ already —
+      # the shipped tarball doesn't need the compiler that produced it.
+      # node-pty survives: it's a dependency, not a devDependency.
+      - run: npm prune --omit=dev
+        working-directory: relay
+
+      - name: Package and upload the tarball
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          version="${GITHUB_REF_NAME#v}"
+          asset="anywh-relay-${version}-${{ matrix.target }}.tar.gz"
+          tar czf "$asset" -C relay dist node_modules package.json
+          gh release upload "${GITHUB_REF_NAME}" "$asset" \
+            --repo "${{ github.repository }}" --clobber
+
   # Runs after every platform has uploaded its assets to the same draft
   # release, so the sums cover the exact files a downloader will get —
   # generating this was fabricated by hand once already (journal/62-
   # distribuicao-instalacao-plano.md §2), this keeps it from happening again.
   # Also the only place that flips the release out of draft: publishing from
-  # inside the `build` matrix would make the release publicly visible as
-  # soon as the fastest leg finished, minutes before the slowest one
-  # (Windows, ~4x slower than macOS arm64 in the dry run) had uploaded its
-  # assets — a downloader in that window would find a release missing most
-  # of its installers.
+  # inside the `build`/`build-relay` matrices would make the release
+  # publicly visible as soon as the fastest leg finished, minutes before the
+  # slowest one (Windows, ~4x slower than macOS arm64 in the dry run) had
+  # uploaded its assets — a downloader in that window would find a release
+  # missing most of its installers.
   checksums:
-    needs: [create-release, build]
+    needs: [create-release, build, build-relay]
     runs-on: ubuntu-latest
     steps:
       - name: Download release assets and publish SHA256SUMS
