@@ -2,10 +2,11 @@ import { cleanup, renderHook } from "@testing-library/react";
 import { act } from "react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { Profile } from "@/lib/profiles";
+import type { SessionSummary } from "@/lib/relay-types";
 import { BrokerRevokedError } from "@/lib/tailnetBroker";
 
 const { fetchSessionsMock, resolveConnectionMock } = vi.hoisted(() => ({
-  fetchSessionsMock: vi.fn(async () => []),
+  fetchSessionsMock: vi.fn(async (): Promise<SessionSummary[]> => []),
   resolveConnectionMock: vi.fn(),
 }));
 vi.mock("@/lib/relayClient", () => ({ fetchSessions: fetchSessionsMock }));
@@ -126,6 +127,69 @@ describe("useSessionNames", () => {
     });
 
     expect(resolveConnectionMock.mock.calls.length).toBe(callsAfterInitialFailure);
+    consoleErrorSpy.mockRestore();
+  });
+
+  it("switching profile A -> B never shows A's sessions in the next render", async () => {
+    fetchSessionsMock.mockResolvedValueOnce([{ id: "s1", title: "From A" }]);
+    const profileB: Profile = { ...tailnetProfile, id: "sandbox-b" };
+
+    const { result, rerender } = renderHook(({ profile }) => useSessionNames(profile), {
+      initialProps: { profile: tailnetProfile },
+    });
+    await act(async () => {
+      await vi.runAllTimersAsync();
+    });
+    expect(result.current.sessions).toEqual([{ id: "s1", title: "From A" }]);
+
+    fetchSessionsMock.mockResolvedValueOnce([]);
+    rerender({ profile: profileB });
+    // The render right after the switch — before the new profile's fetch
+    // effect has any chance to run — must already show the skeleton state,
+    // not a frame with A's sessions still in it.
+    expect(result.current.sessions).toEqual([]);
+    expect(result.current.loading).toBe(true);
+
+    await act(async () => {
+      await vi.runAllTimersAsync();
+    });
+  });
+
+  it("sets error when the one-shot fetch rejects", async () => {
+    resolveConnectionMock.mockRejectedValueOnce(new Error("network down"));
+    const consoleErrorSpy = vi.spyOn(console, "error").mockImplementation(() => {});
+
+    const { result } = renderHook(() => useSessionNames(tailnetProfile));
+    await act(async () => {
+      await vi.runAllTimersAsync();
+    });
+
+    expect(result.current.error).toBe(true);
+    expect(result.current.loading).toBe(false);
+    consoleErrorSpy.mockRestore();
+  });
+
+  it("reload() clears the error, shows the skeleton again, and refetches", async () => {
+    resolveConnectionMock.mockRejectedValueOnce(new Error("network down"));
+    const consoleErrorSpy = vi.spyOn(console, "error").mockImplementation(() => {});
+
+    const { result } = renderHook(() => useSessionNames(tailnetProfile));
+    await act(async () => {
+      await vi.runAllTimersAsync();
+    });
+    expect(result.current.error).toBe(true);
+
+    act(() => {
+      result.current.reload();
+    });
+    expect(result.current.loading).toBe(true);
+    expect(result.current.error).toBe(false);
+
+    await act(async () => {
+      await vi.runAllTimersAsync();
+    });
+    expect(result.current.error).toBe(false);
+    expect(result.current.loading).toBe(false);
     consoleErrorSpy.mockRestore();
   });
 });

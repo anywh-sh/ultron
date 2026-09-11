@@ -12,6 +12,8 @@ interface MobileSidebarProps {
   onProfileChange: (profileId: string) => void;
   sessions: SessionSummary[];
   sessionsLoading: boolean;
+  sessionsError: boolean;
+  onRetrySessions: () => void;
   selectedSession: string | null;
   runningSessions: Set<string>;
   backgroundJobSessions: Set<string>;
@@ -37,6 +39,8 @@ export function MobileSidebar({
   onProfileChange,
   sessions,
   sessionsLoading,
+  sessionsError,
+  onRetrySessions,
   selectedSession,
   runningSessions,
   backgroundJobSessions,
@@ -98,6 +102,8 @@ export function MobileSidebar({
         <SessionList
           sessions={sessions}
           loading={sessionsLoading}
+          error={sessionsError}
+          onRetry={onRetrySessions}
           selected={selectedSession}
           running={runningSessions}
           backgroundJobSessions={backgroundJobSessions}

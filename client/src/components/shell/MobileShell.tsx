@@ -11,6 +11,8 @@ interface MobileShellProps {
   onProfileChange: (profileId: string) => void;
   sessions: SessionSummary[];
   sessionsLoading: boolean;
+  sessionsError: boolean;
+  onRetrySessions: () => void;
   selectedSession: string | null;
   runningSessions: Set<string>;
   backgroundJobSessions: Set<string>;
@@ -37,6 +39,8 @@ export function MobileShell({
   onProfileChange,
   sessions,
   sessionsLoading,
+  sessionsError,
+  onRetrySessions,
   selectedSession,
   runningSessions,
   backgroundJobSessions,
@@ -61,6 +65,8 @@ export function MobileShell({
         onProfileChange={onProfileChange}
         sessions={sessions}
         sessionsLoading={sessionsLoading}
+        sessionsError={sessionsError}
+        onRetrySessions={onRetrySessions}
         selectedSession={selectedSession}
         runningSessions={runningSessions}
         backgroundJobSessions={backgroundJobSessions}

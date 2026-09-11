@@ -52,7 +52,15 @@ function readQueryOverride(): { profile: string | null; session: string | null }
 export default function App() {
   const queryOverride = useMemo(readQueryOverride, []);
   const [activeProfile, setActiveProfileId] = useActiveProfile(queryOverride.profile);
-  const { sessions, loading: sessionsLoading, upsertTitle, removeSession, touch } = useSessionNames(activeProfile);
+  const {
+    sessions,
+    loading: sessionsLoading,
+    error: sessionsError,
+    upsertTitle,
+    removeSession,
+    touch,
+    reload: reloadSessions,
+  } = useSessionNames(activeProfile);
   const isCompact = useIsCompactViewport();
   const resizable = useResizableSidebar();
   const tabsState = useTabs();
@@ -497,6 +505,8 @@ export default function App() {
     onProfileChange: handleProfileChange,
     sessions,
     sessionsLoading,
+    sessionsError,
+    onRetrySessions: reloadSessions,
     selectedSession: activeTabId,
     runningSessions,
     backgroundJobSessions,
@@ -741,6 +751,8 @@ export default function App() {
           onProfileChange={handleProfileChange}
           sessions={sessions}
           sessionsLoading={sessionsLoading}
+          sessionsError={sessionsError}
+          onRetrySessions={reloadSessions}
           selectedSession={activeTabId}
           runningSessions={runningSessions}
           backgroundJobSessions={backgroundJobSessions}

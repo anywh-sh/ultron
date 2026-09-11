@@ -17,6 +17,8 @@ interface SidebarProps {
   onProfileChange: (profileId: string) => void;
   sessions: SessionSummary[];
   sessionsLoading: boolean;
+  sessionsError: boolean;
+  onRetrySessions: () => void;
   selectedSession: string | null;
   runningSessions: Set<string>;
   backgroundJobSessions: Set<string>;
@@ -32,6 +34,8 @@ export function Sidebar({
   onProfileChange,
   sessions,
   sessionsLoading,
+  sessionsError,
+  onRetrySessions,
   selectedSession,
   runningSessions,
   backgroundJobSessions,
@@ -62,6 +66,8 @@ export function Sidebar({
       <SessionList
         sessions={sessions}
         loading={sessionsLoading}
+        error={sessionsError}
+        onRetry={onRetrySessions}
         selected={selectedSession}
         running={runningSessions}
         backgroundJobSessions={backgroundJobSessions}
