@@ -69,4 +69,12 @@ describe("MarkdownContent", () => {
     expect(screen.queryByRole("button", { name: "o relatório" })).not.toBeInTheDocument();
     expect(screen.getByText("o relatório").tagName).toBe("SPAN");
   });
+
+  it("opens a backtick-wrapped URL through the platform opener instead of leaving it as inert code", async () => {
+    render(<MarkdownContent text="Confira `https://example.com` pra detalhes." />);
+
+    const link = screen.getByRole("link", { name: "https://example.com" });
+    await userEvent.click(link);
+    expect(openUrl).toHaveBeenCalledWith("https://example.com");
+  });
 });

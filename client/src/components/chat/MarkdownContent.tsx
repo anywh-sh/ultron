@@ -56,12 +56,25 @@ export function MarkdownContent({ text, onOpenPath }: { text: string; onOpenPath
         // for the same text.
         code: ({ className, children, ...props }) => {
           const text = typeof children === "string" ? children : String(children);
-          if (onOpenPath && !className && looksLikeFilePath(text)) {
-            return (
-              <button type="button" className="prose-chat-path-link" onClick={() => onOpenPath(text)}>
-                {text}
-              </button>
-            );
+          if (!className) {
+            if (onOpenPath && looksLikeFilePath(text)) {
+              return (
+                <button type="button" className="prose-chat-path-link" onClick={() => onOpenPath(text)}>
+                  {text}
+                </button>
+              );
+            }
+            // A URL written as backtick code (`` `https://example.com` ``)
+            // instead of a real markdown link — a common enough style choice
+            // from the assistant that it's worth making clickable too,
+            // instead of leaving it as inert styled text.
+            if (looksLikeExternalUrl(text)) {
+              return (
+                <a href={text} rel="noopener noreferrer" className="prose-chat-path-link" onClick={(event) => handleExternalLinkClick(event, text)}>
+                  {text}
+                </a>
+              );
+            }
           }
           return (
             <code className={className} {...props}>
