@@ -1,5 +1,6 @@
 import { invoke } from "@tauri-apps/api/core";
 import { inTauri } from "@/lib/tauri";
+import { currentPlatform } from "@/lib/platform";
 
 export interface ClaimedBundle {
   nodeId: string;
@@ -34,18 +35,22 @@ export interface ClaimedBundle {
  * (tailnetBroker.ts): the response is interpreted as
  * `{nodeId, controlUrl, authKey, ...}`, anything else (`proxyListenPort`,
  * `signingKeys` — control-plane-internal, meaningless to this client) is
- * ignored.
+ * ignored. `platform` (this device's OS, `lib/platform.ts`) rides along as
+ * a plain descriptive field, same category as the label a self-hoster's own
+ * claim endpoint is free to ignore — it never shapes what this function
+ * does with the response.
  */
 export async function claimTailnetBundle(claimUrl: string, joinCode: string): Promise<ClaimedBundle> {
   if (!inTauri()) {
     throw new Error("claiming a tailnet profile needs the Tauri sidecar to generate an identity, not available in a plain browser");
   }
   const publicKey = await invoke<string>("tailnet_sidecar_identity");
+  const platform = currentPlatform();
 
   const response = await fetch(claimUrl, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ joinCode, publicKey }),
+    body: JSON.stringify({ joinCode, publicKey, ...(platform ? { platform } : {}) }),
   });
   if (!response.ok) throw new Error(`claim failed (${String(response.status)})`);
   const body = (await response.json()) as Partial<ClaimedBundle>;

@@ -16,3 +16,11 @@ export function isIOS(): boolean {
 export function shortcutLabel(key: string): string {
   return isMacOS() ? `⌘${key}` : `Ctrl+${key}`;
 }
+
+/** This device's OS, straight from `@tauri-apps/plugin-os` ("macos",
+ * "windows", "linux", "ios", "android", ...) — `null` outside Tauri, where
+ * there's no OS to report. Purely descriptive: nothing here knows or cares
+ * who ends up reading it. */
+export function currentPlatform(): string | null {
+  return inTauri() ? platform() : null;
+}
