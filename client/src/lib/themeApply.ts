@@ -65,8 +65,31 @@ function derivedColors(theme: Theme): ResolvedColors {
   put("card", step(5, 70));
   put("bubble-user", background ? (dark ? tint(background, 8) : shade(background, 3)) : undefined);
 
+  // Window chrome (title bar, tab strip, status bar) sits halfway between the
+  // background and the sidebar — it has to read as a third surface without
+  // becoming a fourth brightness the author never asked for. Derived from the
+  // *resolved* sidebar, not the declared one, so it still lands correctly for
+  // a theme that declared neither.
+  const sidebar = parseColor(resolved["bg-sidebar"]);
+  put("bg-chrome", sidebar && background ? mix(sidebar, background, 0.5) : undefined);
+
+  // Hover/selected row inside a popover: one step further from the
+  // background than the surface it sits on, in whichever direction this
+  // theme's stack climbs.
+  const elevated = parseColor(resolved["bg-elevated"]);
+  put("surface-hover", elevated ? (dark ? tint(elevated, 8) : shade(elevated, 6)) : undefined);
+
   put("text-faint", mutedForeground && background ? mix(mutedForeground, background, 0.45) : undefined);
   put("border-soft", border && background ? mix(border, background, 0.55) : undefined);
+
+  // Accent surface + the text tone that reads on it. The fill keeps alpha on
+  // purpose (it's a tint of whatever it lies on, which is what makes one
+  // value work on both a panel and a card); the ink has to be opaque, and
+  // moves away from the background so a mid-tone accent stays legible at
+  // small sizes in either direction.
+  const primary = parseColor(declared.primary);
+  put("primary-soft", primary ? toCss({ ...primary, a: dark ? 0.14 : 0.08 }) : undefined);
+  put("primary-ink", primary ? (dark ? tint(primary, 65) : shade(primary, 26)) : undefined);
 
   // No sane derivation from a UI palette: the warning tone and the "added
   // line" green are their own hues by construction (see index.css), so an

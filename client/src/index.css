@@ -1,6 +1,9 @@
 @import "tailwindcss";
-@import "@fontsource-variable/inter";
-@import "@fontsource-variable/jetbrains-mono";
+@import "@fontsource-variable/ibm-plex-sans";
+@import "@fontsource/ibm-plex-mono/index.css";
+@import "@fontsource/ibm-plex-mono/500.css";
+@import "@fontsource/ibm-plex-mono/600.css";
+@import "@fontsource-variable/familjen-grotesk";
 
 /*
  * Paleta e tipografia travadas de propósito.
@@ -19,34 +22,50 @@
      autofill, menu de contexto da webview. */
   color-scheme: dark;
 
-  --background: #262624;
-  --bg-sidebar: #1f1e1c;
-  --bg-elevated: #2b2a27;
-  --card: #302f2b;
-  --bubble-user: #35332e;
+  --background: #1b1a18;
+  /* Note the direction: the sidebar is *lighter* than the background here,
+     the opposite of what `themeApply.ts` derives for a theme that leaves it
+     out (`shade(background, 18)`). That derivation is still the right guess
+     for an author who declares neither — this palette just isn't a guess.
+     `--bg-chrome` is the third step: darker than both, for the window chrome
+     (title bar, tab strip, status bar) that frames the whole app. */
+  --bg-sidebar: #222120;
+  --bg-chrome: #1e1d1b;
+  --bg-elevated: #2a2826;
+  --surface-hover: #322f2c;
+  --card: #222120;
+  --bubble-user: #2a2826;
 
-  --foreground: #f0eee6;
-  --muted-foreground: #a39c8e;
-  --text-faint: #6f6a5f;
+  --foreground: #eceae4;
+  --muted-foreground: #b1aba2;
+  --text-faint: #98928a;
 
-  --primary: #d97757;
-  --destructive: #c06456;
+  --primary: #e0642a;
+  /* Tinted fill + the text tone that stays legible on top of it: an accent
+     surface can't use `--primary` itself for its own label, and can't use
+     the Tailwind alpha modifier either (that composites with whatever is
+     behind, the same trap documented on `--profile-*-soft` below). Filled
+     accent buttons keep using `--primary-foreground`; these two are for the
+     *soft* variant (active tool-call badge, selected menu row, drop zone). */
+  --primary-soft: rgb(224 100 42 / 0.14);
+  --primary-ink: #f2c6ac;
+  --destructive: #d4614f;
   /* Ponto médio do anel/barra de uso da janela de contexto (lib/contextUsage.ts)
      — interpola de `--primary` (0%) até aqui (~70%) e daqui até `--destructive`
      (~90%+) via color-mix(), nunca hex fixo nos dois extremos: trocar
      `--primary` no futuro já muda o início do gradiente sozinho. Não existe
      um "amarelo" na paleta (só primary/destructive), então esse é
      o único tom novo introduzido pra essa feature. */
-  --context-ring-warn: #d9a441;
+  --context-ring-warn: #d6a24e;
   /* Só pra linha adicionada em diff/preview de código (CodeLines) — não é
      cor de UI, é o mesmo motivo do hljs-string/number abaixo:
      `--primary` é laranja/terracota, perto demais de `--destructive` em
      matiz pra funcionar como "verde" de adição (um card de Write, que é
      tudo adição, ficava com cara de "tudo removido"). */
-  --diff-add: #9cae7c;
+  --diff-add: #74b183;
 
-  --border: #3a382f;
-  --border-soft: #302f2a;
+  --border: #332f2c;
+  --border-soft: #2a2724;
 
   /* Scrim atrás de dialog/sheet/alert — era `bg-black/50` literal nos três
      overlays do shadcn. Preto opaco é uma escolha de tema escuro: um tema
@@ -59,7 +78,7 @@
      `white/8`/`white/10`: branco só funciona sobre fundo escuro, num tema
      claro esse realce some. Consumido sempre com modificador de alfa
      (`border-glass-tint/8`), então aqui é a cor cheia. */
-  --glass-tint: #f0eee6;
+  --glass-tint: #eceae4;
 
   /* Badge de vídeo por cima da miniatura anexada (Composer, Message).
      Deliberadamente escuro nos dois appearances: fica sobre a imagem do
@@ -73,46 +92,50 @@
      estado assentado (.mobile-canvas.pushed) e no arraste ao vivo
      (useRevealDrawer.ts), que antes repetiam o literal cada um do seu lado
      e podiam divergir. */
-  --shadow-color: rgb(0 0 0 / 0.65);
+  --shadow-color: rgb(0 0 0 / 0.5);
 
   /* Syntax highlight (hljs). Antes: `--primary` pra keyword, `#9cae7c`
      literal pra string e `--profile-work` pra número — esse último um
      acoplamento acidental de verdade, trocar a cor do perfil 2 repintava
      literal numérico em todo bloco de código. Tokens próprios porque
      sintaxe é uma dimensão do tema, não efeito colateral da paleta de UI. */
-  --syntax-comment: var(--text-faint);
-  --syntax-keyword: var(--primary);
-  --syntax-string: #9cae7c;
-  --syntax-number: #7c93ab;
-  --syntax-title: var(--foreground);
+  --syntax-comment: #706a62;
+  --syntax-keyword: #dd9068;
+  --syntax-string: #9fb98a;
+  --syntax-number: #c9ae6e;
+  --syntax-title: #cdc2ae;
 
-  --profile-personal: #d97757;
-  --profile-work: #7c93ab;
-  --profile-1: var(--profile-personal);
-  --profile-2: var(--profile-work);
-  --profile-3: #8fa876;
-  --profile-4: #b08bbb;
-  --profile-5: #c9a45f;
-  --profile-6: #6fa3a3;
+  /* Named aliases (`--profile-personal`/`--profile-work`) used to front the
+     first two, from when "pessoal" and "trabalho" were the only profiles.
+     Dropped rather than revalued: nothing referenced them anymore, and
+     themeApply.ts only ever writes the numbered form — a custom theme that
+     changed `profile-1` left the alias behind on the built-in value. */
+  --profile-1: #e0642a;
+  --profile-2: #3f9d92;
+  --profile-3: #8a72d6;
+  --profile-4: #c9a23e;
+  --profile-5: #7c93ab;
+  --profile-6: #8fa876;
 
-  /* Selected-tab background wash (TabBar) — mixed toward a literal neutral,
-     never a themed token like `--bg-elevated`: an earlier attempt used the
-     Tailwind opacity modifier (`bg-profile-N/15`, i.e. `color-mix(…,
-     transparent)`), which composites with whatever surface is actually
-     behind the element at paint time. On this dark theme that read as a
-     near-black smudge instead of a soft version of the profile color, and
-     it would render differently again on a light theme — profile colors
-     are the app's own identity, deliberately theme-independent (see the
-     `--profile-1`..`6` derivation skip in themeApply.ts), so their tab wash
-     needs to be too. Mixing toward a fixed literal instead of `transparent`
-     always yields the same opaque color regardless of what's underneath or
-     which theme is active. */
-  --profile-1-soft: color-mix(in srgb, var(--profile-1) 50%, #2b2a27);
-  --profile-2-soft: color-mix(in srgb, var(--profile-2) 50%, #2b2a27);
-  --profile-3-soft: color-mix(in srgb, var(--profile-3) 50%, #2b2a27);
-  --profile-4-soft: color-mix(in srgb, var(--profile-4) 50%, #2b2a27);
-  --profile-5-soft: color-mix(in srgb, var(--profile-5) 50%, #2b2a27);
-  --profile-6-soft: color-mix(in srgb, var(--profile-6) 50%, #2b2a27);
+  /* Selected-tab background wash (TabBar). The second operand must be an
+     *opaque* color, never `transparent`: the Tailwind alpha modifier
+     (`bg-profile-N/15`, i.e. `color-mix(…, transparent)`) composites with
+     whatever surface happens to sit behind the element at paint time, which
+     on a dark theme read as a near-black smudge instead of a soft version of
+     the profile color.
+     It used to be a hardcoded neutral (`#2b2a27`, the old `--bg-elevated`)
+     so the wash would stay theme-independent the way the profile hues
+     themselves are. That breaks the moment a light theme exists: mixing a
+     profile color toward a dark literal paints a dark blob on a light tab
+     strip. Mixing toward `--bg-chrome` — the tab strip's own background —
+     keeps the result opaque and deterministic (the requirement that
+     motivated the literal) while following the theme it's painted on. */
+  --profile-1-soft: color-mix(in srgb, var(--profile-1) 20%, var(--bg-chrome));
+  --profile-2-soft: color-mix(in srgb, var(--profile-2) 20%, var(--bg-chrome));
+  --profile-3-soft: color-mix(in srgb, var(--profile-3) 20%, var(--bg-chrome));
+  --profile-4-soft: color-mix(in srgb, var(--profile-4) 20%, var(--bg-chrome));
+  --profile-5-soft: color-mix(in srgb, var(--profile-5) 20%, var(--bg-chrome));
+  --profile-6-soft: color-mix(in srgb, var(--profile-6) 20%, var(--bg-chrome));
 
   /* Tab dot for "turn finished, not viewed yet" (TabBar). Deliberately a
      saturated blue with no muted/pastel sibling in the profile palette above
@@ -120,7 +143,20 @@
      the dot could be mistaken for a profile color instead of a status. */
   --status-done: #4f9fe0;
 
-  --radius: 0.5rem;
+  /* Square corners are the brand, not a default left unset — same call as
+     the account dashboard and the marketing site. */
+  --radius: 0px;
+
+  /* Motion budget. One duration for every state change in the app, and a
+     single easing, so "how long does a hover take" is never a per-component
+     decision. Anything that wants to be slower is almost certainly animating
+     something it shouldn't: transitions here are for `color`,
+     `background-color` and `border-color` only — never `width`/`height`/
+     `top`/`left`/`margin` (layout on every frame) and never `box-shadow` or
+     `filter` (full repaint, no compositor fast path). Panels open and close
+     instantly on purpose; that is the fastest possible animation. */
+  --motion-fast: 120ms;
+  --motion-ease: cubic-bezier(0.2, 0.75, 0.2, 1);
 }
 
 /* Sem isto, `dark:` no Tailwind v4 cai no default `prefers-color-scheme` —
@@ -138,7 +174,9 @@
   --color-foreground: var(--foreground);
 
   --color-bg-sidebar: var(--bg-sidebar);
+  --color-bg-chrome: var(--bg-chrome);
   --color-bg-elevated: var(--bg-elevated);
+  --color-surface-hover: var(--surface-hover);
   --color-card: var(--card);
   --color-card-foreground: var(--foreground);
   --color-bubble-user: var(--bubble-user);
@@ -148,6 +186,8 @@
 
   --color-primary: var(--primary);
   --color-primary-foreground: var(--foreground);
+  --color-primary-soft: var(--primary-soft);
+  --color-primary-ink: var(--primary-ink);
 
   --color-secondary: var(--bg-elevated);
   --color-secondary-foreground: var(--foreground);
@@ -156,11 +196,12 @@
   --color-muted-foreground: var(--muted-foreground);
   --color-text-faint: var(--text-faint);
 
-  /* Distinto de --color-popover (ambos vindos de --bg-elevated): se fossem
+  /* Distinto de --color-popover (que vem de --bg-elevated): se fossem
      iguais, o highlight de hover/foco dentro de um popover ficaria invisível
      (mesma cor do fundo que ele mesmo está sobre) — foi exatamente o bug
-     relatado no dropdown de perfil. */
-  --color-accent: var(--border);
+     relatado no dropdown de perfil. Era `--border` emprestado por falta de
+     token próprio; `--surface-hover` é esse token. */
+  --color-accent: var(--surface-hover);
   --color-accent-foreground: var(--foreground);
 
   --color-destructive: var(--destructive);
@@ -178,8 +219,6 @@
   --color-input: var(--border);
   --color-ring: var(--primary);
 
-  --color-profile-personal: var(--profile-personal);
-  --color-profile-work: var(--profile-work);
   --color-profile-1: var(--profile-1);
   --color-profile-2: var(--profile-2);
   --color-profile-3: var(--profile-3);
@@ -203,13 +242,41 @@
   --color-sidebar-border: var(--border);
   --color-sidebar-ring: var(--primary);
 
-  --font-sans: "Inter Variable", ui-sans-serif, system-ui, sans-serif;
-  --font-mono: "JetBrains Mono Variable", ui-monospace, monospace;
+  --font-sans: "IBM Plex Sans Variable", ui-sans-serif, system-ui, sans-serif;
+  --font-mono: "IBM Plex Mono", ui-monospace, monospace;
+  /* Headings and display numerals only — the brand's display face, same as
+     the account dashboard and the marketing site. Never body copy. */
+  --font-display: "Familjen Grotesk Variable", "IBM Plex Sans Variable", sans-serif;
 
-  --radius-sm: calc(var(--radius) - 4px);
-  --radius-md: calc(var(--radius) - 2px);
-  --radius-lg: var(--radius);
-  --radius-xl: calc(var(--radius) + 4px);
+  /* Spelled out rather than `calc(var(--radius) ± Npx)`: with `--radius: 0`
+     the old arithmetic produced negative lengths for `sm`/`md`, which every
+     engine clamps back to 0 anyway — the calc only survived as a way to read
+     a rounding scale that no longer exists. */
+  --radius-sm: 0px;
+  --radius-md: 0px;
+  --radius-lg: 0px;
+  --radius-xl: 0px;
+
+  /* Makes a bare `transition-colors` (the only transition utility this app
+     should need) pick up the motion budget without every call site repeating
+     `duration-*`/`ease-*`. */
+  --default-transition-duration: var(--motion-fast);
+  --default-transition-timing-function: var(--motion-ease);
+}
+
+/* Honors the OS "reduce motion" setting for the few animations that survive
+ * the budget (spinners, the cursor blink, the turn shimmer). Written as a
+ * blanket override instead of per-animation opt-outs so a new animation is
+ * covered the day it's added, not the day someone remembers it. */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  ::before,
+  ::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
 }
 
 /* Tailwind v4 não dá cor default pra `border` (só width/style) — cai no
