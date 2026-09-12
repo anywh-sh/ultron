@@ -1,0 +1,89 @@
+name: Bug report
+description: Something behaves differently from how it's documented or intended
+labels: ["bug"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Before filing: the relay having no authentication, CORS being open, and
+        `bypassPermissions` being the default are deliberate — see the
+        [security model](https://github.com/anywh-sh/anywh#security-model).
+        For anything with a security impact, use a
+        [private advisory](https://github.com/anywh-sh/anywh/security/advisories/new)
+        instead of this form.
+
+  - type: textarea
+    id: what-happened
+    attributes:
+      label: What happened
+      description: What you did, and what you got instead of what you expected.
+      placeholder: |
+        1. Opened the file browser on a session whose cwd is a symlink
+        2. Clicked a directory
+        3. The panel went blank and never recovered
+    validations:
+      required: true
+
+  - type: textarea
+    id: expected
+    attributes:
+      label: What you expected
+    validations:
+      required: true
+
+  - type: dropdown
+    id: component
+    attributes:
+      label: Where it happens
+      options:
+        - Client — desktop (Windows)
+        - Client — desktop (macOS)
+        - Client — desktop (Linux)
+        - Client — iOS
+        - Relay
+        - install.sh / release artifacts
+        - systemd units (infra/)
+        - Not sure
+    validations:
+      required: true
+
+  - type: input
+    id: version
+    attributes:
+      label: Version
+      description: Release tag, or the commit you built from.
+      placeholder: v0.4.1 — or 950e6cd built from source
+    validations:
+      required: true
+
+  - type: input
+    id: environment
+    attributes:
+      label: Relay machine and connection
+      description: >
+        OS of the machine running the relay, and how the client reaches it.
+        The relay running somewhere other than the client is the normal case
+        and often matters.
+      placeholder: Debian 13 headless, reached over Tailscale from an iPhone
+    validations:
+      required: true
+
+  - type: textarea
+    id: logs
+    attributes:
+      label: Relevant logs
+      description: >
+        Relay output (`npm start`, or `journalctl --user -u anywh-relay@<profile>`),
+        and the client's devtools console on desktop. Redact paths and tokens
+        you'd rather not publish — this issue is public.
+      render: shell
+
+  - type: checkboxes
+    id: confirmations
+    attributes:
+      label: Confirmations
+      options:
+        - label: I searched existing issues and this isn't a duplicate
+          required: true
+        - label: This has no security impact — otherwise I'd be filing a private advisory
+          required: true
