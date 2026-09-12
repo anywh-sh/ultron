@@ -411,29 +411,29 @@ body {
   transform-origin: center;
 }
 
-/* TurnIndicator's text ("Pensando…" and variants) — the same "reasoning
- * shimmer" effect AI apps use to signal work in progress: a highlight
- * sweeping across the text from left to right, on a loop. */
-@keyframes text-shimmer {
+/* Turn indicator's progress band — a light sweep crossing the bar for as
+ * long as a turn is in flight. Animates `transform` and nothing else, so it
+ * runs on the compositor: the bar under it is never laid out or repainted
+ * for a frame of this. It replaced a shimmer that animated
+ * `background-position` over `background-clip: text`, which repainted the
+ * text itself on every frame of every turn.
+ *
+ * The band is a third of the bar wide, so crossing the whole bar means
+ * travelling 300% of its own width — hence the end value. The element only
+ * exists while a turn is running (`TurnIndicator` doesn't render it
+ * otherwise): `visibility: hidden` would keep the animation ticking, and
+ * the bar stays mounted with its height reserved even when idle.
+ */
+@keyframes turn-sweep {
   from {
-    background-position: 200% 0;
+    transform: translateX(-100%);
   }
   to {
-    background-position: -200% 0;
+    transform: translateX(300%);
   }
 }
-.animate-text-shimmer {
-  background-image: linear-gradient(
-    90deg,
-    var(--muted-foreground) 40%,
-    var(--foreground) 50%,
-    var(--muted-foreground) 60%
-  );
-  background-size: 250% 100%;
-  background-clip: text;
-  -webkit-background-clip: text;
-  color: transparent;
-  animation: text-shimmer 2.2s linear infinite;
+.animate-turn-sweep {
+  animation: turn-sweep 1.9s linear infinite;
 }
 
 /* Radix's `ScrollArea` injects an inner wrapper with `display:table;

@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { ImagePlus, X } from "lucide-react";
 import { getCurrentWebview } from "@tauri-apps/api/webview";
@@ -9,6 +9,7 @@ import { getDefaultPath } from "@/hooks/useDefaultPaths";
 import { getPreferredModel, setLastModel } from "@/hooks/useModelPreference";
 import { useKeyboardInset } from "@/hooks/useKeyboardInset";
 import { useMessageLog, type LogEntry } from "@/hooks/useMessageLog";
+import { countToolCallsInCurrentTurn } from "@/lib/turnActivity";
 import { useImageUpload, type PendingAttachment } from "@/hooks/useImageUpload";
 import { MessageLog } from "@/components/chat/MessageLog";
 import { MessageLogSkeleton } from "@/components/chat/MessageLogSkeleton";
@@ -146,6 +147,10 @@ export function ChatPanel({
 }: ChatPanelProps) {
   const dict = useDict();
   const log = useMessageLog();
+  // Recomputed only when an entry is actually appended — `log.entries` keeps
+  // its identity while text streams in (that lands in `streamingText`), so
+  // this doesn't walk the log once per token.
+  const toolCallsThisTurn = useMemo(() => countToolCallsInCurrentTurn(log.entries), [log.entries]);
   const logRef = useRef(log);
   logRef.current = log;
   const titleBarSlot = useTitleBarSlot();
@@ -637,7 +642,7 @@ export function ChatPanel({
          * (see comment above), so an element outside it would leak out of
          * the floating area and end up rendering below the composer (near
          * the keyboard) instead of above it. */}
-        {isIOS() && turnStartedAt !== null && <TurnIndicator startedAt={turnStartedAt} />}
+        {isIOS() && turnStartedAt !== null && <TurnIndicator startedAt={turnStartedAt} toolCount={toolCallsThisTurn} />}
 
         {/* Caps the composer column at the same width as MessageLog's content
          * — `contents` on iOS keeps these two wrapper divs out of
@@ -648,7 +653,7 @@ export function ChatPanel({
             {/* Always mounted on desktop — see `TurnIndicator`'s
              * own doc comment for why this can't be conditional on
              * `turnStartedAt !== null` like the iOS one below. */}
-            {!isIOS() && <TurnIndicator startedAt={turnStartedAt} />}
+            {!isIOS() && <TurnIndicator startedAt={turnStartedAt} toolCount={toolCallsThisTurn} />}
 
             {choicePrompt && (
               <ChoiceCard

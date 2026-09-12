@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { cn, formatDurationLong } from "@/lib/utils";
-import { pickThinkingWord } from "@/lib/thinkingWords";
 import { isIOS } from "@/lib/platform";
+import { useDict } from "@/i18n";
 
 interface TurnIndicatorProps {
   /** Epoch ms of when the turn actually started — comes from the relay
@@ -21,42 +21,62 @@ interface TurnIndicatorProps {
    * an instant before the scroll container's `ResizeObserver` caught up,
    * clipping the last bubble under this indicator for a frame. */
   startedAt: number | null;
+  /** Tools the agent has reached for since the user's last message — the
+   * bar's way of saying what the wait is made of. */
+  toolCount: number;
 }
 
 /** Indicator for a turn in progress — from the moment of sending until the
  * response finishes (covers network latency + the model's reasoning time,
- * which often doesn't expose real thinking text). Sits above
- * the composer, outside the scrollable log, with no side rail.
+ * which often doesn't expose real thinking text). Sits above the composer,
+ * outside the scrollable log.
  */
-export function TurnIndicator({ startedAt }: TurnIndicatorProps) {
+export function TurnIndicator({ startedAt, toolCount }: TurnIndicatorProps) {
+  const dict = useDict();
   const active = startedAt !== null;
   const [elapsedSeconds, setElapsedSeconds] = useState(0);
-  const [word, setWord] = useState(pickThinkingWord);
 
   useEffect(() => {
     if (startedAt === null) return;
-    setWord(pickThinkingWord());
     const tick = () => setElapsedSeconds(Math.floor((Date.now() - startedAt) / 1000));
     tick();
     const interval = setInterval(tick, 1000);
     return () => clearInterval(interval);
   }, [startedAt]);
 
+  const tools =
+    toolCount === 0
+      ? null
+      : toolCount === 1
+        ? dict.chat.turn.oneToolUsed
+        : dict.chat.turn.toolsUsed.replace("{count}", String(toolCount));
+
   return (
     <div
       className={cn(
-        "mt-1 flex items-center gap-1.5 text-xs text-muted-foreground",
+        // Fixed height rather than height-from-content: everything inside is
+        // conditional on `active`, and the whole point of staying mounted
+        // while idle is to hold this row's space open.
+        "relative mt-1 flex h-8 items-center gap-2.5 overflow-hidden border border-border bg-card px-2.5",
         isIOS() && "mx-3",
         !active && "invisible",
       )}
+      role="status"
     >
-      <span className="flex items-center gap-0.5">
-        <span className="size-1 animate-bounce rounded-full bg-text-faint [animation-delay:-0.3s]" />
-        <span className="size-1 animate-bounce rounded-full bg-text-faint [animation-delay:-0.15s]" />
-        <span className="size-1 animate-bounce rounded-full bg-text-faint" />
-      </span>
-      <span className="animate-text-shimmer font-medium">{word}…</span>
-      <span className="font-mono">{formatDurationLong(elapsedSeconds)}</span>
+      {active && (
+        <>
+          {/* Only rendered while a turn runs. `invisible` on the parent would
+              hide this but keep its animation ticking — a hidden element is
+              still animating. */}
+          <span className="animate-turn-sweep pointer-events-none absolute inset-y-0 left-0 w-1/3 bg-gradient-to-r from-transparent via-primary-soft to-transparent" />
+          <span className="relative size-3 shrink-0 animate-spin rounded-full border-2 border-border border-t-primary" />
+          <span className="relative flex-1 truncate font-mono text-[11px] text-muted-foreground">
+            {dict.chat.turn.working}
+            {tools && ` · ${tools}`}
+          </span>
+          <span className="relative shrink-0 font-mono text-[11px] text-text-faint">{formatDurationLong(elapsedSeconds)}</span>
+        </>
+      )}
     </div>
   );
 }

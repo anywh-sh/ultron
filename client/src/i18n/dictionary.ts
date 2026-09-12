@@ -89,6 +89,11 @@ export interface Dictionary {
       copyFailed: string;
       showMoreLines: string;
     };
+    turn: {
+      working: string;
+      oneToolUsed: string;
+      toolsUsed: string;
+    };
   };
   /** The window frame and the session list — everything outside a
    * conversation. Grouped by the surface a string appears on rather than by
