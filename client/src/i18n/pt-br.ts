@@ -27,6 +27,14 @@ export const ptBr: Dictionary = {
       agentWorking: "Agente trabalhando nesta sessão",
       sessionDone: "Sessão finalizada",
     },
+    message: {
+      copy: "Copiar mensagem",
+      copied: "Copiado",
+      copyResponse: "Copiar resposta",
+      edit: "Editar mensagem",
+      editUnavailable: "Editar mensagem (indisponível)",
+      editWithAttachment: "Editar mensagem com anexo ainda não é suportado",
+    },
   },
   shell: {
     titleBar: {

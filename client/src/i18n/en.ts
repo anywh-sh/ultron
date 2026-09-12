@@ -27,6 +27,14 @@ export const en: Dictionary = {
       agentWorking: "Agent working in this session",
       sessionDone: "Session finished",
     },
+    message: {
+      copy: "Copy message",
+      copied: "Copied",
+      copyResponse: "Copy response",
+      edit: "Edit message",
+      editUnavailable: "Edit message (unavailable)",
+      editWithAttachment: "Editing a message with an attachment isn't supported yet",
+    },
   },
   shell: {
     titleBar: {
