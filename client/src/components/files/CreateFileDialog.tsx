@@ -1,5 +1,6 @@
 import { useEffect, useState, type FormEvent } from "react";
 import { Button } from "@/components/ui/button";
+import { useDict } from "@/i18n";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 
 interface CreateFileDialogProps {
@@ -14,6 +15,8 @@ interface CreateFileDialogProps {
  * endpoints, different validation: this one also has to reject an empty
  * name, `renameFile`'s never starts out empty). */
 export function CreateFileDialog({ open, onOpenChange, onSave }: CreateFileDialogProps) {
+  const dict = useDict();
+  const copy = dict.panels.files.tree.newFile;
   const [name, setName] = useState("");
 
   useEffect(() => {
@@ -31,20 +34,20 @@ export function CreateFileDialog({ open, onOpenChange, onSave }: CreateFileDialo
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="sm:max-w-md">
         <DialogHeader>
-          <DialogTitle>Novo arquivo</DialogTitle>
-          <DialogDescription>Escolha um nome pro novo arquivo.</DialogDescription>
+          <DialogTitle>{copy.title}</DialogTitle>
+          <DialogDescription>{copy.description}</DialogDescription>
         </DialogHeader>
         <form onSubmit={handleSubmit} className="flex flex-col gap-3">
           <input
             value={name}
             onChange={(event) => setName(event.target.value)}
-            placeholder="nome-do-arquivo.txt"
-            className="rounded-md border border-border bg-transparent px-2.5 py-1.5 text-sm outline-none focus:border-ring"
+            placeholder={copy.placeholder}
+            className="border border-border bg-transparent px-2.5 py-1.5 font-mono text-xs outline-none focus:border-primary"
             autoFocus
           />
           <DialogFooter>
             <Button type="submit" size="sm">
-              Criar
+              {dict.common.create}
             </Button>
           </DialogFooter>
         </form>

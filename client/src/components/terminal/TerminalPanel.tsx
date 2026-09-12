@@ -6,6 +6,7 @@ import type { useTerminalTabs } from "@/hooks/useTerminalTabs";
 import { closeTerminal } from "@/lib/relayClient";
 import { resolveConnection } from "@/lib/connectionResolver";
 import type { Profile } from "@/lib/profiles";
+import { useDict } from "@/i18n";
 
 interface TerminalPanelProps {
   profile: Profile;
@@ -43,6 +44,7 @@ export function TerminalPanel({
   onToggleMaximized,
   onClose,
 }: TerminalPanelProps) {
+  const dict = useDict();
   const { tabs, activeTerminalId } = terminalTabs.getTabs(chatSessionId);
   const { addTerminal } = terminalTabs;
   /** `true` as soon as the list has had at least one tab — this is what
@@ -100,7 +102,7 @@ export function TerminalPanel({
           onSelect={(id) => terminalTabs.setActiveTerminal(chatSessionId, id)}
           onClose={handleCloseTerminal}
           onAdd={() => terminalTabs.addTerminal(chatSessionId)}
-          addLabel="Novo terminal"
+          addLabel={dict.panels.terminal.newTerminal}
         />
       }
     >

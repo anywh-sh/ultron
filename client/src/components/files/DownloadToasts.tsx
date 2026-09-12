@@ -1,12 +1,15 @@
 import { createPortal } from "react-dom";
 import { CheckCircle2, Loader2, X } from "lucide-react";
 import { useDownloadNotifications } from "@/hooks/useDownloadNotifications";
+import { useDict } from "@/i18n";
+import type { Dictionary } from "@/i18n/dictionary";
 import { dismissDownloadNotification, type DownloadNotification } from "@/lib/downloadNotifications";
 
-function toastText(notification: DownloadNotification): string {
-  if (notification.fileName) return `Arquivo ${notification.fileName} baixado`;
-  const verb = notification.done ? "Baixado" : "Baixando";
-  return `${verb} ${String(notification.current)}/${String(notification.total)} arquivos`;
+function toastText(notification: DownloadNotification, copy: Dictionary["panels"]["files"]["downloads"]): string {
+  if (notification.fileName) return copy.fileDone.replace("{name}", notification.fileName);
+  return (notification.done ? copy.done : copy.progress)
+    .replace("{current}", String(notification.current))
+    .replace("{total}", String(notification.total));
 }
 
 /**
@@ -22,6 +25,7 @@ function toastText(notification: DownloadNotification): string {
  * instead of the real viewport.
  */
 export function DownloadToasts() {
+  const copy = useDict().panels.files.downloads;
   const notifications = useDownloadNotifications();
   if (notifications.length === 0) return null;
 
@@ -36,7 +40,7 @@ export function DownloadToasts() {
           // standard-scale way to hit an exact pixel target). `max-w-96`
           // raised alongside it — `min-w` past a smaller `max-w` would just
           // win and make the `max-w` dead weight.
-          className="pointer-events-auto flex min-w-87.5 max-w-96 items-center gap-2.5 rounded-md border bg-popover px-4 py-3 text-sm text-popover-foreground shadow-lg"
+          className="pointer-events-auto flex max-w-96 min-w-87.5 items-center gap-2.5 border border-border bg-popover px-4 py-3 font-mono text-[11px] text-popover-foreground shadow-popover"
           title={notification.fileName}
         >
           {notification.done ? (
@@ -47,14 +51,14 @@ export function DownloadToasts() {
             // "something's happening", not a download-specific icon choice.
             <Loader2 className="size-4 shrink-0 animate-spin text-muted-foreground" />
           )}
-          <span className="truncate">{toastText(notification)}</span>
+          <span className="truncate">{toastText(notification, copy)}</span>
           <button
             type="button"
             onClick={() => dismissDownloadNotification(notification.id)}
-            aria-label="Dispensar notificação"
-            // Same close-button treatment as PaneTabStrip/TabGroupStrip's tab
-            // close "X" — cursor-pointer + hover:bg-border, not a bespoke look.
-            className="ml-auto shrink-0 cursor-pointer rounded p-0.5 text-muted-foreground hover:bg-border hover:text-foreground"
+            aria-label={copy.dismiss}
+            // Same close-button treatment as the pane tabs' own × — always
+            // visible, faint until pointed at.
+            className="ml-auto shrink-0 cursor-pointer p-0.5 text-text-faint transition-colors hover:text-foreground"
           >
             <X className="size-3.5" />
           </button>

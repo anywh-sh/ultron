@@ -18,6 +18,7 @@ export interface Dictionary {
     cancel: string;
     close: string;
     copy: string;
+    create: string;
     delete: string;
     download: string;
     edit: string;
@@ -188,6 +189,95 @@ export interface Dictionary {
         modelHaiku: string;
         modelGeneric: string;
       };
+    };
+  };
+  /**
+   * The right-side dock: the file panel, the code viewer and the terminal.
+   * Grouped by surface like the rest — a string moving between the tree and
+   * the viewer keeps its key, a string moving between panels doesn't.
+   */
+  panels: {
+    /** The two buttons that open these panels. They sit in the chat's own
+     * toolbar, but they name this surface, which is where the key belongs. */
+    openFiles: string;
+    closeFiles: string;
+    openTerminal: string;
+    closeTerminal: string;
+    maximize: string;
+    restore: string;
+    close: string;
+    /** Every pane tab closes the same way, files and terminals alike. */
+    closeTab: string;
+    files: {
+      title: string;
+      loading: string;
+      noFileOpen: string;
+      showHidden: string;
+      hideHidden: string;
+      /** The drag-and-drop overlay. `toFolder` names the folder row under
+       * the cursor; `toRoot` covers a drop anywhere else in the panel, which
+       * lands in the session's own folder. */
+      drop: {
+        title: string;
+        toFolder: string;
+        toRoot: string;
+        failed: string;
+      };
+      viewer: {
+        loading: string;
+        failed: string;
+        binary: string;
+        truncated: string;
+        viewFormatted: string;
+        viewSource: string;
+      };
+      tree: {
+        openInNewTab: string;
+        openInTerminal: string;
+        /** `openIn` names one detected editor; `openWith`/`openProjectWith`
+         * are the submenu trigger when more than one was detected. */
+        openIn: string;
+        openProjectIn: string;
+        openWith: string;
+        openProjectWith: string;
+        download: string;
+        downloadMany: string;
+        rename: string;
+        delete: string;
+        deleteMany: string;
+        newFile: { title: string; description: string; placeholder: string };
+        renameFile: { title: string; description: string };
+        emptyFolder: string;
+        listFailed: string;
+        /** The two delete confirmations. Both spell out that it can't be
+         * undone, because on the relay's side it genuinely can't — there is
+         * no trash to recover from. */
+        deleteFile: { title: string; description: string };
+        deleteFiles: { title: string; description: string };
+        /** Failures that reach the user through an alert. They stay generic
+         * on purpose: the relay's own message for these is a stack-level
+         * detail, not something to put in front of someone. */
+        errors: {
+          create: string;
+          download: string;
+          downloadFolder: string;
+          rename: string;
+          delete: string;
+        };
+      };
+      downloads: {
+        fileDone: string;
+        progress: string;
+        done: string;
+        dismiss: string;
+      };
+    };
+    terminal: {
+      newTerminal: string;
+      /** Its own key rather than the title bar's: same word, different
+       * surface, and the two reconnect for unrelated reasons — the relay
+       * socket there, this pane's pty here. */
+      reconnecting: string;
     };
   };
   /** The window frame and the session list — everything outside a
