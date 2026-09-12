@@ -206,6 +206,15 @@
 
   --color-destructive: var(--destructive);
   --color-destructive-foreground: var(--foreground);
+
+  /* Hover state of the two filled buttons. Mixing toward `--foreground`
+     instead of toward white (or toward `transparent`, which is what the
+     Tailwind alpha modifier does) means one definition brightens on a dark
+     theme and darkens on a light one, and stays opaque either way. Not part
+     of the theme contract on purpose: it derives from two tokens that are, so
+     a custom theme gets a correct hover without declaring anything. */
+  --color-primary-hover: color-mix(in srgb, var(--primary) 86%, var(--foreground));
+  --color-destructive-hover: color-mix(in srgb, var(--destructive) 86%, var(--foreground));
   --color-diff-add: var(--diff-add);
   --color-context-ring-warn: var(--context-ring-warn);
 
@@ -241,6 +250,13 @@
   --color-sidebar-accent-foreground: var(--foreground);
   --color-sidebar-border: var(--border);
   --color-sidebar-ring: var(--primary);
+
+  /* The one elevation in the design: a soft, far-throw shadow under
+     anything that floats (menu, dialog, tooltip). Uses the themed
+     `--shadow-color`, so a light theme gets its own weaker version instead of
+     the same near-black. Static only — animating box-shadow is banned by the
+     motion budget above. */
+  --shadow-popover: 0 18px 40px var(--shadow-color);
 
   --font-sans: "IBM Plex Sans Variable", ui-sans-serif, system-ui, sans-serif;
   --font-mono: "IBM Plex Mono", ui-monospace, monospace;
