@@ -443,32 +443,37 @@ export function useTabs() {
     });
   }, []);
 
-  const setUnread = useCallback((tabId: string, value: boolean) => {
-    setState((prev) => {
-      const tab = prev.tabs.find((t) => t.id === tabId);
-      // No real change: returns the SAME `prev` reference — React skips the
-      // re-render (bailout), avoiding a loop with the effect that clears the badge
-      // every time the active tab changes.
-      if (!tab || tab.hasUnreadCompletion === value) return prev;
-      return { ...prev, tabs: prev.tabs.map((t) => (t.id === tabId ? { ...t, hasUnreadCompletion: value } : t)) };
-    });
-  }, []);
+  /** The three per-tab flags below share a shape: they are written on every
+   * edge of something that mostly does not change (the badge is cleared on
+   * every tab switch whether or not it was set; a turn's state and its
+   * background jobs are re-asserted from the socket), so the write that
+   * changes nothing is the common one. Each answers that before touching
+   * `setState` — the updater's `return prev` alone still costs a render of
+   * `App`, and `App` is the whole app. Same guard as `focusGroup`. */
+  const setTabFlag = useCallback(
+    <K extends "hasUnreadCompletion" | "isRunning" | "hasBackgroundJob">(tabId: string, key: K, value: boolean) => {
+      const current = stateRef.current.tabs.find((tab) => tab.id === tabId);
+      if (!current || current[key] === value) return;
+      setState((prev) => {
+        const tab = prev.tabs.find((t) => t.id === tabId);
+        if (!tab || tab[key] === value) return prev;
+        return { ...prev, tabs: prev.tabs.map((t) => (t.id === tabId ? { ...t, [key]: value } : t)) };
+      });
+    },
+    [],
+  );
 
-  const setRunning = useCallback((tabId: string, value: boolean) => {
-    setState((prev) => {
-      const tab = prev.tabs.find((t) => t.id === tabId);
-      if (!tab || tab.isRunning === value) return prev;
-      return { ...prev, tabs: prev.tabs.map((t) => (t.id === tabId ? { ...t, isRunning: value } : t)) };
-    });
-  }, []);
+  const setUnread = useCallback(
+    (tabId: string, value: boolean) => setTabFlag(tabId, "hasUnreadCompletion", value),
+    [setTabFlag],
+  );
 
-  const setHasBackgroundJob = useCallback((tabId: string, value: boolean) => {
-    setState((prev) => {
-      const tab = prev.tabs.find((t) => t.id === tabId);
-      if (!tab || tab.hasBackgroundJob === value) return prev;
-      return { ...prev, tabs: prev.tabs.map((t) => (t.id === tabId ? { ...t, hasBackgroundJob: value } : t)) };
-    });
-  }, []);
+  const setRunning = useCallback((tabId: string, value: boolean) => setTabFlag(tabId, "isRunning", value), [setTabFlag]);
+
+  const setHasBackgroundJob = useCallback(
+    (tabId: string, value: boolean) => setTabFlag(tabId, "hasBackgroundJob", value),
+    [setTabFlag],
+  );
 
   /** Called when a session's title comes into existence or changes — either
    * from automatic inference of the first prompt (ChatPanel, live via
@@ -476,6 +481,8 @@ export function useTabs() {
    * open as a tab right now (e.g. rename of a closed session) — the
    * same bailout as `setUnread`/`setRunning` above. */
   const setTabTitle = useCallback((tabId: string, title: string) => {
+    const current = stateRef.current.tabs.find((tab) => tab.id === tabId);
+    if (!current || current.title === title) return;
     setState((prev) => {
       const tab = prev.tabs.find((t) => t.id === tabId);
       if (!tab || tab.title === title) return prev;
