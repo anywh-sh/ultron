@@ -161,9 +161,9 @@ export const UserBubble = memo(function UserBubble({
                 {images.map((image) => (
                   <div key={image.path} className="relative">
                     {image.previewUrl ? (
-                      <img src={image.previewUrl} alt="" className="max-h-48 max-w-full rounded-lg object-cover" />
+                      <img src={image.previewUrl} alt="" className="max-h-48 max-w-full object-cover" />
                     ) : (
-                      <div className="flex size-24 items-center justify-center rounded-lg bg-border text-muted-foreground">
+                      <div className="flex size-24 items-center justify-center bg-border text-muted-foreground">
                         <Video className="size-6" />
                       </div>
                     )}
