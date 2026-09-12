@@ -6,20 +6,20 @@
 @import "@fontsource-variable/familjen-grotesk";
 
 /*
- * Paleta e tipografia travadas de propósito.
+ * Palette and typography, locked down on purpose.
  *
- * `:root` é a definição do tema embutido "default" (escuro) e, ao mesmo
- * tempo, o fallback de todo token que um tema customizado não declarar
- * (lib/themeApply.ts sobrescreve estas mesmas custom properties no elemento
- * raiz, sem remover nada). Um token só existe aqui se um tema pode trocá-lo
- * — cor literal dentro de componente não é alcançável por tema nenhum, que
- * é a razão de `--overlay`/`--glass-tint`/`--media-*`/`--syntax-*` abaixo
- * existirem.
+ * `:root` is both the definition of the built-in "default" (dark) theme and
+ * the fallback for every token a custom theme leaves undeclared
+ * (lib/themeApply.ts overwrites these same custom properties on the root
+ * element, without removing any). A token only exists here if a theme can
+ * change it — a literal color inside a component is out of reach of every
+ * theme, which is the reason `--overlay`/`--glass-tint`/`--media-*`/
+ * `--syntax-*` below exist at all.
  */
 :root {
-  /* Acompanha o `appearance` do tema ativo (themeApply.ts reescreve os
-     dois). Controla o esquema dos controles nativos: scrollbar, caret,
-     autofill, menu de contexto da webview. */
+  /* Follows the active theme's `appearance` (themeApply.ts rewrites both).
+     Controls the scheme of the native controls: scrollbar, caret, autofill,
+     the webview's own context menu. */
   color-scheme: dark;
 
   --background: #1b1a18;
@@ -50,55 +50,56 @@
   --primary-soft: rgb(224 100 42 / 0.14);
   --primary-ink: #f2c6ac;
   --destructive: #d4614f;
-  /* Ponto médio do anel/barra de uso da janela de contexto (lib/contextUsage.ts)
-     — interpola de `--primary` (0%) até aqui (~70%) e daqui até `--destructive`
-     (~90%+) via color-mix(), nunca hex fixo nos dois extremos: trocar
-     `--primary` no futuro já muda o início do gradiente sozinho. Não existe
-     um "amarelo" na paleta (só primary/destructive), então esse é
-     o único tom novo introduzido pra essa feature. */
+  /* Midpoint of the context-window usage ring/bar (lib/contextUsage.ts) —
+     it interpolates from `--primary` (0%) to here (~70%) and from here to
+     `--destructive` (~90%+) via color-mix(), never a fixed hex at either
+     end: changing `--primary` later moves the start of the gradient on its
+     own. There is no "yellow" in the palette (only primary/destructive), so
+     this is the one new tone that feature introduced. */
   --context-ring-warn: #d6a24e;
-  /* Só pra linha adicionada em diff/preview de código (CodeLines) — não é
-     cor de UI, é o mesmo motivo do hljs-string/number abaixo:
-     `--primary` é laranja/terracota, perto demais de `--destructive` em
-     matiz pra funcionar como "verde" de adição (um card de Write, que é
-     tudo adição, ficava com cara de "tudo removido"). */
+  /* Only for an added line in a diff or code preview (CodeLines) — not a UI
+     color, and for the same reason as hljs-string/number below: `--primary`
+     is orange/terracotta, too close to `--destructive` in hue to work as the
+     "green" of an addition (a Write card, which is nothing but additions,
+     read as "everything removed"). */
   --diff-add: #74b183;
 
   --border: #332f2c;
   --border-soft: #2a2724;
 
-  /* Scrim atrás de dialog/sheet/alert — era `bg-black/50` literal nos três
-     overlays do shadcn. Preto opaco é uma escolha de tema escuro: um tema
-     claro costuma querer um scrim mais fraco (ou tingido), e não tinha como
-     pedir isso com a cor cravada no componente. */
+  /* Scrim behind dialog/sheet/alert — this was a literal `bg-black/50` in
+     all three shadcn overlays. Opaque black is a dark-theme choice: a light
+     theme usually wants a weaker (or tinted) scrim, and there was no way to
+     ask for that with the color hardcoded in the component. */
   --overlay: rgb(0 0 0 / 0.5);
 
-  /* Realce sobre superfície translúcida (a "glass" do iOS: MobileTopBar e o
-     Composer flutuante) — hairline da borda e feedback de toque. Era
-     `white/8`/`white/10`: branco só funciona sobre fundo escuro, num tema
-     claro esse realce some. Consumido sempre com modificador de alfa
-     (`border-glass-tint/8`), então aqui é a cor cheia. */
+  /* Highlight over a translucent surface (iOS's "glass": MobileTopBar and
+     the floating Composer) — the hairline border and the touch feedback.
+     This was `white/8`/`white/10`: white only works over a dark background,
+     so on a light theme the highlight disappears. Always consumed with an
+     alpha modifier (`border-glass-tint/8`), so the full color lives here. */
   --glass-tint: #eceae4;
 
-  /* Badge de vídeo por cima da miniatura anexada (Composer, Message).
-     Deliberadamente escuro nos dois appearances: fica sobre a imagem do
-     usuário, não sobre superfície do app — clarear junto com o tema faria
-     sumir em cima de qualquer foto clara. Um tema ainda pode sobrescrever;
-     o default é não acompanhar. */
+  /* Video badge on top of an attached thumbnail (Composer, Message).
+     Deliberately dark in both appearances: it sits over the user's own
+     image, not over an app surface — lightening it along with the theme
+     would make it vanish on top of any bright photo. A theme can still
+     override it; the default is not to follow. */
   --media-scrim: rgb(0 0 0 / 0.6);
   --media-scrim-foreground: #ffffff;
 
-  /* Sombra projetada do canvas no drawer "reveal" do iOS — mesma cor no
-     estado assentado (.mobile-canvas.pushed) e no arraste ao vivo
-     (useRevealDrawer.ts), que antes repetiam o literal cada um do seu lado
-     e podiam divergir. */
+  /* Shadow cast by the canvas in iOS's "reveal" drawer — the same color in
+     the settled state (.mobile-canvas.pushed) and during the live drag
+     (useRevealDrawer.ts), which used to repeat the literal on each side and
+     could drift apart. */
   --shadow-color: rgb(0 0 0 / 0.5);
 
-  /* Syntax highlight (hljs). Antes: `--primary` pra keyword, `#9cae7c`
-     literal pra string e `--profile-work` pra número — esse último um
-     acoplamento acidental de verdade, trocar a cor do perfil 2 repintava
-     literal numérico em todo bloco de código. Tokens próprios porque
-     sintaxe é uma dimensão do tema, não efeito colateral da paleta de UI. */
+  /* Syntax highlighting (hljs). Before: `--primary` for keywords, a literal
+     `#9cae7c` for strings and `--profile-work` for numbers — that last one a
+     genuinely accidental coupling, where changing profile 2's color
+     repainted every numeric literal in every code block. Tokens of their
+     own, because syntax is a dimension of the theme rather than a side
+     effect of the UI palette. */
   --syntax-comment: #706a62;
   --syntax-keyword: #dd9068;
   --syntax-string: #9fb98a;
@@ -159,14 +160,15 @@
   --motion-ease: cubic-bezier(0.2, 0.75, 0.2, 1);
 }
 
-/* Sem isto, `dark:` no Tailwind v4 cai no default `prefers-color-scheme` —
- * ou seja, os overrides `dark:` que vieram junto com os componentes shadcn
- * (button, badge, select, tabs, dropdown-menu) seguiam o esquema do SISTEMA
- * OPERACIONAL, não o do app: a mesma tela renderizava diferente pra quem
- * usa o SO no claro, mesmo o app sendo escuro nos dois casos. Amarrado ao
- * appearance do tema ativo (`data-appearance` no <html>, semeado em
- * index.html e reescrito por themeApply.ts), vira determinístico e passa a
- * seguir o tema escolhido em vez do SO. */
+/* Without this, `dark:` in Tailwind v4 falls back to the default
+ * `prefers-color-scheme` — meaning the `dark:` overrides that shipped with
+ * the shadcn components (button, badge, select, tabs, dropdown-menu)
+ * followed the OPERATING SYSTEM's scheme rather than the app's: the same
+ * screen rendered differently for someone running their OS in light mode,
+ * even though the app was dark either way. Tied to the active theme's
+ * appearance (`data-appearance` on <html>, seeded in index.html and
+ * rewritten by themeApply.ts) it becomes deterministic, and follows the
+ * chosen theme instead of the OS. */
 @custom-variant dark (&:where([data-appearance="dark"], [data-appearance="dark"] *));
 
 @theme inline {
@@ -295,11 +297,12 @@
   }
 }
 
-/* Tailwind v4 não dá cor default pra `border` (só width/style) — cai no
- * initial value do CSS, `currentColor`, que aqui é o texto claro do app.
- * Sem isso, qualquer componente shadcn com `border`/`border-b`/`border-l`
- * sem cor explícita (dialog.tsx, command.tsx, select.tsx, dropdown-menu.tsx,
- * sheet.tsx) renderiza borda branca em vez de seguir a paleta doc 17. */
+/* Tailwind v4 gives `border` no default color (only width/style) — it falls
+ * back to the CSS initial value, `currentColor`, which here is the app's
+ * light text. Without this, any shadcn component carrying `border`/
+ * `border-b`/`border-l` with no explicit color (dialog.tsx, command.tsx,
+ * select.tsx, dropdown-menu.tsx, sheet.tsx) renders a white border instead
+ * of following the palette. */
 @layer base {
   *,
   ::before,
@@ -344,14 +347,15 @@
   -webkit-touch-callout: default;
 }
 
-/* `position: fixed` na `body` (não só `overflow: hidden`) é o truque padrão
- * pra impedir o comportamento nativo do WebKit em iOS de rolar o documento
- * inteiro pra "trazer o campo focado pra vista" quando um contenteditable
- * (o composer, ProseMirror) cresce — esse auto-scroll ignora qualquer
- * `overflow: hidden` que não seja acompanhado de `position: fixed`/`inset`.
- * Sem isso, um composer com texto longo cria um scroll fantasma da página
- * inteira por cima do layout próprio do app (`h-screen overflow-hidden` em
- * `App.tsx`), que já deveria bastar mas não basta sozinho no WKWebView. */
+/* `position: fixed` on `body` (not just `overflow: hidden`) is the standard
+ * trick for stopping WebKit's native iOS behavior of scrolling the whole
+ * document to "bring the focused field into view" when a contenteditable
+ * (the composer, ProseMirror) grows — that auto-scroll ignores any
+ * `overflow: hidden` not accompanied by `position: fixed`/`inset`. Without
+ * it, a composer holding a long message creates a phantom scroll of the
+ * whole page on top of the app's own layout (`h-screen overflow-hidden` in
+ * `App.tsx`), which ought to be enough by itself but isn't in a
+ * WKWebView. */
 html,
 body {
   height: 100%;
@@ -391,8 +395,8 @@ body {
   animation: cursor-blink 1s steps(1) infinite;
 }
 
-/* Waveform da gravação de voz — animação visual genérica (não é áudio real
- * captado, decisão de propósito). */
+/* Voice-recording waveform — a generic visual animation, not the audio
+ * actually being captured (a deliberate choice). */
 @keyframes waveform-bar {
   0%,
   100% {
@@ -407,9 +411,9 @@ body {
   transform-origin: center;
 }
 
-/* Texto do TurnIndicator ("Pensando…" e variantes) — mesmo efeito de
- * "reasoning shimmer" que apps de IA usam pra sinalizar processamento em
- * andamento: um brilho varrendo o texto da esquerda pra direita, em loop. */
+/* TurnIndicator's text ("Pensando…" and variants) — the same "reasoning
+ * shimmer" effect AI apps use to signal work in progress: a highlight
+ * sweeping across the text from left to right, on a loop. */
 @keyframes text-shimmer {
   from {
     background-position: 200% 0;
@@ -432,24 +436,24 @@ body {
   animation: text-shimmer 2.2s linear infinite;
 }
 
-/* O `ScrollArea` do Radix injeta um wrapper interno com
- * `display:table; min-width:100%` (via inline style, não classe) em volta
- * do conteúdo — table cresce pro tamanho do conteúdo sem quebra de linha
- * (nosso `truncate` usa `white-space:nowrap`), então nenhum filho nunca
- * chega a "estourar" localmente pra disparar o `text-overflow:ellipsis`; o
- * corte que aparece vem de um `overflow-hidden` mais acima, sem reticências
- * (achado testando nome de sessão longo na sidebar). `!important`
- * é necessário pra vencer o inline style; sem isso não tem outra forma de
- * sobrescrever (não é uma classe que dê pra trocar via props do componente). */
+/* Radix's `ScrollArea` injects an inner wrapper with `display:table;
+ * min-width:100%` (as an inline style, not a class) around the content — a
+ * table grows to the size of its content without wrapping (our `truncate`
+ * uses `white-space:nowrap`), so no child ever locally overflows enough to
+ * trigger `text-overflow:ellipsis`; the clipping that does show comes from
+ * an `overflow-hidden` further up, with no ellipsis (found testing a long
+ * session name in the sidebar). `!important` is required to beat the inline
+ * style; there is no other way to override it — it isn't a class the
+ * component exposes through props. */
 [data-radix-scroll-area-viewport] > div {
   display: block !important;
 }
 
-/* Drawer de sessões em "reveal" no iOS — a tela inteira do agente
- * desliza pra direita revelando a sidebar atrás, em vez de um overlay com
- * scrim por cima. O estado assentado (classe `.pushed`) transiciona por
- * CSS; o arraste ao vivo (useRevealDrawer.ts) escreve os mesmos estilos
- * direto via ref, sem re-render a cada pixel. */
+/* iOS "reveal" drawer for the session list — the agent's whole screen
+ * slides right to uncover the sidebar behind it, instead of an overlay with
+ * a scrim on top. The settled state (the `.pushed` class) transitions in
+ * CSS; the live drag (useRevealDrawer.ts) writes the same styles directly
+ * through a ref, with no re-render per pixel. */
 .mobile-canvas {
   border: 1px solid transparent;
   transition:
@@ -469,7 +473,7 @@ body {
     0 0 0 1px color-mix(in srgb, var(--glass-tint) 5%, transparent);
 }
 
-/* Scrollbars finas/customizadas (sidebar + log de mensagens). */
+/* Thin, custom scrollbars (sidebar + message log). */
 .scrollbar-thin {
   scrollbar-width: thin;
   scrollbar-color: var(--border) transparent;
@@ -485,9 +489,10 @@ body {
   border-radius: 9999px;
 }
 
-/* Composer rich-text (Tiptap) — placeholder do campo vazio e link criado
- * por paste-to-link, que miram pseudo-elemento/nó gerado pelo ProseMirror
- * e por isso não dá pra alcançar só com classes utilitárias. */
+/* Rich-text composer (Tiptap) — the empty field's placeholder and the link
+ * created by paste-to-link, both of which target a pseudo-element or a node
+ * ProseMirror generates, and so can't be reached with utility classes
+ * alone. */
 .composer-editor .ProseMirror {
   outline: none;
   min-height: 2rem;
@@ -498,18 +503,18 @@ body {
   line-height: 1.4;
   color: var(--foreground);
 }
-/* iOS: WebKit faz auto-zoom da página inteira ao focar um input
- * com font-size < 16px — o meta viewport já desliga isso
- * (`user-scalable=no`), mas 16px aqui também é defesa em profundidade (e
- * combina com o texto maior do resto da UI mobile). Fixo em px, não
- * `var(--text-sm)`: o ajuste de tamanho de fonte do app (`lib/fontSize.ts`)
- * não pode reabrir o auto-zoom do WebKit se alguém diminuir o texto abaixo
- * de 16px — esse pin é uma garantia de plataforma, não uma preferência. */
+/* iOS: WebKit auto-zooms the whole page when an input with a font-size
+ * under 16px takes focus — the viewport meta already disables that
+ * (`user-scalable=no`), but 16px here is defense in depth as well (and
+ * matches the larger text of the rest of the mobile UI). Pinned in px, not
+ * `var(--text-sm)`: the app's own font-size setting (`lib/fontSize.ts`) must
+ * not be able to reopen WebKit's auto-zoom by taking the text below 16px —
+ * this pin is a platform guarantee, not a preference. */
 .composer-editor.ios .ProseMirror {
   font-size: 16px;
-  /* `--composer-max-height` é calculado em JS a partir de
-   * `visualViewport.height` (Composer.tsx) — o fixo de 480px acima não
-   * reflete o espaço disponível quando o teclado do iOS está aberto. */
+  /* `--composer-max-height` is computed in JS from `visualViewport.height`
+   * (Composer.tsx) — the fixed 480px above doesn't reflect the space
+   * actually available while the iOS keyboard is open. */
   max-height: var(--composer-max-height, 480px);
 }
 .composer-editor .ProseMirror p {
@@ -529,9 +534,9 @@ body {
   cursor: text;
 }
 
-/* `/model haiku` etc reconhecido no composer — barra apagada, nome
- * do comando na cor primária cheia; o parâmetro (se houver) fica sem
- * decoração nenhuma, de propósito (pedido do usuário). */
+/* `/model haiku` and friends, recognized in the composer — the slash is
+ * dimmed and the command name takes the full primary color; the argument,
+ * when there is one, gets no decoration at all, deliberately. */
 .composer-command-slash {
   color: var(--primary);
   opacity: 0.55;
@@ -540,17 +545,17 @@ body {
   color: var(--primary);
 }
 
-/* Markdown das respostas do assistente (react-markdown). Sem plugin de
- * typography — o app é pequeno o bastante pra escrever isso à mão em vez de
- * puxar mais uma dependência. */
+/* Markdown in the assistant's replies (react-markdown). No typography
+ * plugin — the app is small enough to write this by hand instead of pulling
+ * in another dependency. */
 .prose-chat {
   line-height: 1.65;
-  /* `anywhere` (não só `break-word`) — um path/URL longo sem espaço é uma
-   * única "palavra" pro navegador, que por padrão não tem onde quebrar; sem
-   * isso ela estoura a largura da bolha e abre o scroll horizontal fantasma
-   * que `overflow-x-hidden` do container (`MessageLog.tsx`) já bloqueia,
-   * mas só cortando o texto — aqui é o que faz ele quebrar de linha de
-   * verdade em vez de ficar cortado. */
+  /* `anywhere` (not just `break-word`) — a long path or URL with no spaces
+   * is a single "word" to the browser, which by default has nowhere to break
+   * it; without this it overflows the bubble's width and opens the phantom
+   * horizontal scroll that the container's `overflow-x-hidden`
+   * (`MessageLog.tsx`) already blocks, but only by clipping the text. This
+   * is what makes it wrap for real instead of being cut off. */
   overflow-wrap: anywhere;
   user-select: text;
   -webkit-user-select: text;
@@ -597,13 +602,14 @@ body {
   text-decoration: underline;
   text-underline-offset: 2px;
 }
-/* Inline code (não dentro de `pre`) — antes usava `--card`, quase idêntico
- * ao fundo da mensagem (que não tem bolha própria, flutua direto sobre
- * `--background`), então o trecho de código quase não se distinguia do
- * texto ao redor. Pill neutro (fundo mais escuro que `--background`, mas
- * suavizado em direção a ela — puro `--bg-sidebar` pesava demais; borda na
- * linha de `--border`) — só o texto leva a cor da marca (`--primary`), pra
- * não competir com o resto da paleta. */
+/* Inline code (the kind not inside a `pre`) — this used to be `--card`,
+ * nearly identical to the message's own background (an assistant message has
+ * no bubble of its own, it floats straight on `--background`), so a code
+ * span barely stood apart from the text around it. A neutral pill instead: a
+ * background darker than `--background` but softened toward it, since plain
+ * `--bg-sidebar` read too heavy, with a border on the `--border` line. Only
+ * the text carries the brand color (`--primary`), so the pill doesn't
+ * compete with the rest of the palette. */
 .prose-chat code {
   font-family: var(--font-mono);
   background: color-mix(in srgb, var(--bg-sidebar) 55%, var(--background));
@@ -687,17 +693,19 @@ body {
   text-align: left;
 }
 
-/* Terminal embutido — o CSS do próprio pacote xterm.js força fundo
- * preto sólido no viewport (`.xterm-viewport { background-color: #000 }`,
- * comentado lá como "necessário no OS X pra scrollbar ficar opaca"). Pinta
- * com a mesma cor sólida do painel (`--bg-sidebar`, igual `theme.background`
- * em TerminalView.tsx) em vez de tentar transparência de verdade — testado
- * no app real que perseguir transparência através de canvas 2D + addon
- * WebGL não fechava 100% (sobrava um retângulo escuro visível), pintar a
- * mesma cor sólida nos dois lugares é mais simples e robusto.
- * `--terminal-bg` é escrito pelo TerminalView a partir do tema resolvido
- * (um tema pode declarar um fundo de terminal próprio); `--bg-sidebar` fica
- * como fallback pro caso de a variável não ter sido escrita ainda. */
+/* Embedded terminal — xterm.js's own package CSS forces a solid black
+ * viewport background (`.xterm-viewport { background-color: #000 }`,
+ * commented there as "needed on OS X for the scrollbar to be opaque").
+ * Painted with the same solid color as the panel around it (`--bg-sidebar`,
+ * matching `theme.background` in TerminalView.tsx) rather than attempting
+ * real transparency — tested in the actual app, chasing transparency through
+ * a 2D canvas plus the WebGL addon never closed completely (a visible dark
+ * rectangle was left over), and painting the same solid color in both places
+ * is simpler and more robust.
+ * `--terminal-bg` is written by TerminalView from the resolved theme (a
+ * theme may declare a terminal background of its own); `--bg-sidebar` stands
+ * in as the fallback for the window before that variable has been
+ * written. */
 .xterm .xterm-viewport {
   background-color: var(--terminal-bg, var(--bg-sidebar)) !important;
 }
@@ -707,12 +715,12 @@ body {
   -webkit-touch-callout: default;
 }
 
-/* Syntax highlight (rehype-highlight/hljs) — tema mínimo em cima da própria
- * paleta em vez de importar um tema pronto do highlight.js. Os tons vêm de
- * tokens próprios (--syntax-*, ver :root): sintaxe não faz parte da paleta
- * de UI, que não cobria código, e precisa ser escolhida
- * separadamente por um tema — o contraste que funciona pra texto de UI não
- * é o mesmo que funciona dentro de um bloco de código. */
+/* Syntax highlighting (rehype-highlight/hljs) — a minimal theme built on
+ * this palette instead of importing a ready-made highlight.js theme. The
+ * tones come from tokens of their own (--syntax-*, see :root): syntax isn't
+ * part of the UI palette, which never covered code, and has to be chosen
+ * separately by a theme — the contrast that works for UI text is not the
+ * contrast that works inside a code block. */
 .hljs-comment,
 .hljs-quote {
   color: var(--syntax-comment);
