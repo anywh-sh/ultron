@@ -16,11 +16,23 @@ describe("anywh desktop shell", () => {
   it("opens the app menu from the title bar", async () => {
     const menu = await $('[aria-label="Menu"]');
     await menu.waitForExist({ timeout: 15000 });
-    await menu.click();
 
-    // Radix renders menu content through a portal into `document.body`. That
-    // portal is exactly what broke under WKWebView once before (focus trap +
-    // pointer-events), so a real webview is the only tier that can catch it.
+    // Opened with the keyboard, not with a click, and not by choice: a
+    // WebDriver click in this webview delivers only an untrusted `click`
+    // plus a real `focus` — no `pointerdown`, no `mousedown` (verified by
+    // recording native listeners during a driver click; the webview itself
+    // does support PointerEvent). Radix's DropdownMenuTrigger opens on
+    // `pointerdown`, so `.click()` can never open it here, and the W3C
+    // Actions API does not help either. What used to look like a broken
+    // menu was the trigger's tooltip opening on that focus event instead.
+    // Enter goes through the trigger's keydown path, which the driver does
+    // deliver, and still exercises the part this tier is here for: the
+    // portal into `document.body` and its focus trap, which already broke
+    // under WKWebView once (see CLAUDE.md). Any future click-driven test of
+    // a Radix trigger in this tier will hit the same wall.
+    await menu.click();
+    await browser.keys("Enter");
+
     const settings = await $('[role="menuitem"]');
     await settings.waitForExist({ timeout: 5000 });
     await expect(settings).toHaveText(expect.stringContaining("Settings"));
@@ -29,7 +41,13 @@ describe("anywh desktop shell", () => {
   });
 
   it("renders the sidebar with the brand lockup, the profile filter and the profile switcher", async () => {
-    const lockup = await $("*=anywh.sh");
+    // Tag-agnostic XPath rather than WebdriverIO's `*=` partial-text
+    // selector: the bare `*=anywh.sh` form resolves to nothing under this
+    // WebKitGTK driver (returns false in ~17ms, no wait involved) even
+    // though the wordmark is right there in the DOM. A tag-qualified
+    // `span*=anywh.sh` also works, but pins the assertion to the element
+    // the lockup happens to render as today.
+    const lockup = await $('//*[contains(text(), "anywh.sh")]');
     await lockup.waitForExist({ timeout: 15000 });
     await expect(lockup).toBeExisting();
 
