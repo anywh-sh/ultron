@@ -6,7 +6,7 @@ import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip
 import { Sidebar } from "@/components/shell/Sidebar";
 import { EmptyState } from "@/components/shell/EmptyState";
 import { SessionSearch } from "@/components/shell/SessionSearch";
-import { SettingsDialog } from "@/components/shell/SettingsDialog";
+import { SettingsDialog } from "@/components/settings/SettingsDialog";
 import { TabGroupLayout } from "@/components/shell/TabGroupLayout";
 import { TitleBar } from "@/components/shell/TitleBar";
 import { MobileShell } from "@/components/shell/MobileShell";

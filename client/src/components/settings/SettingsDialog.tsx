@@ -15,7 +15,7 @@ import {
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { FolderPickerDialog } from "@/components/chat/FolderPickerDialog";
-import { ThemeSection } from "@/components/shell/ThemeSection";
+import { ThemeSection } from "@/components/settings/ThemeSection";
 import { useDefaultPaths } from "@/hooks/useDefaultPaths";
 import { DEFAULT_FONT_SIZE, FONT_SIZE_STEP, MAX_FONT_SIZE, MIN_FONT_SIZE, useFontSize } from "@/hooks/useFontSize";
 import {

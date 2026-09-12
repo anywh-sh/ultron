@@ -12,7 +12,7 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
-import { ThemeImportDialog, type ThemeDialogIntent } from "@/components/shell/ThemeImportDialog";
+import { ThemeImportDialog, type ThemeDialogIntent } from "@/components/settings/ThemeImportDialog";
 import { useThemeCatalog, useThemeSync } from "@/hooks/useThemes";
 import { isBuiltinTheme } from "@/lib/builtinThemes";
 import { resolveConnection } from "@/lib/connectionResolver";
