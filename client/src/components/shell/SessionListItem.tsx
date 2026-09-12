@@ -8,7 +8,7 @@ interface SessionListItemProps {
   session: SessionSummary;
   selected: boolean;
   running: boolean;
-  /** `anywh-bg` job currently observed on this session (docs/32, Phase E)
+  /** `anywh-bg` job currently observed on this session
    * — same limitation as `running`: only sessions open as a tab have this
    * information (no tab = no live WS connection to know it). */
   hasBackgroundJob: boolean;

@@ -341,7 +341,7 @@ test("BackgroundJobTracker: cancelling an id that doesn't exist (or already fini
   tracker.stopPolling();
 });
 
-// ---- heartbeat / death detection (journal/32 Phase G) ----------------------
+// ---- heartbeat / death detection -------------------------------------------
 
 /** Writes the heartbeat file with an mtime `ageMs` in the past — the wrapper
  * touches it every ~5s, so an old mtime is exactly what a wrapper killed

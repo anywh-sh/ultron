@@ -1,4 +1,4 @@
-// Testa persistência de sessão (Fase 7 / docs/18): o nome da sessão aparece
+// Testa persistência de sessão: o nome da sessão aparece
 // em GET /sessions assim que conecta (mesmo sem session_id ainda) e o
 // session_id fica gravado em disco depois de um turno completar. Rodar do
 // diretório `relay/`, com o relay já no ar (`npm run dev`, sem

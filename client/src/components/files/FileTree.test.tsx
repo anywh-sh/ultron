@@ -276,7 +276,7 @@ describe("FileTree multi-select (SHIFT range)", () => {
   });
 });
 
-describe("FileTree 'open in editor' menu (journal/60)", () => {
+describe("FileTree 'open in editor' menu", () => {
   it("hides the feature entirely when the relay declares no editor locality, even if an editor is detected", async () => {
     vi.mocked(getHostInfo).mockResolvedValue({ hostname: "host", platform: "linux", editor: null });
     vi.mocked(detectEditors).mockResolvedValue([{ id: "zed", label: "Zed" }]);

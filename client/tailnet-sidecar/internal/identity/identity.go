@@ -1,12 +1,11 @@
-// Package identity is the device's Ed25519 keypair (journal/49 D7,
-// journal/62 F5). Prefers the OS keychain (github.com/zalando/go-keyring —
-// macOS Keychain, Windows Credential Manager, Linux Secret Service), same
-// four-platform table D7 already researched for the Rust crate this
-// project ended up not using once CT-2 moved identity into this Go binary
-// instead. Falls back to a file, mode 0600 — the same shape
-// anywh-control-plane/edge/internal/identity already uses (replicated
-// rather than imported, independent Go module, journal/62 CT-2) — for
-// headless Linux, where D7 found there's no Secret Service to speak of at
+// Package identity is the device's Ed25519 keypair. Prefers the OS keychain
+// (github.com/zalando/go-keyring — macOS Keychain, Windows Credential
+// Manager, Linux Secret Service), same four-platform behavior already
+// researched for the Rust crate this project ended up not using once
+// identity moved into this Go binary instead. Falls back to a file, mode
+// 0600 — the same shape the control plane's own Node implementation uses
+// (replicated rather than imported, independent Go module) — for
+// headless Linux, where there's no Secret Service to speak of at
 // all (no D-Bus session, no gnome-keyring/KWallet).
 package identity
 
@@ -64,7 +63,7 @@ func LoadOrCreate(path string) (ed25519.PrivateKey, error) {
 // `org.freedesktop.DBus.Error.ServiceUnknown` when a session bus exists but
 // nothing registered the secrets service, and a plain dial failure
 // (*net.OpError) when there's no session bus to connect to at all —
-// journal/49 D7's literal headless-Linux case. Any other error (locked
+// the literal headless-Linux case. Any other error (locked
 // keyring, permission denied, a malformed secret) is treated as real.
 func isNoKeychainBackend(err error) bool {
 	var dbusErr dbus.Error

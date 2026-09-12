@@ -2,7 +2,7 @@ import { useCallback, useRef, useState, type PointerEvent as ReactPointerEvent, 
 
 /** How much the "canvas" (the whole agent screen) slides right when the
  * sessions drawer opens — the same fraction (~72% of a 375pt iPhone) from
- * the prototype validated with the user (docs/24). The sidebar behind it
+ * the prototype validated with the user. The sidebar behind it
  * uses this same value as its own width, not the full screen — see `MobileShell`. */
 export const REVEAL_PUSH_PX = 268;
 
@@ -33,7 +33,7 @@ export interface RevealDrawerHandle {
 }
 
 /**
- * "Reveal" mechanism for the sessions drawer on iOS (docs/24, inspired by
+ * "Reveal" mechanism for the sessions drawer on iOS (inspired by
  * the Claude app): instead of an overlay with a scrim over the content, the whole
  * agent screen slides to the right — gaining a subtle border, rounded
  * corners, and gradually losing opacity as it slides — and the

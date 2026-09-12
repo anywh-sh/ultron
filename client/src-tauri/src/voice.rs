@@ -1,6 +1,5 @@
-// Voice: native audio recording (cpal) + local transcription (whisper-rs) —
-// decision recorded in docs/07-voz-whisper-local.md. No audio is sent to
-// any external service, no API cost.
+// Voice: native audio recording (cpal) + local transcription (whisper-rs).
+// No audio is sent to any external service, no API cost.
 //
 // The Whisper model isn't downloaded automatically here yet (avoids pulling
 // in an HTTP dependency just for that at this functional-validation stage)
@@ -17,7 +16,7 @@ use whisper_rs::{FullParams, SamplingStrategy, WhisperContext, WhisperContextPar
 // "small" instead of "base": in the user's real-world test, "base" got a
 // short phrase wrong with an English word mixed in ("digite echo teste" ->
 // "de gite, ecotece") — "small" is noticeably more accurate in that kind of
-// case, and the client's hardware handles it fine (docs/14).
+// case, and the client's hardware handles it fine.
 const MODEL_FILENAME: &str = "whisper-ggml-small.bin";
 const MODEL_DOWNLOAD_URL: &str = "https://huggingface.co/ggerganov/whisper.cpp/resolve/main/ggml-small.bin";
 const WHISPER_SAMPLE_RATE: u32 = 16_000;
@@ -208,7 +207,7 @@ fn to_mono(samples: &[f32], channels: u16) -> Vec<f32> {
 /// High-quality resampling (sinc/windowed-sinc) via `rubato`, instead of the
 /// simple linear interpolation from the first version — which likely
 /// contributed to wrong transcriptions like "digite echo teste" turning into
-/// "de gite, ecotece" (see docs/14).
+/// "de gite, ecotece".
 fn resample(samples: &[f32], from_rate: u32, to_rate: u32) -> Result<Vec<f32>, String> {
     if from_rate == to_rate || samples.is_empty() {
         return Ok(samples.to_vec());

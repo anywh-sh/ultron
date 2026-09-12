@@ -14,8 +14,7 @@ import { fileURLToPath } from "node:url";
 const here = dirname(fileURLToPath(import.meta.url));
 const clientDir = join(here, "..");
 
-// Only the platforms this app is actually built for (journal/62 risk 2 tracks
-// cross-platform CI for exactly this binary). Keyed by Node's own
+// Only the platforms this app is actually built for. Keyed by Node's own
 // platform-arch so the host case needs no translation.
 const TARGETS = {
   "win32-x64": { triple: "x86_64-pc-windows-msvc", goos: "windows", goarch: "amd64" },

@@ -3,7 +3,7 @@ import { existsSync, mkdirSync, readdirSync, readFileSync, rmSync, writeFileSync
 import { homedir } from "node:os";
 import { dirname, join, resolve } from "node:path";
 
-// Host-side registry of relay profiles (docs/45) — every profile this
+// Host-side registry of relay profiles — every profile this
 // machine can run, independent of which one the current process happens to
 // be. `homedir()`, never `process.env.HOME`: the current process may itself
 // be running with an overridden `$HOME` (a `trabalho` instance), but the
@@ -224,7 +224,7 @@ function canBind(port: number): Promise<boolean> {
 /** Scans existing `.env` files *and* test-binds the candidate — scanning
  * alone would keep handing out the port of a profile that's just stopped
  * right now; binding alone would re-hand-out the port of a profile that's
- * merely stopped at the moment (see docs/45 "armadilhas confirmadas"). */
+ * merely stopped at the moment). */
 export async function allocatePort(envDir: string = ENV_DIR): Promise<number> {
   const claimed = new Set(
     listEnvIds(envDir)
@@ -286,7 +286,7 @@ export function updateProfileMeta(
  * `profiles.json` entry only. Deliberately never touches the profile's
  * `$HOME` or its `RELAY_SESSIONS_FILE`/transcripts: those are the actual
  * Claude account and conversation history, teardown undoes provisioning,
- * not the account (docs/45). Stopping/disabling the systemd instance is the
+ * not the account. Stopping/disabling the systemd instance is the
  * caller's job (`server.ts`), since that's a process concern, not a
  * registry one. */
 export function deleteProfileFiles(id: string, envDir: string = ENV_DIR): void {

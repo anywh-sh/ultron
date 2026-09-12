@@ -10,8 +10,8 @@ export interface NavLocation {
  * `goForward` move a pointer through the stack without pushing anything —
  * `notifyLocationChanged` ignores the next call right after one of the two
  * (via `skipNextRef`), because otherwise the tab restoration itself would
- * become a new entry (docs/21). Since docs/29 (general tabs, no
- * per-profile separation) the location is just the tab — the profile is
+ * become a new entry. Since tabs stopped being separated per profile,
+ * the location is just the tab — the profile is
  * already embedded in it.
  */
 export function useNavigationHistory(): {

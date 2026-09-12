@@ -27,7 +27,7 @@ interface MobileShellProps {
 }
 
 /**
- * The app's shell on iOS (docs/24) — replaces the desktop chrome (TitleBar +
+ * The app's shell on iOS — replaces the desktop chrome (TitleBar +
  * resizable Sidebar/Sheet) with: a session sidebar always mounted behind
  * (`MobileSidebar`), and a "canvas" in front that carries the consolidated
  * top bar (`MobileTopBar`) + the chat content (`children`, the same
@@ -103,7 +103,7 @@ export function MobileShell({
 
           {/* No padding-top here on purpose: the message log needs to be
            * able to scroll underneath MobileTopBar's blur zone (stays
-           * visible-but-blurred, docs/24) — the breathing room so content
+           * visible-but-blurred) — the breathing room so content
            * doesn't end up stuck under the buttons comes from inside
            * MessageLog (ChatPanel passes `pt-[...]` only to the log), not
            * by pushing the whole column down. `relative` is the fix for

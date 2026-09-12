@@ -4,16 +4,16 @@ import { resolveWithinRoot } from "./fsFiles.js";
 export type FilesWatchMessage = { type: "dir_changed"; path: string } | { type: "file_changed"; path: string };
 
 // A single write reliably fires more than one raw fs event (measured while
-// planning this feature, docs/41) — this collapses them into one
+// planning this feature) — this collapses them into one
 // notification per path.
 const DEBOUNCE_MS = 150;
 
 /**
- * One instance per `/files` WS connection (docs/41 phase 5) — tracks
+ * One instance per `/files` WS connection — tracks
  * exactly the directories/files the client says are visible right now
  * (expanded tree nodes + open tabs) and keeps a non-recursive `fs.watch`
  * open for each; recursive watching doesn't scale once `node_modules` is
- * involved (measured, docs/41), so only what's actually on screen gets a
+ * involved (measured), so only what's actually on screen gets a
  * watcher. `update` always receives the client's *full* current set, not an
  * incremental add/remove — it diffs against what's already watched and
  * opens/closes only the difference, which makes it idempotent and immune to

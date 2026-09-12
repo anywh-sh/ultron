@@ -10,7 +10,7 @@ function toastText(notification: DownloadNotification): string {
 }
 
 /**
- * Bottom-right download progress toasts (journal/41), mirroring how Zed's
+ * Bottom-right download progress toasts, mirroring how Zed's
  * remote project panel reports a directory download: one line per
  * in-flight/just-finished batch, the count ticking up live. Stays on screen
  * until dismissed via its own close button — no auto-dismiss timer, so a

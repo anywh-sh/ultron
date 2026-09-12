@@ -34,7 +34,7 @@ function isTextBlock(value: unknown): value is { type: "text"; text: string } {
  * `tool_result` feedback (agentic loop, not typed by anyone) or `isMeta`
  * noise (reminders/caveats injected by Claude Code itself).
  *
- * Exported — `transcriptFork.ts` (docs/33) uses the same criterion to count
+ * Exported — `transcriptFork.ts` uses the same criterion to count
  * turns when deciding where to cut the file during message editing.
  */
 export function extractHumanText(line: TranscriptLine): string | undefined {
@@ -93,9 +93,8 @@ export function transcriptPath(home: string, cwd: string, sessionId: string): st
  * Rebuilds a session's `history` from the transcript that Claude Code
  * already maintains on its own — used when the relay restarts and loses
  * `SharedSession.history` in memory (it was always in-memory only, never
- * persisted). Translation, not a direct replay: see docs/20-backlog.md and
- * this change's plan for the reasons and the investigation behind the
- * rules below.
+ * persisted). Translation, not a direct replay — see the rules below for
+ * the reasons.
  */
 export function readHistoryFromTranscript(home: string, cwd: string, sessionId: string): BroadcastMessage[] {
   const path = transcriptPath(home, cwd, sessionId);
@@ -117,7 +116,7 @@ export function readHistoryFromTranscript(home: string, cwd: string, sessionId: 
     }
 
     if (line.type === "assistant") {
-      // Real timestamp of the line (docs/33, same as `user_prompt` below) —
+      // Real timestamp of the line (same as `user_prompt` below) —
       // the client shows it on the assistant bubble's action strip. Omitted
       // when absent, same reasoning as the `user_prompt` case.
       const event: ClaudeEvent = {
@@ -134,7 +133,7 @@ export function readHistoryFromTranscript(home: string, cwd: string, sessionId: 
     const humanText = extractHumanText(line);
     if (humanText !== undefined) {
       if (turnOpen) messages.push({ type: "turn_complete" });
-      // Real timestamp of the line (docs/33) — the client uses this to show
+      // Real timestamp of the line — the client uses this to show
       // "X min ago" on messages reconstructed from disk; whoever sends it
       // live already knows the click's own time, doesn't depend on this.
       // Omitted (not explicit `undefined`) when the line has no

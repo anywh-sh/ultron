@@ -4,7 +4,7 @@ import type { ModelChoice } from "@/lib/relay-types";
 export type SlashCommand = { name: "model"; model: ModelChoice } | { name: "clear" };
 
 /**
- * `/model` and `/clear` typed in the composer (docs/26) — recognized here
+ * `/model` and `/clear` typed in the composer — recognized here
  * BEFORE becoming a real turn, because neither can be a pure passthrough to
  * `claude -p`: a typed `/model` only applies "to this ephemeral process"
  * (confirmed by testing the binary — the next turn goes back to the old

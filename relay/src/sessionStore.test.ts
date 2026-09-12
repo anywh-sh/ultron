@@ -41,7 +41,7 @@ test("setTitle records the title and the session starts showing up in listTitled
   });
 });
 
-test("clearTitle (docs/26 /clear) drops the title and the session leaves listTitled again", () => {
+test("clearTitle (/clear) drops the title and the session leaves listTitled again", () => {
   withStoreFile(undefined, (filePath) => {
     const store = new SessionStore(filePath, DEFAULT_CWD);
     store.recordId("abc-123");

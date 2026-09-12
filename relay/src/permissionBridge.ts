@@ -1,11 +1,11 @@
 import type { IncomingMessage, ServerResponse } from "node:http";
 import { randomUUID } from "node:crypto";
 
-// docs/46 Fase 4/5 — `--permission-prompt-tool` lets an MCP tool of ours
+// `--permission-prompt-tool` lets an MCP tool of ours
 // decide every permission-prompt approval for a `claude -p` turn, instead of
 // the relay's normal headless default (auto-deny, see the comment on
 // `--permission-mode` in claudeSession.ts). Confirmed against the real
-// binary (docs/46, Descoberta 6) that this is what re-enables `ExitPlanMode`
+// binary that this is what re-enables `ExitPlanMode`
 // in headless: it's not categorically removed, it only disappears when
 // nobody is configured to answer approval.
 //
@@ -19,8 +19,8 @@ import { randomUUID } from "node:crypto";
 // a dangerous-looking `Bash` still reaches here even in `acceptEdits`), so
 // there was no risk classification left for the relay to invent.
 
-/** Mirrors the real `canUseTool` contract captured live in docs/46,
- * Descoberta 6: the CLI calls our tool with these three fields for every
+/** Mirrors the real `canUseTool` contract captured live:
+ * the CLI calls our tool with these three fields for every
  * action that would otherwise need approval, and expects exactly one of
  * these two shapes back. */
 export type PermissionDecision =

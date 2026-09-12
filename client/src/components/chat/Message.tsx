@@ -46,8 +46,7 @@ function TimestampLabel({ sentAt }: { sentAt: number }) {
   );
 }
 
-/** Preview appears inside the sent message, not just as a pre-send chip —
- * docs/17. Edit/copy/timestamp — docs/33.
+/** Preview appears inside the sent message, not just as a pre-send chip.
  *
  * Memoized (same as `AssistantText` below): without this, every streaming
  * token re-renders the whole `MessageLog`, and without `memo` React
@@ -99,7 +98,7 @@ export const UserBubble = memo(function UserBubble({
     setTimeout(() => setCopied(false), 1500);
   }
 
-  // Long-press (iOS, docs/33) — opens the native menu
+  // Long-press (iOS) — opens the native menu
   // (`UIEditMenuInteraction`) at the touch point, with Copy/Edit. Only
   // makes sense to call on iOS; on desktop the interaction is hover + click
   // on the icons below the bubble (see `!isIOS()` in the JSX).

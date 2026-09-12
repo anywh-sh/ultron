@@ -15,7 +15,7 @@ interface AddProfileDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   /** Whose relay hosts both calls — the only machine the client already
-   * knows how to reach (docs/45 Fase 5c). A new profile always lives on
+   * knows how to reach. A new profile always lives on
    * this same host, just a different account/port. */
   activeProfile: Profile;
 }
@@ -25,8 +25,8 @@ interface AddProfileDialogProps {
  * brand new profile on the active host. Profiles that already exist on that
  * host (created from another device) no longer need importing here: they
  * show up in the switcher on their own via `useProfileSync`. Only rendered
- * when that hook reports the active host actually runs the control API
- * (docs/45 Fase 5a) — see `ProfileSwitcher`.
+ * when that hook reports the active host actually runs the control API —
+ * see `ProfileSwitcher`.
  */
 export function AddProfileDialog({ open, onOpenChange, activeProfile }: AddProfileDialogProps) {
   const [label, setLabel] = useState("");

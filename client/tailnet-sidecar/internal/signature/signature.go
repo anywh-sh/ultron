@@ -1,8 +1,7 @@
-// Package signature replicates anywh-control-plane's
-// src/auth/nodeSignature.ts request-signing scheme byte-for-byte — the TS
+// Package signature replicates the control plane's
+// request-signing scheme byte-for-byte — the TypeScript
 // side is the source of truth, this is not a shared import (independent Go
-// module, journal/62 CT-2, same relationship anywh-control-plane/edge's own
-// internal/signature package has with the same TS file).
+// module).
 package signature
 
 import (

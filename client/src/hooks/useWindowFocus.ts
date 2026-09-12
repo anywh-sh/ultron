@@ -11,7 +11,7 @@ import { isIOS } from "@/lib/platform";
  * context where the turn-complete notification fires anyway).
  *
  * On iOS uses `document.visibilityState`/`visibilitychange` instead of Tauri's
- * window focus API — real finding (Simulator spike, docs/37): "window"
+ * window focus API — real finding (Simulator spike): "window"
  * focus there maps to UIKit's `applicationWillResignActive`/
  * `DidBecomeActive` pair, which fires for any momentary
  * interruption (Control Center, a system alert, the native notification

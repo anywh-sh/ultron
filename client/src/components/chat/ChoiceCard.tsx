@@ -19,9 +19,9 @@ interface ChoiceCardProps {
   onClose: () => void;
 }
 
-/** docs/46 Phase 2 — picker for a `present_choice` MCP call blocked
- * mid-turn, styled after Claude Desktop's own `AskUserQuestion` card
- * (reference screenshot in the docs/46 write-up). Sits right above the
+/** Picker for a `present_choice` MCP call blocked
+ * mid-turn, styled after Claude Desktop's own `AskUserQuestion` card.
+ * Sits right above the
  * composer, replacing the old row of dir/files/terminal buttons there (moved
  * below the composer instead — see ChatPanel.tsx).
  *
@@ -103,7 +103,7 @@ export function ChoiceCard({ promptId, questions, kind, onAnswer, onClose }: Cho
       className={cn(
         "flex flex-col gap-2 rounded-xl border border-border bg-bg-elevated p-3",
         // On iOS the parent stack already provides horizontal padding + gap
-        // between siblings (docs/24) — an extra margin here would misalign
+        // between siblings — an extra margin here would misalign
         // this card against the composer/edit-warning next to it.
         isIOS() ? "shrink-0" : "mx-3 mt-3",
       )}

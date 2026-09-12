@@ -15,7 +15,7 @@ const ROWS: SkeletonRow[] = [
 
 /**
  * Stands in for the log while the tab hasn't received the relay's
- * `caught_up` marker yet — rebuilding history from the `.jsonl` (docs/20)
+ * `caught_up` marker yet — rebuilding history from the `.jsonl`
  * introduced a real wait that didn't exist before (the log always arrived
  * empty right away). Without this the screen looks stuck: composer
  * disabled, empty log, until the whole replay finishes arriving.

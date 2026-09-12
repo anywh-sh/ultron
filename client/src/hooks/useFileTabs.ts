@@ -3,7 +3,7 @@ import { useCallback, useEffect, useState } from "react";
 export interface FileTabEntry {
   path: string;
   /** Preview (unpinned) vs. pinned tab — see `openPreview`/`openPinned`
-   * below (decision 6, docs/41): a single click reuses/replaces the one
+   * below: a single click reuses/replaces the one
    * preview tab, a double click (or "open in new tab") pins it. */
   pinned: boolean;
 }
@@ -18,7 +18,7 @@ interface FileTabsState {
   treeWidth: number;
   /** Last root confirmed by the relay (`/files/list`'s own `root` field) —
    * `null` until the first fetch resolves. Used by `syncRoot` to notice the
-   * session's cwd changed since last time (decision 9, docs/41). */
+   * session's cwd changed since last time. */
   root: string | null;
 }
 
@@ -149,7 +149,7 @@ export function useFileTabs() {
   }, []);
 
   /** Compares the just-fetched root against the persisted one — if the cwd
-   * changed since last time (decision 9, docs/41: only possible before the
+   * changed since last time (only possible before the
    * first turn locks it), everything tied to paths under the old root
    * (open tabs, active file, expanded folders) is stale and gets cleared;
    * `treeWidth` survives, it's not path-based. The very first call for a

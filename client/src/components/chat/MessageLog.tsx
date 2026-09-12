@@ -12,8 +12,8 @@ import type { LogEntry } from "@/hooks/useMessageLog";
 interface MessageLogProps {
   entries: LogEntry[];
   streamingEntries: LogEntry[];
-  /** Whether there are turns older than what's already loaded (Phase 5,
-   * docs/30) — controls whether scrolling near the top still triggers a fetch. */
+  /** Whether there are turns older than what's already loaded —
+   * controls whether scrolling near the top still triggers a fetch. */
   hasMoreHistory: boolean;
   /** Older-page request in flight — shows the indicator at the top and also
    * guards against a duplicate request (the same guard already exists in
@@ -23,11 +23,11 @@ interface MessageLogProps {
   /** Called when the user scrolls near the top of the list, with more
    * history still to fetch. */
   onLoadOlderHistory: () => void;
-  /** Extra space at the bottom — on iOS, the composer floats over the log
-   * (docs/24), so the content needs extra breathing room to avoid ending up
+  /** Extra space at the bottom — on iOS, the composer floats over the log,
+   * so the content needs extra breathing room to avoid ending up
    * hidden behind it. */
   className?: string;
-  /** Message editing (docs/33) — `id` of the `kind: "user"` entry that's
+  /** Message editing — `id` of the `kind: "user"` entry that's
    * currently turning into a `<textarea>` (desktop only; on iOS `ChatPanel`
    * never sets this, editing there happens via the composer, not inline).
    * `null` when not editing. */
@@ -43,7 +43,7 @@ interface MessageLogProps {
    * `Message.tsx`'s `AssistantText`). */
   onOpenPath?: (path: string) => void;
   /** Whether this tab is the one currently on screen — background tabs stay
-   * mounted (`invisible` in `TabGroupLayout`'s flat panel layer, docs/18), so this is the
+   * mounted (`invisible` in `TabGroupLayout`'s flat panel layer), so this is the
    * only signal telling this instance it just came back into view. See the
    * re-pin effect below for why that matters. */
   isActiveTab: boolean;
@@ -201,7 +201,7 @@ function renderItem(item: RenderItem, userActions: UserActionHandlers) {
 // Memoized: `ChatPanel` itself isn't memoized (its callback props are fresh
 // closures from `App`'s `renderPanel` on every render), so it re-renders on
 // any App-level state change — including for background tabs kept mounted
-// via TabGroupLayout's flat panel layer (docs/18). `entries`/`streamingEntries` stay
+// via TabGroupLayout's flat panel layer. `entries`/`streamingEntries` stay
 // referentially stable across those unrelated re-renders (see useMessageLog),
 // so wrapping this in `memo` lets the expensive subtree (markdown parsing +
 // syntax highlighting in every row) bail out instead of re-rendering along
@@ -347,7 +347,7 @@ export const MessageLog = memo(function MessageLog({
     el.scrollTop = el.scrollHeight;
   }, [isActiveTab]);
 
-  // Reverse scroll (Phase 5, docs/30): stores the total height at the
+  // Reverse scroll: stores the total height at the
   // instant the request for older turns fires — there's no way to know in
   // advance when the response arrives, so this is the only reliable moment
   // to capture the "before". `null` when no compensation is in progress.
@@ -408,7 +408,7 @@ export const MessageLog = memo(function MessageLog({
 
   return (
     // `relative` isn't about layout — it's the fix for a real WebKit bug
-    // (docs/24, reproduced via real WebKit Playwright, not Chromium):
+    // (reproduced via real WebKit Playwright, not Chromium):
     // `backdrop-filter` on an ancestor doesn't sample this div's content if
     // it (or any ancestor between it and the blurred element) is
     // `position: static`. The whole chain up to `.mobile-canvas` needs this

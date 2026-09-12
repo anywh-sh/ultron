@@ -15,7 +15,7 @@ interface PermissionModeButtonProps {
 }
 
 // 4 of the 6 values `claude --permission-mode` accepts — `auto` and
-// `dontAsk` were left out on purpose (see docs/25). Order aligned with the
+// `dontAsk` were left out on purpose. Order aligned with the
 // CLI's Shift+Tab cycle (default -> acceptEdits -> plan), bypass last since
 // it's the riskiest.
 const MODES: { value: PermissionMode; label: string }[] = [

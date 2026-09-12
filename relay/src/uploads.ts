@@ -6,7 +6,7 @@ import type { IncomingMessage } from "node:http";
 
 // Where images/videos attached by the client get saved — needs to be a path
 // that the relay's `claude -p` process can read (same machine), so it can
-// use the Read tool and genuinely "see" the image (see docs/15).
+// use the Read tool and genuinely "see" the image.
 const UPLOAD_DIR = process.env.RELAY_UPLOAD_DIR ?? "/tmp/anywh-uploads";
 mkdirSync(UPLOAD_DIR, { recursive: true });
 
@@ -18,7 +18,7 @@ const VIDEO_FRAME_COUNT = 6;
 export interface UploadResult {
   path: string;
   /** Only present for video — paths of the frames extracted via ffmpeg, in
-   * chronological order (docs/15: Claude only "sees" images via `Read`, not
+   * chronological order (Claude only "sees" images via `Read`, not
    * video, so this is what actually becomes visual context). */
   frames?: string[];
 }

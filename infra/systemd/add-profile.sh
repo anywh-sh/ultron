@@ -1,11 +1,11 @@
 #!/usr/bin/env bash
-# Provisions a new relay profile (docs/45): writes the profile's `.env`,
+# Provisions a new relay profile: writes the profile's `.env`,
 # records it in `profiles.json`, and (in --mode prod) enables the systemd
 # instance. Counterpart to install.sh, which provisions the shared unit
 # template once per machine — this runs once per profile.
 #
 # `--mode prod`'s `systemctl --user enable --now` only works once the unit
-# template is user-scope (docs/45 Fase 4) — running it before that lands
+# template is user-scope — running it before that lands
 # fails for lack of a user session (no XDG_RUNTIME_DIR/DBus). Use
 # `--mode dev` until then.
 set -euo pipefail
@@ -75,7 +75,7 @@ LABEL="${LABEL:-$ID}"
 # machine reaches the outside world the same way. Omitting this defaults
 # the relay to loopback (server.ts's own fallback), unreachable from
 # another device even though it's running fine — the most confusing failure
-# mode in docs/45's "armadilhas confirmadas", because nothing looks wrong
+# mode confirmed in practice, because nothing looks wrong
 # locally.
 RELAY_HOST="$RELAY_HOST_ARG"
 if [[ -z "$RELAY_HOST" ]]; then
@@ -142,14 +142,14 @@ mkdir -p "$HOME/.anywh-sessions"
   echo "RELAY_UPLOAD_DIR=/tmp/anywh-uploads-$ID"
   echo "RELAY_SESSIONS_FILE=$HOME/.anywh-sessions/$ID.json"
   echo "RELAY_BACKGROUND_JOBS_FILE=$HOME/.anywh-sessions/$ID-bg-jobs.json"
-  # "Open in editor" (journal/60) on by default for every profile this
+  # "Open in editor" on by default for every profile this
   # script provisions — safe because editorHostInfo.ts's peer check only
   # ever downgrades this to ssh/null for a client connecting from a
   # different machine, never promotes it; it can't leak "local" to a
   # remote client. Remove this line (or set it to anything other than "1")
-  # to opt out. The paid sandbox never runs this script — its own image
-  # build pre-seeds this same variable explicitly empty (journal/60 part 5,
-  # journal/51), a completely separate mechanism, so this default has no
+  # to opt out. A managed-hosting deployment never runs this script — its
+  # own image build pre-seeds this same variable explicitly empty, a
+  # completely separate mechanism, so this default has no
   # effect on that path.
   echo "ANYWH_EDITOR_LOCAL=1"
 } > "$ENV_FILE"

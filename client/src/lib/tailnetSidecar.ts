@@ -35,7 +35,7 @@ function parseAddr(addr: string): TailnetEndpoint {
 
 /** Starts (or joins an already-starting/started) tailnet-sidecar for
  * `profile.id`, ref-counted so every tab open on the same tailnet profile
- * shares one tsnet join and one local port (journal/62 F2) — mirrors the
+ * shares one tsnet join and one local port — mirrors the
  * dedup `tailnet_sidecar_start` (Rust) already does on its own side.
  * Callers await the same promise, so a tab that mounts while the first is
  * still joining gets the same eventual endpoint (or the same rejection)
@@ -46,7 +46,7 @@ function parseAddr(addr: string): TailnetEndpoint {
  *
  * `target` (`host:port` inside the tailnet to dial) only matters for
  * whichever call actually starts the join — a tab that finds one already
- * running (journal/62 F3: e.g. a second tab on a brokered profile, which
+ * running (e.g. a second tab on a brokered profile, which
  * resolves its own target fresh from the broker every time) just gets that
  * one's address regardless of what it passed. The sidecar only re-resolves
  * a new target on the next *cold* start, once every tab has released it. */
@@ -83,8 +83,8 @@ export function acquireTailnetSidecar(profile: Profile, target: string): Promise
 
 /** Reads the endpoint of a sidecar some owner already has running for
  * `profileId`, without acquiring a reference of its own — for a consumer
- * that just needs to dial the tunnel for one HTTP/WS call (journal/62,
- * "todo tráfego que não é o WebSocket do chat") and relies on a longer-lived
+ * that just needs to dial the tunnel for one HTTP/WS call (any traffic
+ * that isn't the chat's own WebSocket) and relies on a longer-lived
  * owner (`useTailnetSidecarOwner` at the App level, or a chat tab's
  * `useRelayClient`) to already be holding the join open. Acquiring here
  * too would double-count correctly (the ref-count already supports several

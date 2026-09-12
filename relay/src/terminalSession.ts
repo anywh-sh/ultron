@@ -3,8 +3,8 @@ import * as pty from "node-pty";
 import type { IPty } from "node-pty";
 import { buildChildEnv } from "./claudeSession.js";
 
-// Embedded terminal (docs/30) — reuses the same ttyd+tmux pair already
-// validated in this project (docs/08), just without ttyd: the relay is
+// Embedded terminal — reuses the same ttyd+tmux pair already
+// validated in this project, just without ttyd: the relay is
 // already a persistent WS server, so it spawns tmux directly via node-pty
 // (`sudo` inside the terminal needs a real TTY for the password prompt — a
 // child_process without a PTY won't do). tmux is what guarantees genuine

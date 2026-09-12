@@ -87,7 +87,7 @@ describe("useRelayClient tailnet mode", () => {
   });
 
   it("hands the relay client a token resolver, not the single grant it opened with", async () => {
-    // journal/49 D4: the broker's token authorizes one handshake, so the
+    // The broker's token authorizes one handshake, so the
     // client has to be able to ask for another one — see relayClient.test.ts
     // for what it does with this.
     renderHook(() => useRelayClient(tailnetProfile, "session-a"));

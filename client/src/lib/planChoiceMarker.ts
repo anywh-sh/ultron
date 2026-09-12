@@ -1,4 +1,4 @@
-// docs/46 — plan mode's `present_choice` fallback marks a genuinely closed
+// Plan mode's `present_choice` fallback marks a genuinely closed
 // question inside its own response text (`>>>QUESTION: ... >>>END`, see
 // relay/src/planChoiceMarker.ts for the format and why it exists instead of
 // a real tool call). The relay parses that same block into a

@@ -16,8 +16,8 @@ import (
 // backend — this package's tests must never depend on (or write into) a
 // real Secret Service/Keychain/Credential Manager, and must behave the
 // same whether or not this machine happens to have one. The real backend
-// is what journal/62 F5's "confirmed live" note in the journal is about,
-// not something re-proven here on every `go test`.
+// was confirmed live on a real machine separately — not something
+// re-proven here on every `go test`.
 
 func TestLoadOrCreateUsesKeychainWhenAvailable(t *testing.T) {
 	keyring.MockInit()
@@ -86,7 +86,7 @@ func TestLoadOrCreatePropagatesARealKeychainError(t *testing.T) {
 }
 
 func TestLoadOrCreatePrefersAnExistingFileOverTheKeychain(t *testing.T) {
-	// journal/62 F5: an identity already on disk (pre-F5 install, or a
+	// An identity already on disk (an older install, or a
 	// device that already fell back once) is never migrated into the
 	// keychain automatically.
 	keyring.MockInit()

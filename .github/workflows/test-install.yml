@@ -1,7 +1,6 @@
 name: Test install.sh
 
-# Exercises the full curl | sh path (Fase 3, journal/62-distribuicao-
-# instalacao-plano.md) on a disposable Linux runner instead of a real
+# Exercises the full curl | sh path on a disposable Linux runner instead of a real
 # machine — same reasoning as anywh-sh/homebrew-tap's test.yml.
 # install.sh's --apply step registers a real systemd user service and
 # runs `loginctl enable-linger` — exactly what this repo's own CLAUDE.md

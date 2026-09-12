@@ -6,8 +6,8 @@ afterEach(() => {
 });
 
 // A tailnet connection needs a fresh connect token attached to every call
-// (journal/62, "O anywh-proxy verifica um connect token válido... em toda
-// conexão TCP") — a direct-mode call (no token) must keep working exactly
+// (the proxy on the other side validates it on every TCP connection) —
+// a direct-mode call (no token) must keep working exactly
 // as before, with no stray Authorization header.
 describe("relayClient HTTP helpers, connect token", () => {
   it("fetchSessions attaches an Authorization header when a token is given", async () => {

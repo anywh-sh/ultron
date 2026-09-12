@@ -52,11 +52,11 @@ interface ComposerProps {
   onRemoveImage: (path: string) => void;
   permissionMode: PermissionMode | null;
   onChangePermissionMode: (mode: PermissionMode) => void;
-  /** `null` until the session's first explicit switch (docs/26, now via
+  /** `null` until the session's first explicit switch (now via
    * `ModelButton` in addition to typing `/model`) — in that case
-   * `ModelButton` falls back to `defaultModel` (docs/28). */
+   * `ModelButton` falls back to `defaultModel`. */
   model: ModelChoice | null;
-  /** This profile's actual default account model (docs/28) — `ModelButton`'s
+  /** This profile's actual default account model — `ModelButton`'s
    * fallback when `model` is `null`. */
   defaultModel: string | null;
   onChangeModel: (model: ModelChoice) => void;
@@ -83,7 +83,7 @@ interface ComposerProps {
 
 export interface ComposerHandle {
   focus: () => void;
-  /** Message editing via composer (docs/33, iOS) — replaces the content with
+  /** Message editing via composer (iOS) — replaces the content with
    * the original text of the edited message (or clears it, with `""`, on
    * cancel). Plain text, no markdown/HTML: the same shape `onSend` delivers
    * outward, just in the opposite direction. */
@@ -170,7 +170,7 @@ const EXTENSIONS = [
 
 const DEFAULT_PLACEHOLDER = "Escreva uma mensagem…";
 
-/** Rebuilds the Tiptap doc from plain text (docs/33, editing via composer on
+/** Rebuilds the Tiptap doc from plain text (editing via composer on
  * iOS) — via JSON, not an interpolated HTML string: the text may have
  * `<`/`&`/etc that would break a naive HTML parse. A single paragraph with
  * `hardBreak` between lines: the composer's schema never produces more than
@@ -264,7 +264,7 @@ function hardBreakAnchorPlugin() {
       // check (not position mapping) — works no matter which of these passes
       // triggers it. Without this, the cursor renders one line above where
       // expected on WebKit/iOS even with the anchor present in the document
-      // (real bug, confirmed in the Simulator, docs/34 item 3) — on Chromium
+      // (real bug, confirmed in the Simulator) — on Chromium
       // the browser tolerates the "before" position of the anchor and draws
       // the cursor correctly anyway, masking this same problem.
       const { $head } = tr.selection;
@@ -288,7 +288,7 @@ function hardBreakAnchorPlugin() {
  * invalid `/model gpt4` gets no color at all, since it'll become a normal
  * message). Slash with reduced opacity + primary color, command name with
  * full primary color, parameter (if any) with no styling at all — explicit
- * user request (docs/27). Pure decoration (`Decoration.inline`), doesn't
+ * user request. Pure decoration (`Decoration.inline`), doesn't
  * touch the document — the text that goes to `onSend` remains the usual
  * plain text. */
 function slashCommandDecorationPlugin() {
@@ -315,7 +315,7 @@ function slashCommandDecorationPlugin() {
 
 /**
  * `/` as the composer's first character (empty until then, Suggestion's
- * `startOfLine` + `allowSpaces` guarantee this — see docs/27) opens an
+ * `startOfLine` + `allowSpaces` guarantee this) opens an
  * autocomplete popup of available commands. Menu rendered via
  * `ReactRenderer` + `props.mount()` (positioning managed by the package
  * itself via Floating UI, anchored to the cursor) — no React state here:
@@ -422,9 +422,9 @@ function createSlashCommandExtension(activeRef: MutableRefObject<boolean>) {
 }
 
 /** Keyboard focus highlights the whole container (textarea + toolbar), not
- * just the isolated textarea — docs/17. Voice flow: record → waveform+timer
+ * just the isolated textarea. Voice flow: record → waveform+timer
  * → cancel or stop → transcribe → text lands here for review (doesn't send
- * on its own) — docs/17 + docs/18 (the waveform is a generic animation, not
+ * on its own) — the waveform is a generic animation, not
  * real audio). The text field is a Tiptap editor (not a `<textarea>`): needs
  * to support an inline hyperlink (own color, hover with edit) created via
  * paste-to-link — pasting a URL over selected text becomes a link, with no
@@ -455,7 +455,7 @@ export const Composer = forwardRef<ComposerHandle, ComposerProps>(function Compo
 ) {
   const [focused, setFocused] = useState(false);
   const [isEmpty, setIsEmpty] = useState(true);
-  // Only used on iOS (docs/24) — the container morphs from a pill (one line)
+  // Only used on iOS — the container morphs from a pill (one line)
   // into a rounded rectangle (several lines), like the prototype. Measured
   // by the editor's real height instead of counting text line breaks: one
   // line can occupy two visual ones from wrapping with no "\n" at all.
@@ -504,7 +504,7 @@ export const Composer = forwardRef<ComposerHandle, ComposerProps>(function Compo
     onChangeDraftRef.current?.(text);
   }
   useEffect(() => () => window.clearTimeout(draftTimerRef.current), []);
-  // `setContent` (edit-message flow, docs/33, and the draft restoration in
+  // `setContent` (edit-message flow, and the draft restoration in
   // ChatPanel) fires `onUpdate` just like real typing does (Tiptap's
   // `emitUpdate` defaults to `true`) — without this flag, restoring a draft
   // or populating the composer with a message being edited would
@@ -587,14 +587,14 @@ export const Composer = forwardRef<ComposerHandle, ComposerProps>(function Compo
         }
         // On iOS the keyboard has no practical way to do "Shift+Enter" —
         // Enter becomes a line break, sending is only via the button
-        // (docs/33). Desktop doesn't change: Enter still sends, Shift+Enter
+        // Desktop doesn't change: Enter still sends, Shift+Enter
         // is still the only way to break a line there.
         if (event.key === "Enter" && !event.shiftKey && isIOS()) {
           // Explicit dispatch (same technique as the `setHardBreak` command
           // desktop's Shift+Enter uses), not ProseMirror's default fallback
           // for a plain Enter (`return false`, letting the browser handle it
           // natively via `schema.linebreakReplacement`) — real bug confirmed
-          // in the iOS Simulator (docs/34, item 3): that native fallback
+          // in the iOS Simulator: that native fallback
           // didn't reliably preserve the anchor that
           // `hardBreakAnchorPlugin` inserts right after via
           // `appendTransaction`, so the cursor ended up one line above where
@@ -689,7 +689,7 @@ export const Composer = forwardRef<ComposerHandle, ComposerProps>(function Compo
         "flex flex-col gap-1.5 border p-2 transition-colors",
         isIOS()
           ? [
-              // Same blur intensity as MobileTopBar (docs/24) — on the
+              // Same blur intensity as MobileTopBar — on the
               // physical device the blur itself was imperceptible (possible
               // WKWebView limitation with backdrop-filter), so opacity
               // dropped a lot more (45%) to guarantee visible contrast
@@ -736,7 +736,7 @@ export const Composer = forwardRef<ComposerHandle, ComposerProps>(function Compo
       {isIOS() ? (
         // A single line (attach | text | send), like the prototype — not
         // desktop's text-on-top/buttons-below, which left the composer
-        // tall/misaligned instead of the approved compact pill (docs/24).
+        // tall/misaligned instead of the approved compact pill.
         <div className={cn("flex gap-1", isMultiline ? "items-end" : "items-center")}>
           <input
             ref={fileInputRef}

@@ -59,8 +59,7 @@ jobs:
           # box (`-arch x86_64`), and Cargo's `cc` crate passes that flag
           # automatically for this target, so whisper-rs/cpal's native C
           # builds cross-compile without extra setup. Unvalidated until this
-          # job runs for real (journal/62-epico-5-client-tailnet-plano.md,
-          # risk 2 — macOS was never exercised in CI before this workflow).
+          # job runs for real — macOS was never exercised in CI before this workflow.
           - platform: macos-14
             sidecarTarget: darwin-x64
             rustTarget: x86_64-apple-darwin
@@ -104,7 +103,7 @@ jobs:
 
       # whisper-rs's bindgen needs libclang too, and windows-latest doesn't
       # ship one either — unvalidated until this job runs for real (same
-      # journal/62 risk 2 as the macOS comment above: only Linux had ever
+      # reasoning as the macOS comment above: only Linux had ever
       # built this app before this workflow existed).
       - name: Install libclang for whisper-rs bindgen (Windows)
         if: matrix.platform == 'windows-latest'
@@ -137,8 +136,7 @@ jobs:
   # Ships the relay as a tarball with node_modules already compiled — separate
   # from the client's `build` matrix above because it packages a Node
   # service, not a Tauri bundle, and needs a different platform set.
-  # node-pty@1.1.0 only publishes darwin-*/win32-* prebuilds (journal/62-
-  # distribuicao-instalacao-plano.md §4), not linux-*, so npm falls back to
+  # node-pty@1.1.0 only publishes darwin-*/win32-* prebuilds, not linux-*, so npm falls back to
   # node-gyp on both Linux legs — the one thing this job exists to do once
   # in CI so a bare `curl | sh` on a clean Linux box (Fase 3) never has to
   # compile anything itself.
@@ -200,8 +198,8 @@ jobs:
 
       # Two names, same content: the versioned one is what a Homebrew
       # formula pins url+sha256 to (formulas need a stable, reproducible
-      # URL per release, journal/62-distribuicao-instalacao-plano.md §8);
-      # the unversioned one is what install.sh (Fase 3) downloads via
+      # URL per release);
+      # the unversioned one is what install.sh downloads via
       # GitHub's `releases/latest/download/<name>` redirect, which needs a
       # fixed filename to avoid a GitHub API call (and a jq dependency) in
       # a shell script meant to run on a bare box.
@@ -219,8 +217,7 @@ jobs:
 
   # Runs after every platform has uploaded its assets to the same draft
   # release, so the sums cover the exact files a downloader will get —
-  # generating this was fabricated by hand once already (journal/62-
-  # distribuicao-instalacao-plano.md §2), this keeps it from happening again.
+  # generating this was fabricated by hand once already, this keeps it from happening again.
   # Also the only place that flips the release out of draft: publishing from
   # inside the `build`/`build-relay` matrices would make the release
   # publicly visible as soon as the fastest leg finished, minutes before the

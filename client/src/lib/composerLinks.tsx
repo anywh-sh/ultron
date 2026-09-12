@@ -19,7 +19,7 @@ const WIRE_LINK_REGEX = /\[([^\]]+)\]\(([a-zA-Z][a-zA-Z\d+.-]*:[^\s)]+)\)/g;
  * cosmetic, should never survive into the sent message. `U+FEFF`
  * (zero-width no-break space, the same choice Slate.js made for the same
  * problem) instead of `U+200B` (zero-width space) — not because one worked
- * and the other didn't (tested in the iOS Simulator, docs/34 item 3: neither
+ * and the other didn't (tested in the iOS Simulator: neither
  * one alone fixed it; the real root cause was something else, see
  * `Composer.tsx`), but because it's the more battle-tested option in other
  * editors for this kind of anchor. Exported (not just local) because

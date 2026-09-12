@@ -1,12 +1,12 @@
 #!/usr/bin/env bash
 # Downloads, verifies, and installs the anywh relay as a systemd user
 # service. Linux and macOS (Apple Silicon) only — on Windows, run this
-# inside WSL2 (journal/62-distribuicao-instalacao-plano.md decision 5).
+# inside WSL2.
 #
 #   curl -fsSL https://anywh.sh/install | sh
 #
-# Always installs the latest release — there's no --version flag yet
-# (journal/62 §9, still open). Safe to re-run: it replaces relay/ and
+# Always installs the latest release — there's no --version flag yet.
+# Safe to re-run: it replaces relay/ and
 # infra/ under INSTALL_DIR in place, and never touches profile state
 # (~/.config/anywh/env/, tracked separately by infra/lib.sh).
 set -euo pipefail
@@ -20,8 +20,8 @@ err() {
 }
 
 # --- 1. detect target -------------------------------------------------
-# Matches the three legs release.yml's build-relay job publishes
-# (journal/62 §4) — no darwin-x64 (Intel Mac) and no native Windows.
+# Matches the three legs release.yml's build-relay job publishes —
+# no darwin-x64 (Intel Mac) and no native Windows.
 os="$(uname -s)"
 arch="$(uname -m)"
 case "$os" in
@@ -60,7 +60,7 @@ fi
 
 # --- 3. download + verify ------------------------------------------------
 # The unversioned filename always resolves to the latest release via
-# GitHub's own redirect — no API call, no jq dependency (journal/62 §4).
+# GitHub's own redirect — no API call, no jq dependency.
 asset="anywh-relay-${target}.tar.gz"
 base_url="https://github.com/${REPO}/releases/latest/download"
 

@@ -2,7 +2,7 @@ import { closeSync, existsSync, mkdirSync, openSync, readFileSync, readSync, sta
 import { dirname } from "node:path";
 import type { ClaudeEvent } from "./claudeSession.js";
 
-// docs/32 Phase C — tracks jobs started via `anywh-bg` (relay/scripts)
+// Tracks jobs started via `anywh-bg` (relay/scripts)
 // outside the turn's process, since the CLI's internal record for
 // `run_in_background`/`BashOutput` disappears along with that turn's
 // `claude -p`. Doesn't trigger any follow-up turn yet (Phase D) — it only
@@ -15,7 +15,7 @@ export interface BackgroundJobStarted {
   pid: number;
   log: string;
   exitFile: string;
-  /** Heartbeat file the wrapper touches every ~5s (journal/32 Phase G).
+  /** Heartbeat file the wrapper touches every ~5s.
    * Optional: a marker printed by an older `anywh-bg` doesn't have it, and
    * a job without a heartbeat simply falls back to the previous behavior
    * (only `.exit` or the ceiling ever end it). */
@@ -30,20 +30,20 @@ export interface WatchedJob {
   logPath: string;
   exitPath: string;
   startedAt: number;
-  /** Path of the heartbeat file (journal/32 Phase G) — `undefined` for a
+  /** Path of the heartbeat file — `undefined` for a
    * job persisted before this existed, which keeps the old behavior. */
   alivePath?: string;
-  /** PID reported by `anywh-bg start` (docs/32 Phase F) — only used for
+  /** PID reported by `anywh-bg start` — only used for
    * cancellation (`cancel`, `kill -<pid>` on the whole process group),
    * NEVER to detect completion (that's the `.exit` file's job; PID reuse by
    * the OS would mask a dead job as "still running"). `setsid` makes this
-   * PID simultaneously the process's PID/PGID/SID — confirmed in practice
-   * (docs/32, Phase A) —, so signaling the group (`-pid`) reaches
+   * PID simultaneously the process's PID/PGID/SID — confirmed in practice —
+   * so signaling the group (`-pid`) reaches
    * everything the command spawned, not just the root process. */
   pid: number;
 }
 
-/** Subset of `WatchedJob` safe to expose to the client (docs/32 Phase E) —
+/** Subset of `WatchedJob` safe to expose to the client —
  * without `logPath`/`exitPath` (server-side file paths, internal detail)
  * nor `sessionId` (already implicit in the session's WS connection). */
 export interface BackgroundJobSummary {
@@ -59,7 +59,7 @@ export function toBackgroundJobSummary(job: WatchedJob): BackgroundJobSummary {
 export interface FinishedBackgroundJob extends WatchedJob {
   exitCode: number;
   logTail: string;
-  /** journal/32 Phase G — the job didn't end on its own: the wrapper was
+  /** The job didn't end on its own: the wrapper was
    * killed from the outside without ever writing `.exit` (detected via the
    * heartbeat going stale). There's no real exit code in this case
    * (`exitCode` is `-1`), and the command's own process tree MAY still be
@@ -117,7 +117,7 @@ interface TextBlock {
 
 /**
  * Real shape of a `tool_result` event in the stream-json (confirmed by
- * actually running `claude -p`, docs/32 Phase C): `type: "user"`,
+ * actually running `claude -p`): `type: "user"`,
  * `message.content` is an array of blocks; what matters here has
  * `type: "tool_result"` and `content` — a string in most cases observed,
  * but the API also allows an array of text blocks, so both are handled.
@@ -149,8 +149,8 @@ export function extractStartedJobFromEvent(event: ClaudeEvent): BackgroundJobSta
   return undefined;
 }
 
-/** `undefined` = the file exists but is still EMPTY: a wrapper from before
- * journal/32 Phase G writes it with `echo $? > file`, and the redirect
+/** `undefined` = the file exists but is still EMPTY: an older wrapper
+ * writes it with `echo $? > file`, and the redirect
  * creates the file before the content lands — a poll landing in that window
  * used to read `""` and report `-1`, announcing a job that passed as a
  * failure. The current wrapper writes it atomically (tmp + `mv`), but a job
@@ -197,7 +197,7 @@ export interface BackgroundJobTrackerOptions {
    * turn from this (see `sessionManager.ts`). */
   onFinished: (job: FinishedBackgroundJob) => void;
   /** Fired whenever a session's list of watched jobs changes — start,
-   * completion, OR expiry from the ceiling (`maxWatchMs`). docs/32 Phase E:
+   * completion, OR expiry from the ceiling (`maxWatchMs`) —
    * this is what feeds the `background_job_state` the client uses for the
    * UI indicator ("there's a job running now"). Only `sessionId` — the
    * consumer fetches the current list via `listWatchedForSession`, it
@@ -214,11 +214,11 @@ export interface BackgroundJobTrackerOptions {
   maxWatchMs?: number;
   /** Log tail delivered in `FinishedBackgroundJob.logTail`. */
   logTailBytes?: number;
-  /** How long without a heartbeat before a job is considered dead
-   * (journal/32 Phase G) — an option only so tests don't have to wait the
+  /** How long without a heartbeat before a job is considered dead —
+   * an option only so tests don't have to wait the
    * real value. */
   heartbeatStaleMs?: number;
-  /** Path to the persistence file (docs/32 Phase F) — if provided, the list
+  /** Path to the persistence file — if provided, the list
    * of watched jobs survives a relay restart: written on every change (same
    * synchronous pattern as `SessionStore`, `writeFileSync` of the whole
    * state), reloaded in the constructor, and polling resumed where it left
@@ -296,7 +296,7 @@ export class BackgroundJobTracker {
   }
 
   /** Writes the whole state on every mutation — same synchronous,
-   * debounce-free pattern as `SessionStore` (docs/18): job changes are rare
+   * debounce-free pattern as `SessionStore`: job changes are rare
    * (start/finish/cancel, never on a poll tick), the cost of one more
    * `writeFileSync` doesn't matter. No-op if `persistPath` wasn't
    * configured. */
@@ -344,7 +344,7 @@ export class BackgroundJobTracker {
   }
 
   /** ms since the last heartbeat, or `undefined` for a job that doesn't
-   * have one (started by an `anywh-bg` from before journal/32 Phase G).
+   * have one (started by an older `anywh-bg` that predates heartbeats).
    * A declared-but-missing file counts as "never beat since it started":
    * the wrapper creates it in its first milliseconds, so its absence past
    * the staleness window means it died before writing one, not that it's
@@ -360,7 +360,7 @@ export class BackgroundJobTracker {
     return now - lastBeat;
   }
 
-  /** journal/32 Phase G — the failure this fixes: `pkill -f "next dev"`
+  /** The failure this fixes: `pkill -f "next dev"`
    * matches the WRAPPER's cmdline too (it carries the command string), so
    * `echo $? > .exit` never ran and the job stayed "running" in the UI
    * until the 6h ceiling, with the promised completion notice never
@@ -372,7 +372,7 @@ export class BackgroundJobTracker {
    *   heartbeat looks hours old even though the job is perfectly alive).
    *
    * Note the PID check can only ever VETO a death, never assert one by
-   * itself — exactly what journal/32 (case 7) rejected: a PID recycled by
+   * itself — a PID recycled by
    * the OS at worst delays detection until the ceiling, it can never invent
    * a completion. */
   private isWrapperGone(job: WatchedJob, now: number): boolean {
@@ -439,7 +439,7 @@ export class BackgroundJobTracker {
     }
   }
 
-  /** docs/32 Phase F — cancellation from the UI. Kills the WHOLE process
+  /** Cancellation from the UI. Kills the WHOLE process
    * GROUP (negative `pid`, reaches everything the command spawned, not just
    * the root process), doesn't go through `.exit`/`onFinished`: unlike a job
    * that finishes on its own, whoever cancelled it already knows it was
@@ -461,7 +461,7 @@ export class BackgroundJobTracker {
     this.options.onChanged?.(sessionId);
 
     // Only signal if the heartbeat still vouches for this PID being OUR
-    // job (journal/32 Phase G): a job persisted across a reboot carries a
+    // job: a job persisted across a reboot carries a
     // PID the OS has long since handed to someone else, and `kill(-pid)`
     // would take down an unrelated process group. No heartbeat at all
     // (older wrapper) keeps the previous behavior.

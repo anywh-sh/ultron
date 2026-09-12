@@ -101,7 +101,7 @@ describe("useSessionNames", () => {
     });
 
     const secondSocket = FakeWebSocket.instances[1];
-    // A brand-new connection needs its own unspent token (journal/49 D4) —
+    // A brand-new connection needs its own unspent token —
     // reusing the first one would be rejected as a replay by the proxy.
     expect(secondSocket.url).not.toBe(firstSocket.url);
     expect(secondSocket.url).toContain("grant-token-3");

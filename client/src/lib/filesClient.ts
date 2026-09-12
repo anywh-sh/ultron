@@ -2,7 +2,7 @@ import type { EditorLocality } from "@/lib/editorLinks";
 import type { Profile } from "@/lib/profiles";
 import { authHeaders, resolveConnection } from "@/lib/connectionResolver";
 
-// Client for the work dir file panel's protocol (docs/41) — mirrors
+// Client for the work dir file panel's protocol — mirrors
 // `fsBrowse.ts`'s pattern (thin fetch wrappers over the relay's HTTP API),
 // but rooted at a session's cwd instead of an arbitrary path (see
 // relay/src/fsFiles.ts).
@@ -28,7 +28,7 @@ export type FileReadResult =
 
 /** Resolves the relay's actual base URL for `profile` — the sidecar's local
  * address for a tailnet profile, `host`/`relayPort` straight for a direct
- * one (`resolveConnection`, journal/62) — plus the connect token, if any,
+ * one (`resolveConnection`) — plus the connect token, if any,
  * that has to ride along on every one of these requests. */
 async function resolveBase(profile: Profile): Promise<{ base: string; token?: string }> {
   const { host, port, token } = await resolveConnection(profile);
@@ -91,7 +91,7 @@ export async function resolveChatPath(profile: Profile, sessionId: string, path:
 
 function rawFilePath(sessionId: string, path: string, mtimeMs: number): string {
   // `?v=<mtimeMs>` busts the webview's cache so a changed image (agent
-  // overwrote it, or the watch — docs/41 phase 5 — noticed a change) actually
+  // overwrote it, or the watch noticed a change) actually
   // reloads instead of showing stale bytes.
   const params = new URLSearchParams({ session: sessionId, path, v: String(mtimeMs) });
   return `/files/raw?${params.toString()}`;
@@ -101,7 +101,7 @@ function rawFilePath(sessionId: string, path: string, mtimeMs: number): string {
  * profile, whose `host`/`relayPort` are real, dialable values. A tailnet
  * profile's are the sidecar placeholder (`isTailnetProfile`), and every
  * connection through the tunnel needs its own fresh, single-use connect
- * token (journal/49 D4) — something a plain image tag has no way to attach,
+ * token — something a plain image tag has no way to attach,
  * and that a *second* image load (e.g. after the watch reports a change)
  * would just get rejected as a replay if it somehow could. See
  * `fetchRawFile` below for that case. */
@@ -175,8 +175,8 @@ export interface HostInfo {
   editor: EditorLocality;
 }
 
-/** Whether/how the client can open a file panel path in a local editor
- * (journal/60) — `editor: null` means both `ANYWH_EDITOR_LOCAL` and
+/** Whether/how the client can open a file panel path in a local editor —
+ * `editor: null` means both `ANYWH_EDITOR_LOCAL` and
  * `ANYWH_EDITOR_SSH` are unset relay-side, and the feature should be
  * hidden entirely (see `relay/src/editorHostInfo.ts`). */
 export async function getHostInfo(profile: Profile): Promise<HostInfo> {

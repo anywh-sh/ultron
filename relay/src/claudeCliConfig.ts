@@ -9,7 +9,7 @@ import { fileURLToPath } from "node:url";
 // Absolute path and explicit PATH: running via systemd the process doesn't
 // have the user's interactive shell PATH (doesn't source .bashrc/.profile),
 // so neither the binary nor tools it invokes internally (node, git...) would
-// be found by name alone — same bug class already fixed for tmux in docs/08.
+// be found by name alone — same bug class already fixed for tmux.
 // Defaults to the bare command name, which works whenever the relay itself
 // is started from a shell that already has `claude` on PATH (e.g. `npm run
 // dev`); override via env for systemd or any other PATH-less launch.
@@ -21,7 +21,7 @@ const configuredExtraPathDirs = (process.env.EXTRA_PATH_DIRS ?? "")
 
 // `relay/scripts` (not `dist/` nor `src/`) — the helper is a standalone bash
 // script, doesn't need a build, and stays on PATH so a turn finds
-// `anywh-bg` by name alone (see docs/32). Resolved relative to this file
+// `anywh-bg` by name alone. Resolved relative to this file
 // (not hardcoded) so it works whether running from `src/` (tsx) or `dist/`
 // (tsc build) — both mirror the same layout one level below `relay/`.
 const SCRIPTS_DIR = resolve(dirname(fileURLToPath(import.meta.url)), "../scripts");

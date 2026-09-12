@@ -44,15 +44,15 @@ function ElapsedTime({ startedAt }: { startedAt: number }) {
 
 /**
  * Discreet chip above the composer, next to `WorkingDirectoryButton` — shows
- * `anywh-bg` jobs currently observed in this session (docs/32, Phase E) and
- * lets you cancel them (Phase F). Deliberately does NOT reuse
+ * `anywh-bg` jobs currently observed in this session and
+ * lets you cancel them. Deliberately does NOT reuse
  * `TurnIndicator`'s look (dots + "Thinking…"): that communicates "the
  * assistant is busy right now", but a background job is the opposite — the
  * assistant is idle, the composer stays free, there's just something running
  * unsupervised in parallel. Conflating the two would wrongly suggest you
  * can't send another message. Same dropdown pattern as
  * `WorkingDirectoryButton`/`ContextUsageButton`: `modal={false}` (WKWebView
- * on macOS, docs/24) + blur the trigger on close.
+ * on macOS) + blur the trigger on close.
  */
 export function BackgroundJobIndicator({ jobs, onCancel }: BackgroundJobIndicatorProps) {
   const triggerRef = useRef<HTMLButtonElement>(null);

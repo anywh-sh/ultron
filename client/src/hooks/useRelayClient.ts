@@ -26,7 +26,7 @@ export interface CompactBoundaryEvent {
   receivedAt: number;
 }
 
-/** docs/46 — a `present_choice` prompt currently blocked waiting for an
+/** A `present_choice` prompt currently blocked waiting for an
  * answer, if any. See `RelayClientCallbacks.onChoicePrompt`. */
 export interface PendingChoice {
   promptId: string;
@@ -48,19 +48,18 @@ export interface UseRelayClientOptions {
   /** See `RelayClientCallbacks.onReconnecting` — fires before any
    * history replay that isn't from the initial connection. */
   onReconnecting?: () => void;
-  /** `/clear` (docs/26) — see `RelayClientCallbacks.onConversationReset`. */
+  /** `/clear` — see `RelayClientCallbacks.onConversationReset`. */
   onConversationReset?: () => void;
   /** Turn in progress on the session, not just from whoever sent it — see
-   * `RelayClientCallbacks.onTurnState` (docs/30). Pure passthrough: `ChatPanel`
+   * `RelayClientCallbacks.onTurnState`. Pure passthrough: `ChatPanel`
    * already keeps its own `turnStartedAt`, no need for duplicated state here. */
   onTurnState?: (state: { active: boolean; startedAt?: number }) => void;
   /** Recent tail of this session's history — see
-   * `RelayClientCallbacks.onHistoryPage` (Phase 2/3, docs/30). */
+   * `RelayClientCallbacks.onHistoryPage`. */
   onHistoryPage?: (page: HistoryPageMessage) => void;
-  /** Response to `loadOlderHistory` — see `RelayClientCallbacks.onOlderHistory`
-   * (Phase 2/3, docs/30). */
+  /** Response to `loadOlderHistory` — see `RelayClientCallbacks.onOlderHistory`. */
   onOlderHistory?: (page: HistoryPageMessage) => void;
-  /** Message edit on ANOTHER device connected to the session (docs/33) —
+  /** Message edit on ANOTHER device connected to the session —
    * see `RelayClientCallbacks.onHistoryTruncated`. */
   onHistoryTruncated?: (page: HistoryPageMessage) => void;
   /** `edit_message` requested by this device failed — see
@@ -71,9 +70,9 @@ export interface UseRelayClientOptions {
 export interface UseRelayClientResult {
   connected: boolean;
   /** `true` while a tailnet-mode profile's sidecar is joining the tailnet,
-   * before the relay `WebSocket` even starts connecting (journal/62 F2) —
+   * before the relay `WebSocket` even starts connecting —
    * always `false` for a direct-mode profile, which has no such step. Purely
-   * informational: no UI reads it yet (cosmetic, out of scope for F2). */
+   * informational: no UI reads it yet (cosmetic, out of scope for now). */
   connectingTailnet: boolean;
   /** `null` only in the brief window between connecting and the first `cwd_state`
    * arriving — see `SharedSession.addClient` on the relay, which sends this before
@@ -87,13 +86,13 @@ export interface UseRelayClientResult {
    * and in the final "never chosen via /model" state — the two
    * behave the same for the UI (uses the CLI default), no need to distinguish. */
   model: ModelChoice | null;
-  /** The actual default model for this profile's account (docs/28) — display
+  /** The actual default model for this profile's account — display
    * fallback for when `model` above is `null`. `null` only in the brief window
    * before the relay's probe finishes (or if it fails). */
   defaultModel: string | null;
   /** `null` until the first `context_usage_state` arrives — never arrives for a
    * new session with no completed turn yet (see sharedSession.ts), and
-   * goes back to `null` after a `/clear` (docs/26). */
+   * goes back to `null` after a `/clear`. */
   contextUsage: ContextUsage | null;
   /** Last `compact_boundary` seen, if any — meant for a transient toast
    * in the UI, not persistent state (see `CompactBoundaryEvent`). */
@@ -116,18 +115,18 @@ export interface UseRelayClientResult {
   setModel: (model: ModelChoice) => void;
   clearConversation: () => void;
   /** Fetches turns older than `beforeCursor` — see
-   * `RelayClient.loadOlderHistory` (Phase 2/3, docs/30). */
+   * `RelayClient.loadOlderHistory`. */
   loadOlderHistory: (beforeCursor: number) => void;
   /** `anywh-bg` jobs currently observed in this session — empty array (never
    * `null`) for both "no job" and "the first
-   * `background_job_state` hasn't arrived yet" (docs/32, Phase E): the two don't have
+   * `background_job_state` hasn't arrived yet": the two don't have
    * different UI (indicator hidden in both cases), no need to distinguish. */
   backgroundJobs: BackgroundJobSummary[];
-  /** Asks the relay to kill an in-progress `anywh-bg` job (docs/32, Phase F)
-   * — `background_job_state` disappears from the list as soon as the relay processes it,
+  /** Asks the relay to kill an in-progress `anywh-bg` job —
+   * `background_job_state` disappears from the list as soon as the relay processes it,
    * with no separate confirmation (the job disappearing from the chip is itself the signal). */
   cancelBackgroundJob: (id: string) => void;
-  /** Message edit (docs/33) — see `RelayClient.editMessage`. */
+  /** Message edit — see `RelayClient.editMessage`. */
   editMessage: (fromEnd: number, text: string) => void;
   /** Composer text not yet sent, persisted per tab so it survives an app
    * crash/restart — see `RelayClientCallbacks.onDraftState`. `null` only in
@@ -135,7 +134,7 @@ export interface UseRelayClientResult {
    * arriving, same reasoning as `cwd`/`permissionMode` above. */
   draft: string | null;
   setDraft: (text: string) => void;
-  /** docs/46 — a `present_choice` prompt currently blocked waiting for an
+  /** A `present_choice` prompt currently blocked waiting for an
    * answer, `null` when there's none. */
   choicePrompt: PendingChoice | null;
   /** Answers the current `choicePrompt` — a no-op if it's already `null`
@@ -152,7 +151,7 @@ export interface UseRelayClientResult {
 /**
  * One instance per open tab — including background tabs, which stay
  * mounted (see TabGroupLayout's flat panel layer) to keep the WebSocket alive even without
- * focus, per docs/18. Callback-based: the caller decides where events
+ * focus. Callback-based: the caller decides where events
  * end up (e.g. the `useMessageLog` reducer) instead of the hook accumulating its
  * own duplicated array.
  */
@@ -262,17 +261,17 @@ export function useRelayClient(
       let wsToken: string | (() => Promise<string>) | undefined = profile.connectToken;
       if (tailnetMode) {
         try {
-          // journal/62 F3: a brokered profile resolves the target and a
+          // A brokered profile resolves the target and a
           // fresh handshake token from the broker on every connection
-          // (D4 — never reuses one); a profile with only the static F2
+          // (never reuses one); a profile with only the static
           // fields dials `tailnetTarget` and keeps using its stored
-          // `connectToken`, same as before F3 existed.
+          // `connectToken`, same as before brokered profiles existed.
           let target = profile.tailnetTarget;
           if (isBrokeredProfile(profile)) {
             const grant = await fetchConnectGrant(profile);
             if (cancelled) return;
             target = `${grant.endpoint.host}:${String(grant.endpoint.port)}`;
-            // D4 again, on the reconnection side: the grant fetched just
+            // Same anti-replay reasoning again, on the reconnection side: the grant fetched just
             // now opens the first connection, and every attempt after it
             // (the proxy spends a token's `jti` on the handshake, so
             // resending this one loops on "reconnecting" forever) resolves
@@ -319,7 +318,7 @@ export function useRelayClient(
     // effect, cleans it up, and mounts it again, synchronously, within one
     // tick. `start()`'s first await is `fetchConnectGrant` — a broker call
     // signed with a fresh timestamp that the control plane accepts exactly
-    // once (journal/49 D4's anti-replay). Calling it straight from the
+    // once (its anti-replay check). Calling it straight from the
     // effect meant the doomed first mount's `start()` already ran past that
     // await (and so had already sent its signed request) by the time its
     // own cleanup set `cancelled` — both mounts' requests reached the
@@ -350,8 +349,8 @@ export function useRelayClient(
     sessionId,
   ]);
 
-  // Foreground/background reconnection (docs/23, Phase D1): `visibilitychange`
-  // is the reliable signal on iOS (Phase D0 confirmed that Tauri's onFocusChanged
+  // Foreground/background reconnection: `visibilitychange`
+  // is the reliable signal on iOS (confirmed that Tauri's onFocusChanged
   // never fires there) — works the same on desktop, no platform
   // gate needed. `forceReconnect` already decides on its own whether the current
   // connection actually needs to be recreated.

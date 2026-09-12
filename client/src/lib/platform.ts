@@ -7,7 +7,7 @@ export function isMacOS(): boolean {
 
 /** iOS via `@tauri-apps/plugin-os` (official API, `window.__TAURI_OS_PLUGIN_INTERNALS__`)
  * instead of UA sniffing — WKWebView on iOS can report an ambiguous UA, so
- * `isMacOS()` isn't extended to cover this case (docs/23, Phase B). */
+ * `isMacOS()` isn't extended to cover this case. */
 export function isIOS(): boolean {
   return inTauri() && platform() === "ios";
 }

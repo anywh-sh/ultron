@@ -4,9 +4,7 @@ import { dirname } from "node:path";
 // Session name -> { session_id, cwd/lock } mapping, persisted to disk per
 // profile — without this, GET /sessions, continuity via --resume, and
 // (since the working directory feature) each session's working folder
-// depended only on memory and disappeared on every relay restart. See
-// docs/18 (the session_id part) and the "working directory" plan (the
-// cwd/lock part).
+// depended only on memory and disappeared on every relay restart.
 export interface SessionCwdState {
   cwd: string;
   /** Locks after the first turn — Claude Code's session_id gets tied to the
@@ -18,7 +16,7 @@ export interface SessionCwdState {
 }
 
 /** Mirrors the values accepted by `claude --permission-mode` that we expose
- * in the UI (docs/25) — `bypassPermissions` is the only one that still uses
+ * in the UI — `bypassPermissions` is the only one that still uses
  * the historical `--dangerously-skip-permissions` flag (claudeSession.ts),
  * the other three go straight through `--permission-mode <value>`.
  * `auto`/`dontAsk` were left out on purpose: `auto` depends on plan/model
@@ -29,8 +27,8 @@ export type PermissionMode = "default" | "acceptEdits" | "plan" | "bypassPermiss
 
 const PERMISSION_MODES: readonly PermissionMode[] = ["default", "acceptEdits", "plan", "bypassPermissions"];
 
-/** Narrows an arbitrary string to `PermissionMode` — needed for docs/46 Fase
- * 4, where the CLI reports its own mode transitions via a `system/status`
+/** Narrows an arbitrary string to `PermissionMode` — needed for the case
+ * where the CLI reports its own mode transitions via a `system/status`
  * event (`SharedSession`'s `applyPermissionModeFromCli`) and the value comes
  * from the child process's stdout, not from our own typed UI. */
 export function isPermissionMode(value: string): value is PermissionMode {
@@ -300,7 +298,7 @@ export class SessionStore {
     this.persist();
   }
 
-  /** `/clear` (docs/26) — drops the recorded continuity, otherwise a relay
+  /** `/clear` — drops the recorded continuity, otherwise a relay
    * restart would go back to `--resume`ing the conversation the user
    * already cleared. */
   clearSessionId(id: string): void {

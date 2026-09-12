@@ -10,7 +10,7 @@ interface SlashCommandMenuProps {
 }
 
 /**
- * Composer autocomplete popup (docs/26/27) — opens only when `/` is the
+ * Composer autocomplete popup — opens only when `/` is the
  * first character typed (see Tiptap's `Suggestion` in Composer.tsx).
  * The selected/hovered item's description appears as a real tooltip on the
  * right side (project's `Tooltip`, `side="right"`) — `open` controlled by

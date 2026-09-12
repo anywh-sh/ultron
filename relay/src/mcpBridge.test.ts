@@ -110,7 +110,7 @@ test("tools/list: exposes exactly the present_choice tool, matching CHOICE_ALLOW
   assert.equal(`mcp__anywh-choice__${tools[0].name}`, CHOICE_ALLOWED_TOOL);
 });
 
-test("tools/call present_choice: forwards questions to the host, replies immediately with the end-turn instruction (deferred lifecycle, docs/46 Descoberta 8)", async () => {
+test("tools/call present_choice: forwards questions to the host, replies immediately with the end-turn instruction (deferred lifecycle)", async () => {
   const bridge = new McpChoiceBridge();
   const questions: ChoiceQuestion[] = [{ question: "SQLite or Postgres?", options: [{ label: "SQLite" }, { label: "Postgres" }] }];
   let receivedQuestions: ChoiceQuestion[] | undefined;

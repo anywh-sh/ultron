@@ -1,4 +1,4 @@
-// Pure URL formatting for "open in editor" (journal/60) — deep links only,
+// Pure URL formatting for "open in editor" — deep links only,
 // never a CLI invocation: `@tauri-apps/plugin-opener`'s `openUrl` passes
 // exactly one argument (`open::with_detached` -> `Command::new(app).arg(url)`,
 // always via `/usr/bin/open -a <App>` on macOS), so anything needing two
@@ -8,7 +8,7 @@
 // `/usr/local/bin`). Zed's two forms are confirmed straight from its source
 // (`crates/zed/src/zed/open_listener.rs`); the VS Code family's local form
 // is the long-documented "Open in VS Code" URI handler, but its SSH-remote
-// form is community convention, not official docs — see journal/60 part 2.
+// form is community convention, not official docs.
 
 /** Doubles as the URL scheme (`{id}://...`) — the human-readable label for
  * each editor comes from the Rust `detect_editors` command instead of a
@@ -77,7 +77,7 @@ function sshAuthority(user: string, host: string, port: number | undefined): str
  * that case; this is just the defensive mirror of that contract).
  *
  * The SSH-remote form for the VS Code family (`vscode-remote/ssh-remote+`)
- * is unverified beyond community convention — see journal/60.
+ * is unverified beyond community convention.
  */
 export function buildEditorUrl(editor: EditorId, locality: EditorLocality, target: EditorLinkTarget): string | null {
   if (!locality) return null;

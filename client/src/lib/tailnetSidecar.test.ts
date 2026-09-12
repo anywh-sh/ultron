@@ -75,7 +75,7 @@ describe("tailnetSidecar", () => {
     await vi.runAllTimersAsync();
   });
 
-  it("reports the node key a cold start earns, but only once even when a second tab joins the same sidecar (journal/62 CT-1 follow-up)", async () => {
+  it("reports the node key a cold start earns, but only once even when a second tab joins the same sidecar", async () => {
     const { acquireTailnetSidecar, releaseTailnetSidecar } = await import("@/lib/tailnetSidecar");
     const id = "report-node-key";
     const p = profile(id);

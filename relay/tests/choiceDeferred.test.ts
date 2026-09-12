@@ -4,11 +4,11 @@ import { startTestServer, type TestServer } from "./helpers/testServer.js";
 import { collectUntil, connectSession, connectSessionAndCollectUntil, sendUserMessage } from "./helpers/wsClient.js";
 import { CHOICE_DEFERRED_RESPONSE_TEXT } from "../src/mcpBridge.js";
 
-// Real integration test (.anywh/skills/tests/SKILL.md) for the docs/46
+// Real integration test (.anywh/skills/tests/SKILL.md) for the
 // deferred-lifecycle rework: `present_choice` used to hold the MCP
 // `tools/call` open until a human answered (SharedSession.presentChoice used
 // to return a Promise), which the real CLI kills after ~6 minutes with no
-// working override (journal/46 Descoberta 8). It now replies immediately and
+// working override. It now replies immediately and
 // the human's eventual answer arrives as a brand new turn instead.
 //
 // Unlike `choicePrompt.test.ts` (which only reaches the plan-mode text-marker

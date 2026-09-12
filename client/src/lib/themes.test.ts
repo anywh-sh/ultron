@@ -13,7 +13,7 @@ const theme: Theme = {
   terminal: {},
 } as Theme;
 
-// Two tailnet profiles (journal/62 F4) always share the same placeholder
+// Two tailnet profiles always share the same placeholder
 // `host` (`profileImport.ts` writes "127.0.0.1" for both) — `id` is the only
 // field that actually tells them apart.
 const tailnetProfileA: Profile = {

@@ -1,4 +1,4 @@
-// Manual validation for the docs/46 deferred-lifecycle rework of
+// Manual validation for the deferred-lifecycle rework of
 // `present_choice`. The automated suite (relay/tests/choiceDeferred.test.ts)
 // already proves the mechanism works end to end against the real
 // McpChoiceBridge/HTTP stack, but with a FAKE `claude` making the tool call
@@ -11,7 +11,7 @@
 // What this checks:
 //   1. The turn completes quickly after the model calls `present_choice` —
 //      NOT after minutes, and NOT hanging until the CLI's ~6-minute MCP
-//      timeout (journal/46 Descoberta 8, the bug this whole rework exists to
+//      timeout (the bug this whole rework exists to
 //      route around). Under the old blocking design this exact scenario
 //      (nobody answers right away) is what used to eventually fail with
 //      "The operation timed out".

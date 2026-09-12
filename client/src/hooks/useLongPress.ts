@@ -13,7 +13,7 @@ export interface LongPressHandlers {
 }
 
 /**
- * Long-press to open the native context menu on iOS (docs/33) — not the
+ * Long-press to open the native context menu on iOS — not the
  * same pattern as `useContextMenu` (that one is a right-click opening
  * Radix's `DropdownMenu`, desktop-only). Cancels on `touchmove` (scrolling
  * the list shouldn't trigger the menu) and on any `touchend`/`touchcancel`

@@ -10,7 +10,7 @@ interface FilesToggleButtonProps {
 }
 
 /**
- * Work dir file panel button (docs/41) — sibling of `TerminalToggleButton`,
+ * Work dir file panel button — sibling of `TerminalToggleButton`,
  * immediately to its left (files, then terminal, at the far right of the
  * row — `ChatPanel` handles the layout). Same gating as the terminal:
  * disabled until the session has a folder, since there's nothing to list

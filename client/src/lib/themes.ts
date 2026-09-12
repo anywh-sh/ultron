@@ -5,7 +5,7 @@ import type { Theme } from "@/lib/theme";
 /** The key a profile's theme registry is stored/looked up under. Normally
  * `profile.host` — a registry belongs to the machine that stores it, and two
  * profiles on the same real host share the same file. A tailnet profile
- * (journal/62 F4) breaks that: every one of them has `host` set to the same
+ * breaks that: every one of them has `host` set to the same
  * `127.0.0.1` sidecar placeholder (`profileImport.ts`), so keying by host
  * would make two unrelated tailnet profiles' custom themes collide — `id` is
  * the only field that actually tells them apart. */

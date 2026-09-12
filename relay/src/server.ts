@@ -60,7 +60,7 @@ const ADD_PROFILE_SCRIPT = resolvePath(dirname(fileURLToPath(import.meta.url)), 
 const SYSTEMCTL_BIN = process.env.SYSTEMCTL_BIN ?? "systemctl";
 
 // Config via env — allows running one instance per profile (systemd,
-// infra/systemd/) without changing code, same as ttyd used to do (docs/08).
+// infra/systemd/) without changing code, same as ttyd used to do.
 const PORT = Number(process.env.RELAY_PORT ?? 8765);
 const HOST = process.env.RELAY_HOST ?? "127.0.0.1";
 const HOME_OVERRIDE = process.env.RELAY_HOME_OVERRIDE;
@@ -73,7 +73,7 @@ const DEFAULT_SESSION = "default";
 // "./sessions.local.json" fallback is only for local `npm run dev`.
 const SESSIONS_FILE = process.env.RELAY_SESSIONS_FILE ?? "./sessions.local.json";
 
-// Same reasoning as SESSIONS_FILE — docs/32 Phase F, persistence of the
+// Same reasoning as SESSIONS_FILE — persistence of the
 // watched `anywh-bg` jobs (survives a relay restart).
 const BACKGROUND_JOBS_FILE = process.env.RELAY_BACKGROUND_JOBS_FILE ?? "./background-jobs.local.json";
 
@@ -95,7 +95,7 @@ function isStopTurnMessage(value: unknown): value is { type: "stop_turn" } {
   return typeof value === "object" && value !== null && (value as { type?: unknown }).type === "stop_turn";
 }
 
-/** Message edit (docs/33) — `fromEnd` counts from the end (`1` = the
+/** Message edit — `fromEnd` counts from the end (`1` = the
  * user's last message). */
 function isEditMessageMessage(value: unknown): value is { type: "edit_message"; fromEnd: number; text: string } {
   return (
@@ -226,7 +226,7 @@ function isTerminalInputMessage(value: unknown): value is { type: "input"; data:
   );
 }
 
-/** Paginated history Phase 2 (docs/30) — request for turns older than the
+/** Paginated history — request for turns older than the
  * initial tail, triggered by the user scrolling up in the UI. */
 function isLoadOlderHistoryMessage(value: unknown): value is { type: "load_older_history"; beforeCursor: number } {
   return (
@@ -237,7 +237,7 @@ function isLoadOlderHistoryMessage(value: unknown): value is { type: "load_older
   );
 }
 
-/** docs/32 Phase F — cancellation of an `anywh-bg` job requested by the UI. */
+/** Cancellation of an `anywh-bg` job requested by the UI. */
 function isCancelBackgroundJobMessage(value: unknown): value is { type: "cancel_background_job"; id: string } {
   return (
     typeof value === "object" &&
@@ -275,7 +275,7 @@ function statusForFilesError(error: FilesError | "invalid_name" | "already_exist
   return 400; // invalid_path, outside_root, invalid_name
 }
 
-/** Work dir file panel's watch (docs/41 phase 5) — always the client's full
+/** Work dir file panel's watch — always the client's full
  * current set of visible dirs/files, never an incremental add/remove (see
  * `FilesWatchSession`). */
 function isWatchMessage(value: unknown): value is { type: "watch"; dirs: string[]; files: string[] } {
@@ -352,7 +352,7 @@ interface ClaudeAuthStatus {
  * reason a real turn does: without the `PATH` patch the binary isn't found
  * under systemd's minimal `PATH`, and with `ANTHROPIC_API_KEY` present this
  * would report `loggedIn: true` via API key — the false positive this check
- * exists to prevent (docs/45). */
+ * exists to prevent. */
 function runClaudeAuthStatus(homeOverride: string | undefined): Promise<ClaudeAuthStatus> {
   return new Promise((resolveStatus, rejectStatus) => {
     const child = spawn(CLAUDE_BIN, ["auth", "status", "--json"], { env: buildChildEnv(homeOverride) });
@@ -380,12 +380,12 @@ function runClaudeAuthStatus(homeOverride: string | undefined): Promise<ClaudeAu
 }
 
 const sessionStore = new SessionStore(SESSIONS_FILE, defaultCwd(HOME_OVERRIDE));
-// docs/46 — always `127.0.0.1`, never `HOST`: this is the address the
+// Always `127.0.0.1`, never `HOST`: this is the address the
 // relay's OWN `claude` child processes reach it at, always local to this
 // machine (see the comment on `SharedSessionOptions.mcpBridgeBaseUrl`), not
 // the address remote clients (possibly over Tailscale) use.
 const mcpChoiceBridge = new McpChoiceBridge();
-// docs/46 Fase 4 — separate bridge/path from `mcpChoiceBridge` (own token
+// Separate bridge/path from `mcpChoiceBridge` (own token
 // namespace, own route below) even though both are the same "local-only MCP
 // server the relay's own `claude` children call into" idea.
 const mcpPermissionBridge = new McpPermissionBridge();
@@ -417,7 +417,7 @@ const sessionManager = new SessionManager(
 
 /**
  * `/mcp/:token` and `/permission/:token` — the relay's own `claude` children
- * call these to resolve `present_choice`/`ExitPlanMode` (docs/46). `token`
+ * call these to resolve `present_choice`/`ExitPlanMode`. `token`
  * is generated fresh per turn (SharedSession) and is each route's only
  * auth — no session/profile check needed beyond it, since only a
  * `--mcp-config`/`--permission-prompt-tool` we ourselves handed to a local
@@ -446,7 +446,7 @@ function handleBridgeRequest(req: IncomingMessage, res: ServerResponse): boolean
 // already in progress to finish, see the definition at the end of the file.
 let shuttingDown = false;
 
-// Probing this profile's account default model (docs/28) — runs once at
+// Probing this profile's account default model — runs once at
 // boot, in parallel with everything else (doesn't block `httpServer.listen`
 // below). `defaultModelClients` covers the obvious race: the first client's
 // WS connection almost always arrives before the probe resolves. Also
@@ -814,7 +814,7 @@ export const httpServer = createServer((req, res) => {
     }
 
     // The caller is responsible for never sending this to the profile it's
-    // deleting (docs/45 Fase 6) — `systemctl --user disable --now` would
+    // deleting — `systemctl --user disable --now` would
     // stop this very process mid-request. Best-effort: a profile created
     // with `add-profile.sh --mode dev` was never a systemd instance, so a
     // failure here doesn't block cleaning up the registry below.
@@ -860,7 +860,7 @@ export const httpServer = createServer((req, res) => {
     return;
   }
 
-  // Work dir file panel (docs/41) — list/read/raw are all rooted at the
+  // Work dir file panel — list/read/raw are all rooted at the
   // requesting session's own cwd (`sessionStore.getCwdState`), never a path
   // the client supplies directly; the client only ever sends `session=<id>`
   // plus a path already confirmed to live under that root by a previous
@@ -1072,7 +1072,7 @@ export const httpServer = createServer((req, res) => {
   }
 
   // Tells the client whether/how it can open a file-panel path in a local
-  // editor (journal/60) — see editorHostInfo.ts for why locality is declared
+  // editor — see editorHostInfo.ts for why locality is declared
   // via env rather than inferred, and why the peer address is only a
   // downgrade guard on top of that declaration.
   if (req.method === "GET" && req.url === "/host-info") {
@@ -1116,7 +1116,7 @@ export const httpServer = createServer((req, res) => {
 // milliseconds). Node's `http.Server` has defaulted `requestTimeout` to
 // 300000ms (5 minutes) since Node 18: past that, Node itself would abort
 // the request on its own, regardless of anything passed to the `claude`
-// child's own `--mcp-config`. Live testing (journal/46 Descoberta 8) showed
+// child's own `--mcp-config`. Live testing showed
 // this was NOT the actual cause of the real "The operation timed out"
 // failure a session hit at ~5m53s: an isolated reproduction with this exact
 // override applied still failed at ~6 minutes. The real culprit is still
@@ -1130,7 +1130,7 @@ httpServer.listen(PORT, HOST, () => {
   console.log(`[relay] listening on ws://${HOST}:${PORT}`, HOME_OVERRIDE ? `(HOME=${HOME_OVERRIDE})` : "");
 });
 
-// Real-world bug (docs/46): `httpServer` above binds ONLY to `HOST`, which
+// Real-world bug: `httpServer` above binds ONLY to `HOST`, which
 // for every profile except the self-registered "default" one is a Tailscale
 // IP, not `127.0.0.1` (`RELAY_HOST` in each profile's `.env` — an operator
 // choice, same trust boundary as the rest of the relay's auth-less HTTP/WS
@@ -1158,7 +1158,7 @@ if (HOST !== "127.0.0.1") {
   });
   // This is the server that actually carries `present_choice`/permission
   // `tools/call` traffic for every profile where it exists (`HOST !==
-  // "127.0.0.1"` — i.e. every real deployed profile, journal/46) — see the
+  // "127.0.0.1"` — i.e. every real deployed profile) — see the
   // matching comment on `httpServer.requestTimeout` above for why this is
   // disabled here too (and why it turned out not to be the real fix).
   loopbackServer.requestTimeout = 0;
@@ -1185,7 +1185,7 @@ function handleTerminalConnection(socket: WebSocket, url: URL): void {
   const rows = Number(url.searchParams.get("rows"));
 
   const sessionCwd = sessionStore.getCwdState(chatSessionId).cwd;
-  // "Open in terminal" (docs/41's file tree) — an optional starting
+  // "Open in terminal" (the file tree's action) — an optional starting
   // directory, confined to the session's own root the same way `/files/*`
   // is (not a security boundary, see `resolveWithinRoot`'s own comment —
   // just a contract that a UI bug can't point a fresh tmux session at
@@ -1251,7 +1251,7 @@ function handleTerminalConnection(socket: WebSocket, url: URL): void {
   });
 }
 
-/** Work dir file panel's watch (docs/41 phase 5) — same lifecycle as
+/** Work dir file panel's watch — same lifecycle as
  * `/terminal`: connects while the pane is mounted (tab active AND pane
  * open), disconnects on tab switch/pane close/session change. The relay
  * keeps no watcher registry beyond this one connection's own

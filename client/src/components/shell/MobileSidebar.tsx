@@ -24,13 +24,13 @@ interface MobileSidebarProps {
 }
 
 /**
- * Content behind iOS's "reveal" drawer (docs/24) — its own width of
+ * Content behind iOS's "reveal" drawer — its own width of
  * `REVEAL_PUSH_PX` (via `var(--push)`, defined by `MobileShell`), not the
  * full screen: what stays hidden behind the canvas never ends up rendering
  * in a container bigger than the actual visible space.
  *
  * Replaces `Sidebar.tsx` on iOS only — profile becomes a segmented control
- * (instead of a dropdown), search (Cmd/Ctrl+K, docs/21) gets a tappable
+ * (instead of a dropdown), search (Cmd/Ctrl+K) gets a tappable
  * trigger (there's no keyboard shortcut on touch) and there's no "new
  * conversation" button: only the `MobileTopBar`'s + creates a conversation now.
  */
@@ -93,7 +93,7 @@ export function MobileSidebar({
       </button>
 
       {/* "Recentes" + list become their own group, with a short gap between
-       * the two — the "large" gap (docs/24) is the outer column's
+       * the two — the "large" gap is the outer column's
        * (gap-3.5), between the search and this group, not between the
        * label and the first item. */}
       <div className="flex min-h-0 flex-1 flex-col gap-1.5">

@@ -4,7 +4,7 @@ import { dirname, join } from "node:path";
 import { extractHumanText, type TranscriptLine } from "./transcriptReader.js";
 
 /**
- * Message editing (docs/33) — truncates the `.jsonl` file that the Claude
+ * Message editing — truncates the `.jsonl` file that the Claude
  * Code CLI maintains on its own, at the exact point of the message the user
  * edited, and writes the result as a new session (new `session_id`). This is
  * the only real way to "restart the conversation from here": the `claude`

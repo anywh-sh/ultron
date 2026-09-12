@@ -1,7 +1,7 @@
-// tailnet-sidecar (journal/62): the Go binary the Tauri client spawns as a
+// tailnet-sidecar: the Go binary the Tauri client spawns as a
 // sidecar to join a Tailscale/Headscale tailnet and sign requests, without
-// ever knowing the anywh-control-plane API's own shape (journal/62 CT-1 —
-// that boundary is the whole reason this binary exists at all). Three
+// ever knowing the control plane API's own shape —
+// that boundary is the whole reason this binary exists at all. Three
 // subcommands: "identity" (F1), "sign" (F1), "tailnet-up" (the spike, F1
 // packages it the same way).
 package main
@@ -52,7 +52,7 @@ func main() {
 // runIdentity loads (or creates) the device's Ed25519 keypair and prints
 // its public key — the same base64 shape POST /v1/nodes and
 // POST /v1/nodes/claim expect. Never prints the private key; it never
-// leaves the identity file (journal/49 D7).
+// leaves the identity file.
 func runIdentity(args []string) {
 	fs := flag.NewFlagSet("identity", flag.ExitOnError)
 	path := fs.String("path", "", "identity file (required)")
@@ -77,10 +77,10 @@ type signResult struct {
 }
 
 // runSign signs an HTTP request's method/path/body with the device
-// identity, in the exact format anywh-control-plane's
-// src/auth/nodeSignature.ts (verifyNodeSignature) expects. It never learns
+// identity, in the exact format the control plane's request-signature
+// verification expects. It never learns
 // the header names or the meaning of the path it's signing — that's on the
-// caller (journal/62 CT-1): this command only knows Ed25519, not the
+// caller: this command only knows Ed25519, not the
 // control plane's API.
 func runSign(args []string) {
 	fs := flag.NewFlagSet("sign", flag.ExitOnError)
@@ -150,12 +150,12 @@ func runTailnetUp(args []string) {
 	log.Printf("tsnet up, joined %s", *controlURL)
 	if status.Self != nil {
 		// Rust reads this to report the node key Headscale just assigned
-		// back to whatever minted this profile's auth key (anywh-control-plane's
-		// POST /v1/nodes/{id}/tailnet, journal/62 CT-1 follow-up) — this
+		// back to whatever minted this profile's auth key (the control
+		// plane's `POST /v1/nodes/{id}/tailnet`) — this
 		// binary never learns why it matters, only that Rust wants it. A
-		// public key, not a secret: same value GET /api/v1/node already
-		// hands back to any caller, and what edge/internal/proxy's
-		// ReportTailnetKey already sends in production for the sandbox side.
+		// public key, not a secret: same value `GET /api/v1/node` already
+		// hands back to any caller, and what the control plane's own
+		// managed-hosting path already reports in production.
 		fmt.Printf("NODE_KEY %s\n", status.Self.PublicKey.String())
 	}
 
@@ -200,7 +200,7 @@ type tsnetConfig struct {
 // Ephemeral must be false. An ephemeral node is deleted from the tailnet the
 // moment it disconnects, so every start has to register again — and
 // registering needs a pre-auth key, which the control plane mints single-use
-// with a 15-minute TTL and considers spent on first use (journal/50 3.1). A
+// with a 15-minute TTL and considers spent on first use. A
 // profile paired an hour ago has no usable key left, so an ephemeral node
 // could join exactly once and was permanently unable to come back
 // afterwards: "backend: authkey expired", which is precisely what a paired

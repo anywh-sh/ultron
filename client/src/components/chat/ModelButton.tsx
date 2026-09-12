@@ -12,7 +12,7 @@ import { cn } from "@/lib/utils";
 
 interface ModelButtonProps {
   model: ModelChoice | null;
-  /** This profile's account's actual default model (docs/28), used as the
+  /** This profile's account's actual default model, used as the
    * label when `model` is `null` (no explicit switch yet) — the defaults
    * are DIFFERENT between profiles (personal came up Sonnet, work came up
    * Opus), so we can't just hardcode a name here without really probing it. */

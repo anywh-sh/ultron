@@ -1,6 +1,6 @@
 // Relay protocol types, extended from what already existed in
-// relayClient.ts (Phase 3) — see docs/17 (markdown streaming) and the Phase
-// 4 pre-step that inspected real events from the personal relay.
+// relayClient.ts, informed by inspecting real stream-json events from a
+// live relay.
 
 export interface ClaudeContentBlock {
   type: string;
@@ -29,8 +29,7 @@ export interface ClaudeMessage {
 }
 
 /** A `structuredPatch` line that the relay already receives ready-made from
- * Edit — see docs/18, a finding from the Phase 4 pre-step: we don't need to
- * compute the diff on the client. */
+ * Edit — we don't need to compute the diff on the client. */
 export interface StructuredPatchHunk {
   oldStart: number;
   oldLines: number;
@@ -91,7 +90,7 @@ export interface ClaudeEvent {
    * every stream-json line — present both live and on replay
    * (relay/src/transcriptReader.ts). On `type: "user_prompt"` (synthetic)
    * it's ISO from the real `.jsonl` line on replay, or absent in the live
-   * broadcast to other devices (docs/33) — whoever sent the message already
+   * broadcast to other devices — whoever sent the message already
    * knows their own click time, doesn't depend on this. Either way,
    * `useMessageLog.ts` falls back to `Date.now()` when absent. */
   timestamp?: string;
@@ -99,8 +98,7 @@ export interface ClaudeEvent {
 }
 
 /** Mirrors the relay's `PermissionMode` (relay/src/sessionStore.ts) — no
- * cross-package import here, both sides only agree by convention (see
- * docs/25). */
+ * cross-package import here, both sides only agree by convention. */
 export type PermissionMode = "default" | "acceptEdits" | "plan" | "bypassPermissions";
 
 /** Mirrors the relay's `ModelChoice` (relay/src/sessionStore.ts) — same
@@ -122,7 +120,7 @@ export interface ContextUsage {
 /** A `history` entry from the relay (relay/src/sharedSession.ts::BroadcastMessage)
  * — the subset of `RelayMessage` that also shows up inside
  * `history_page`/`older_history`, batched instead of one `socket.send` per
- * event (Phase 2/3, docs/30). */
+ * event. */
 export type HistoryMessage =
   | { type: "claude_event"; event: ClaudeEvent }
   | { type: "turn_complete"; stopped?: boolean }
@@ -142,7 +140,7 @@ export type RelayMessage =
   | { type: "turn_complete"; stopped?: boolean }
   | { type: "turn_error"; message: string }
   | { type: "caught_up" }
-  /** Recent tail of this session's history (Phase 2, docs/30) — sent once
+  /** Recent tail of this session's history — sent once
    * per connection, right before `caught_up`, in place of what used to be
    * one `claude_event`/`turn_complete` per `socket.send`. */
   | ({ type: "history_page" } & HistoryPageMessage)
@@ -162,18 +160,18 @@ export type RelayMessage =
    * so the draft survives an app crash/restart. */
   | { type: "draft_state"; draft: string }
   /** Turn in progress in the session — "current" state (same reasoning as
-   * `cwd_state`/`permission_mode_state`), sent again on every new connection
-   * (docs/30). `startedAt` (epoch ms) lets `TurnIndicator`'s timer count from
+   * `cwd_state`/`permission_mode_state`), sent again on every new connection.
+   * `startedAt` (epoch ms) lets `TurnIndicator`'s timer count from
    * the turn's real start even on a device that wasn't the one that sent the
    * message, or that connected mid-turn — without this only the sender saw
    * the indicator (a real finding from testing multi-device). `undefined`
    * when `active` is `false`. */
   | { type: "turn_state"; active: boolean; startedAt?: number }
-  /** `/clear` (docs/26) — per-connection signal (doesn't enter replay),
+  /** `/clear` — per-connection signal (doesn't enter replay),
    * notifies an already-connected client that the conversation was reset;
    * whoever connects afterward naturally sees the empty history already. */
   | { type: "conversation_reset" }
-  /** This profile's actual default account model (docs/28), probed once at
+  /** This profile's actual default account model, probed once at
    * relay boot — not per session, it's the same value for every connection
    * of this process. Used as a display fallback when the session never ran
    * `/model` (`model_state` still `null`). `available` is the full model
@@ -190,10 +188,10 @@ export type RelayMessage =
   /** `anywh-bg` jobs currently observed in the session — "current" state
    * (same reasoning as `cwd_state`/`turn_state`), sent again on every new
    * connection and whenever the list changes (a job starting, ending or
-   * expiring — see relay/src/sessionManager.ts::syncBackgroundJobState,
-   * docs/32 Phase E). Empty array (not omitted) when there are none. */
+   * expiring — see relay/src/sessionManager.ts::syncBackgroundJobState).
+   * Empty array (not omitted) when there are none. */
   | { type: "background_job_state"; jobs: BackgroundJobSummary[] }
-  /** Message editing (docs/33) — sent only to the OTHER devices connected to
+  /** Message editing — sent only to the OTHER devices connected to
    * the session (whoever edited already self-truncated optimistically, like
    * a normal send); syncs the cut-off point before the new turn starts
    * transmitting. Same shape as `history_page`, handled the same way on the
@@ -203,7 +201,7 @@ export type RelayMessage =
    * changed by another device) or one that failed to truncate the real
    * transcript. Only for the socket that requested it. */
   | { type: "edit_message_error"; message: string }
-  /** docs/46 — the model called `present_choice` mid-turn and is genuinely
+  /** The model called `present_choice` mid-turn and is genuinely
    * blocked waiting for an answer. "Current state" pattern like
    * `cwd_state`/`turn_state`: sent again to a device that (re)connects
    * mid-wait, not just to whoever was already there. Answer with
@@ -220,10 +218,10 @@ export type RelayMessage =
   | { type: "choice_resolved"; promptId: string };
 
 /** Mirrors the relay's `ChoiceOption`/`ChoiceQuestion`/`ChoiceAnswer`
- * (relay/src/mcpBridge.ts) — docs/46, same no-cross-package-import
+ * (relay/src/mcpBridge.ts) — same no-cross-package-import
  * convention as `PermissionMode`/`ModelChoice` above. Schema mirrors the
- * native `AskUserQuestion` tool's real input on purpose (see docs/46
- * Descoberta 7) — the model has training affinity with this exact shape. */
+ * native `AskUserQuestion` tool's real input on purpose — the model has
+ * training affinity with this exact shape. */
 export interface ChoiceOption {
   label: string;
   description?: string;
@@ -241,7 +239,7 @@ export interface ChoiceAnswer {
   selected: string[];
 }
 
-/** An `anywh-bg` job currently observed in this session — docs/32, Phase E.
+/** An `anywh-bg` job currently observed in this session.
  * Mirrors the relay's `BackgroundJobSummary` (relay/src/backgroundJobs.ts):
  * no file path or `sessionId` (the session is already the WS connection's). */
 export interface BackgroundJobSummary {

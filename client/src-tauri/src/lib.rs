@@ -2,16 +2,16 @@ mod notifications;
 // Windows-only fix for the blurry taskbar/Alt+Tab icon — see the module docs.
 #[cfg(windows)]
 mod window_icon;
-// Voice (local dictation) out of scope for the iOS MVP (docs/22) —
+// Voice (local dictation) out of scope for the iOS MVP —
 // cpal/whisper-rs don't link on the iOS target without extra work. See
 // Cargo.toml.
 #[cfg(not(target_os = "ios"))]
 mod voice;
-// "Open in editor" (journal/60) needs a real filesystem/registry to detect
+// "Open in editor" needs a real filesystem/registry to detect
 // installed editors against — out of scope for iOS the same way voice is.
 #[cfg(not(target_os = "ios"))]
 mod editors;
-// tailnet-sidecar (journal/62): spawns an external Go process, which iOS
+// tailnet-sidecar: spawns an external Go process, which iOS
 // can't do at all — same exclusion as voice/editors above.
 #[cfg(not(target_os = "ios"))]
 mod tailnet_sidecar;
@@ -69,7 +69,7 @@ pub fn run() {
         .plugin(tauri_plugin_fs::init())
         .plugin(tauri_plugin_deep_link::init());
 
-    // tailnet-sidecar (journal/62) spawns an external process — not a
+    // tailnet-sidecar spawns an external process — not a
     // capability iOS has at all, same reasoning as the voice/editors
     // exclusions below.
     #[cfg(not(target_os = "ios"))]
@@ -84,7 +84,7 @@ pub fn run() {
     #[cfg(target_os = "macos")]
     let builder = builder.plugin(tauri_plugin_macos_permissions::init());
 
-    // Native chrome layer (SwiftUI/Liquid Glass) — docs/23, Phase E.
+    // Native chrome layer (SwiftUI/Liquid Glass).
     #[cfg(target_os = "ios")]
     let builder = builder.plugin(tauri_plugin_native_chrome::init());
 
@@ -126,7 +126,7 @@ pub fn run() {
 
     builder
         .setup(|app| {
-            // On macOS, with hiddenTitle enabled (docs/21), the title configured in
+            // On macOS, with hiddenTitle enabled, the title configured in
             // tauri.conf.json sometimes doesn't reach the real NSWindow — the Dock menu
             // falls back to Tauri's internal default ("Tauri App"). Force the title explicitly.
             #[cfg(target_os = "macos")]

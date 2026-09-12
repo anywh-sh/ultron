@@ -1,10 +1,9 @@
 import { invoke } from "@tauri-apps/api/core";
 
-/** iOS native menu item (docs/33) — `systemIcon` is the name of an SF Symbol
+/** iOS native menu item — `systemIcon` is the name of an SF Symbol
  * (e.g. `"doc.on.doc"`, `"pencil"`), rendered by UIKit itself on the Swift
  * side. `disabledReason` becomes the `UIAction`'s `subtitle` when `disabled`
- * — used by the edit-message-with-image button (v1 doesn't support it, see
- * docs/20-backlog.md). */
+ * — used by the edit-message-with-image button (v1 doesn't support it). */
 export interface NativeMenuItem {
   id: string;
   label: string;

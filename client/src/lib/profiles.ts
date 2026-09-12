@@ -26,7 +26,7 @@ export interface Profile {
    * `/control/profiles` (the host has no notion of it); only ever set
    * locally, e.g. by importing a profile via deep link. */
   connectToken?: string;
-  /** Tailnet mode (journal/62 F2) — when all three of these are set, the
+  /** Tailnet mode — when all three of these are set, the
    * relay connection is proxied through the tailnet-sidecar instead of
    * dialing `host`/`relayPort` directly: the sidecar joins the tailnet with
    * `tailnetAuthKey`/`tailnetControlUrl` and forwards a local TCP listener
@@ -45,11 +45,11 @@ export interface Profile {
    * this field entirely; it only matters for a manually-configured tailnet
    * profile with no broker at all. */
   tailnetTarget?: string;
-  /** The broker contract (journal/62 CT-1/F3) — a generic
+  /** The broker contract — a generic
    * `POST <brokerUrl>`, signed with the device identity, that answers with
    * a fresh `{endpoint, token}` before every new connection (never reused,
-   * journal/49 D4). Set together with `brokerNodeId`, e.g. by importing a
-   * profile via deep link (F4) — see `isBrokeredProfile`. */
+   * enforced by an anti-replay check server-side). Set together with `brokerNodeId`, e.g. by importing a
+   * profile via deep link — see `isBrokeredProfile`. */
   brokerUrl?: string;
   /** The id this device is known as *to the broker* — sent as the
    * `X-Node-Id` header CT-1 defines. Distinct from `Profile.id` above,
@@ -57,7 +57,7 @@ export interface Profile {
    * device. */
   brokerNodeId?: string;
   /** Where to report the tsnet node key this device earns on its next
-   * tailnet join (journal/62 CT-1 follow-up) — an opaque URL, resolved
+   * tailnet join — an opaque URL, resolved
    * server-side (`POST /v1/nodes/claim`'s `reportUrl`) for the same reason
    * `brokerUrl` is opaque: this client never learns the control plane's own
    * route shape. Set together with `brokerNodeId`/`brokerUrl` by a deep-link
@@ -77,7 +77,7 @@ export function isTailnetProfile(profile: Profile): boolean {
   return canJoin && Boolean(profile.tailnetTarget || isBrokeredProfile(profile));
 }
 
-/** A profile can call the broker (journal/62 CT-1/F3) iff both halves of
+/** A profile can call the broker iff both halves of
  * the contract are set together — the URL to call and the id this device
  * is known as there. Never partially, same "all or nothing" reasoning as
  * `isTailnetProfile`. */
@@ -181,7 +181,7 @@ export function removeProfile(id: string): boolean {
 // that's still being re-registered under a *different* port each time; one
 // that stopped existing entirely — e.g. its `.env` got deleted — needs this
 // instead). A tailnet profile is the one exception — its loopback host is
-// the `importProfile` placeholder (journal/62 F4), swapped for the
+// the `importProfile` placeholder, swapped for the
 // sidecar's real local address by `useRelayClient` before anything is
 // dialed, so it looks identical to a ghost while actually being a live
 // profile whose auth key/broker config exists nowhere else (no host's

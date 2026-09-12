@@ -82,7 +82,7 @@ describe("RevokedProfileBanner", () => {
 
 describe("RevokedProfileBanners", () => {
   it("shows a banner for a revoked profile even when a different one is active/selected", () => {
-    // journal/67: a background chat tab can detect a non-active profile's
+    // A background chat tab can detect a non-active profile's
     // revocation (TabGroupLayout's flat panel layer keeps its RelayClient alive) — the
     // notification can't be gated on `activeProfile` for that to reach the
     // user without them switching back on their own.

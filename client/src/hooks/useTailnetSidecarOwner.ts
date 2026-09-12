@@ -5,8 +5,8 @@ import { resolveTailnetTarget } from "@/lib/tailnetBroker";
 
 /**
  * Holds one sidecar reference for as long as `profile` is in play at the
- * App level — sidebar, profile sync, and theme sync (journal/62, "todo
- * tráfego que não é o WebSocket do chat") all run against `activeProfile`
+ * App level — sidebar, profile sync, and theme sync (any traffic that isn't
+ * the chat's own WebSocket) all run against `activeProfile`
  * before any chat tab for it ever mounts, and until now only a chat tab's
  * `useRelayClient` ever acquired a reference. Mount this once, high in the
  * tree, for whichever profile(s) those App-level hooks are reading — it

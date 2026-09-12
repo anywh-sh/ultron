@@ -1,8 +1,8 @@
-//! journal/62 F2: the real Tauri↔sidecar bridge — supersedes the spike
+//! The real Tauri↔sidecar bridge — supersedes the spike
 //! probes (`tailnet_sidecar_probe`/`tailnet_sidecar_probe_listen`, both
 //! already validated the exact spawn/stdout mechanics used here and are
 //! gone now that the real thing exists). The sidecar itself stays ignorant
-//! of the control plane's API the whole time (CT-1): these commands only
+//! of the control plane's API the whole time: these commands only
 //! ever pass it Ed25519/tsnet primitives — a file path, a method/path/body
 //! to sign, an auth key/control URL/target to join a tailnet with — never a
 //! header name, a route, or anything that would make this module (or the
@@ -21,7 +21,7 @@ use tokio::sync::Mutex;
 /// sharing the same profile share the same tailnet join and local port
 /// instead of each opening a redundant one (the ephemeral `-listen
 /// 127.0.0.1:0` port exists to avoid collision *between different
-/// profiles*, journal/62 CT-2, not between tabs of the same one). A single
+/// profiles*, not between tabs of the same one). A single
 /// `tokio::sync::Mutex` held for the whole start-or-join operation (not
 /// just the map access) also means two tabs racing to open the same
 /// profile at once can't both win and spawn two sidecars for it — the
@@ -35,9 +35,8 @@ struct Running {
 }
 
 /// Where a profile's tailnet node keeps the identity it earned when its
-/// pre-auth key was spent. That key is single use and expires in 15 minutes
-/// (anywh-control-plane's network/pairing.ts, journal/50 3.1), so this
-/// directory surviving is the only thing that lets the profile rejoin the
+/// pre-auth key was spent. That key is single use and expires in 15 minutes,
+/// so this directory surviving is the only thing that lets the profile rejoin the
 /// tailnet later — losing it means re-pairing, not just a slower start.
 /// Per profile: two profiles sharing one directory would fight over a
 /// single node identity.
@@ -69,9 +68,9 @@ fn sanitize_for_path(profile_id: &str) -> String {
 }
 
 /// The name this device shows up as in the tenant's tailnet. Has to match
-/// `node_id` byte-for-byte, no prefix or truncation: anywh-control-plane's
-/// own hostname cross-check (`bindReportedNodeKey`/`reconcile.ts`,
-/// journal/50 3.3) does a plain string comparison against `node.id`, not a
+/// `node_id` byte-for-byte, no prefix or truncation: the control plane's
+/// own hostname cross-check
+/// does a plain string comparison against `node.id`, not a
 /// pattern match — a shortened/prefixed form (the previous
 /// `ultron-<12 chars>` of the pre-rebrand build, live-confirmed via a WebdriverIO e2e run against
 /// production) never matches and the device sits unbound forever. `node_id`
@@ -96,7 +95,7 @@ fn identity_path(app: &tauri::AppHandle) -> Result<PathBuf, String> {
 /// Generates (or loads, if it already exists) the device's Ed25519 keypair
 /// and returns its public key, base64 — the same shape `POST /v1/nodes` and
 /// `POST /v1/nodes/claim` already expect on the control-plane side. The
-/// private key never leaves the sidecar's file (journal/49 D7).
+/// private key never leaves the sidecar's file.
 #[tauri::command]
 pub async fn tailnet_sidecar_identity(app: tauri::AppHandle) -> Result<String, String> {
     let path = identity_path(&app)?;
@@ -130,8 +129,8 @@ pub struct TailnetUpResult {
 }
 
 /// Signs an HTTP request's method/path/body with the device identity, in
-/// the exact format `anywh-control-plane`'s `nodeSignature.ts` expects.
-/// Generic on purpose (CT-1): this command has no idea what the path means
+/// the exact format the control plane's request-signature verification expects.
+/// Generic on purpose: this command has no idea what the path means
 /// or what will be done with the signature — whoever calls it from JS is
 /// the one that knows it's building a request against a specific broker.
 #[tauri::command]
@@ -167,7 +166,7 @@ pub async fn tailnet_sidecar_sign(
 /// Starts (or joins an already-running) `tailnet-up` for `profile_id` and
 /// returns its local listen address (`host:port`) once the sidecar's
 /// stdout confirms it's up — same `LISTENING host:port` line and
-/// `CommandEvent::Stdout` read loop the spike (journal/62 step 4) already
+/// `CommandEvent::Stdout` read loop the earlier spike already
 /// validated, now keeping the child alive instead of killing it right
 /// after the probe. `broker_node_id` (`Profile.brokerNodeId`, absent for a
 /// manually configured profile) is what the tailnet hostname is set from —
@@ -408,7 +407,7 @@ mod tests {
 
     #[test]
     fn hostname_matches_the_node_id_exactly() {
-        // Byte-for-byte, not just "recognizable" — anywh-control-plane's own
+        // Byte-for-byte, not just "recognizable" — the control plane's own
         // cross-check does a plain string comparison, no prefix tolerance
         // (see this function's doc comment for the live bug this pins).
         let name = tailnet_hostname("77974f6e-e0ac-4d07-a0f0-0a8791c23e66");

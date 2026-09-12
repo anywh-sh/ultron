@@ -1,15 +1,15 @@
 import type { IncomingMessage, ServerResponse } from "node:http";
 import { randomUUID } from "node:crypto";
 
-// Structured multiple-choice questions (docs/46) — the relay exposes this as
+// Structured multiple-choice questions — the relay exposes this as
 // a real MCP tool (`present_choice`) instead of relying on the model to
 // follow a text convention, so the client gets a genuine `tool_use` to
 // render a picker from, the same guarantee the native `AskUserQuestion` has
-// in interactive mode (unavailable to us in headless, see docs/46
-// Descoberta 7 — it never gets a real answer channel there).
+// in interactive mode (unavailable to us in headless — it never gets a real
+// answer channel there).
 //
 // Input schema mirrors `AskUserQuestion`'s real one on purpose (captured
-// from a live call in docs/46) — the model already has training affinity
+// from a live call) — the model already has training affinity
 // with this exact shape, which came out more reliable in testing than a
 // schema invented from scratch.
 export interface ChoiceOption {
@@ -34,7 +34,7 @@ export interface ChoiceAnswer {
  * `SharedSession` doesn't need to know anything about MCP/JSON-RPC framing,
  * only "here's a question, publish it".
  *
- * Synchronous and fire-and-forget on purpose (docs/46 Descoberta 8 — this
+ * Synchronous and fire-and-forget on purpose (this
  * used to be `Promise<ChoiceAnswer[]>`, held open by `handleRequest` until a
  * human answered): the CLI kills any MCP `tools/call` that takes longer than
  * ~6 minutes to resolve, no documented override actually prevents it, and a
@@ -74,7 +74,7 @@ export const CHOICE_ALLOWED_TOOL = `mcp__${CHOICE_MCP_SERVER_NAME}__${TOOL_NAME}
 // `present_choice` — this was never a discoverability gap on its own, the
 // model just has no trained reflex toward an MCP tool the way it does
 // toward the *native* `AskUserQuestion` (which can't be used here at all —
-// it never gets a real answer channel in headless, docs/46 Descoberta 7).
+// it never gets a real answer channel in headless).
 // An explicit imperative line fixed it in that same test. `CHOICE_USAGE_HINT`
 // below is that line, folded into `--append-system-prompt` only for turns
 // where `present_choice` is registered (`SharedSession.runTurn`). It's a
@@ -87,7 +87,7 @@ export const CHOICE_USAGE_HINT =
   `that feels like the natural way to ask. ${TOOL_NAME} is the only way the human's answer becomes ` +
   "a real UI selection instead of a message they have to type by hand.";
 
-// docs/46 (deferred lifecycle, Descoberta 8) — the `tool_result` text for a
+// The `tool_result` text for a
 // successful `present_choice` call. Doesn't carry any answer (there isn't
 // one yet): its whole job is to get the model to stop turning, imperatively,
 // since the only way the human's eventual answer reaches the conversation is
@@ -189,13 +189,13 @@ function sendJson(res: ServerResponse, status: number, body: unknown): void {
  * general client library, just enough of the handshake (`initialize` →
  * `notifications/initialized` → `tools/list` → `tools/call`) to serve the
  * one tool `present_choice` needs, validated by hand against the real
- * `claude` binary before writing this (docs/46: confirmed `--mcp-config`
+ * `claude` binary before writing this (confirmed `--mcp-config`
  * accepts a `"type": "http"` server, confirmed the exact request/response
  * shapes below).
  *
  * `tools/call` used to hold the HTTP response open until a human answered —
- * confirmed working (no token cost while waiting) but abandoned (docs/46
- * Descoberta 8): the CLI kills a `tools/call` that takes longer than ~6
+ * confirmed working (no token cost while waiting) but abandoned: the CLI
+ * kills a `tools/call` that takes longer than ~6
  * minutes to resolve, with no working override, and a human on their phone
  * routinely takes longer than that. `ChoiceHost.presentChoice` is now
  * synchronous — this bridge replies immediately, telling the model to end

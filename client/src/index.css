@@ -3,7 +3,7 @@
 @import "@fontsource-variable/jetbrains-mono";
 
 /*
- * Paleta e tipografia travadas em docs/17-uiux-brainstorm-decisoes.md.
+ * Paleta e tipografia travadas de propósito.
  *
  * `:root` é a definição do tema embutido "default" (escuro) e, ao mesmo
  * tempo, o fallback de todo token que um tema customizado não declarar
@@ -35,11 +35,11 @@
      — interpola de `--primary` (0%) até aqui (~70%) e daqui até `--destructive`
      (~90%+) via color-mix(), nunca hex fixo nos dois extremos: trocar
      `--primary` no futuro já muda o início do gradiente sozinho. Não existe
-     um "amarelo" na paleta docs/17 (só primary/destructive), então esse é
+     um "amarelo" na paleta (só primary/destructive), então esse é
      o único tom novo introduzido pra essa feature. */
   --context-ring-warn: #d9a441;
   /* Só pra linha adicionada em diff/preview de código (CodeLines) — não é
-     cor de UI (docs/17), é o mesmo motivo do hljs-string/number abaixo:
+     cor de UI, é o mesmo motivo do hljs-string/number abaixo:
      `--primary` é laranja/terracota, perto demais de `--destructive` em
      matiz pra funcionar como "verde" de adição (um card de Write, que é
      tudo adição, ficava com cara de "tudo removido"). */
@@ -288,7 +288,7 @@ body {
  * independent `vh`/`dvh` calculation of its own (App.tsx's root div), which
  * can disagree with it in a WKWebView and clip or leave a gap under
  * whatever sits at the bottom of the layout (found live testing
- * `ChoiceCard` on iOS — journal/46 follow-up). */
+ * `ChoiceCard` on iOS). */
 #app {
   height: 100%;
 }
@@ -309,7 +309,7 @@ body {
 }
 
 /* Waveform da gravação de voz — animação visual genérica (não é áudio real
- * captado, decisão desta sessão: docs/18). */
+ * captado, decisão de propósito). */
 @keyframes waveform-bar {
   0%,
   100% {
@@ -355,14 +355,14 @@ body {
  * (nosso `truncate` usa `white-space:nowrap`), então nenhum filho nunca
  * chega a "estourar" localmente pra disparar o `text-overflow:ellipsis`; o
  * corte que aparece vem de um `overflow-hidden` mais acima, sem reticências
- * (achado testando nome de sessão longo na sidebar — docs/21). `!important`
+ * (achado testando nome de sessão longo na sidebar). `!important`
  * é necessário pra vencer o inline style; sem isso não tem outra forma de
  * sobrescrever (não é uma classe que dê pra trocar via props do componente). */
 [data-radix-scroll-area-viewport] > div {
   display: block !important;
 }
 
-/* Drawer de sessões em "reveal" no iOS (docs/24) — a tela inteira do agente
+/* Drawer de sessões em "reveal" no iOS — a tela inteira do agente
  * desliza pra direita revelando a sidebar atrás, em vez de um overlay com
  * scrim por cima. O estado assentado (classe `.pushed`) transiciona por
  * CSS; o arraste ao vivo (useRevealDrawer.ts) escreve os mesmos estilos
@@ -386,7 +386,7 @@ body {
     0 0 0 1px color-mix(in srgb, var(--glass-tint) 5%, transparent);
 }
 
-/* Scrollbars finas/customizadas (sidebar + log de mensagens) — docs/17. */
+/* Scrollbars finas/customizadas (sidebar + log de mensagens). */
 .scrollbar-thin {
   scrollbar-width: thin;
   scrollbar-color: var(--border) transparent;
@@ -415,7 +415,7 @@ body {
   line-height: 1.4;
   color: var(--foreground);
 }
-/* iOS (docs/24): WebKit faz auto-zoom da página inteira ao focar um input
+/* iOS: WebKit faz auto-zoom da página inteira ao focar um input
  * com font-size < 16px — o meta viewport já desliga isso
  * (`user-scalable=no`), mas 16px aqui também é defesa em profundidade (e
  * combina com o texto maior do resto da UI mobile). Fixo em px, não
@@ -446,7 +446,7 @@ body {
   cursor: text;
 }
 
-/* `/model haiku` etc reconhecido no composer (docs/27) — barra apagada, nome
+/* `/model haiku` etc reconhecido no composer — barra apagada, nome
  * do comando na cor primária cheia; o parâmetro (se houver) fica sem
  * decoração nenhuma, de propósito (pedido do usuário). */
 .composer-command-slash {
@@ -604,7 +604,7 @@ body {
   text-align: left;
 }
 
-/* Terminal embutido (docs/30) — o CSS do próprio pacote xterm.js força fundo
+/* Terminal embutido — o CSS do próprio pacote xterm.js força fundo
  * preto sólido no viewport (`.xterm-viewport { background-color: #000 }`,
  * comentado lá como "necessário no OS X pra scrollbar ficar opaca"). Pinta
  * com a mesma cor sólida do painel (`--bg-sidebar`, igual `theme.background`
@@ -627,7 +627,7 @@ body {
 /* Syntax highlight (rehype-highlight/hljs) — tema mínimo em cima da própria
  * paleta em vez de importar um tema pronto do highlight.js. Os tons vêm de
  * tokens próprios (--syntax-*, ver :root): sintaxe não faz parte da paleta
- * de UI do docs/17, que não cobria código, e precisa ser escolhida
+ * de UI, que não cobria código, e precisa ser escolhida
  * separadamente por um tema — o contraste que funciona pra texto de UI não
  * é o mesmo que funciona dentro de um bloco de código. */
 .hljs-comment,

@@ -44,7 +44,7 @@ import { isIOS } from "@/lib/platform";
 import { cn } from "@/lib/utils";
 
 /** Optional override via query string (`?profile=&session=`) — only to allow
- * a direct deep-link to a specific state in tests via Playwright (docs/13). */
+ * a direct deep-link to a specific state in tests via Playwright. */
 function readQueryOverride(): { profile: string | null; session: string | null } {
   const params = new URLSearchParams(window.location.search);
   return { profile: params.get("profile"), session: params.get("session") };
@@ -78,8 +78,7 @@ export default function App() {
   const { supported: profilesSupported } = useProfileSync(activeProfile);
   // Holds the active profile's tailnet-sidecar reference for as long as it's
   // selected — the sidebar/sync hooks above run against it before any chat
-  // tab (the only other thing that used to acquire one) ever mounts for it
-  // (journal/62, "todo tráfego que não é o WebSocket do chat").
+  // tab (the only other thing that used to acquire one) ever mounts for it.
   useTailnetSidecarOwner(activeProfile);
 
   // The painted theme tracks its own profile, separate from `activeProfile`:
@@ -102,7 +101,7 @@ export default function App() {
   const [drawerOpen, setDrawerOpen] = useState(false);
   const [searchOpen, setSearchOpen] = useState(false);
   const [settingsOpen, setSettingsOpen] = useState(false);
-  // Connection state per tab — used by TitleBar/MobileTopBar (docs/24), which
+  // Connection state per tab — used by TitleBar/MobileTopBar, which
   // live outside ChatPanel. Fed by `renderPanel`'s `onConnectedChange` below.
   // Keyed by tab id (not a single flag) because desktop's TabGroupLayout keeps
   // every tab's ChatPanel mounted at once (its flat panel layer, see the
@@ -118,7 +117,7 @@ export default function App() {
     void ensureNotificationPermission();
   }, []);
 
-  // Global search shortcut (Ctrl/Cmd+K — docs/21), on any screen.
+  // Global search shortcut (Ctrl/Cmd+K), on any screen.
   useEffect(() => {
     function handleKeyDown(event: KeyboardEvent): void {
       if (event.key.toLowerCase() === "k" && (event.metaKey || event.ctrlKey)) {
@@ -131,8 +130,8 @@ export default function App() {
   }, []);
 
   // First launch: restores last time's tabs (full list + order + which one
-  // was active), across all profiles together (docs/29). Only runs once,
-  // while no tab is open yet. The test deep-link via query string (docs/13)
+  // was active), across all profiles together. Only runs once,
+  // while no tab is open yet. The test deep-link via query string
   // takes priority and still opens only the requested session, in the given
   // profile (or the default one).
   useEffect(() => {
@@ -166,7 +165,7 @@ export default function App() {
     });
   }, [tabsState.tabs]);
 
-  // Pushes a history entry (titlebar Back/Forward — docs/21) every time the
+  // Pushes a history entry (titlebar Back/Forward) every time the
   // active tab changes, except when the change came from goBack/goForward
   // itself (the hook filters that out internally).
   useEffect(() => {
@@ -278,8 +277,7 @@ export default function App() {
 
   /** Explicit `profileId` (not always `activeProfile`) for the same reason as
    * `handleDeleteSession` right below: it's also called from a tab belonging
-   * to a profile other than the one currently selected in the sidebar
-   * (docs/29). */
+   * to a profile other than the one currently selected in the sidebar. */
   function handleRenameSession(profileId: string, id: string, title: string): void {
     const profile = findProfile(profileId);
     if (!profile) return;
@@ -299,7 +297,7 @@ export default function App() {
    * transcript that Claude Code already keeps on its own. Explicit
    * `profileId` (not always `activeProfile`) because it's also called from a
    * tab belonging to a profile other than the one currently selected in the
-   * sidebar (docs/29). */
+   * sidebar. */
   function handleDeleteSession(profileId: string, id: string): void {
     const profile = findProfile(profileId);
     if (!profile) return;
@@ -331,15 +329,15 @@ export default function App() {
     }
   }
 
-  // Embedded terminal (docs/30) — desktop only (the original screenshot/flow
+  // Embedded terminal — desktop only (the original screenshot/flow
   // is clearly desktop, iOS is left out for now, same gate that voice/titlebar
-  // already use — docs/23).
+  // already use).
   function handleToggleTerminalPanel(): void {
     if (isCompact || isIOS() || !activeTabId) return;
     sessionDock.togglePane(activeTabId, "terminal");
   }
 
-  // Work dir file panel (docs/41) — same desktop-only gate as the terminal.
+  // Work dir file panel — same desktop-only gate as the terminal.
   function handleToggleFilesPanel(): void {
     if (isCompact || isIOS() || !activeTabId) return;
     sessionDock.togglePane(activeTabId, "files");
@@ -486,14 +484,14 @@ export default function App() {
   ]);
 
   // "Running" sessions only for the profile currently selected in the
-  // sidebar — that's the universe the sidebar list shows (docs/29: tabs
+  // sidebar — that's the universe the sidebar list shows (tabs
   // themselves no longer have a notion of selected profile, only the sidebar
   // does).
   const runningSessions = new Set(
     tabsState.tabs.filter((tab) => tab.profileId === activeProfile.id && tab.isRunning).map((tab) => tab.id),
   );
-  // Same reasoning as `runningSessions` — only covers sessions open as a tab
-  // (docs/32, Phase E): a session without a tab has no live WS connection to
+  // Same reasoning as `runningSessions` — only covers sessions open as a tab:
+  // a session without a tab has no live WS connection to
   // know whether it has a job running, same limitation `isRunning` already
   // had.
   const backgroundJobSessions = new Set(
@@ -519,7 +517,7 @@ export default function App() {
 
   const activeTab = tabsState.tabs.find((tab) => tab.id === activeTabId);
 
-  // A tab can belong to any profile (docs/29) — each one's `ChatPanel` uses
+  // A tab can belong to any profile — each one's `ChatPanel` uses
   // the profile recorded on the tab itself, not the profile currently
   // selected in the sidebar.
   const renderPanel = (tab: Tab) => {
@@ -596,7 +594,7 @@ export default function App() {
 
     if (isCompact || isIOS()) return chatContent;
 
-    // Embedded terminal (docs/30) and files pane (docs/41), desktop only.
+    // Embedded terminal and files pane, desktop only.
     // `isVisible` is what implements "switching to another tab in this same
     // group closes the dock on its own, coming back reopens it the way it
     // was": `TabGroupLayout` keeps ALL tabs mounted in the background (its
@@ -679,7 +677,7 @@ export default function App() {
   //
   // `relative` down here isn't about layout — without it, iOS's
   // MobileTopBar/composer `backdrop-filter` doesn't sample the message log
-  // on real WebKit (real bug, reproduced via Playwright WebKit — docs/24).
+  // on real WebKit (real bug, reproduced via Playwright WebKit).
   // Any `position: static` div in this chain up to `.mobile-canvas` breaks
   // the blur. Don't remove it even though it looks redundant — harmless for
   // desktop (doesn't change position/size of anything).
@@ -688,7 +686,7 @@ export default function App() {
       {tabsState.tabs.length === 0 ? (
         <EmptyState />
       ) : isIOS() ? (
-        // iOS (docs/23, Phase B): the MVP is one session in focus at a time,
+        // iOS: the MVP is one session in focus at a time,
         // without keeping several WebSocket connections alive in parallel in
         // the background — only mounts the active session, without
         // TabGroupLayout's tab mechanism (forceMount/dnd-kit, designed for
@@ -741,8 +739,7 @@ export default function App() {
       // calculations that can disagree with the `body { position: fixed; inset: 0 }`
       // hack in index.css (already pinned to the real visible viewport). `h-full`
       // instead inherits that exact box via `#app { height: 100% }` (found live
-      // testing `ChoiceCard` clipping/leaving a gap under the composer on iOS,
-      // journal/46 follow-up).
+      // testing `ChoiceCard` clipping/leaving a gap under the composer on iOS).
       <div className="flex h-full w-screen flex-col overflow-hidden bg-background text-foreground">
         <RevokedProfileBanners />
         {profileSetupDialog}

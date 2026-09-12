@@ -20,7 +20,7 @@ import { INITIAL_HISTORY_TAIL_TURNS, findEditTarget, pageHistoryBefore, type Edi
 import { isPermissionMode, type ContextUsage, type ModelChoice, type PermissionMode } from "./sessionStore.js";
 import { toBackgroundJobSummary, type BackgroundJobSummary, type FinishedBackgroundJob, type WatchedJob } from "./backgroundJobs.js";
 
-/** docs/32 Phase D — text of the synthetic turn fired when an `anywh-bg`
+/** Text of the synthetic turn fired when an `anywh-bg`
  * job finishes. Explicit instruction to only report (not start new work nor
  * another `anywh-bg`) — without this guard, an automatic turn that already
  * has tools unlocked (same `permissionMode` as the session) could turn into
@@ -31,7 +31,7 @@ import { toBackgroundJobSummary, type BackgroundJobSummary, type FinishedBackgro
  * reply (shown to the user in the chat log) will follow.
  */
 function buildBackgroundJobFollowupPrompt(job: FinishedBackgroundJob): string {
-  // `terminated` (journal/32 Fase G) is NOT a failure: the wrapper was
+  // `terminated` is NOT a failure: the wrapper was
   // killed from the outside (`pkill`, SIGKILL, reboot) without leaving an
   // exit code behind, usually because the user or the model deliberately
   // took the process down. Saying "exit -1" here would make the model
@@ -53,7 +53,7 @@ function buildBackgroundJobFollowupPrompt(job: FinishedBackgroundJob): string {
   );
 }
 
-/** docs/46 Fase 5 — human-readable summary of a tool call for the generic
+/** Human-readable summary of a tool call for the generic
  * approval question in `checkPermission` below. Only the field that best
  * identifies the action is picked per tool; anything unrecognized falls
  * back to a truncated JSON dump so no call is ever unreadable, just less
@@ -90,12 +90,12 @@ export type BroadcastMessage =
 // past changes.
 
 export interface SharedSessionOptions {
-  /** session_id already persisted for this session (Phase 7 / docs/18), if any. */
+  /** session_id already persisted for this session, if any. */
   initialSessionId?: string;
   /** Called with the session_id learned after every successful turn — this
    * is how SessionManager writes it to SessionStore. */
   onSessionIdChange?: (sessionId: string) => void;
-  /** Called when `/clear` drops local continuity (docs/26) — this is how
+  /** Called when `/clear` drops local continuity — this is how
    * SessionManager erases the session_id recorded in SessionStore,
    * otherwise a relay restart would go back to `--resume`ing the
    * already-cleared conversation. */
@@ -128,14 +128,14 @@ export interface SharedSessionOptions {
    * title generation in parallel with the turn (doesn't block the
    * response). Deliberately decoupled from `onLockChange`: a session whose
    * first messages are `/model opus`/`/clear` locks the cwd normally on the
-   * first turn, but only gets a title once a real message arrives
-   * (docs/26) — without this the title would come out of the command text. */
+   * first turn, but only gets a title once a real message arrives —
+   * without this the title would come out of the command text. */
   onFirstPrompt?: (text: string) => void;
   /** Called at the start of EVERY turn (not just the first) — this is what
    * lets SessionManager mark `lastActiveAt` in SessionStore, used to sort
    * the sidebar by last interaction. */
   onActivity?: () => void;
-  /** Permission mode already persisted for this session (docs/25), or
+  /** Permission mode already persisted for this session, or
    * `"bypassPermissions"` for a new session — same hardcoded behavior as
    * before this feature existed. */
   initialPermissionMode: PermissionMode;
@@ -150,7 +150,7 @@ export interface SharedSessionOptions {
    * is how SessionManager writes it to SessionStore. May not fire for a
    * turn that failed before any API call. */
   onContextUsageChange?: (usage: ContextUsage) => void;
-  /** Model already persisted for this session (docs/26), or `undefined` if
+  /** Model already persisted for this session, or `undefined` if
    * never chosen via `/model` — in that case `--model` isn't passed on
    * spawn, identical behavior to before this feature existed. */
   initialModel?: ModelChoice;
@@ -160,9 +160,9 @@ export interface SharedSessionOptions {
   /** Called with every `ClaudeEvent` of every turn (real or a background
    * follow-up) — this is how `SessionManager` wires up the
    * `BackgroundJobTracker` without `SharedSession` needing to know anything
-   * about `anywh-bg` (docs/32, Phase D). Purely observational. */
+   * about `anywh-bg`. Purely observational. */
   onEvent?: (event: ClaudeEvent) => void;
-  /** docs/32 Phase F — called with the id of an `anywh-bg` job the user
+  /** Called with the id of an `anywh-bg` job the user
    * asked to cancel from the UI. Same reasoning as `onEvent`: `SharedSession`
    * doesn't know anything about `BackgroundJobTracker`, it just passes it
    * along for `SessionManager` to decide what to do. */
@@ -181,7 +181,7 @@ export interface SharedSessionOptions {
    * by a new turn/`/clear`/edit) — this is how SessionManager writes it to
    * SessionStore. */
   onSuggestionChange?: (suggestion: string | null) => void;
-  /** docs/46 — shared by every session in the process (like
+  /** Shared by every session in the process (like
    * `SessionManager` itself); `undefined` only in tests that don't exercise
    * this feature, in which case `present_choice` is simply never offered to
    * the model (no `--mcp-config` passed), same as before this feature
@@ -193,7 +193,7 @@ export interface SharedSessionOptions {
    * the relay's machine, `spawn()` never crosses a network, see
    * `claudeSession.ts`). `undefined` alongside `mcpChoiceBridge` in tests. */
   mcpBridgeBaseUrl?: string;
-  /** docs/46 Fase 4 — same lifecycle/sharing as `mcpChoiceBridge`, just for
+  /** Same lifecycle/sharing as `mcpChoiceBridge`, just for
    * `--permission-prompt-tool` instead of `present_choice`. `undefined` in
    * tests that don't exercise this feature, same reasoning. */
   mcpPermissionBridge?: McpPermissionBridge;
@@ -208,8 +208,7 @@ export type SetCwdResult = { ok: true } | { ok: false; error: string };
 /**
  * A Claude session shared by every client connected to it. New clients
  * receive a history replay before switching over to live events — this is
- * what gives the "real-time shared session" across devices (old docs/04,
- * now via docs/11).
+ * what gives the "real-time shared session" across devices.
  */
 export class SharedSession {
   private readonly claude: ClaudeSession;
@@ -245,13 +244,13 @@ export class SharedSession {
    * doesn't go into `history`: a client connecting (or reconnecting) picks
    * up the current value via `addClient`, same as `sendCwdState`. */
   private turnStartedAt: number | null = null;
-  /** `anywh-bg` jobs currently watched in this session — docs/32 Phase E.
+  /** `anywh-bg` jobs currently watched in this session.
    * Same as `contextUsage`/`suggestion`: in-memory only (doesn't persist
    * across a relay restart), it's `BackgroundJobTracker` itself that
    * survives (or not) between restarts — this list is just a mirror of
    * what it knows RIGHT NOW. */
   private backgroundJobs: BackgroundJobSummary[] = [];
-  /** docs/46 (deferred lifecycle, Descoberta 8) — two SEPARATE slots, not one
+  /** Two SEPARATE slots, not one
    * discriminated union anymore. They used to share a single field (told
    * apart by a `kind: "mcp" | "planText"` tag) because both were "a question
    * waiting for a human" — but they now have genuinely incompatible
@@ -335,7 +334,7 @@ export class SharedSession {
   }
 
   /** Unlike `setCwd`, has no lock or validation — any of the 4 values is
-   * always acceptable at any point in the conversation (docs/25). */
+   * always acceptable at any point in the conversation. */
   setPermissionMode(mode: PermissionMode): void {
     this.permissionMode = mode;
     this.options.onPermissionModeChange?.(mode);
@@ -344,7 +343,7 @@ export class SharedSession {
 
   /** Same pattern as `setPermissionMode` — takes effect from the next turn
    * on, no lock or value validation (the WS handler already validates
-   * against `MODEL_CHOICES` before it gets here, docs/26). */
+   * against `MODEL_CHOICES` before it gets here). */
   setModel(model: ModelChoice): void {
     this.model = model;
     this.options.onModelChange?.(model);
@@ -388,7 +387,7 @@ export class SharedSession {
     return { ok: true };
   }
 
-  /** docs/32 Phase E — called by `SessionManager` (via
+  /** Called by `SessionManager` (via
    * `BackgroundJobTracker.onChanged`) whenever this session's list of
    * watched `anywh-bg` jobs changes. Same pattern as
    * `setTitle`/`setPermissionMode`: updates local state and notifies
@@ -398,7 +397,7 @@ export class SharedSession {
     this.broadcastBackgroundJobs();
   }
 
-  /** docs/32 Phase F — cancellation request coming from the UI (the
+  /** Cancellation request coming from the UI (the
    * `ChatPanel` chip). Pure passthrough to `SessionManager`;
    * `setBackgroundJobs` (called by it via the tracker's `onChanged`)
    * already takes care of telling clients the job disappeared from the
@@ -407,7 +406,7 @@ export class SharedSession {
     this.options.onCancelBackgroundJob?.(jobId);
   }
 
-  /** docs/46 (deferred lifecycle, Descoberta 8) — called by the MCP bridge
+  /** Called by the MCP bridge
    * (`McpChoiceBridge`, `ChoiceHost.presentChoice`) when the model calls
    * `present_choice`. Used to return a `Promise<ChoiceAnswer[]>` and hold the
    * tool call open until `answerChoice` resolved it — abandoned because the
@@ -440,7 +439,7 @@ export class SharedSession {
     return true;
   }
 
-  /** docs/46 Fase 5 — called by the permission-prompt-tool bridge
+  /** Called by the permission-prompt-tool bridge
    * (`McpPermissionBridge`) for every tool call the CLI itself decided
    * needs human approval given the turn's current mode (see
    * `runTurn`'s `permissionRegistration` — wired for every mode except
@@ -450,8 +449,8 @@ export class SharedSession {
    * and `acceptEdits` still routes a dangerous-looking `Bash` (`rm -rf`)
    * here despite auto-allowing harmless file edits. So there's no risk
    * policy left for us to invent: anything that reaches this function
-   * already needs a real yes/no, we just have to ask it instead of the old
-   * Fase 4 blanket auto-allow.
+   * already needs a real yes/no, we just have to ask it instead of the
+   * blanket auto-allow this replaced.
    *
    * `ExitPlanMode` keeps its own wording (a mode transition reads
    * differently than "approve this action"), everything else gets a
@@ -463,9 +462,8 @@ export class SharedSession {
    * `presentApprovalChoice`/`answerChoice` already handle every lifecycle
    * edge case (multi-device "first answer wins", cancellation on any form of
    * turn end, Stop button) that a fresh mechanism would need to reimplement
-   * — this is why Fase 5 needed no new turn-state UI despite the scope in
-   * docs/46 "Ressalvas": the mechanism was already generic, only Fase 4's
-   * policy was narrow. */
+   * — so reusing it needed no new turn-state UI: the mechanism was already
+   * generic, only the policy it replaced was narrow. */
   private async checkPermission(toolName: string, input: unknown, _toolUseId: string | undefined): Promise<PermissionDecision> {
     const isExitPlanMode = toolName === "ExitPlanMode";
     const question = isExitPlanMode
@@ -480,7 +478,7 @@ export class SharedSession {
     };
   }
 
-  /** docs/46 (deferred lifecycle) — the permission-approval counterpart to
+  /** The permission-approval counterpart to
    * `presentChoice`, kept BLOCKING on purpose: `--permission-prompt-tool`
    * calls stay open in `McpPermissionBridge` (`permissionBridge.ts`) because
    * the CLI itself is paused mid-turn waiting for a verdict to decide
@@ -495,9 +493,9 @@ export class SharedSession {
    * time, so there's no scenario where a second call would arrive before
    * this one resolves — unlike `presentChoice`, no acceptance check is
    * needed here. The returned promise only settles from `answerChoice`
-   * below — genuinely unbounded wait, by design (docs/46: matches how the
+   * below — genuinely unbounded wait, by design (matches how the
    * real interactive CLI already behaves, still subject to the SAME ~6
-   * minute CLI timeout as `present_choice` used to be, Descoberta 8 — that
+   * minute CLI timeout as `present_choice` used to be — that
    * remains a known, open limitation for THIS path, deliberately out of
    * scope for the present rework, see `runTurn`'s `mcpServers` comment).
    * Every lifecycle path that could leave this dangling — client disconnect,
@@ -512,11 +510,11 @@ export class SharedSession {
     });
   }
 
-  /** docs/46 Fase 4 — the CLI reports its own permission-mode transitions
+  /** The CLI reports its own permission-mode transitions
    * (e.g. right after approving `ExitPlanMode` mid-turn) via a
    * `{"type":"system","subtype":"status","permissionMode":...}` event,
    * observed immediately after the triggering `tool_use` and before its
-   * `tool_result` (confirmed against the real binary, docs/46). Without
+   * `tool_result` (confirmed against the real binary). Without
    * this, the dropdown would keep showing the mode the human picked before
    * the turn started even though the CLI already moved on, AND the next
    * spawn's `--resume` would pass the stale mode again and silently undo
@@ -545,7 +543,7 @@ export class SharedSession {
    * future lookups, it doesn't reach into an already-in-flight call).
    *
    * Deliberately does NOT touch `pendingChoice` — that's the entire point of
-   * this feature (docs/46 deferred lifecycle): a `present_choice`/plan-marker
+   * this feature: a `present_choice`/plan-marker
    * prompt must survive the turn that created it, precisely so a slow human
    * can still answer it after the turn (and the `claude` child that asked)
    * is long gone. See the doc comment on `pendingApproval`/`pendingChoice`
@@ -580,8 +578,8 @@ export class SharedSession {
   /** Called from the WS handler (`server.ts`) when any connected device
    * answers. Checks `pendingApproval` first, then `pendingChoice` — a
    * `promptId` only ever matches one of the two (they're independent random
-   * UUIDs, docs/46), the order just picks which lookup happens first.
-   * "First answer wins" (docs/46 multi-device requirement) applies to each
+   * UUIDs), the order just picks which lookup happens first.
+   * "First answer wins" applies to each
    * slot independently: once resolved, that slot is cleared immediately, so
    * a second device racing to answer the same prompt simply gets `false`
    * back (its answer is a no-op) instead of a confusing double-resolution —
@@ -637,7 +635,7 @@ export class SharedSession {
     if (this.pendingApproval) this.sendChoicePrompt(socket, this.pendingApproval, "approval");
 
     this.ensureHistoryLoaded();
-    // Phase 2 (docs/30) — only the recent tail (`INITIAL_HISTORY_TAIL_TURNS`
+    // Only the recent tail (`INITIAL_HISTORY_TAIL_TURNS`
     // turns), not the whole `history`: long sessions (a real finding, "IVT
     // Fix" — 1670 reconstructed lines) used to stall the connection by
     // sending everything at once. The rest comes on demand via
@@ -656,7 +654,7 @@ export class SharedSession {
     this.clients.add(socket);
   }
 
-  /** Phase 2 (docs/30) — on-demand fetch of turns older than the tail sent
+  /** On-demand fetch of turns older than the tail sent
    * in `addClient`, triggered by the user scrolling up in the UI. Only
    * responds to the socket that asked: it's not a session event (doesn't
    * enter `history` again, it's already there), it's a one-off lookup for
@@ -685,7 +683,7 @@ export class SharedSession {
   /**
    * `history` has always been in-memory only — it disappears on every relay
    * restart, even though Claude Code has the complete transcript on disk
-   * (docs/20-backlog, "Message history reconstruction via `.jsonl`"). Runs
+   * (reconstructed from the `.jsonl` transcript, see `transcriptReader.ts`). Runs
    * once per process: once loaded, `history` is never empty again for this
    * session. Without `initialSessionId` there's nothing to read (new session).
    */
@@ -714,7 +712,7 @@ export class SharedSession {
     this.turnQueue = this.turnQueue.then(() => this.runTurn(origin, text));
   }
 
-  /** docs/32 Phase D — fired by `BackgroundJobTracker` (via
+  /** Fired by `BackgroundJobTracker` (via
    * `SessionManager`) when a job started with `anywh-bg` finishes AFTER
    * the original turn that launched it has already ended (the reason
    * `anywh-bg` exists: that turn's `claude -p` process has already died,
@@ -736,7 +734,7 @@ export class SharedSession {
   }
 
   /**
-   * Message edit (docs/33): stop the current turn (if any) + cut the real
+   * Message edit: stop the current turn (if any) + cut the real
    * `.jsonl` at the edited message's point + run a new turn with the edited
    * text — automatic from this single call. Interrupts the turn BEFORE
    * enqueueing (not inside `performEdit`) to avoid waiting for the response
@@ -827,7 +825,7 @@ export class SharedSession {
     return this.turnQueue;
   }
 
-  /** `/clear` (docs/26) — same queue as real turns (`turnQueue`), so it
+  /** `/clear` — same queue as real turns (`turnQueue`), so it
    * never runs in parallel with a turn in progress and risks one of the
    * two overwriting the other's `session_id`/`history` out of order.
    * Doesn't touch permissionMode or model — only the conversation's CONTENT
@@ -847,7 +845,7 @@ export class SharedSession {
       this.options.onSessionIdClear?.();
       // Same reasoning as the session_id/history reset above: the title
       // described the conversation that no longer exists. Also rearms
-      // `onFirstPrompt` (docs/26) so the next real message gets a fresh one
+      // `onFirstPrompt` so the next real message gets a fresh one
       // instead of it staying stuck on the old conversation's title forever.
       this.title = null;
       this.firstPromptSeeded = false;
@@ -920,7 +918,7 @@ export class SharedSession {
         this.options.onLockChange?.();
         this.broadcastCwdState();
       }
-      // Commands (`/clear`, `/model` etc, docs/26) don't count as a real
+      // Commands (`/clear`, `/model` etc) don't count as a real
       // first prompt for the title — generation only runs once the first
       // message that doesn't start with "/" arrives, even if it's not the
       // session's first turn. A synthetic turn never counts (it's not
@@ -932,18 +930,18 @@ export class SharedSession {
       }
     }
 
-    // docs/46 — registered fresh for every turn (not once per session):
+    // Registered fresh for every turn (not once per session):
     // the token is the endpoint's only auth, and a turn that ends (however
     // it ends — success, error, or `stopTurn`) must not leave a token alive
     // that a since-exited `claude` child could no longer call anyway. Only
     // built outside `plan` mode: the CLI blocks any non-native tool
-    // categorically there regardless of `--allowedTools` (docs/46,
-    // Descoberta 5) — passing this would be dead weight on every spawn.
+    // categorically there regardless of `--allowedTools` — passing this
+    // would be dead weight on every spawn.
     const choiceRegistration =
       this.options.mcpChoiceBridge && this.permissionMode !== "plan"
         ? this.options.mcpChoiceBridge.registerTurn({ presentChoice: (questions) => this.presentChoice(questions) })
         : undefined;
-    // docs/46 Fase 4/5 — only skipped in `bypassPermissions`, the one mode
+    // Only skipped in `bypassPermissions`, the one mode
     // whose entire point is "don't ask". Merged below with
     // `choiceRegistration` into a single `--mcp-config` when both are active
     // (every mode except `bypassPermissions` — `plan` only gets this one,
@@ -968,7 +966,7 @@ export class SharedSession {
     // server (also acts as a floor under the idle timeout, per the same
     // docs).
     //
-    // UPDATE (2026-09-09, journal/46 Descoberta 8): this override does NOT
+    // UPDATE (2026-09-09): this override does NOT
     // actually work — confirmed live, a call that never resolves still
     // errors out with "The operation timed out" at ~6 minutes with this
     // field set to 24h, matching a known upstream regression (per-server
@@ -985,8 +983,7 @@ export class SharedSession {
     // solved problem: permission-approval will still degrade to an
     // auto-deny after ~6 minutes of no human answer (`sendTurn` surfaces
     // that as a normal tool error, same as any other `claude` failure — the
-    // turn doesn't hang, it just can't get the approval it asked for). See
-    // journal/46 Descoberta 8 for the full investigation.
+    // turn doesn't hang, it just can't get the approval it asked for).
     //
     // `choiceRegistration`'s server (`anywh-choice`) no longer needs any of
     // this: `presentChoice` (mcpBridge.ts's `ChoiceHost`) replies to
@@ -1001,7 +998,7 @@ export class SharedSession {
     // the CLI's MCP tool search can leave `present_choice` listed by name
     // only, schema deferred, and a follow-up system-prompt reminder telling
     // the model to `ToolSearch` for it before calling it was observed live
-    // to still get skipped (journal/46) — the model had that exact
+    // to still get skipped — the model had that exact
     // instruction in context and didn't reach for it anyway, a
     // prompt-adherence gap no wording reliably closes. `alwaysLoad: true`
     // sidesteps the model's choice entirely: the CLI docs confirm it keeps
@@ -1058,7 +1055,7 @@ export class SharedSession {
         this.permissionMode,
         this.model,
         (event) => {
-          // docs/46 Fase 4 — must run BEFORE the broadcast below: a device
+          // Must run BEFORE the broadcast below: a device
           // reconnecting mid-turn right as this arrives should see the
           // updated mode, not a stale one from before this same event was
           // processed. Checked unconditionally (not just when
@@ -1068,7 +1065,7 @@ export class SharedSession {
             this.applyPermissionModeFromCli(event.permissionMode);
           }
           this.broadcast({ type: "claude_event", event });
-          // docs/32 Phase D — lets the `anywh-bg` job tracker (owned by
+          // Lets the `anywh-bg` job tracker (owned by
           // `SessionManager`) see every event of every turn, looking for
           // the start marker. Purely observational: never throws nor
           // alters the turn's flow.
@@ -1112,7 +1109,7 @@ export class SharedSession {
       choiceRegistration?.unregister();
       permissionRegistration?.unregister();
       // Only `pendingApproval` — `pendingChoice` deliberately survives the
-      // turn that created it (docs/46 deferred lifecycle, see the doc
+      // turn that created it (see the doc
       // comment on `cancelPendingApproval`). This is THE inversion this
       // feature made: before it, this line cleared BOTH kinds
       // unconditionally, which is exactly why the `"planText"` prompt (the
@@ -1125,7 +1122,7 @@ export class SharedSession {
       this.broadcastTurnState();
     }
 
-    // docs/46 — plan mode's `present_choice` fallback: that mode never gets
+    // Plan mode's `present_choice` fallback: that mode never gets
     // the MCP tool at all (`choiceRegistration` above is skipped for it), so
     // a genuinely closed question only shows up as a text marker in the
     // final response. Checked here, after the turn (and its `finally`
@@ -1155,7 +1152,7 @@ export class SharedSession {
     for (const client of this.clients) this.sendBackgroundJobs(client);
   }
 
-  /** docs/46 — same "current state" pattern as `sendCwdState`/`sendTurnState`:
+  /** Same "current state" pattern as `sendCwdState`/`sendTurnState`:
    * a device that reconnects (or connects for the first time) mid-wait needs
    * to see the pending question immediately, not just devices that were
    * already there when it was asked. */
@@ -1176,7 +1173,7 @@ export class SharedSession {
 
   /** Tells every connected device the prompt is gone — including whichever
    * one(s) didn't answer, so a stale picker doesn't linger once another
-   * device already resolved it (docs/46 multi-device requirement). */
+   * device already resolved it. */
   private broadcastChoiceResolved(promptId: string): void {
     for (const client of this.clients) client.send(JSON.stringify({ type: "choice_resolved", promptId }));
   }

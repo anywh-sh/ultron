@@ -6,8 +6,8 @@ import { useProfiles } from "@/hooks/useProfiles";
 
 /**
  * Sessions from BOTH profiles — sibling of `useSessionNames.ts` (which only
- * fetches the active profile), to feed the global search (Ctrl/Cmd+K —
- * docs/21). `enabled` controls when it fetches: fresh on every dialog
+ * fetches the active profile), to feed the global search (Ctrl/Cmd+K).
+ * `enabled` controls when it fetches: fresh on every dialog
  * opening, no continuous background polling.
  */
 export function useAllSessionNames(enabled: boolean): {

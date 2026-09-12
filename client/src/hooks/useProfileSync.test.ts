@@ -18,7 +18,7 @@ vi.mock("@/lib/profiles", async (importOriginal) => ({
 
 import { useProfileSync } from "@/hooks/useProfileSync";
 
-// Every tailnet profile shares the same placeholder host (journal/62 F4) —
+// Every tailnet profile shares the same placeholder host —
 // only `id` tells them apart.
 const tailnetProfile: Profile = {
   id: "sandbox-a",
@@ -61,7 +61,7 @@ describe("useProfileSync", () => {
     expect(syncProfilesForHostMock).toHaveBeenCalledWith(directProfile.host, []);
   });
 
-  // journal/62 F4 + a live bug report: a tailnet profile's own `host` is a
+  // A live bug report: a tailnet profile's own `host` is a
   // placeholder ("127.0.0.1"), never a real dial target — every entry
   // `/control/profiles` returns for it describes a profile on the *remote*
   // machine's own loopback (e.g. the sandbox relay's own

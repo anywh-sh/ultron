@@ -1,7 +1,6 @@
 name: Publish
 
-# Separate from release.yml on purpose (journal/62-distribuicao-instalacao-
-# plano.md §8): this only fires once a release is actually published —
+# Separate from release.yml on purpose: this only fires once a release is actually published —
 # release.yml's checksums job is the only thing that flips draft->published,
 # after every build leg has uploaded its assets — so this workflow only ever
 # reads assets that already exist, never races the build matrix. Keeping it
@@ -33,10 +32,10 @@ permissions:
   contents: read
 
 jobs:
-  # Docker isn't here yet — deferred pending journal/62 §6 (decision 6,
-  # multi-profile-in-a-container needs the relay decoupled from systemd
+  # Docker isn't here yet — deferred: multi-profile-in-a-container needs
+  # the relay decoupled from systemd
   # first, which is a real refactor to code the daily-used relay depends on
-  # today, not just new code — see journal/62 for the full trade-off).
+  # today, not just new code).
   homebrew:
     if: github.event_name == 'workflow_dispatch' || github.event.workflow_run.conclusion == 'success'
     runs-on: ubuntu-latest
@@ -79,7 +78,7 @@ jobs:
           path: tap
 
       # macOS only, and only Apple Silicon — release.yml's build-relay job
-      # doesn't publish a darwin-x64 leg (journal/62 §4), so an Intel Mac
+      # doesn't publish a darwin-x64 leg, so an Intel Mac
       # has no asset to point at yet.
       - name: Write the formula
         env:

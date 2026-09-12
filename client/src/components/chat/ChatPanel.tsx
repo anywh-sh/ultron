@@ -48,24 +48,24 @@ interface ChatPanelProps {
    * optimistic update, no round-trip. */
   onActivity?: () => void;
   /** `anywh-bg` jobs currently observed in this session, whenever the list
-   * changes — same pattern as `onTurnActiveChange` (docs/32, Phase E): `App`
+   * changes — same pattern as `onTurnActiveChange`: `App`
    * uses this to feed the tab/sidebar badge, which needs to know even with
-   * the tab out of focus (it stays mounted, WS alive, docs/18). */
+   * the tab out of focus (it stays mounted, WS alive). */
   onBackgroundJobsChange?: (jobs: BackgroundJobSummary[]) => void;
   /** Session deleted, by this device or another one — see
    * sharedSession.ts::closeAllClients. */
   onDeleted?: () => void;
   /** This session's connection state — `App` uses this to feed iOS's
-   * consolidated top bar (docs/24), which lives outside ChatPanel. */
+   * consolidated top bar, which lives outside ChatPanel. */
   onConnectedChange?: (connected: boolean) => void;
-  /** Embedded terminal (docs/30) — desktop only, `App` passes `undefined` on
+  /** Embedded terminal — desktop only, `App` passes `undefined` on
    * iOS/compact viewport and the button doesn't even appear (see
    * renderPanel). */
   terminal?: {
     open: boolean;
     onToggle: () => void;
   };
-  /** Work dir file panel (docs/41) — same desktop-only gating as `terminal`. */
+  /** Work dir file panel — same desktop-only gating as `terminal`. */
   files?: {
     open: boolean;
     onToggle: () => void;
@@ -76,7 +76,7 @@ interface ChatPanelProps {
   onOpenPath?: (path: string) => void;
   /** Only the active tab should react to Tauri's native drag-and-drop —
    * unlike the old HTML5 DnD (scoped by the DOM itself), the native event
-   * reaches ALL mounted instances (background tabs stay mounted, docs/18),
+   * reaches ALL mounted instances (background tabs stay mounted),
    * so each `ChatPanel` needs to know whether it's its turn to handle the
    * drop. */
   isActiveTab: boolean;
@@ -102,7 +102,7 @@ function buildWireMessage(text: string, attachments: PendingAttachment[]): strin
   return [text, refs].filter(Boolean).join("\n\n");
 }
 
-/** Message editing (docs/33) — counts how many `kind: "user"` entries exist
+/** Message editing — counts how many `kind: "user"` entries exist
  * between `id` and the end of `entries` (inclusive), counting from the end
  * (`1` = the last one). Always computable from what's already loaded: history
  * pagination loads back-to-front, so anything AFTER an already-rendered
@@ -158,7 +158,7 @@ export function ChatPanel({
   const caughtUpRef = useRef(false);
   // Same signal, but in state — triggers the re-render that swaps the
   // skeleton for the real log. Goes back to `false` on a real reconnection
-  // (`onReconnecting`, docs/23 Phase D1) — the replay will arrive again from
+  // (`onReconnecting`) — the replay will arrive again from
   // scratch, so the skeleton briefly reappears instead of showing the
   // emptied log with no indication at all.
   const [ready, setReady] = useState(false);
@@ -166,7 +166,7 @@ export function ChatPanel({
   const images = useImageUpload(profile, (message) => window.alert(message));
   const composerRef = useRef<ComposerHandle>(null);
 
-  // Message editing (docs/33). `fromEnd` is computed once, at the moment of
+  // Message editing. `fromEnd` is computed once, at the moment of
   // clicking "edit" (`computeFromEnd`), and stored here instead of
   // recomputed at save time — avoids depending on the log not having changed
   // in between. `editTargetRef`/`performEditRef` exist so
@@ -186,15 +186,15 @@ export function ChatPanel({
   // Tauri's native drag-and-drop (`onDragDropEvent`), not HTML5 DnD — the
   // previous version (DOM dragenter/dragover/drop + `dragDropEnabled:
   // false`) was never actually confirmed with a real drag on macOS (only on
-  // Windows, docs/15); the user reported nothing happened there, consistent
+  // Windows); the user reported nothing happened there, consistent
   // with known WKWebView bugs around this browser API. The native event
   // delivers the file's real path on disk — read via the Rust command
   // `read_dropped_file` (raw bytes, without going through the browser's
   // `File` API) and wrapped in a local `File` to reuse the same upload
   // pipeline as the attach button.
   //
-  // The event reaches ALL mounted tabs (background tabs stay mounted,
-  // docs/18), not just the visible one — hence the `isActiveTabRef` guard.
+  // The event reaches ALL mounted tabs (background tabs stay mounted),
+  // not just the visible one — hence the `isActiveTabRef` guard.
   // It also reaches every panel sharing the window (the file panel has its
   // own native drop target since it added drag-and-drop upload) — `position`
   // (physical pixels) is checked against this component's own bounding
@@ -267,7 +267,7 @@ export function ChatPanel({
   const turnInFlight = turnStartedAt !== null;
 
   // Reports the state to the Tab (`isRunning`) via ref — background tabs
-  // stay mounted (docs/18), so this also covers turns running outside the
+  // stay mounted, so this also covers turns running outside the
   // currently visible tab/profile.
   useEffect(() => {
     onTurnActiveChangeRef.current?.(turnInFlight);
@@ -314,17 +314,17 @@ export function ChatPanel({
       caughtUpRef.current = false;
       setReady(false);
     },
-    // `/clear` (docs/26) — same log clearing a real reconnection already
+    // `/clear` — same log clearing a real reconnection already
     // does, just without going through `ready`/skeleton (the conversation
     // stays "ready", it just became empty).
     onConversationReset: () => logRef.current.reset(),
-    // Initial history tail (Phase 2-4, docs/30) — arrives before
+    // Initial history tail — arrives before
     // `onCaughtUp`, hydrates the log with a single dispatch instead of the
     // old event-by-event replay.
     onHistoryPage: (page) => logRef.current.hydrate(page),
-    // Older turns requested via scrolling up (Phase 5, docs/30).
+    // Older turns requested via scrolling up.
     onOlderHistory: (page) => logRef.current.prependHistory(page),
-    // Message edited on ANOTHER device connected to this session (docs/33) —
+    // Message edited on ANOTHER device connected to this session —
     // same reset+hydrate handling as `onReconnecting`/`onHistoryPage`, just
     // without touching `ready`/`caughtUpRef`: this device is already caught
     // up, it's not a real reconnection.
@@ -421,7 +421,7 @@ export function ChatPanel({
     if (preferredModel && preferredModel !== model) setModel(preferredModel);
   }, [isNewConversation, ready, model, profile.id, setModel]);
 
-  // Records the model in use as the profile's "last used" (docs/26) whenever
+  // Records the model in use as the profile's "last used" whenever
   // it changes to a concrete value — covers manual switching (`ModelButton`,
   // `/model`) and the pre-selection above itself, on purpose: turning
   // "lastUsed" mode back on later shouldn't lose what ran while "fixed" was
@@ -431,8 +431,8 @@ export function ChatPanel({
   }, [model, profile.id]);
 
   // Same pattern as `onTurnActiveChange` above: reports to the Tab via ref —
-  // background tabs stay mounted (docs/18), so this also covers a job
-  // finishing outside the currently visible tab/profile (docs/32, Phase E).
+  // background tabs stay mounted, so this also covers a job
+  // finishing outside the currently visible tab/profile.
   useEffect(() => {
     onBackgroundJobsChangeRef.current?.(backgroundJobs);
   }, [backgroundJobs]);
@@ -443,7 +443,7 @@ export function ChatPanel({
     onConnectedChangeRef.current?.(connected);
   }, [connected]);
 
-  // Message editing (docs/33): truncates locally (optimistic, like a normal
+  // Message editing: truncates locally (optimistic, like a normal
   // send) and sends `edit_message` — the relay stops the current turn (if
   // any), cuts the real transcript at the right point and runs a new turn.
   // If `target.id` no longer matches the requested `id` (e.g. another edit
@@ -467,7 +467,7 @@ export function ChatPanel({
     const fromEnd = computeFromEnd(logRef.current.entries, id);
     if (fromEnd === null) return;
     setEditTarget({ id, fromEnd });
-    // On iOS editing happens via the composer (docs/33: the bubble doesn't
+    // On iOS editing happens via the composer (the bubble doesn't
     // turn into an input there) — fills it with the original text and shows
     // the warning (see JSX below). On desktop this does nothing:
     // `editingMessageId` is already enough for `UserBubble` to turn into a
@@ -493,7 +493,7 @@ export function ChatPanel({
     });
   }, []);
 
-  // Fired by `MessageLog` when scrolling near the top (Phase 5, docs/30) —
+  // Fired by `MessageLog` when scrolling near the top —
   // the guard lives here (not just in `MessageLog`) because `logRef` is the
   // most up-to-date source of truth for pagination state, without depending
   // on a re-render.
@@ -527,7 +527,7 @@ export function ChatPanel({
         // `isNewConversation` covers the freshly opened tab (shows idle right
         // away, without waiting for `ready` — there's really nothing to load
         // anyway). `ready` covers an existing session that genuinely became
-        // empty — after a `/clear` (docs/26), for example — without this
+        // empty — after a `/clear`, for example — without this
         // second condition the screen would just be blank (neither idle nor
         // skeleton) until the next turn, because `isNewConversation` had
         // already been `false` for a long time.
@@ -540,7 +540,7 @@ export function ChatPanel({
           loadingOlderHistory={log.loadingOlderHistory}
           onLoadOlderHistory={handleLoadOlderHistory}
           className={isIOS() ? "pt-[calc(env(safe-area-inset-top)+64px)] pb-32" : undefined}
-          // On iOS editing never turns into an inline `<textarea>` (docs/33)
+          // On iOS editing never turns into an inline `<textarea>`
           // — `ChatPanel` never passes an id along on that platform, even
           // with `editTarget` set (see warning in the composer below).
           editingMessageId={isIOS() ? null : (editTarget?.id ?? null)}
@@ -555,12 +555,12 @@ export function ChatPanel({
         <MessageLogSkeleton />
       )}
 
-      {/* iOS (docs/24): cwd + composer float above the log, out of normal
+      {/* iOS: cwd + composer float above the log, out of normal
        * flow — the log keeps scrolling, visible (blurred) beneath the
        * composer's glass, instead of stopping above a fixed block. `bottom`
        * shifts by `keyboardInfo.shift` (`useKeyboardInset.ts`) instead of
        * staying fixed at `bottom-0` — without this an unwanted gap remains
-       * between the composer and the keyboard (docs/34 item 1, docs/39:
+       * between the composer and the keyboard (a real finding:
        * reproduced again on the physical device even with the fix validated
        * in the Simulator). The `safe-area-inset-bottom` padding is for the
        * home indicator area, which stops existing (replaced by the keyboard)
@@ -583,7 +583,7 @@ export function ChatPanel({
         {/* iOS keeps this row above the composer (unchanged) — on desktop it
          * moved below (see after `Composer`) to make room for `ChoiceCard`
          * sitting right above the input, like Claude Desktop's own
-         * `AskUserQuestion` card (docs/46 Phase 2). */}
+         * `AskUserQuestion` card. */}
         {isIOS() && (
           <div className="flex items-center justify-between">
             <div className="flex min-w-0 items-center gap-1.5">
@@ -601,7 +601,7 @@ export function ChatPanel({
           </div>
         )}
 
-        {/* iOS (docs/33): editing doesn't turn into an inline `<textarea>`
+        {/* iOS: editing doesn't turn into an inline `<textarea>`
          * in the bubble (see `editingMessageId` above) — fills the normal
          * composer with the original text and shows this warning, since
          * sending from here will discard the original response and
@@ -628,12 +628,12 @@ export function ChatPanel({
         {isIOS() && turnStartedAt !== null && <TurnIndicator startedAt={turnStartedAt} />}
 
         {/* Caps the composer column at the same width as MessageLog's content
-         * (docs/48) — `contents` on iOS keeps these two wrapper divs out of
+         * — `contents` on iOS keeps these two wrapper divs out of
          * the box tree entirely, so the phone layout (which never hits the
          * cap anyway) is untouched. */}
         <div className={cn(isIOS() ? "contents" : "w-full px-4")}>
           <div className={cn(isIOS() ? "contents" : "mx-auto flex w-full max-w-3xl flex-col")}>
-            {/* Always mounted on desktop (docs/48) — see `TurnIndicator`'s
+            {/* Always mounted on desktop — see `TurnIndicator`'s
              * own doc comment for why this can't be conditional on
              * `turnStartedAt !== null` like the iOS one below. */}
             {!isIOS() && <TurnIndicator startedAt={turnStartedAt} />}
@@ -668,7 +668,7 @@ export function ChatPanel({
               suggestion={isIOS() ? null : suggestion}
               onChangeDraft={setDraft}
               onSend={(text, sentImages) => {
-                // Editing via composer (docs/33, iOS) — the normal send (slash
+                // Editing via composer (iOS) — the normal send (slash
                 // commands, `addUserMessage`+`sendMessage`) doesn't apply here:
                 // the text goes to `edit_message`, not `user_message`. Images
                 // attached in this state are ignored on purpose (editing a
@@ -677,7 +677,7 @@ export function ChatPanel({
                   performEditRef.current(editTargetRef.current.id, text);
                   return;
                 }
-                // `/model`/`/clear` (docs/26): recognized here, before becoming
+                // `/model`/`/clear`: recognized here, before becoming
                 // a turn — neither one gets passed as text to `claude -p` (see
                 // slashCommands.ts for the reason behind each). A command with
                 // an uncurated argument (`/model gpt4`) falls into the `else`,

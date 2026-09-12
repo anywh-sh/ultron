@@ -61,9 +61,9 @@ function tokenOf(socket: FakeWebSocket): string | null {
 
 describe("RelayClient connect token", () => {
   it("asks for a fresh token on every reconnection when given a resolver", async () => {
-    // journal/49 D4: a brokered profile's connection token authorizes
-    // exactly one handshake — the proxy spends its `jti` (edge's
-    // token.ReplayCache) and refuses it forever after. Reusing the token
+    // A brokered profile's connection token authorizes
+    // exactly one handshake — the proxy spends its `jti` (an anti-replay
+    // check on the control plane's side) and refuses it forever after. Reusing the token
     // the first connection was opened with turns any dropped socket into a
     // permanent "reconnecting" loop.
     const tokens = ["grant-1", "grant-2", "grant-3"];

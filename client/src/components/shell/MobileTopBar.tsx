@@ -10,7 +10,7 @@ interface MobileTopBarProps {
 }
 
 /**
- * iOS's consolidated top bar (docs/24) — menu, active session title/status,
+ * iOS's consolidated top bar — menu, active session title/status,
  * and "+ new conversation" in a single piece, replacing the standalone
  * connection capsule (Phase E) that had no session context at all.
  *
@@ -27,7 +27,7 @@ export function MobileTopBar({ title, connected, onOpenDrawer, onNewConversation
   // (WebKit pans the visual viewport for keyboard avoidance, but doesn't
   // reposition `position: absolute`/`fixed` elements, which stay anchored to
   // the layout viewport). Most visible on a screen with nothing scrollable
-  // yet (a fresh "new conversation" tab) — docs/34 item 6.
+  // yet (a fresh "new conversation" tab).
   const { offsetTop } = useKeyboardInset();
 
   return (

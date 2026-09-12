@@ -96,7 +96,7 @@ export function RevokedProfileBanner({ profile }: { profile: Profile }) {
  * sidebar has selected (`TabGroupLayout`'s flat panel layer, App.tsx), so its revocation
  * can be detected while the user is looking at a different profile entirely.
  * Gating the banner on `activeProfile` meant that detection was silent until
- * the user happened to switch back (journal/67) — this renders one per
+ * the user happened to switch back — this renders one per
  * profile in the list, and `RevokedProfileBanner` itself already no-ops for
  * whichever ones aren't revoked.
  */

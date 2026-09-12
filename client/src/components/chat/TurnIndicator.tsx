@@ -5,7 +5,7 @@ import { isIOS } from "@/lib/platform";
 
 interface TurnIndicatorProps {
   /** Epoch ms of when the turn actually started — comes from the relay
-   * (`turn_state`, docs/30), not from when this component mounted. Matters
+   * (`turn_state`), not from when this component mounted. Matters
    * for the device that did NOT send the message (or that connects in the
    * middle of a turn already in progress): without this, the timer would
    * count from when it found out, not the real start, underestimating the
@@ -14,8 +14,8 @@ interface TurnIndicatorProps {
    * it's always "now" for that tab — the difference only shows up for
    * whoever didn't start it.
    *
-   * `null` when idle — on desktop this doesn't unmount the component
-   * (docs/48): it goes `invisible` instead, keeping its rendered height
+   * `null` when idle — on desktop this doesn't unmount the component:
+   * it goes `invisible` instead, keeping its rendered height
    * permanently reserved so `MessageLog`'s `flex-1` area never resizes when
    * a turn starts or ends. It used to mount/unmount, which shrank that area
    * an instant before the scroll container's `ResizeObserver` caught up,
@@ -25,7 +25,7 @@ interface TurnIndicatorProps {
 
 /** Indicator for a turn in progress — from the moment of sending until the
  * response finishes (covers network latency + the model's reasoning time,
- * which often doesn't expose real thinking text — see docs/18). Sits above
+ * which often doesn't expose real thinking text). Sits above
  * the composer, outside the scrollable log, with no side rail.
  */
 export function TurnIndicator({ startedAt }: TurnIndicatorProps) {

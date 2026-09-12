@@ -34,7 +34,7 @@
 //                        `anywh-choice` server URL found in this
 //                        invocation's own `--mcp-config`, exactly like the
 //                        real `claude` binary calling `present_choice` mid-
-//                        turn (docs/46) — but deterministically, no model
+//                        turn — but deterministically, no model
 //                        involved. This is what lets the deferred-lifecycle
 //                        rework (relay/tests/choicePrompt.test.ts) be
 //                        exercised against the REAL McpChoiceBridge/

@@ -21,7 +21,7 @@ function truncate(text: string): string {
  * `claude -p` call separate from the real session (no `--resume`, no
  * persistence, `haiku` model) just to suggest a possible next message — same
  * idea as ChatGPT/Claude Code, and the same cost/architecture pattern as
- * `titleGenerator.ts` (project's golden rule, docs/00: never via a direct
+ * `titleGenerator.ts` (project's golden rule: never via a direct
  * paid API). Runs in parallel at the end of every successful turn
  * (SharedSession.runTurn) — not as critical as the title, so any failure
  * (process, parse, "NONE") just results in no suggestion, with no fallback.

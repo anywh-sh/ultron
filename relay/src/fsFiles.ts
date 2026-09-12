@@ -1,7 +1,7 @@
 import { closeSync, existsSync, openSync, readdirSync, readSync, realpathSync, renameSync, statSync, unlinkSync, writeFileSync } from "node:fs";
 import { dirname, extname, isAbsolute, join, resolve, sep } from "node:path";
 
-// Backs the work dir file panel (docs/41) — list/read/raw for a session's
+// Backs the work dir file panel — list/read/raw for a session's
 // cwd. Deliberately separate from `fsBrowse.ts`, which keeps serving the
 // folder picker (directories only, no root confinement: picking a new
 // working directory needs to be able to navigate anywhere).
@@ -62,14 +62,14 @@ export interface FileEntry {
 export type ListResult = { ok: true; root: string; path: string; entries: FileEntry[] } | { ok: false; error: FilesError };
 
 /** Dotfiles and `node_modules` are exactly the noise nobody wants in the
- * tree by default (decision 4, docs/41) — `showHidden` (the `all=1` query
+ * tree by default — `showHidden` (the `all=1` query
  * param) turns the filter off for the rare "I need my `.env`" case. */
 function isHidden(name: string): boolean {
   return name.startsWith(".") || name === "node_modules";
 }
 
-/** Lazy, one folder at a time — never recursive (docs/41: recursive listing
- * doesn't scale once `node_modules` is involved). */
+/** Lazy, one folder at a time — never recursive: recursive listing
+ * doesn't scale once `node_modules` is involved. */
 export function listFiles(rawRoot: string, rawPath: string | null, showHidden: boolean): ListResult {
   const resolved = resolveWithinRoot(rawRoot, rawPath);
   if (!resolved.ok) return resolved;
@@ -184,7 +184,7 @@ export function readFileForViewer(rawRoot: string, rawPath: string): ReadResult 
 export type DeleteResult = { ok: true } | { ok: false; error: FilesError };
 
 /** File-only, same as the rest of this module's write surface below — the
- * context menu that drives this (docs/41's tree) never shows these actions
+ * context menu that drives this (the file tree) never shows these actions
  * for a directory row. */
 export function deleteFile(rawRoot: string, rawPath: string): DeleteResult {
   const resolved = resolveWithinRoot(rawRoot, rawPath);
@@ -288,7 +288,7 @@ export function createFile(rawRoot: string, rawDir: string | null, name: string,
  * *shallowest* match wins when the same suffix occurs at more than one
  * depth. `maxVisited` bounds the total directories scanned — this is a
  * one-shot, click-triggered search, not the recursive tree *rendering*
- * `listFiles`'s own doc comment warns against (docs/41); a repo any real
+ * `listFiles`'s own doc comment warns against; a repo any real
  * project's size stays far under the cap, and a huge non-hidden tree just
  * gets a bounded, not unbounded, scan.
  */

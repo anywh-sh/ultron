@@ -10,7 +10,7 @@ interface IdleScreenProps {
  * messages yet" (ChatIdleState). */
 export function IdleScreen({ heading, subtitle }: IdleScreenProps) {
   // Counters the same WebKit visual-viewport pan `MobileTopBar` compensates
-  // for (docs/34 item 6) — this content is normal document flow, not
+  // for — this content is normal document flow, not
   // `position: fixed`, so it isn't anchored to the layout viewport the way
   // the header is, but it's still meant to read as a still background behind
   // the composer, not something that scrolls. Without this, opening the

@@ -7,7 +7,7 @@ export interface ClaimedBundle {
   controlUrl: string;
   authKey: string;
   /** Opaque — where to report the tsnet node key this device earns on its
-   * next join (journal/62 CT-1 follow-up). Optional so a self-hoster's own
+   * next join. Optional so a self-hoster's own
    * claim endpoint that doesn't implement the report step still works;
    * `importProfile` (profileImport.ts) just leaves `Profile.tailnetReportUrl`
    * unset when absent. */
@@ -26,7 +26,7 @@ export interface ClaimedBundle {
 
 /**
  * Redeems a one-time join code against a generic `claimUrl` — supplied by
- * a deep link (journal/62 F4) or discovered from the host half of a typed
+ * a deep link or discovered from the host half of a typed
  * pairing code (pairingCode.ts) — generates (or loads, if this device already
  * paired once before) this device's own Ed25519 identity first
  * (`tailnet_sidecar_identity`, F2) and sends only its public half; the

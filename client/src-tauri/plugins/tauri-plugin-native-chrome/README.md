@@ -1,7 +1,7 @@
 # Tauri Plugin native-chrome
 
-Camada de chrome nativo do port iOS do anywh (docs/23, Fase E) — promovido do
-spike de UI nativa (`docs/22`, spike 2/3: `manager.viewController` +
+Camada de chrome nativo do port iOS do anywh — promovido de um spike inicial
+de UI nativa (`manager.viewController` +
 `UIHostingController` inserida como subview do webview via
 `addChild`/`addSubview`, material Liquid Glass real do iOS 26).
 
@@ -16,9 +16,9 @@ spike 2, que só criava a view uma vez e nunca mais mexia nela.
 persistente + update via `invoke`), não o desenho final da UI mobile — onde
 o indicador mora, tamanho/cor definitiva, comportamento em rotação de tela,
 múltiplas views nativas simultâneas ficam para quando a sessão de design
-dedicada (ver `docs/23`) começar.
+dedicada começar.
 
-## `showContextMenu` (docs/33)
+## `showContextMenu`
 
 Menu de contexto nativo pro long-press em mensagens do chat (Copiar/Editar),
 via `UIEditMenuInteraction` (API pública desde iOS 16) — mesmo visual
@@ -32,5 +32,5 @@ reaproveita o mesmo comando, não é específico de mensagem de chat.
 documentada da Apple, sem acesso a Mac/iPhone físico nesta sessão de
 trabalho. Ver comentário no topo de `NativeChromePlugin.swift` pros pontos
 específicos que precisam de confirmação (posição do menu, thread, descarte
-sem escolha) antes de considerar essa parte do `docs/33` concluída — usar o
-fluxo do Mac remoto (`docs/31`).
+sem escolha) antes de considerar essa parte concluída — usar o
+fluxo do Mac remoto pra validar.

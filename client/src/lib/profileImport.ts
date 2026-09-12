@@ -6,7 +6,7 @@ import { claimTailnetBundle } from "@/lib/tailnetClaim";
  * Generic remote-profile import via a deep link:
  * `anywh://import-profile?label=&host=&port=&token=` (direct mode) or
  * `anywh://import-profile?label=&claimUrl=&joinCode=&brokerUrl=` (tailnet
- * mode, journal/62 F4). Nothing here is specific to any one hosted service
+ * mode). Nothing here is specific to any one hosted service
  * — it's the same shape a self-hoster could hand out for their own relay
  * (`host`/`port` to reach it directly, an optional `token` for a reverse
  * proxy gating access) or their own broker (a `claimUrl` to redeem a code

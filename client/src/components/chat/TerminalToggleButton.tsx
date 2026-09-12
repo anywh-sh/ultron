@@ -10,7 +10,7 @@ interface TerminalToggleButtonProps {
 }
 
 /**
- * Embedded terminal button (docs/30) — next to `WorkingDirectoryButton` in
+ * Embedded terminal button — next to `WorkingDirectoryButton` in
  * the same row, aligned to the far right (`ChatPanel` handles the
  * `justify-between` between the two). Disabled until the session has a
  * folder (the terminal is born in it — see terminalSession.ts), same gating

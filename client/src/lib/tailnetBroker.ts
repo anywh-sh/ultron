@@ -42,19 +42,19 @@ function delay(ms: number): Promise<void> {
 }
 
 /**
- * Calls a brokered profile's `brokerUrl` (journal/62 CT-1) for a fresh
+ * Calls a brokered profile's `brokerUrl` for a fresh
  * connection grant. Generic on purpose — this code has no idea what API it's
  * actually talking to: it signs an empty POST body against `brokerUrl`'s
- * path with the device identity (`tailnet_sidecar_sign`, F2) and sends it
- * with the header names CT-1 defines (`X-Node-Id`/`Ts`/`Sig`), deliberately
- * not the `X-Anywh-*` convention `anywh-control-plane` uses among its own
+ * path with the device identity (`tailnet_sidecar_sign`) and sends it
+ * with a small fixed set of headers (`X-Node-Id`/`Ts`/`Sig`), deliberately
+ * not the `X-Anywh-*` convention the hosted control plane uses among its own
  * internal services — a self-hoster's own broker could register these same
  * three names without ever learning that convention exists. Only
  * `{endpoint, token}` from the response is read; anything else
  * (`expiresInSeconds`, or any anywh-specific field) is ignored.
  *
  * Must be called fresh before every new connection, never cached —
- * journal/49 D4: the token authorizes exactly one handshake.
+ * the token authorizes exactly one handshake.
  *
  * A 409 is not a failure but a state: the broker is saying the compute
  * isn't reachable *yet* and to ask again (the control plane answers this
@@ -70,8 +70,8 @@ export async function fetchConnectGrant(profile: Profile): Promise<ConnectGrant>
   const deadline = Date.now() + RESUME_DEADLINE_MS;
   for (;;) {
     // Signed inside the loop, once per attempt: the signature carries its
-    // own timestamp and the control plane rejects a repeat as a replay
-    // (journal/49 D4), so a retry reusing the first attempt's signature
+    // own timestamp and the control plane rejects a repeat as a replay,
+    // so a retry reusing the first attempt's signature
     // would fail for a reason that has nothing to do with what it's
     // waiting for.
     const { ts, sig } = await invoke<SignResult>("tailnet_sidecar_sign", {
@@ -109,9 +109,9 @@ export async function fetchConnectGrant(profile: Profile): Promise<ConnectGrant>
 
 /**
  * Reports this device's freshly earned tsnet node key to the control plane
- * (journal/62 CT-1 follow-up, called by `tailnetSidecar.ts` right after a
+ * (called by `tailnetSidecar.ts` right after a
  * cold `tailnet_sidecar_start`). The deep-link pairing flow's own
- * hostname/nodeId cross-check (anywh-control-plane's `bindReportedNodeKey`)
+ * hostname/nodeId cross-check on the control-plane side
  * needs this to mark the device paired right away — without it, pairing
  * still eventually resolves through that control plane's own hourly
  * reconciliation sweep (it matches unbound devices by hostname, which is
@@ -159,7 +159,7 @@ export interface TailnetJoinPlan {
 /**
  * Resolves what a tailnet profile's sidecar should dial to actually reach
  * the relay — a fresh broker grant's endpoint for a brokered profile
- * (journal/62 F3: the sandbox's tailnet address can move after a resume, so
+ * (its tailnet address can move after the relay restarts or migrates, so
  * this is never cached), or the static `tailnetTarget`/`connectToken` pair
  * for a profile configured by hand with no broker. Only meaningful for
  * starting a *cold* join: an already-running sidecar keeps forwarding to

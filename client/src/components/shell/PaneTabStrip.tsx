@@ -6,7 +6,7 @@ import { cn, scrollHorizontallyOnWheel } from "@/lib/utils";
 export interface PaneTab {
   id: string;
   label: string;
-  /** File panel's preview tab (decision 6, docs/41) — unpinned, shown in
+  /** File panel's preview tab — unpinned, shown in
    * italic, same convention as VS Code/Claude Desktop. The terminal never
    * sets this (every terminal tab is "pinned"). */
   italic?: boolean;
@@ -25,7 +25,7 @@ interface PaneTabStripProps {
 
 /** Generic tab strip for a dock pane's header — "Terminal 1 / Terminal 2 / +"
  * for the terminal, open files for the file viewer. Was `TerminalTabStrip`
- * before docs/41 generalized it to both panes; no drag-to-reorder (unlike
+ * before it generalized to both panes; no drag-to-reorder (unlike
  * the sessions' `TabGroupStrip`) — the number of tabs per pane tends to be small
  * enough not to justify dnd-kit's complexity here. */
 export function PaneTabStrip({ tabs, activeId, onSelect, onClose, onAdd, addLabel }: PaneTabStripProps) {

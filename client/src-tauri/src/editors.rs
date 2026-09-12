@@ -1,5 +1,5 @@
-//! Detects which local editors can receive an "open in editor" deep link
-//! (journal/60). The signal that matters is **"the OS will route
+//! Detects which local editors can receive an "open in editor" deep link.
+//! The signal that matters is **"the OS will route
 //! `zed://...` somewhere"**, not "a `zed` binary exists on PATH" — the
 //! feature never spawns the editor's CLI (see `client/src/lib/editorLinks.ts`
 //! for why: the opener plugin only ever passes a single argument, and a
@@ -115,8 +115,8 @@ fn is_scheme_registered(id: &str) -> bool {
 
 /// `reg.exe query` rather than a raw `HKEY_CLASSES_ROOT` read via the
 /// `windows` crate's Registry bindings — this is a read-only detection
-/// check (not the "never call the editor's CLI" rule from journal/60, which
-/// is about *opening* a file), and `reg.exe` is a stable, always-present
+/// check (not the "never call the editor's CLI" rule that governs *opening*
+/// a file), and `reg.exe` is a stable, always-present
 /// interface that doesn't require getting an unfamiliar FFI signature right
 /// without a Windows toolchain to compile against.
 #[cfg(target_os = "windows")]

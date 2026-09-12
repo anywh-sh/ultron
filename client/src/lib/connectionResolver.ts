@@ -12,8 +12,8 @@ export interface ResolvedConnection {
  * Turns a `Profile` into something a hook/module outside the chat WebSocket
  * can actually dial — the single place every one of them (sidebar, files,
  * terminal, theme/profile sync) goes through instead of reading
- * `profile.host`/`profile.relayPort` straight (journal/62, "todo tráfego que
- * não é o WebSocket do chat"). A direct profile resolves from its own
+ * `profile.host`/`profile.relayPort` straight (any traffic that isn't the
+ * chat's own WebSocket). A direct profile resolves from its own
  * fields, synchronously in spirit (wrapped in a promise only for one
  * call-site shape). A tailnet profile needs two independent things:
  *
@@ -22,13 +22,13 @@ export interface ResolvedConnection {
  *   `useRelayClient`), never re-acquired here: an acquire+release around
  *   every call would tear the join down between calls whenever nothing else
  *   holds a reference, refiring the whole `tsnet` join on the next one
- *   (tens of seconds, journal/62). Only when nobody already owns it (e.g. a
+ *   (tens of seconds). Only when nobody already owns it (e.g. a
  *   tailnet profile queried one-off, like `useAllSessionNames`'s
  *   cross-profile search) does this fall back to acquiring just for the
  *   call and releasing right after.
- * - A brand-new broker grant for the token — never reused (journal/49 D4):
- *   the proxy spends every connect token's `jti` on the first request of
- *   the TCP connection it authorizes (`edge/internal/proxy/server.go`), so
+ * - A brand-new broker grant for the token — never reused:
+ *   the control plane's proxy spends every connect token's `jti` on the first request of
+ *   the TCP connection it authorizes, so
  *   every new connection through the tunnel needs its own unspent one.
  */
 export async function resolveConnection(profile: Profile): Promise<ResolvedConnection> {

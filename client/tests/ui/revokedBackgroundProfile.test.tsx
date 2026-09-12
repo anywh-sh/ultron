@@ -5,7 +5,7 @@ import { setProfiles, type Profile } from "@/lib/profiles";
 import { renderApp } from "./helpers/renderApp";
 
 /**
- * Full-chain reproduction of journal/67's item 1 claim: a background chat
+ * Full-chain reproduction: a background chat
  * tab on a brokered/tailnet profile should detect its own revocation (WS
  * close -> reconnect -> broker 410) and RevokedProfileBanners should show it
  * even while a different profile is active. Unlike RevokedProfileBanner.test.tsx
@@ -163,7 +163,7 @@ describe("revocation of a non-active profile's background chat tab", () => {
     await user.click(await screen.findByRole("menuitem", { name: /Trabalho/ }));
     expect(await screen.findByRole("button", { name: /Perfil ativo/ })).toHaveTextContent("Trabalho");
 
-    // Simulate the dashboard revocation + the corte ativo (journal/65)
+    // Simulate the dashboard revocation + the active-cutoff mechanism
     // closing the TCP connection: the device is now revoked, and the chat
     // tab's socket (identifiable by `?session=`, as connectToken.test.tsx
     // does) gets cut.

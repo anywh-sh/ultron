@@ -17,7 +17,7 @@ interface MarkdownFileViewProps {
 const LARGE_MARKDOWN_BYTES = 200 * 1024;
 
 /**
- * `.md` viewer — formatted by default (decision 7, docs/41), with a toggle
+ * `.md` viewer — formatted by default, with a toggle
  * to the raw source in the header. Reuses `MarkdownContent`, the same
  * renderer the chat uses for the agent's own markdown, so a file looks
  * identical whether the agent shows it inline or the user opens it here.

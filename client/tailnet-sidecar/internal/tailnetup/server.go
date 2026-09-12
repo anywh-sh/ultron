@@ -1,6 +1,6 @@
 // Package tailnetup is the local-listener<->tailnet splice that the
 // tailnet-up subcommand performs, kept free of any tsnet import — same
-// separation anywh-control-plane/edge/internal/proxy uses for its own
+// separation the control plane's own proxy uses for its
 // splice logic, so the accept/dial/copy behavior here is testable with a
 // plain net.Listener and net.Dial. Only cmd/tailnet-sidecar/main.go wires a
 // real tsnet.Server.Dial into it.
@@ -15,10 +15,10 @@ import (
 )
 
 // Server accepts local connections and splices each one into Target,
-// dialed via Dial — the direction is the mirror image of
-// anywh-control-plane/edge/internal/proxy.Server (that one accepts from
+// dialed via Dial — the direction is the mirror image of the control
+// plane's own proxy (that one accepts from
 // inside the tailnet and dials out locally; this one accepts locally and
-// dials into the tailnet), journal/62 CT-2.
+// dials into the tailnet).
 type Server struct {
 	Target string
 	// Dial defaults to a plain net.Dial; overridable so tests can fake or

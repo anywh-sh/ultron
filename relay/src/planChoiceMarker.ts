@@ -1,16 +1,15 @@
 import type { ChoiceAnswer, ChoiceQuestion } from "./mcpBridge.js";
 
-// docs/46 — text-marker fallback for `plan` mode, where the real
+// Text-marker fallback for `plan` mode, where the real
 // `present_choice` MCP tool (mcpBridge.ts) can't be offered: plan mode
-// blocks any non-native tool categorically (Descoberta 5), no known
+// blocks any non-native tool categorically, no known
 // workaround. The format below was validated against the real binary
 // (Descoberta 2) — the model reliably discriminates it from an open-ended
 // request for detail and only uses it for a genuinely closed decision. It's
 // a weaker guarantee than tool-calling (depends on the model choosing to
 // follow the format), but plan mode is inherently textual anyway — it
 // produces a written plan, not tool calls — so parsing text here isn't a
-// workaround, it's the native shape that mode already speaks in (docs/46,
-// "Decisão de design: abordagem híbrida por modo").
+// workaround, it's the native shape that mode already speaks in.
 export const PLAN_MODE_CHOICE_MARKER_PROMPT =
   "When you need the human to make a genuinely closed decision among a fixed set of options while " +
   "planning (not an open-ended request for more detail — keep those as normal prose), ask using " +
@@ -46,7 +45,7 @@ export function parsePlanChoiceMarkers(text: string): ChoiceQuestion[] {
 
 /** Turns the human's answer back into plain text. Named for the plan-mode
  * marker path but shared verbatim by the MCP `present_choice` path too
- * (docs/46 deferred lifecycle) — both feed the same `pendingChoice` slot in
+ * (the deferred-lifecycle path) — both feed the same `pendingChoice` slot in
  * `SharedSession` now, and both have the exact same problem this solves:
  * there's no live `claude` process holding a tool call open to return an
  * answer to (the turn that asked already ended, or ended immediately after

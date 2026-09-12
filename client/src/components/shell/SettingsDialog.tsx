@@ -247,7 +247,7 @@ function ProfileIdentityRow({ profile, effectiveColorIndex }: { profile: Profile
 
 /** Picks another profile on the same relay as `scopedProfile` to run an
  * operation that must never execute through the profile's own relay
- * (docs/45 Fase 6: deleting would make that relay disable its own systemd
+ * (deleting would make that relay disable its own systemd
  * instance mid-request). Exported for `SettingsDialog.test.tsx` — pure
  * logic, no need to render anything to exercise it.
  *

@@ -1,12 +1,12 @@
 import { networkInterfaces } from "node:os";
 
-// Backs `GET /host-info` (journal/60): tells the client whether — and how —
+// Backs `GET /host-info`: tells the client whether — and how —
 // it can open a path from the file panel in a local editor. Locality is
 // declared via env, never inferred from the request's peer address alone —
-// a loopback peer means "same machine" in self-host but means "the paid
-// sandbox's proxy, tunneled through 127.0.0.1" in the platform topology
-// (journal/50/51), and a Tailscale-IP peer can still be the very same
-// physical machine if the profile happens to point at its own tailnet
+// a loopback peer means "same machine" in a direct self-host setup, but
+// could just as well be a reverse proxy tunneled through 127.0.0.1 in a
+// different hosting topology, and a Tailscale-IP peer can still be the very
+// same physical machine if the profile happens to point at its own tailnet
 // address. The peer check below only ever downgrades a declared "local" to
 // "ssh"/null; it never promotes an undeclared one.
 
@@ -65,7 +65,7 @@ export function parseEditorSsh(raw: string | undefined): { user: string; host: s
 }
 
 /**
- * The three-branch resolution from journal/60 part 3: declared local (and
+ * The three-branch resolution: declared local (and
  * confirmed same-machine) wins, then declared SSH, then null — which tells
  * the client to hide the "open in editor" feature entirely. Both variables
  * absent is the default, not an error.

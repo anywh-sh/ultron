@@ -19,7 +19,7 @@ interface SessionDockProps {
 
 /**
  * Right-side dock column — took over the role `TerminalPanelSlot` used to
- * play alone (see docs/41): mounted the whole time the chat tab is active
+ * play alone: mounted the whole time the chat tab is active
  * even with the dock closed (`dock.panes.length === 0`), which is what
  * gives it the open/close width animation (same trick as the left sidebar's
  * `useResizableSidebar`) instead of content popping in/out with nothing to

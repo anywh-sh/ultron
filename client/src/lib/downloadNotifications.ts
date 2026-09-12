@@ -9,7 +9,7 @@
  * A lone-file download (`downloadFile`, used directly by a file row's
  * "Baixar" and each iteration of the bulk multi-select download) never goes
  * through a "downloading" phase here — it's fast enough that Zed's own
- * project panel (the model for this whole feature, journal/41) only ever
+ * project panel (the model for this whole feature) only ever
  * shows the completed "downloaded" toast for it. A folder or multi-select
  * batch is different: `total` is known up front and each file's completion
  * is visible, so the count ticks up live while it runs.

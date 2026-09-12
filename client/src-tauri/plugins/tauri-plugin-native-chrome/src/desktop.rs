@@ -23,7 +23,7 @@ impl<R: Runtime> NativeChrome<R> {
   /// No native menu outside iOS — same reasoning as `set_connection_indicator`
   /// above. `selected_id: None` (equivalent to "user dismissed the menu")
   /// instead of an error: the real app never calls this outside of
-  /// `isIOS()` (docs/33), but returning a harmless result is safer than a
+  /// `isIOS()`, but returning a harmless result is safer than a
   /// generic error in case that changes in the future.
   pub fn show_context_menu(&self, _payload: ShowContextMenuRequest) -> crate::Result<ShowContextMenuResponse> {
     Ok(ShowContextMenuResponse { selected_id: None })

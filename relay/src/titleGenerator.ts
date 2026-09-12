@@ -26,7 +26,7 @@ function fallbackTitle(prompt: string): string {
  * `claude -p` call separate from the real session (no `--resume`, no
  * persistence) just to infer a short title from the first prompt — same
  * idea as ChatGPT/Claude.ai, but via CLI/plan instead of a direct paid API
- * (project's golden rule, docs/00). `--system-prompt` (not
+ * (project's golden rule). `--system-prompt` (not
  * `--append-system-prompt`) because Claude Code's default system prompt
  * (code-assistant persona) competes with the instruction and the model
  * tries to "help" instead of just titling — tested manually, only the full

@@ -1,7 +1,7 @@
 import type { BroadcastMessage } from "./sharedSession.js";
 
 /** How many complete turns to send right away to a client that just
- * connected (Phase 2 of the paginated history plan, docs/30) — an educated
+ * connected — an educated
  * guess until calibrated against a real large case (e.g. "IVT Fix", ~1670
  * reconstructed transcript lines). The rest comes on demand via
  * `load_older_history` when the user scrolls up. */
@@ -53,10 +53,10 @@ export function pageHistoryBefore(history: BroadcastMessage[], beforeCursor: num
 }
 
 /** `true` only for the automatic follow-up turn of a finished `anywh-bg`
- * job (docs/32, Phase D) — never appears to the user as an editable message
+ * job — never appears to the user as an editable message
  * (the client renders it as a system note, `kind: "background-job-note"`,
- * not as a `kind: "user"` bubble). Old messages from before docs/30 Phase 1
- * (without `user_prompt` marking the turn's start) fall through to the
+ * not as a `kind: "user"` bubble). Old messages from before turns carried a
+ * `user_prompt` marking their start fall through to the
  * `false` default — treated as real, same behavior that already existed
  * before this distinction existed. */
 function isSyntheticBackgroundJobStart(message: BroadcastMessage): boolean {
@@ -74,15 +74,15 @@ export interface EditTarget {
    * exactly one `user` line in the real `.jsonl` — that's why this number
    * is also the parameter `transcriptFork.ts` needs to cut the file at the
    * same spot, without needing to reconstruct the real/synthetic
-   * distinction from disk (docs/33). */
+   * distinction from disk. */
   turnsBefore: number;
 }
 
 /**
  * Finds the cut point to edit the `fromEnd`-th user message counting from
  * the end (`1` = the last one) — skips synthetic `anywh-bg` turns while
- * counting, since they don't appear to the user as an editable message
- * (docs/33). `undefined` if `fromEnd` is greater than the number of real
+ * counting, since they don't appear to the user as an editable message.
+ * `undefined` if `fromEnd` is greater than the number of real
  * turns that exist (invalid/stale request — the caller should refuse
  * instead of truncating incorrectly).
  */

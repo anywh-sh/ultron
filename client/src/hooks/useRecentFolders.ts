@@ -19,8 +19,8 @@ function readRecents(profileId: string): string[] {
 
 /**
  * MRU of folders picked in the working directory picker, up to 5, isolated
- * per profile (feature docs) — same per-profile localStorage convention
- * `useTabs.ts` already used before it became a general list (docs/29).
+ * per profile — same per-profile localStorage convention
+ * `useTabs.ts` already used before it became a general list.
  * Simpler than that hook because the caller (`WorkingDirectoryButton`)
  * always has a concrete, stable `profileId` at mount.
  */

@@ -9,7 +9,7 @@ interface FileViewerProps {
   profile: Profile;
   sessionId: string;
   path: string;
-  /** Watch (docs/41 phase 5) reported a change to this exact path — silently
+  /** Watch reported a change to this exact path — silently
    * refetches in place (no "loading…" flash) rather than the initial fetch
    * below; the scroll position is preserved since nothing unmounts. */
   changedFile: ChangeSignal | null;
@@ -25,7 +25,7 @@ function formatBytes(bytes: number): string {
  * A direct-mode profile's `host`/`relayPort` are real, dialable — a plain
  * `<img src>` works as-is, at zero extra cost (native browser caching and
  * progressive decode, no JS in the loop). A tailnet profile's connect token
- * is single-use per connection (journal/49 D4), which a bare image tag has
+ * is single-use per connection, which a bare image tag has
  * no way to attach, so that case instead fetches the bytes with the right
  * header and swaps in an object URL — same raw bytes, no re-encoding, so no
  * quality loss, just paid only by the profiles that actually need it.
@@ -70,8 +70,8 @@ function RawImage({
 }
 
 /**
- * Fetches and routes a single open file to the right renderer, by `kind`
- * (docs/41): image and binary are simple placeholders, `.md` gets the
+ * Fetches and routes a single open file to the right renderer, by `kind`:
+ * image and binary are simple placeholders, `.md` gets the
  * formatted/raw toggle (`MarkdownFileView`), anything else is plain code
  * (`CodeFileView`). One instance per active tab — `key={path}` at the call
  * site (`FilesPanel`) resets all local state (including the markdown

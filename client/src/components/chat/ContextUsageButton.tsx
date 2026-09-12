@@ -13,7 +13,7 @@ interface ContextUsageButtonProps {
  * `PermissionModeButton`/`WorkingDirectoryButton`: `DropdownMenu` with
  * `modal={false}` (Radix traps focus/pointer-events on the body while a
  * modal dropdown is open, and restoration fails on Tauri's WKWebView on
- * macOS — docs/24) and blurs the trigger on close (otherwise a neighboring
+ * macOS) and blurs the trigger on close (otherwise a neighboring
  * button's Tooltip would get "stuck" open by inheriting the focus). `usage`
  * null (session with no turn yet) hides the whole button, same as the ring
  * alone already did.

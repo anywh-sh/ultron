@@ -30,7 +30,7 @@ interface AddRemoteMachineDialogProps {
  * somewhere to put it.
  *
  * Deliberately *not* `AddProfileDialog`: that one creates another Claude
- * account on the relay this client is already talking to (journal/45), and
+ * account on the relay this client is already talking to, and
  * needs a working connection to do it. This one has no connection yet —
  * it's how you get the first one to a machine you can't otherwise reach.
  */

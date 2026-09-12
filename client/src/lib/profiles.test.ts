@@ -37,7 +37,7 @@ describe("syncProfilesForHost", () => {
   });
 
   it("keeps a tailnet profile whose loopback host is only the sidecar placeholder", () => {
-    // journal/62 F4: `importProfile` stores `127.0.0.1:0` as a placeholder
+    // `importProfile` stores `127.0.0.1:0` as a placeholder
     // for a brokered tailnet profile — `useRelayClient` swaps it for the
     // sidecar's real local address before dialing anything. That host looks
     // exactly like the `ensureSelfRegistered` ghost the test above drops,
@@ -110,7 +110,7 @@ describe("syncProfilesForHost", () => {
     expect(synced?.connectToken).toBe("secret-token");
   });
 
-  it("preserves locally set tailnet fields across a sync that reports the same id — same reasoning as connectToken above (journal/62 F2)", () => {
+  it("preserves locally set tailnet fields across a sync that reports the same id — same reasoning as connectToken above", () => {
     const imported: Profile = {
       id: "tailnet-paired",
       label: "Tailnet device",
@@ -130,7 +130,7 @@ describe("syncProfilesForHost", () => {
     expect(synced?.tailnetTarget).toBe("100.64.0.5:8765");
   });
 
-  it("preserves locally set broker fields across a sync that reports the same id — same reasoning as tailnet fields above (journal/62 F3)", () => {
+  it("preserves locally set broker fields across a sync that reports the same id — same reasoning as tailnet fields above", () => {
     const imported: Profile = {
       id: "brokered",
       label: "Brokered device",
@@ -192,7 +192,7 @@ describe("isTailnetProfile", () => {
     ).toBe(true);
   });
 
-  it("journal/62 F3: a broker can stand in for the static tailnetTarget — authKey/controlUrl + brokerUrl/brokerNodeId is enough, no tailnetTarget needed", () => {
+  it("a broker can stand in for the static tailnetTarget — authKey/controlUrl + brokerUrl/brokerNodeId is enough, no tailnetTarget needed", () => {
     expect(
       isTailnetProfile({
         ...base,

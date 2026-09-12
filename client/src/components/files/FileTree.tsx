@@ -43,7 +43,7 @@ interface FileTreeProps {
   expanded: string[];
   activePath: string | null;
   showHidden: boolean;
-  /** Watch (docs/41 phase 5) reported a change in this directory — the
+  /** Watch reported a change in this directory — the
    * folder's cache entry is dropped so the "load whatever's visible but
    * missing" effect below picks it back up. */
   changedDir: ChangeSignal | null;
@@ -52,7 +52,7 @@ interface FileTreeProps {
   onOpenPinned: (path: string) => void;
   /** A tab open on the deleted/renamed path needs to close (delete) or
    * follow the new path (rename) — the tree's own listing self-corrects via
-   * the watch (docs/41 phase 5) without any of this, but tab state lives in
+   * the watch without any of this, but tab state lives in
    * `useFileTabs`, one level up in `FilesPanel`. */
   onFileDeleted: (path: string) => void;
   onFileRenamed: (oldPath: string, newPath: string) => void;
@@ -101,7 +101,7 @@ interface EditorOpenMenuItemsProps {
 }
 
 /**
- * "Open in editor" (journal/60) — hidden entirely when there's no declared
+ * "Open in editor" — hidden entirely when there's no declared
  * locality (both `ANYWH_EDITOR_LOCAL`/`ANYWH_EDITOR_SSH` unset
  * relay-side), no detected editor, or on iOS (no deep link handler exists
  * there). One editor renders a plain item; more than one nests under an
@@ -164,7 +164,7 @@ function EditorOpenMenuItems({ editors, locality, path, itemLabel, subTriggerLab
 }
 
 /**
- * Lazy tree — only ever lists one folder at a time (docs/41: a recursive
+ * Lazy tree — only ever lists one folder at a time (a recursive
  * scan doesn't scale once `node_modules` is in the picture), caching each
  * expanded folder's listing locally. `root`/`showHidden` changing means the
  * whole cache is stale (a different cwd, or dotfiles toggling visibility),
@@ -268,7 +268,7 @@ export function FileTree({
     finishBatchDownload(jobId);
   }
 
-  // "Open in editor" (journal/60): locality comes from the relay (declared,
+  // "Open in editor": locality comes from the relay (declared,
   // never inferred — see editorHostInfo.ts), the editor list from a local
   // OS-level scheme detection (editors.rs) — independent lookups, so
   // neither needs to wait on the other before hiding/showing the feature.
@@ -327,7 +327,7 @@ export function FileTree({
     }
   }, [root, expanded, nodesByDir, loadDir]);
 
-  // Watch (docs/41 phase 5) — drop the changed folder's cache entry so the
+  // Watch — drop the changed folder's cache entry so the
   // effect above (which only fetches what's MISSING from the cache) picks it
   // back up. A no-op for a directory that isn't currently visible: deleting
   // an absent key changes nothing, and the effect above only reloads
@@ -529,8 +529,7 @@ function FileTreeNode({
   // selected and this one is among them — a lone selected file (the common
   // case) keeps the regular single-file menu and `isActive`'s highlight.
   const isMultiSelected = !isDir && selectedPaths.size > 1 && selectedPaths.has(entry.path);
-  // File and directory rows show different items below (decision 6, docs/41
-  // for the file ones) — both get a menu now, "open in terminal" only makes
+  // File and directory rows show different items below — both get a menu now, "open in terminal" only makes
   // sense for a folder.
   const menu = useContextMenu();
   const [renameOpen, setRenameOpen] = useState(false);

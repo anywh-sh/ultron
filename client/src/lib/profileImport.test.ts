@@ -19,7 +19,7 @@ describe("parseImportProfileUrl", () => {
     expect(parsed).toEqual({ label: "Device", host: "1.2.3.4", port: 8443, connectToken: undefined });
   });
 
-  it("journal/62 F4: parses a well-formed tailnet-mode import-profile link (claimUrl/joinCode/brokerUrl)", () => {
+  it("parses a well-formed tailnet-mode import-profile link (claimUrl/joinCode/brokerUrl)", () => {
     const parsed = parseImportProfileUrl(
       "anywh://import-profile?label=Paired%20device&claimUrl=https%3A%2F%2Fapi.example%2Fv1%2Fnodes%2Fclaim&joinCode=ABCDEF-GHJKMNPQ&brokerUrl=https%3A%2F%2Fapi.example%2Fv1%2Fconnect%2Fws-1",
     );

@@ -24,7 +24,7 @@ export interface UseVoiceRecordingResult {
 
 /** State envelope on top of the 3 existing Tauri commands (voice.rs, no
  * change) — records (waveform+timer in the composer) → transcribes → text lands in the
- * composer for review, without sending on its own. See docs/17. */
+ * composer for review, without sending on its own. */
 export function useVoiceRecording({ onTranscribed, onError }: UseVoiceRecordingOptions): UseVoiceRecordingResult {
   const [state, setState] = useState<VoiceRecordingState>("idle");
   const [elapsedSeconds, setElapsedSeconds] = useState(0);
@@ -35,7 +35,7 @@ export function useVoiceRecording({ onTranscribed, onError }: UseVoiceRecordingO
   const timerRef = useRef<number | undefined>(undefined);
 
   useEffect(() => {
-    // Voice is out of scope for the iOS MVP (docs/22/23) — the command doesn't exist in the
+    // Voice is out of scope for the iOS MVP — the command doesn't exist in the
     // iOS build (commit b6b8e63), invoking it here would just reject the promise for nothing.
     if (isIOS()) return;
     listInputDevices()

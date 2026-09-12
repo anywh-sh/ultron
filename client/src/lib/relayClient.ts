@@ -1,5 +1,4 @@
-// Client for our own relay protocol (no longer the ttyd protocol —
-// see docs/11-decisao-pivo-stream-json.md and docs/12-prototipo-relay.md).
+// Client for our own relay protocol (no longer the ttyd protocol).
 import type {
   BackgroundJobSummary,
   ChoiceAnswer,
@@ -97,7 +96,7 @@ export async function closeTerminal(host: string, port: number, session: string,
   }
 }
 
-/** Every profile the given host's control API knows about (docs/45) — an
+/** Every profile the given host's control API knows about — an
  * empty array both when the host genuinely has none and when the host
  * doesn't run the control API at all (an older relay, `GET /control/*`
  * 404s). Callers that need to tell those two apart should catch instead of
@@ -232,7 +231,7 @@ export async function deleteTheme(host: string, port: number, id: string, token?
 
 /** Deletes a profile from the host's registry (`.env` + `profiles.json` +
  * systemd instance) — `host`/`port` here must be a *different* profile's
- * relay than `id`, never `id`'s own (docs/45 Fase 6: it would have to
+ * relay than `id`, never `id`'s own (it would have to
  * disable its own systemd instance mid-request). Picking a safe executor is
  * the caller's job — see `SettingsDialog`'s "Excluir do servidor". */
 export async function deleteProfile(host: string, port: number, id: string): Promise<void> {
@@ -263,7 +262,7 @@ export interface RelayClientCallbacks {
    * sharedSession.ts::setModel. `null` is a valid final state ("never
    * chosen via /model, uses the CLI default"), not "still loading". */
   onModelState: (model: ModelChoice | null) => void;
-  /** This profile's account's actual default model (docs/28) — sent
+  /** This profile's account's actual default model — sent
    * as soon as the relay finishes probing at boot (may arrive before or after
    * the connection opens), doesn't change after that for the life of the process. */
   onDefaultModelState?: (label: string, available: ModelChoice[]) => void;
@@ -274,13 +273,13 @@ export interface RelayClientCallbacks {
   onContextUsageState?: (usage: ContextUsage | null) => void;
   /** Turn in progress on the session (not just from whoever sent it) — sent right on
    * connection and again every time a turn starts/ends, from any
-   * device (docs/30). See relay-types.ts::RelayMessage["turn_state"]. */
+   * device. See relay-types.ts::RelayMessage["turn_state"]. */
   onTurnState?: (state: { active: boolean; startedAt?: number }) => void;
   /** Suggested next message arriving (live or right on connection) —
    * see relay-types.ts::RelayMessage["suggestion"]. `null` clears any
    * suggestion shown. */
   onSuggestion?: (text: string | null) => void;
-  /** `/clear` (docs/26) — this session's conversation was reset (by this
+  /** `/clear` — this session's conversation was reset (by this
    * device or another); whoever consumes this should clear the local
    * message log, same idea as the `reset()` already used in `onReconnecting`. */
   onConversationReset?: () => void;
@@ -295,7 +294,7 @@ export interface RelayClientCallbacks {
    * `forceReconnect`) — never on the first connection. The relay resends the
    * entire history on every new connection (`SharedSession.addClient`), so
    * whoever consumes this should reset the message log here, otherwise the replay
-   * duplicates everything on top of what was already on screen (docs/23, Phase D1). */
+   * duplicates everything on top of what was already on screen. */
   onReconnecting?: () => void;
   /** The broker told us this device's own identity was deliberately revoked
    * — a terminal state, not a connectivity blip. Fired once
@@ -304,18 +303,18 @@ export interface RelayClientCallbacks {
    * remove the profile instead. */
   onRevoked?: () => void;
   /** Recent tail of this session's history — sent once per connection,
-   * right before `onCaughtUp` (Phase 2/3, docs/30). Optional only during the
-   * migration: whoever doesn't yet hydrate the log in bulk (Phase 4) simply
+   * right before `onCaughtUp`. Optional only during the
+   * migration: whoever doesn't yet hydrate the log in bulk simply
    * ignores it and keeps seeing an empty log until that phase exists. */
   onHistoryPage?: (page: HistoryPageMessage) => void;
-  /** Response to `loadOlderHistory` (Phase 2/3, docs/30) — turns older
-   * than the initial tail, requested on demand (Phase 5: scroll up). */
+  /** Response to `loadOlderHistory` — turns older
+   * than the initial tail, requested on demand (scroll up). */
   onOlderHistory?: (page: HistoryPageMessage) => void;
   /** `anywh-bg` jobs currently observed in the session — sent right on connection
    * (even an empty array, if there are none) and again whenever the list
-   * changes, from any device (docs/32, Phase E). */
+   * changes, from any device. */
   onBackgroundJobState?: (jobs: BackgroundJobSummary[]) => void;
-  /** Message edit (docs/33) — arrives only on the OTHER devices
+  /** Message edit — arrives only on the OTHER devices
    * connected to the session, syncing the cut point before the
    * edited turn starts streaming. Same handling as `onReconnecting` +
    * `onHistoryPage`: whoever consumes this resets the log and hydrates with this page. */
@@ -327,7 +326,7 @@ export interface RelayClientCallbacks {
    * draft changes, from any device — see sharedSession.ts::setDraft. Lets a
    * reopened/restarted app restore what was typed but not yet sent. */
   onDraftState: (draft: string) => void;
-  /** docs/46 — the model called `present_choice` mid-turn and is genuinely
+  /** The model called `present_choice` mid-turn and is genuinely
    * blocked waiting for an answer. "Current state" pattern, same as
    * `onCwdState`/`onTurnState`: sent again to a device that (re)connects
    * mid-wait, not just to whoever was already there. Answer via
@@ -376,7 +375,7 @@ export class RelayClient {
      * browser `WebSocket` constructor has no way to set a header. A plain
      * string for a fixed credential (a reverse proxy gating access); a
      * resolver for a brokered profile, whose token authorizes exactly one
-     * handshake (journal/49 D4) and so has to be re-fetched for every
+     * handshake and so has to be re-fetched for every
      * attempt, reconnections included. */
     private readonly connectToken?: string | (() => Promise<string>),
   ) {}
@@ -516,7 +515,7 @@ export class RelayClient {
     this.socket.send(JSON.stringify({ type: "stop_turn" }));
   }
 
-  /** Message edit (docs/33) — `fromEnd` counts from the end (`1` = the
+  /** Message edit — `fromEnd` counts from the end (`1` = the
    * user's last message). The relay stops the current turn (if any),
    * cuts the real transcript at the right point, and runs a new turn with `text`.
    * No pending queue (same reasoning as `setModel`): it only makes sense to
@@ -563,15 +562,15 @@ export class RelayClient {
     this.socket.send(JSON.stringify({ type: "set_model", model }));
   }
 
-  /** `/clear` (docs/26) — same reasoning as `setModel` about not needing
+  /** `/clear` — same reasoning as `setModel` about not needing
    * a pending queue. */
   clearConversation(): void {
     if (this.socket?.readyState !== WebSocket.OPEN) return;
     this.socket.send(JSON.stringify({ type: "clear_conversation" }));
   }
 
-  /** Fetches turns older than `beforeCursor` (Phase 2/3, docs/30) —
-   * triggered by the user scrolling up in the UI (Phase 5). Same reasoning
+  /** Fetches turns older than `beforeCursor` —
+   * triggered by the user scrolling up in the UI. Same reasoning
    * as `setModel` about not needing a pending queue: it only makes sense to
    * call this after the initial tail has already arrived (`onHistoryPage`), so the
    * socket is always already open at this point. */
@@ -580,7 +579,7 @@ export class RelayClient {
     this.socket.send(JSON.stringify({ type: "load_older_history", beforeCursor }));
   }
 
-  /** Cancels an `anywh-bg` job from the UI (docs/32, Phase F) — same reasoning
+  /** Cancels an `anywh-bg` job from the UI — same reasoning
    * as `setModel`/`clearConversation` about not needing a pending
    * queue: the chip that exposes this only appears when a job already exists in the
    * list, which means `background_job_state` has already arrived, which
@@ -590,7 +589,7 @@ export class RelayClient {
     this.socket.send(JSON.stringify({ type: "cancel_background_job", id }));
   }
 
-  /** docs/46 — answers a pending `present_choice` prompt. Same reasoning as
+  /** Answers a pending `present_choice` prompt. Same reasoning as
    * `setModel`/`clearConversation` about not needing a pending queue: the
    * picker that exposes this only appears once `onChoicePrompt` already
    * fired, which means the socket is already open. */
@@ -609,7 +608,7 @@ export class RelayClient {
     this.socket?.close();
   }
 
-  /** Called when returning from background/foreground (docs/23, Phase D1) — doesn't
+  /** Called when returning from background/foreground — doesn't
    * trust the native `close` timing, which may never fire on a
    * "zombie" socket (`readyState` still `OPEN` but the network connection has really
    * already died). Only reconnects if the socket isn't genuinely usable;

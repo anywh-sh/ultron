@@ -1,4 +1,4 @@
-// Testa: docs/32 Fase D ponta-a-ponta contra um relay de verdade (`npm run
+// Testa: o follow-up automático de anywh-bg ponta-a-ponta contra um relay de verdade (`npm run
 // dev` rodando em outro terminal) — pede pro Claude rodar um comando via
 // `anywh-bg`, espera o primeiro turno responder "iniciei", e confirma que
 // um SEGUNDO turno chega sozinho (sem nenhuma mensagem nova do cliente)

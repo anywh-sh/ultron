@@ -135,7 +135,7 @@ export function useSessionNames(profile: Profile): {
     let reconnectTimer: number | undefined;
 
     // A tailnet connection needs its own fresh, unspent connect token on
-    // every new TCP connection (journal/49 D4, journal/62) — a reconnect
+    // every new TCP connection — a reconnect
     // after `close` is a brand-new one, so this resolves again on every
     // call instead of reusing whatever `connect()` used the first time.
     function connect(): void {

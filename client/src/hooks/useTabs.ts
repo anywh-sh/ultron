@@ -9,7 +9,7 @@ export interface Tab {
   title: string | null;
   hasUnreadCompletion: boolean;
   isRunning: boolean;
-  /** Has an `anywh-bg` job currently observed in this session (docs/32, Phase E) —
+  /** Has an `anywh-bg` job currently observed in this session —
    * same pattern as `isRunning`, but for "something running unsupervised in
    * parallel" instead of "the assistant is responding right now". */
   hasBackgroundJob: boolean;
@@ -81,9 +81,9 @@ const TABS_KEY = "anywh:tabs";
 const ACTIVE_TAB_KEY = "anywh:active-tab";
 const TAB_LAYOUT_KEY = "anywh:tab-layout";
 
-/** Keys from when tabs were separated by profile (docs/28 and earlier) — used
+/** Keys from when tabs were separated by profile — used
  * only as a migration fallback for whoever already had tabs saved from before the
- * merge into a single tab strip (docs/29). */
+ * merge into a single tab strip. */
 function legacyTabsKey(profileId: string): string {
   return `anywh:tabs:${profileId}`;
 }
@@ -252,7 +252,7 @@ function getPersistedLayout(tabs: PersistedTab[], fallbackActiveTabId: string | 
 }
 
 /**
- * State of the whole app's tabs (docs/29), now grouped into side-by-side
+ * State of the whole app's tabs, now grouped into side-by-side
  * columns for the split feature: `tabs` stays the flat pool (no separation
  * by profile — each tab carries its own `profileId`), while `groups` holds
  * the left-to-right visual layout. All tabs stay mounted at all times (WS

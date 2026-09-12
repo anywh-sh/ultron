@@ -44,8 +44,8 @@ const EMPTY: KeyboardInsetInfo = {
 };
 
 /**
- * iOS keyboard info calculated via `visualViewport` — see `docs/34` item 1
- * (unwanted gap between composer and keyboard) and `docs/39` (physical
+ * iOS keyboard info calculated via `visualViewport` — fixes an unwanted gap
+ * between composer and keyboard (a real finding: physical
  * device reproduced the bug even after the fix validated only on the
  * Simulator — hypothesis that `visualViewport`/layout behavior differs
  * between the two).

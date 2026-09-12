@@ -6,7 +6,7 @@
  * Why the host is part of the code at all: a bare join code is meaningless
  * without knowing *where* to redeem it, and this client is not allowed to
  * know that — the whole point of the deep link carrying `claimUrl` as
- * opaque data (journal/62 CT-1) is that no route of any particular hosted
+ * opaque data is that no route of any particular hosted
  * service is ever hardcoded here. Baking a host in as the only alternative
  * would hardcode one deployment into a self-hostable client. So the code
  * carries its own host, and the host says where its endpoints are, via the

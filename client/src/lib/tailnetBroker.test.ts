@@ -63,7 +63,7 @@ describe("fetchConnectGrant", () => {
     expect(await grant).toEqual({ endpoint: { host: "100.64.0.1", port: 8443 }, token: "tok" });
     expect(fetchMock).toHaveBeenCalledTimes(3);
     // Every attempt has to carry its own signature — the control plane's
-    // anti-replay (journal/49 D4) rejects a repeated one, so a retry that
+    // anti-replay check rejects a repeated one, so a retry that
     // reused the first would fail for a reason that has nothing to do with
     // the resume.
     const signCalls = invokeMock.mock.calls.filter(([cmd]) => cmd === "tailnet_sidecar_sign");

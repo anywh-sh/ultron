@@ -22,7 +22,7 @@ export interface ChangeSignal {
   token: number;
 }
 
-/** Live refresh (docs/41 phase 5) — sends the client's full currently
+/** Live refresh — sends the client's full currently
  * visible set (expanded tree dirs + open file tabs) to the relay's `/files`
  * watch endpoint, and turns `dir_changed`/`file_changed` notifications into
  * signals `FileTree`/`FileViewer` react to by invalidating just that one
@@ -50,7 +50,7 @@ function useFilesWatch(profile: Profile, sessionId: string, dirs: string[], file
     }
 
     // A tailnet connection needs its own fresh, unspent connect token on
-    // every new TCP connection (journal/49 D4, journal/62) — a reconnect
+    // every new TCP connection — a reconnect
     // after `close` is a brand-new one, so this resolves again on every
     // call instead of reusing whatever `connect()` used the first time.
     function connect(): void {
@@ -250,7 +250,7 @@ function useFilesDrop(profile: Profile, sessionId: string) {
 }
 
 /**
- * Work dir file panel content (docs/41), plugged into the generic
+ * Work dir file panel content, plugged into the generic
  * `SessionPanel` shell — tree on the left, tabs + breadcrumb + viewer on the
  * right. Mirrors `TerminalPanel`'s mount lifecycle: only exists while the
  * chat tab is active and the pane is open (decided by the caller, App.tsx).
@@ -258,7 +258,7 @@ function useFilesDrop(profile: Profile, sessionId: string) {
 export function FilesPanel({ profile, chatSessionId, maximized, fileTabs, onToggleMaximized, onClose, onOpenTerminal }: FilesPanelProps) {
   const { open, activePath, expanded, treeWidth, root } = fileTabs.getTabs(chatSessionId);
   // Not persisted — same as the terminal's tab list, this is view state, not
-  // worth surviving a restart. Defaults to filtered (decision 4, docs/41).
+  // worth surviving a restart. Defaults to filtered.
   const [showHidden, setShowHidden] = useState(false);
 
   // Learns/confirms the session's real root once per mount — if it drifted

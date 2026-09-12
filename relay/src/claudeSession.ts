@@ -5,11 +5,10 @@ import { PLAN_MODE_CHOICE_MARKER_PROMPT } from "./planChoiceMarker.js";
 import type { ContextUsage, ModelChoice, PermissionMode } from "./sessionStore.js";
 
 // A turn = a `claude -p` process. Continuity across turns comes from
-// `--resume <session_id>`, not from keeping a process alive — see
-// docs/10-stream-json-validacao.md and docs/11.
+// `--resume <session_id>`, not from keeping a process alive.
 //
 // ANTHROPIC_API_KEY is always removed from the child process's environment:
-// it's the project's golden rule (docs/00) — if that env var leaks, Claude
+// it's the project's golden rule — if that env var leaks, Claude
 // Code starts billing via API instead of using the plan.
 
 /** Appended to every turn, regardless of the active project's CLAUDE.md — it's
@@ -31,12 +30,12 @@ import type { ContextUsage, ModelChoice, PermissionMode } from "./sessionStore.j
  * turn ends. Without this warning, the model promises "I'll run this in the
  * background and let you know when it's done" using that native mechanism
  * (or raw `&`/`nohup`) and the promise never gets kept — a real finding from
- * the user, root cause documented in docs/32. `anywh-bg` (script in
+ * the user. `anywh-bg` (script in
  * `relay/scripts/`, included in the PATH above) solves this by staying
  * outside the turn's process; `BackgroundJobTracker` (`backgroundJobs.ts`,
  * wired in `sessionManager.ts`) watches for completion and triggers an
- * automatic follow-up turn (`SharedSession.submitBackgroundJobResult`,
- * docs/32 Phase D) — the promise below is now genuinely kept, validated
+ * automatic follow-up turn (`SharedSession.submitBackgroundJobResult`) —
+ * the promise below is now genuinely kept, validated
  * end-to-end against the real binary (`relay/scripts/manual/test-background-job.mjs`).
  */
 const APPEND_SYSTEM_PROMPT =
@@ -54,7 +53,7 @@ const APPEND_SYSTEM_PROMPT =
 
 /** Env for every relay child process (the `claude -p` turn here, interactive
  * shell in terminalSession.ts) — extracted to one place because the golden
- * rule (never let `ANTHROPIC_API_KEY` leak to the child process, docs/00)
+ * rule (never let `ANTHROPIC_API_KEY` leak to the child process)
  * must hold equally for both: a terminal opened by the user is just as
  * capable of running `claude` manually as the turn's own spawn. */
 export function buildChildEnv(homeOverride: string | undefined): NodeJS.ProcessEnv {
@@ -81,8 +80,7 @@ export function buildChildEnv(homeOverride: string | undefined): NodeJS.ProcessE
   // minute failure. Kept anyway (harmless, forward-compatible if the
   // underlying CLI bug ever gets fixed) but this is an open, unresolved
   // upstream limitation for the permission-approval path specifically, not
-  // something this env var actually fixes today — full investigation in
-  // journal/46 Descoberta 8. Applies to every child this function builds
+  // something this env var actually fixes today. Applies to every child this function builds
   // env for (this turn's `claude -p`, and the interactive terminal in
   // terminalSession.ts) — it's not scoped to a single MCP server (it can't
   // be, it's a process-wide env var), but it's harmless outside a
@@ -103,7 +101,7 @@ export interface ClaudeEvent {
    * stream-json` output and the on-disk transcript) — present both live and
    * on replay. On `type: "user_prompt"` (synthetic, never comes from the
    * CLI's stdout) it's ISO from the actual `.jsonl` line when rebuilding
-   * history, or absent in the live broadcast to other devices (docs/33) —
+   * history, or absent in the live broadcast to other devices —
    * whoever sent the message already knows the click's own time, doesn't
    * depend on this. */
   timestamp?: string;
@@ -111,22 +109,22 @@ export interface ClaudeEvent {
 }
 
 export interface ClaudeSessionOptions {
-  /** Overrides the child process's $HOME — used for per-profile isolation (docs/08). */
+  /** Overrides the child process's $HOME — used for per-profile isolation. */
   homeOverride?: string;
-  /** Seeds the session_id from what Phase 7 persisted to disk — see
-   * SessionStore/docs/18. Without this, a relay restart would lose
+  /** Seeds the session_id from what `SessionStore` persisted to disk.
+   * Without this, a relay restart would lose
    * `--resume` continuity even with the Claude Code session intact. */
   initialSessionId?: string;
 }
 
 /** Pre-built by the caller (`SharedSession`, which owns the "which mode gets
- * which MCP server" decision from docs/46 and the actual MCP server
+ * which MCP server" decision and the actual MCP server
  * registry) — kept as opaque already-formed CLI arg values here, same as
  * every other spawn parameter, so this file stays a plain spawn wrapper that
  * doesn't need to know anything about MCP, choice prompts, or permission
  * approval. `allowedTools` (the `present_choice` tool, active outside `plan`
- * mode, Fase 1-3) and `permissionPromptTool` (the `--permission-prompt-tool`
- * bridge, active outside `bypassPermissions`, Fase 4-5) are independent CLI
+ * mode) and `permissionPromptTool` (the `--permission-prompt-tool`
+ * bridge, active outside `bypassPermissions`) are independent CLI
  * flags and both fields may be set at once — validated against the real
  * binary that the CLI accepts both together in the same spawn (the modes
  * where both apply, `default`/`acceptEdits`, are exactly where both bridges
@@ -136,7 +134,7 @@ export interface McpSpawnConfig {
   configJson: string;
   /** Full `--allowedTools` value (comma-separated is accepted by the CLI). */
   allowedTools?: string;
-  /** Tool name to pass to `--permission-prompt-tool` (docs/46 Fase 4/5) — the
+  /** Tool name to pass to `--permission-prompt-tool` — the
    * CLI calls this tool for every action that would otherwise need
    * approval, instead of auto-denying. */
   permissionPromptTool?: string;
@@ -144,7 +142,7 @@ export interface McpSpawnConfig {
    * `AskUserQuestion` whenever `present_choice` is registered as its
    * replacement (`SharedSession.runTurn`) — without this the model is free
    * to call either, and `AskUserQuestion` never gets a real answer channel
-   * in headless (docs/46, Descoberta 7), so a call to it silently fails and
+   * in headless, so a call to it silently fails and
    * the model just paraphrases the question as plain text instead of
    * rendering the picker UI (confirmed live: this is exactly what happened
    * instead of the `present_choice` panel opening). */
@@ -219,7 +217,7 @@ function usageTokenTotal(usage: ResultUsage): number {
  * ID: <id>" and "No conversation found to continue"). This is the ONLY case
  * where dropping `sessionId` is correct, so the next turn starts a fresh
  * conversation instead of repeating the same failure forever (the original
- * reason for clearing on error at all — docs/09, an orphaned session_id
+ * reason for clearing on error at all — an orphaned session_id
  * after a credentials bug).
  *
  * Every other error `sendTurn` can surface — hitting the 5-hour/weekly usage
@@ -297,7 +295,7 @@ export class ClaudeSession {
     return this.sessionId;
   }
 
-  /** `/clear` (docs/26) — doesn't run anything on `claude`, just drops the
+  /** `/clear` — doesn't run anything on `claude`, just drops the
    * local continuity: the next `sendTurn` won't carry `--resume`, so it
    * genuinely starts a new conversation on the CLI side, without spending a
    * process/turn just to "tell" it about that. */
@@ -305,7 +303,7 @@ export class ClaudeSession {
     this.sessionId = undefined;
   }
 
-  /** Message editing (docs/33) — after `transcriptFork.ts` writes a new
+  /** Message editing — after `transcriptFork.ts` writes a new
    * truncated `.jsonl`, the next `sendTurn` needs to `--resume` with that
    * new id, not the old one (which still has the edited message and
    * everything that came after it). */
@@ -345,7 +343,7 @@ export class ClaudeSession {
       "--verbose",
       "--include-partial-messages",
       "--append-system-prompt",
-      // docs/46 — the marker convention is only relevant (and only ever
+      // The marker convention is only relevant (and only ever
       // requested) in `plan` mode: it's the fallback for the one mode where
       // the real `present_choice` MCP tool can't be offered at all (see the
       // `mcp` arg below), so appending it in every other mode would just be
@@ -362,25 +360,25 @@ export class ClaudeSession {
         .join("\n\n"),
       ...(model ? ["--model", model] : []),
       // `bypassPermissions` is the historical default mode (the only one
-      // that existed before the mode became selectable, see docs/25) — it
+      // that existed before the mode became selectable) — it
       // stays on the dedicated flag because that's the way, tested against
       // the real binary, to avoid a tool touching a new path (e.g. a
       // freshly uploaded image) getting stuck asking for approval that
       // nobody can give in a non-interactive process (real finding while
-      // testing image upload, docs/15). It's also the only mode that never
+      // testing image upload). It's also the only mode that never
       // gets `permissionPromptTool` below (`SharedSession.runTurn`) — every
-      // other mode, since Fase 5, genuinely can pause a turn waiting on a
+      // other mode genuinely can pause a turn waiting on a
       // human's approval, by design; that's the whole point of the flag.
       ...(permissionMode === "bypassPermissions"
         ? ["--dangerously-skip-permissions"]
         : ["--permission-mode", permissionMode]),
-      // docs/46 — `mcp` combines whichever of the two independent bridges
+      // `mcp` combines whichever of the two independent bridges
       // `SharedSession.runTurn` decided to register for this turn's mode:
       // `allowedTools` for the `present_choice` tool outside `plan` mode
       // (tested that `plan` mode blocks any non-native tool categorically
       // regardless of `--allowedTools`, so it's skipped there), and/or
-      // `permissionPromptTool` outside `bypassPermissions` (Fase 4 for
-      // `plan`'s `ExitPlanMode` only, widened in Fase 5 to `default`/
+      // `permissionPromptTool` outside `bypassPermissions` (originally just
+      // `plan`'s `ExitPlanMode`, later widened to `default`/
       // `acceptEdits` for every action the CLI itself decides needs
       // approval). Validated against the real binary that both flags
       // coexist fine in the same spawn — `default`/`acceptEdits` pass both.

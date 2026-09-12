@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 
-/** Right-side dock, one per chat session (tab) — replaces `useSessionPanels.ts`
- * (see docs/41 for why): terminal and the work dir file viewer aren't
+/** Right-side dock, one per chat session (tab) — replaces `useSessionPanels.ts`:
+ * terminal and the work dir file viewer aren't
  * mutually exclusive content of a single slot, they're independent panes
  * that stack in the same column. `panes` is the stack, top to bottom;
  * pushing a kind that's already there is a no-op from the caller's
@@ -43,8 +43,8 @@ const MAX_SPLIT_RATIO = 0.8;
 
 const STORAGE_KEY = "anywh:session-dock";
 // Old single-slot shape (`{ open, kind, width, maximized }`) this hook
-// replaces — not migrated, see docs/41 ("o que se perde é só 'esse painel
-// estava aberto, com essa largura', irrelevante").
+// replaces — not migrated: what's lost is just "this panel was open, with
+// this width", not worth preserving.
 const OLD_STORAGE_KEY = "anywh:session-panels";
 
 type DockMap = Record<string, DockState>;

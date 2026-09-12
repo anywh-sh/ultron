@@ -68,7 +68,7 @@ export function TitleBar({
    * message send) failing silently or hanging instead. */
   connected: boolean;
 }) {
-  // macOS keeps the native traffic lights (Tauri's overlay mode — docs/21),
+  // macOS keeps the native traffic lights (Tauri's overlay mode),
   // so we don't draw minimize/maximize/close there, we just reserve their
   // space on the left so nothing ends up underneath them.
   const mac = isMacOS();

@@ -6,7 +6,7 @@ import { CLAUDE_BIN, EXTRA_PATH_DIRS } from "./claudeCliConfig.js";
 // backtick is optional: found by testing that a newer CLI version started
 // wrapping the value in markdown backticks, silently breaking this probe
 // (it always returned `undefined` until this was noticed). Same vocabulary
-// as MODEL_LABELS on the client (docs/26), so the text already arrives
+// as MODEL_LABELS on the client, so the text already arrives
 // ready to display without remapping it there.
 const MODEL_NAME_RE = /^Current model:\s*`?(Sonnet|Opus|Haiku|Fable)\b/i;
 
@@ -38,11 +38,11 @@ function parseAvailableModels(result: string): string[] {
 
 /**
  * Runs once at relay boot (server.ts) to find out this profile account's
- * actual default model (docs/28) — found by testing manually: `/model`
+ * actual default model — found by testing manually: `/model`
  * without an argument is intercepted by the CLI itself before any API call
  * (`num_turns: 0` in the result), so it costs nothing and runs in
  * ~100-200ms. Each profile runs its own relay process with its own `$HOME`
- * (docs/08), so each instance only probes its own account.
+ * so each instance only probes its own account.
  *
  * The actual finding that motivated this: the two profiles have DIFFERENT
  * defaults — personal came back "Sonnet 5 (default)", work came back "Opus 5

@@ -6,11 +6,11 @@ pub struct ConnectionIndicatorRequest {
   pub connected: bool,
 }
 
-/// Native context menu item (docs/33) — `system_icon` is the name of an
+/// Native context menu item — `system_icon` is the name of an
 /// SF Symbol (e.g. `"doc.on.doc"`, `"pencil"`), resolved on the Swift side.
 /// `disabled_reason` becomes the `UIAction`'s `subtitle` when `disabled` —
 /// used by the "edit message with attached image" item (out of scope for
-/// v1, see docs/20-backlog.md).
+/// v1).
 #[derive(Debug, Clone, Deserialize, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct ContextMenuItem {
@@ -24,7 +24,7 @@ pub struct ContextMenuItem {
   pub disabled_reason: Option<String>,
 }
 
-/// Coordinates of the touch that triggered the long-press (docs/33) — the
+/// Coordinates of the touch that triggered the long-press — the
 /// WKWebView's own coordinate space (points, not device pixels), the same
 /// frame of reference `TouchEvent.clientX/clientY` already uses on the JS
 /// side.
