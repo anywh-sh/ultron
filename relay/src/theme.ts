@@ -19,7 +19,7 @@ export type ThemeAppearance = "dark" | "light";
 /** Ids that a custom theme can never take: they're the built-in themes
  * (client/src/lib/builtinThemes.ts), which don't live on disk at all, so a
  * custom file under one of these names would be permanently shadowed. */
-export const RESERVED_THEME_IDS = ["default"];
+export const RESERVED_THEME_IDS = ["default", "papel"];
 
 /**
  * Without these six, there's no theme — a file missing `background` or
@@ -46,10 +46,14 @@ export const REQUIRED_COLOR_KEYS = [
  */
 export const OPTIONAL_COLOR_KEYS = [
   "bg-sidebar",
+  "bg-chrome",
   "bg-elevated",
+  "surface-hover",
   "card",
   "bubble-user",
   "text-faint",
+  "primary-soft",
+  "primary-ink",
   "border-soft",
   "context-ring-warn",
   "diff-add",
