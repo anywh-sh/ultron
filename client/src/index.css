@@ -196,11 +196,11 @@
   --color-muted-foreground: var(--muted-foreground);
   --color-text-faint: var(--text-faint);
 
-  /* Distinto de --color-popover (que vem de --bg-elevated): se fossem
-     iguais, o highlight de hover/foco dentro de um popover ficaria invisível
-     (mesma cor do fundo que ele mesmo está sobre) — foi exatamente o bug
-     relatado no dropdown de perfil. Era `--border` emprestado por falta de
-     token próprio; `--surface-hover` é esse token. */
+  /* Distinct from --color-popover (which also derives from --bg-elevated):
+     if the two were equal, the hover/focus highlight inside a popover would
+     be invisible — the same color as the surface it sits on. That was the
+     exact bug reported on the profile dropdown. It used to borrow `--border`
+     for lack of a token of its own; `--surface-hover` is that token. */
   --color-accent: var(--surface-hover);
   --color-accent-foreground: var(--foreground);
 
