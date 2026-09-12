@@ -16,8 +16,10 @@ infra/systemd/anywh-relay@.service
 client/src-tauri/target/
 client/src-tauri/gen/
 
-# tailnet-sidecar Go binaries, one per platform target triple (journal/62
-# CT-2) — built from client/tailnet-sidecar/, not checked in
+# tailnet-sidecar Go binaries, one per platform target triple — built from
+# client/tailnet-sidecar/ by `npm run build:sidecar`, so every machine
+# produces its own. Not checked in: a binary here is the build output of the
+# Go source that is.
 client/src-tauri/binaries/
 
 # personal convenience scripts (see client/README.md) — machine-specific,
