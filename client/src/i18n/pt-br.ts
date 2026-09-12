@@ -47,6 +47,11 @@ export const ptBr: Dictionary = {
       copyFailed: "Não foi possível copiar o código.",
       showMoreLines: "Mostrar mais {count} linhas",
     },
+    turn: {
+      working: "gerando",
+      oneToolUsed: "1 ferramenta usada",
+      toolsUsed: "{count} ferramentas usadas",
+    },
   },
   shell: {
     titleBar: {

@@ -47,6 +47,11 @@ export const en: Dictionary = {
       copyFailed: "Couldn't copy the code.",
       showMoreLines: "Show {count} more lines",
     },
+    turn: {
+      working: "generating",
+      oneToolUsed: "1 tool used",
+      toolsUsed: "{count} tools used",
+    },
   },
   shell: {
     titleBar: {
