@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from "react";
+import { createPortal } from "react-dom";
 import { ImagePlus, X } from "lucide-react";
 import { getCurrentWebview } from "@tauri-apps/api/webview";
 import { invoke } from "@tauri-apps/api/core";
@@ -16,6 +17,7 @@ import { TurnIndicator } from "@/components/chat/TurnIndicator";
 import { Composer, type ComposerHandle } from "@/components/chat/Composer";
 import { ChoiceCard } from "@/components/chat/ChoiceCard";
 import { WorkingDirectoryButton } from "@/components/chat/WorkingDirectoryButton";
+import { useTitleBarSlot } from "@/hooks/useTitleBarSlot";
 import { FilesToggleButton } from "@/components/chat/FilesToggleButton";
 import { TerminalToggleButton } from "@/components/chat/TerminalToggleButton";
 import { BackgroundJobIndicator } from "@/components/chat/BackgroundJobIndicator";
@@ -81,6 +83,11 @@ interface ChatPanelProps {
    * so each `ChatPanel` needs to know whether it's its turn to handle the
    * drop. */
   isActiveTab: boolean;
+  /** Narrower than `isActiveTab`: with split groups more than one tab is
+   * visible at a time, and only one of them is the one the user is working
+   * in. Drives what the title bar shows, which describes a single
+   * conversation. Absent on iOS, which has neither groups nor a title bar. */
+  isFocusedTab?: boolean;
 }
 
 function buildWireMessage(text: string, attachments: PendingAttachment[]): string {
@@ -135,11 +142,13 @@ export function ChatPanel({
   files,
   onOpenPath,
   isActiveTab,
+  isFocusedTab = false,
 }: ChatPanelProps) {
   const dict = useDict();
   const log = useMessageLog();
   const logRef = useRef(log);
   logRef.current = log;
+  const titleBarSlot = useTitleBarSlot();
   const isActiveTabRef = useRef(isActiveTab);
   isActiveTabRef.current = isActiveTab;
   const onTurnActiveChangeRef = useRef(onTurnActiveChange);
@@ -709,15 +718,10 @@ export function ChatPanel({
             {!isIOS() && (
               <div className="mb-3 flex items-center justify-between">
                 <div className="flex min-w-0 items-center gap-1.5">
-                  <WorkingDirectoryButton
-                    profile={profile}
-                    cwd={cwd}
-                    locked={cwdLocked}
-                    connected={connected}
-                    isNewConversation={isNewConversation}
-                    onSetCwd={setCwd}
-                    onFocusComposer={() => composerRef.current?.focus()}
-                  />
+                  {/* The working directory itself lives in the title bar now
+                   * (see the portal below) — what stays here is the job
+                   * indicator, which belongs next to the composer because it
+                   * is about the turn being typed, not about the window. */}
                   <BackgroundJobIndicator jobs={backgroundJobs} onCancel={cancelBackgroundJob} />
                 </div>
                 <div className="flex shrink-0 items-center gap-1">
@@ -729,6 +733,26 @@ export function ChatPanel({
           </div>
         </div>
       </div>
+
+      {/* Only the focused tab paints the title bar's center, and only on
+       * desktop (iOS has no title bar and keeps its own copy of this button
+       * above the composer). Rendering from here rather than lifting `cwd`
+       * into `App` keeps a value every mounted tab reports on connect out of
+       * the state that re-renders every mounted tab — see titleBarSlot.ts. */}
+      {!isIOS() && isFocusedTab && titleBarSlot
+        ? createPortal(
+            <WorkingDirectoryButton
+              profile={profile}
+              cwd={cwd}
+              locked={cwdLocked}
+              connected={connected}
+              isNewConversation={isNewConversation}
+              onSetCwd={setCwd}
+              onFocusComposer={() => composerRef.current?.focus()}
+            />,
+            titleBarSlot,
+          )
+        : null}
     </div>
   );
 }

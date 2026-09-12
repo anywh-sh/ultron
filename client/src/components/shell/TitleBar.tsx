@@ -10,6 +10,7 @@ import {
 import { Tooltip, TooltipContent, TooltipShortcut, TooltipTrigger } from "@/components/ui/tooltip";
 import { useWindowControls } from "@/hooks/useWindowControls";
 import { isMacOS, shortcutLabel } from "@/lib/platform";
+import { setTitleBarSlot } from "@/lib/titleBarSlot";
 import { cn } from "@/lib/utils";
 
 /** No tooltip on purpose — these are the 3 native window controls (Windows
@@ -142,7 +143,15 @@ export function TitleBar({
         </Tooltip>
       </div>
 
-      <div data-tauri-drag-region className="flex h-full flex-1 items-center justify-center">
+      {/* The centre is both the window's drag region and the slot the focused
+       * conversation portals its working directory into (`titleBarSlot.ts`).
+       * `data-tauri-drag-region` only applies to this element itself, not to
+       * children, so the button rendered inside stays clickable. */}
+      <div
+        data-tauri-drag-region
+        ref={setTitleBarSlot}
+        className="flex h-full min-w-0 flex-1 items-center justify-center gap-2 px-2"
+      >
         {!connected && (
           <span className="flex items-center gap-1.5 font-mono text-[11px] text-destructive">
             <span className="size-1.5 animate-pulse rounded-full bg-destructive" />

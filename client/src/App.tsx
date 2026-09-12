@@ -589,6 +589,7 @@ export default function App() {
         }
         onOpenPath={isCompact || isIOS() ? undefined : (path) => handleOpenFilePath(profile, tab.id, path)}
         isActiveTab={isVisible}
+        isFocusedTab={tab.id === activeTabId}
       />
     );
 
