@@ -13,6 +13,7 @@ import { TabGroupStrip, groupEndDropId } from "@/components/shell/TabGroupStrip"
 import { useGroupSizeDrag } from "@/hooks/useGroupSizeDrag";
 import { MAX_GROUPS, type Tab, type TabGroup } from "@/hooks/useTabs";
 import { profileColorClass } from "@/lib/profiles";
+import { useDict } from "@/i18n";
 import { cn } from "@/lib/utils";
 
 const HANDLE_PX = 4;
@@ -67,6 +68,11 @@ interface TabGroupLayoutProps {
   splitEnabled: boolean;
   onSelect: (tabId: string) => void;
   onFocusGroup: (groupId: string) => void;
+  /** The `+` at the end of a group's strip. Takes the group id because a new
+   * conversation belongs to the strip that was clicked, not to whichever
+   * group happened to be focused — the caller focuses it first, then opens
+   * (see `App.tsx`). */
+  onNewTab: (groupId: string) => void;
   onClose: (tabId: string) => void;
   onMoveTab: (tabId: string, groupId: string, index: number) => void;
   onSplitTabToNewGroup: (tabId: string, afterGroupId: string | null) => void;
@@ -170,10 +176,11 @@ function GroupResizeHandle({
  * happening at all. Deliberately simpler than the real tab (no drag handle,
  * no buttons) — it's a preview, not an interactive element. */
 function DragPreview({ tab }: { tab: Tab }) {
+  const dict = useDict();
   return (
-    <div className="flex max-w-56 items-center gap-1.5 rounded-md border border-border bg-bg-sidebar px-3 py-1.5 font-mono text-xs text-foreground shadow-lg">
+    <div className="flex max-w-56 items-center gap-1.5 border border-border bg-bg-sidebar px-3 py-1.5 font-mono text-xs text-foreground shadow-popover">
       <span className={cn("size-1.5 shrink-0 rounded-full", profileColorClass(tab.profileId))} />
-      <span className="truncate">{tab.title ?? "Nova sessão"}</span>
+      <span className="truncate">{tab.title ?? dict.common.untitledSession}</span>
     </div>
   );
 }
@@ -205,6 +212,7 @@ export function TabGroupLayout({
   splitEnabled,
   onSelect,
   onFocusGroup,
+  onNewTab,
   onClose,
   onMoveTab,
   onSplitTabToNewGroup,
@@ -284,6 +292,7 @@ export function TabGroupLayout({
             onRenameSession={onRenameSession}
             onDelete={onDelete}
             onSplitToNewGroup={() => {}}
+            onNewTab={() => onNewTab(lastGroupId)}
           />
           <div className="relative min-h-0 flex-1">
             {tabs.map((tab) => (
@@ -340,6 +349,7 @@ export function TabGroupLayout({
                 onRenameSession={onRenameSession}
                 onDelete={onDelete}
                 onSplitToNewGroup={(tabId) => onSplitTabToNewGroup(tabId, group.id)}
+                onNewTab={() => onNewTab(group.id)}
               />
             </div>
           ))}

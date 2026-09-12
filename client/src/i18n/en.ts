@@ -18,6 +18,15 @@ export const en: Dictionary = {
     search: "Search",
     send: "Send",
     stop: "Stop",
+    untitledSession: "New session",
+  },
+  chat: {
+    tabs: {
+      newTab: "New tab",
+      close: "Close {title}",
+      agentWorking: "Agent working in this session",
+      sessionDone: "Session finished",
+    },
   },
   shell: {
     titleBar: {

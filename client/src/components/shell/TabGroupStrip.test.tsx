@@ -4,6 +4,7 @@ import userEvent from "@testing-library/user-event";
 import { DndContext } from "@dnd-kit/core";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { TabGroupStrip } from "./TabGroupStrip";
+import { en } from "@/i18n/en";
 import type { Tab } from "@/hooks/useTabs";
 
 afterEach(() => cleanup());
@@ -21,7 +22,7 @@ function tab(overrides: Partial<Tab> = {}): Tab {
   };
 }
 
-function renderStrip(tabs: Tab[], activeTabId: string | null) {
+function renderStrip(tabs: Tab[], activeTabId: string | null, onNewTab = vi.fn()) {
   return render(
     <TooltipProvider>
       <DndContext>
@@ -35,6 +36,7 @@ function renderStrip(tabs: Tab[], activeTabId: string | null) {
           onRenameSession={vi.fn()}
           onDelete={vi.fn()}
           onSplitToNewGroup={vi.fn()}
+          onNewTab={onNewTab}
         />
       </DndContext>
     </TooltipProvider>,
@@ -106,6 +108,7 @@ describe("TabGroupStrip", () => {
             onRenameSession={vi.fn()}
             onDelete={vi.fn()}
             onSplitToNewGroup={vi.fn()}
+            onNewTab={vi.fn()}
           />
         </DndContext>
       </TooltipProvider>,
@@ -116,6 +119,29 @@ describe("TabGroupStrip", () => {
 
     expect(onSelect).toHaveBeenCalledWith("s2");
     expect(screen.getByRole("tab", { name: "Segunda" })).toHaveFocus();
+  });
+
+  it("opens a new tab from the + at the end of the strip", async () => {
+    const user = userEvent.setup();
+    const onNewTab = vi.fn();
+    renderStrip([tab()], "s1", onNewTab);
+
+    await user.click(screen.getByRole("button", { name: en.chat.tabs.newTab }));
+
+    expect(onNewTab).toHaveBeenCalledTimes(1);
+  });
+
+  // The relay only titles a session once the first prompt is sent, so a tab
+  // opened by `+` carries `title: null` until then. Every surface that names
+  // it has to reach for the same dictionary entry — the fallback used to be
+  // a Portuguese literal repeated in four places in this file alone.
+  it("names an untitled tab from the dictionary, not from a literal", () => {
+    renderStrip([tab({ title: null })], "s1");
+
+    expect(screen.getByRole("tab", { name: en.common.untitledSession })).toBeInTheDocument();
+    expect(
+      screen.getByRole("button", { name: en.chat.tabs.close.replace("{title}", en.common.untitledSession) }),
+    ).toBeInTheDocument();
   });
 
   it("hides the split context-menu item when allowSplit is false", async () => {
@@ -135,6 +161,7 @@ describe("TabGroupStrip", () => {
             onRenameSession={vi.fn()}
             onDelete={vi.fn()}
             onSplitToNewGroup={vi.fn()}
+            onNewTab={vi.fn()}
           />
         </DndContext>
       </TooltipProvider>,

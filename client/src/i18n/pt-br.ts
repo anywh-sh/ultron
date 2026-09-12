@@ -18,6 +18,15 @@ export const ptBr: Dictionary = {
     search: "Buscar",
     send: "Enviar",
     stop: "Parar",
+    untitledSession: "Nova sessão",
+  },
+  chat: {
+    tabs: {
+      newTab: "Nova aba",
+      close: "Fechar {title}",
+      agentWorking: "Agente trabalhando nesta sessão",
+      sessionDone: "Sessão finalizada",
+    },
   },
   shell: {
     titleBar: {

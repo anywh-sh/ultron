@@ -41,6 +41,7 @@ function renderLayout(tabs: Tab[], groups: TabGroup[], overrides: { activeTabId?
         splitEnabled={overrides.splitEnabled ?? true}
         onSelect={vi.fn()}
         onFocusGroup={vi.fn()}
+      onNewTab={vi.fn()}
         onClose={vi.fn()}
         onMoveTab={vi.fn()}
         onSplitTabToNewGroup={vi.fn()}
