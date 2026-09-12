@@ -493,7 +493,7 @@ export function SettingsDialog({ open, onOpenChange, activeProfile }: SettingsDi
                   <p className="text-xs text-muted-foreground">Nome e cor deste perfil no seletor.</p>
                 </div>
                 <ProfileIdentityRow profile={scopedProfile} effectiveColorIndex={effectiveColorIndex} />
-                <ThemeSection scopedProfile={scopedProfile} activeProfile={activeProfile} allProfiles={profiles} />
+                <ThemeSection activeProfile={activeProfile} />
 
                 <div>
                   <h3 className="text-sm font-medium">Tamanho da fonte</h3>

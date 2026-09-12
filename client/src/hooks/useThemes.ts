@@ -3,29 +3,38 @@ import { fetchThemes } from "@/lib/relayClient";
 import { resolveConnection } from "@/lib/connectionResolver";
 import { useForegroundSync } from "@/hooks/useForegroundSync";
 import type { Profile } from "@/lib/profiles";
-import type { Theme } from "@/lib/theme";
 import { applyTheme, cacheResolvedTheme, resolveTheme, type ResolvedTheme } from "@/lib/themeApply";
 import {
-  customThemesForHost,
+  getSelectedThemeId,
   getThemeStore,
-  resolveProfileTheme,
-  selectableThemes,
+  resolveSelectedTheme,
   setThemesForHost,
+  subscribeSelectedTheme,
   subscribeThemes,
+  themeCatalog,
   themeStoreKey,
+  type CatalogEntry,
+  type ThemeResolution,
 } from "@/lib/themes";
 
-/** Reactive view of one profile's catalog: the built-ins plus whatever its
- * registry (`themeStoreKey`) has registered.
+/** Reactive view of everything this device can paint — the built-ins plus
+ * every mirrored registry's custom themes, with `profile`'s own registry
+ * winning a duplicate id (it's the host the app is connected to, so it's the
+ * one "add theme" writes to).
  *
- * The store snapshot is a dependency, not just a subscription: the selectors
- * read the module-level store rather than taking it as an argument, so a memo
+ * The store snapshot is a dependency, not just a subscription: `themeCatalog`
+ * reads the module-level store rather than taking it as an argument, so a memo
  * keyed only on the store key would keep handing back the previous list
  * after a theme is added — the component re-renders and shows stale content. */
-export function useThemes(profile: Profile): { all: Theme[]; custom: Theme[] } {
+export function useThemeCatalog(profile: Profile): CatalogEntry[] {
   const store = useSyncExternalStore(subscribeThemes, getThemeStore);
   const key = themeStoreKey(profile);
-  return useMemo(() => ({ all: selectableThemes(key), custom: customThemesForHost(key) }), [store, key]);
+  return useMemo(() => themeCatalog(key), [store, key]);
+}
+
+/** The device's theme choice, and the setter that repaints the app. */
+export function useSelectedTheme(): string | null {
+  return useSyncExternalStore(subscribeSelectedTheme, getSelectedThemeId);
 }
 
 /**
@@ -78,30 +87,29 @@ export function useThemeSync(profile: Profile): { supported: boolean } {
 }
 
 /**
- * A profile's theme with every token filled in, without painting anything —
- * for consumers that need literal colors rather than CSS variables (xterm,
- * the preview miniature in settings).
+ * The painted theme with every token filled in, without painting anything —
+ * for consumers that need literal colors rather than CSS variables (xterm).
  */
-export function useResolvedProfileTheme(profile: Profile): ResolvedTheme {
+export function useResolvedTheme(): ResolvedTheme {
   const store = useSyncExternalStore(subscribeThemes, getThemeStore);
-  return useMemo(() => resolveTheme(resolveProfileTheme(profile).theme), [store, profile]);
+  const selected = useSelectedTheme();
+  return useMemo(() => resolveTheme(resolveSelectedTheme().theme), [store, selected]);
 }
 
 /**
- * Paints the active profile's theme and keeps the boot cache current.
+ * Paints the device's chosen theme and keeps the boot cache current.
  *
- * `useLayoutEffect` so the repaint lands in the same commit as the profile
- * switch — with a plain effect the new profile's first frame renders in the
- * previous profile's colors.
+ * `useLayoutEffect` rather than a plain effect so picking a theme repaints in
+ * the same commit as the click, with no frame in the previous colors.
  */
-export function useActiveTheme(profile: Profile): { theme: Theme; missing: boolean } {
+export function useActiveTheme(): ThemeResolution {
   useSyncExternalStore(subscribeThemes, getThemeStore);
-  const { theme, missing } = resolveProfileTheme(profile);
+  useSelectedTheme();
+  const { theme, missing } = resolveSelectedTheme();
 
   useLayoutEffect(() => {
-    const resolved = applyTheme(theme);
-    cacheResolvedTheme(profile.id, resolved);
-  }, [profile.id, theme]);
+    cacheResolvedTheme(applyTheme(theme));
+  }, [theme]);
 
   return { theme, missing };
 }

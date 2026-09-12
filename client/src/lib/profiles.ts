@@ -15,9 +15,11 @@ export interface Profile {
    * whole list at creation time. Absent on profiles created before this
    * field existed — fall back to the position in the list. */
   colorIndex?: number;
-  /** Custom theme this profile uses, absent for the built-in one. Mirrored
-   * from the host registry on every sync (never written locally on its own)
-   * so switching theme on one device shows up on the others. */
+  /** Legacy: the theme this profile used back when the choice was made per
+   * profile and synced through the host. The app now paints one device-wide
+   * theme (`lib/themes.ts`) and never writes this field — it is still read
+   * from the host's sync, and exactly once more locally, to adopt whatever
+   * was chosen before the upgrade. */
   themeId?: string;
   /** Opaque bearer value sent as a `token` query param on the relay
    * WebSocket URL (see `RelayClient.connect`) — for a host sitting behind a

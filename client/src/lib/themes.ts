@@ -1,5 +1,5 @@
 import { BUILTIN_THEMES, DEFAULT_THEME } from "@/lib/builtinThemes";
-import { isTailnetProfile, type Profile } from "@/lib/profiles";
+import { getProfiles, isTailnetProfile, type Profile } from "@/lib/profiles";
 import type { Theme } from "@/lib/theme";
 
 /** The key a profile's theme registry is stored/looked up under. Normally
@@ -17,14 +17,15 @@ export function themeStoreKey(profile: Profile): string {
  * Local mirror of each host's theme registry, plus the built-ins.
  *
  * Keyed by host, not merged into one flat list, because a theme registry
- * belongs to the machine that stores it: this device can legitimately know
- * profiles from more than one host (see `syncProfilesForHost`), and two
- * hosts can each have a `nord-ish` that isn't the same file. Resolving a
- * profile's theme always goes through that profile's own host.
+ * belongs to the machine that *stores* it: this device can legitimately know
+ * profiles from more than one host (see `syncProfilesForHost`), and adding a
+ * theme means writing a file on one particular machine. Which theme this
+ * device *paints* is a separate, device-wide question — see the selection
+ * store below.
  *
  * Persisted so the catalog survives a cold start and an unreachable host —
- * a profile whose theme lives on a host that's currently down should still
- * paint in its theme, not snap back to the built-in.
+ * a theme whose file lives on a host that's currently down should still
+ * paint, not snap back to the built-in.
  */
 interface ThemeStore {
   version: 1;
@@ -84,34 +85,115 @@ export function customThemesForHost(host: string): Theme[] {
   return store.byHost[host] ?? [];
 }
 
-/** Everything selectable for a profile on `host`: the built-ins first (they
- * exist even with the relay down), then that host's custom themes. */
-export function selectableThemes(host: string): Theme[] {
-  return [...BUILTIN_THEMES, ...customThemesForHost(host)];
+/** A theme as the catalog offers it: the theme itself plus which registry
+ * it came from, since editing or deleting one means talking to the machine
+ * that holds the file. `storeKey` is absent for a built-in, which has no
+ * file anywhere. */
+export interface CatalogEntry {
+  theme: Theme;
+  storeKey?: string;
 }
 
-export interface ProfileThemeResolution {
+/**
+ * Everything this device can paint right now: the built-ins first (they
+ * exist even with every relay down), then the custom themes of every
+ * registry this device has mirrored — `preferredKey`'s first, so the host
+ * the app is actually connected to wins a duplicate id.
+ *
+ * The union is what makes the selection device-wide: a theme added from the
+ * machine at work keeps painting after switching to a profile on the laptop
+ * at home, even though only one of those registries holds the file.
+ */
+export function themeCatalog(preferredKey?: string): CatalogEntry[] {
+  const entries: CatalogEntry[] = BUILTIN_THEMES.map((theme) => ({ theme }));
+  const seen = new Set(entries.map((entry) => entry.theme.id));
+  const keys = Object.keys(store.byHost).sort((a, b) =>
+    a === preferredKey ? -1 : b === preferredKey ? 1 : 0,
+  );
+  for (const key of keys) {
+    for (const theme of store.byHost[key]) {
+      if (seen.has(theme.id)) continue;
+      seen.add(theme.id);
+      entries.push({ theme, storeKey: key });
+    }
+  }
+  return entries;
+}
+
+// --- Selection ------------------------------------------------------------
+//
+// Which theme the app paints is device-wide and device-local: one choice for
+// every profile, stored here and never sent to a relay. It used to be a
+// per-profile field (`profile.themeId`, synced through the host's
+// profiles.json), which meant switching profile repainted the whole app and
+// the same person on two machines couldn't have a dark one and a light one.
+
+const SELECTION_KEY = "anywh:theme";
+const LAST_PROFILE_KEY = "anywh:last-profile";
+
+/** One-time read of the per-profile selection this setting replaced, so an
+ * upgrade keeps painting what the user had chosen instead of snapping back
+ * to the built-in. The active profile's theme wins — it's the one on screen
+ * when the app last closed; any other profile carrying one is the tiebreak.
+ * `profile.themeId` is never written again after this. */
+function legacyProfileSelection(): string | null {
+  const profiles = getProfiles();
+  if (profiles.length === 0) return null;
+  const lastId = localStorage.getItem(LAST_PROFILE_KEY);
+  const last = profiles.find((profile) => profile.id === lastId);
+  return last?.themeId ?? profiles.find((profile) => profile.themeId)?.themeId ?? null;
+}
+
+function readSelection(): string | null {
+  try {
+    const stored = localStorage.getItem(SELECTION_KEY);
+    if (stored !== null) return stored === "" ? null : stored;
+    const adopted = legacyProfileSelection();
+    localStorage.setItem(SELECTION_KEY, adopted ?? "");
+    return adopted;
+  } catch {
+    return null;
+  }
+}
+
+let selection: string | null = readSelection();
+const selectionListeners = new Set<() => void>();
+
+/** `null` means the built-in default — stored as "no theme" rather than as
+ * its id, which is what makes it the fallback for a selection whose file is
+ * gone. */
+export function getSelectedThemeId(): string | null {
+  return selection;
+}
+
+export function subscribeSelectedTheme(listener: () => void): () => void {
+  selectionListeners.add(listener);
+  return () => selectionListeners.delete(listener);
+}
+
+export function setSelectedThemeId(id: string | null): void {
+  if (selection === id) return;
+  selection = id;
+  try {
+    localStorage.setItem(SELECTION_KEY, id ?? "");
+  } catch {
+    // Nothing to do about a full quota here — the choice still applies to
+    // this run, it just won't survive a restart.
+  }
+  for (const listener of selectionListeners) listener();
+}
+
+export interface ThemeResolution {
   theme: Theme;
-  /** True when the profile points at a theme this device can't find on its
-   * host — deleted from another device, or the host hasn't synced yet.
-   * The selection is deliberately left alone on the relay (see
-   * themeRegistry.ts), so this is a state to report, not to repair. */
+  /** True when the selected id isn't in any registry this device has
+   * mirrored — deleted from another device, or a host that hasn't synced
+   * yet. The selection is deliberately left alone (the theme may come back),
+   * so this is a state to report, not to repair. */
   missing: boolean;
 }
 
-export function resolveProfileTheme(profile: Profile): ProfileThemeResolution {
-  if (!profile.themeId) return { theme: DEFAULT_THEME, missing: false };
-  const found = selectableThemes(themeStoreKey(profile)).find((theme) => theme.id === profile.themeId);
-  return found ? { theme: found, missing: false } : { theme: DEFAULT_THEME, missing: true };
-}
-
-/** Profiles that would lose their theme if `themeId` were deleted from
- * `scopedProfile`'s registry — used to say how many before confirming,
- * without asking the relay (the profile list this device already has
- * carries `themeId`). Compares by `themeStoreKey`, not `host` directly, so
- * two tailnet profiles sharing the placeholder host never get counted as
- * using each other's theme. */
-export function profilesUsingTheme(profiles: Profile[], scopedProfile: Profile, themeId: string): Profile[] {
-  const key = themeStoreKey(scopedProfile);
-  return profiles.filter((profile) => themeStoreKey(profile) === key && profile.themeId === themeId);
+export function resolveSelectedTheme(): ThemeResolution {
+  if (!selection) return { theme: DEFAULT_THEME, missing: false };
+  const found = themeCatalog().find((entry) => entry.theme.id === selection);
+  return found ? { theme: found.theme, missing: false } : { theme: DEFAULT_THEME, missing: true };
 }

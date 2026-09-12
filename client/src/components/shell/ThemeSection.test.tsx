@@ -18,6 +18,7 @@ vi.mock("@/lib/connectionResolver", () => ({
 
 import { fetchThemes, updateProfileMeta, deleteTheme } from "@/lib/relayClient";
 import { resolveConnection } from "@/lib/connectionResolver";
+import { getSelectedThemeId, setSelectedThemeId } from "@/lib/themes";
 import { ThemeSection } from "./ThemeSection";
 
 const CUSTOM_THEME: Theme = {
@@ -51,9 +52,10 @@ function tailnetProfile(id: string, label: string): Profile {
 }
 
 // Two different tailnet profiles, each its own sandbox — distinct resolved
-// connections prove which one a call actually went to.
+// connections prove which one a call actually went to. Only the connected
+// one is a registry this section can write.
 const activeProfile = tailnetProfile("sandbox-a", "A");
-const scopedProfile = tailnetProfile("sandbox-b", "B");
+const otherProfile = tailnetProfile("sandbox-b", "B");
 
 const CONNECTIONS: Record<string, { host: string; port: number; token: string }> = {
   "sandbox-a": { host: "127.0.0.1", port: 11111, token: "token-a" },
@@ -62,14 +64,8 @@ const CONNECTIONS: Record<string, { host: string; port: number; token: string }>
 
 beforeEach(() => {
   localStorage.clear();
+  setSelectedThemeId(null);
   vi.mocked(fetchThemes).mockResolvedValue([CUSTOM_THEME]);
-  vi.mocked(updateProfileMeta).mockResolvedValue({
-    id: "sandbox-b",
-    label: "B",
-    colorIndex: 0,
-    createdAt: "2026-01-01T00:00:00.000Z",
-    updatedAt: "2026-01-01T00:00:00.000Z",
-  });
   vi.mocked(deleteTheme).mockResolvedValue(undefined);
   vi.mocked(resolveConnection).mockImplementation((profile: Profile) =>
     Promise.resolve(CONNECTIONS[profile.id]),
@@ -78,33 +74,25 @@ beforeEach(() => {
 
 afterEach(() => {
   cleanup();
+  setSelectedThemeId(null);
   vi.restoreAllMocks();
 });
 
-describe("ThemeSection with two distinct tailnet profiles", () => {
-  it("selects a theme through the scoped profile's own sidecar, not the active profile's", async () => {
+describe("ThemeSection", () => {
+  it("picking a theme is a device-local choice, with no relay round trip", async () => {
     const user = userEvent.setup();
-    render(
-      <ThemeSection scopedProfile={scopedProfile} activeProfile={activeProfile} allProfiles={[activeProfile, scopedProfile]} />,
-    );
+    render(<ThemeSection activeProfile={activeProfile} />);
 
     await user.click(await screen.findByText("Custom B"));
 
-    await vi.waitFor(() => expect(updateProfileMeta).toHaveBeenCalled());
-    expect(updateProfileMeta).toHaveBeenCalledWith(
-      "127.0.0.1",
-      22222,
-      "sandbox-b",
-      { themeId: "custom-b" },
-      "token-b",
-    );
+    expect(getSelectedThemeId()).toBe("custom-b");
+    // The theme used to be a field on the profile, PATCHed onto its host.
+    expect(updateProfileMeta).not.toHaveBeenCalled();
   });
 
-  it("deletes a theme through the scoped profile's own sidecar, not the active profile's", async () => {
+  it("deletes a theme through the connected profile's own sidecar", async () => {
     const user = userEvent.setup();
-    render(
-      <ThemeSection scopedProfile={scopedProfile} activeProfile={activeProfile} allProfiles={[activeProfile, scopedProfile]} />,
-    );
+    render(<ThemeSection activeProfile={activeProfile} />);
 
     await screen.findByText("Custom B");
     await user.click(screen.getByRole("button", { name: "Excluir Custom B" }));
@@ -113,6 +101,17 @@ describe("ThemeSection with two distinct tailnet profiles", () => {
     await user.click(within(dialog).getByRole("button", { name: "Excluir" }));
 
     await vi.waitFor(() => expect(deleteTheme).toHaveBeenCalled());
-    expect(deleteTheme).toHaveBeenCalledWith("127.0.0.1", 22222, "custom-b", "token-b");
+    expect(deleteTheme).toHaveBeenCalledWith("127.0.0.1", 11111, "custom-b", "token-a");
+  });
+
+  it("offers a theme mirrored from another host, without offering to edit a file it can't write", async () => {
+    const { setThemesForHost } = await import("@/lib/themes");
+    setThemesForHost(otherProfile.id, [{ ...CUSTOM_THEME, id: "from-b", name: "From B" }]);
+
+    render(<ThemeSection activeProfile={activeProfile} />);
+
+    await screen.findByText("From B");
+    expect(screen.queryByRole("button", { name: "Excluir From B" })).toBeNull();
+    expect(screen.queryByRole("button", { name: "Editar From B" })).toBeNull();
   });
 });

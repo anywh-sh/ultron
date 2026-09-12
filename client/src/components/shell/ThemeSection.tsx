@@ -12,22 +12,27 @@ import {
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
 import { ThemeImportDialog, type ThemeDialogIntent } from "@/components/shell/ThemeImportDialog";
-import { useThemes, useThemeSync } from "@/hooks/useThemes";
+import { useThemeCatalog, useThemeSync } from "@/hooks/useThemes";
 import { isBuiltinTheme } from "@/lib/builtinThemes";
 import { resolveConnection } from "@/lib/connectionResolver";
-import { addProfile, isTailnetProfile, type Profile } from "@/lib/profiles";
-import { deleteTheme, updateProfileMeta } from "@/lib/relayClient";
+import type { Profile } from "@/lib/profiles";
+import { deleteTheme } from "@/lib/relayClient";
 import type { Theme } from "@/lib/theme";
 import { resolveTheme } from "@/lib/themeApply";
-import { customThemesForHost, profilesUsingTheme, resolveProfileTheme, setThemesForHost, themeStoreKey } from "@/lib/themes";
+import {
+  customThemesForHost,
+  resolveSelectedTheme,
+  setSelectedThemeId,
+  setThemesForHost,
+  themeStoreKey,
+} from "@/lib/themes";
 import { cn } from "@/lib/utils";
 
 /**
  * Miniature of the app's own layout — sidebar strip, a surface, a message
- * bubble, an accent — rather than a row of loose swatches. The settings
- * dialog is scoped to one profile at a time, which is often *not* the
- * active one, and re-theming the whole app to preview another profile's
- * choice would be worse than useless. This is what stands in for that.
+ * bubble, an accent — rather than a row of loose swatches: a theme is a
+ * relationship between surfaces, and a row of squares says nothing about
+ * how they sit together.
  */
 function ThemePreview({ theme }: { theme: Theme }) {
   const { colors } = resolveTheme(theme);
@@ -118,43 +123,16 @@ function themeAsJson(theme: Theme, id: string, name: string): string {
   );
 }
 
-export function ThemeSection({
-  scopedProfile,
-  activeProfile,
-  allProfiles,
-}: {
-  scopedProfile: Profile;
-  /** The profile this app is actually connected to — used as the relay for
-   * every request here whenever it shares the scoped profile's host. */
-  activeProfile: Profile;
-  allProfiles: Profile[];
-}) {
-  // For a direct profile, both registries this section touches are
-  // host-wide files that any relay on the machine reads and writes: the
-  // themes directory and profiles.json (see themeRegistry.ts /
-  // profileRegistry.ts). Talking to the scoped profile's own relay would
-  // mean a profile whose service is stopped can neither read the theme list
-  // nor have its theme changed, even though its data is sitting in a file
-  // another relay on the same host is already serving — so this falls back
-  // to the active profile's relay, known to be reachable, whenever the two
-  // genuinely share a host. Same reasoning as DangerZone's executor lookup,
-  // for the opposite reason: there, another relay is required; here, it's
-  // simply the one known to be reachable.
-  //
-  // A tailnet profile breaks the host comparison instead of satisfying it:
-  // every tailnet profile reports the same "127.0.0.1" sidecar placeholder
-  // (profileImport.ts) regardless of which sandbox it actually is, so
-  // `activeProfile.host === scopedProfile.host` is always true for two of
-  // them even though each is its own isolated sandbox with its own
-  // registry — `themeStoreKey` already keys a tailnet profile's local
-  // mirror by `id` for exactly this reason. The scoped profile is always
-  // its own registry there; substituting the active one would silently
-  // read/write a different sandbox's themes.
-  const registry =
-    !isTailnetProfile(scopedProfile) && activeProfile.host === scopedProfile.host ? activeProfile : scopedProfile;
-  const { supported } = useThemeSync(registry);
-  const { all } = useThemes(scopedProfile);
-  const { theme: current, missing } = resolveProfileTheme(scopedProfile);
+export function ThemeSection({ activeProfile }: { activeProfile: Profile }) {
+  // One registry, not one per profile: a theme is a file on a machine, and
+  // the only machine this device can reliably write to is the one it is
+  // connected to right now. Themes mirrored from other hosts stay
+  // selectable (the catalog is the union), they just can't be edited or
+  // deleted from here — `storeKey` on each entry is what says which is which.
+  const registryKey = themeStoreKey(activeProfile);
+  const { supported } = useThemeSync(activeProfile);
+  const catalog = useThemeCatalog(activeProfile);
+  const { theme: current, missing } = resolveSelectedTheme();
 
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -163,22 +141,10 @@ export function ThemeSection({
   const [importIntent, setImportIntent] = useState<ThemeDialogIntent>("import");
   const [pendingDelete, setPendingDelete] = useState<Theme | null>(null);
 
-  async function selectTheme(theme: Theme): Promise<void> {
-    if (theme.id === current.id && !missing) return;
-    setBusy(true);
-    setError(null);
-    try {
-      // The built-in is stored as "no theme" rather than as its id: that's
-      // what makes it the fallback for a profile whose custom theme is gone.
-      const themeId = isBuiltinTheme(theme.id) ? null : theme.id;
-      const { host, port, token } = await resolveConnection(registry);
-      await updateProfileMeta(host, port, scopedProfile.id, { themeId }, token);
-      addProfile({ ...scopedProfile, themeId: themeId ?? undefined });
-    } catch (err) {
-      setError(err instanceof Error ? err.message : String(err));
-    } finally {
-      setBusy(false);
-    }
+  function selectTheme(theme: Theme): void {
+    // The built-in is stored as "no theme" rather than as its id: that's
+    // what makes it the fallback for a selection whose file is gone.
+    setSelectedThemeId(isBuiltinTheme(theme.id) ? null : theme.id);
   }
 
   // Editing and duplicating are the same dialog: saving under the same id
@@ -202,10 +168,9 @@ export function ThemeSection({
     setBusy(true);
     setError(null);
     try {
-      const { host, port, token } = await resolveConnection(registry);
+      const { host, port, token } = await resolveConnection(activeProfile);
       await deleteTheme(host, port, theme.id, token);
-      const key = themeStoreKey(scopedProfile);
-      setThemesForHost(key, customThemesForHost(key).filter((entry) => entry.id !== theme.id));
+      setThemesForHost(registryKey, customThemesForHost(registryKey).filter((entry) => entry.id !== theme.id));
       setPendingDelete(null);
     } catch (err) {
       setError(err instanceof Error ? err.message : String(err));
@@ -214,45 +179,45 @@ export function ThemeSection({
     }
   }
 
-  const usedBy = pendingDelete ? profilesUsingTheme(allProfiles, scopedProfile, pendingDelete.id) : [];
-
   return (
     <div className="flex flex-col gap-3">
       <div>
         <h3 className="text-sm font-medium">Tema</h3>
         <p className="text-xs text-muted-foreground">
-          Vale para este perfil em todos os dispositivos. Temas adicionados ficam no servidor e podem
-          ser usados por qualquer perfil dele.
+          Vale para o app inteiro neste dispositivo. Temas adicionados ficam no servidor e podem ser
+          usados por qualquer perfil dele.
         </p>
       </div>
 
       {missing && (
-        <p className="rounded-md border border-border px-3 py-2 text-xs text-muted-foreground">
-          O tema deste perfil ({scopedProfile.themeId}) não está mais no servidor — usando o padrão
-          até ele voltar.
+        <p className="border border-border px-3 py-2 text-xs text-muted-foreground">
+          O tema escolhido não está mais no servidor — usando o padrão até ele voltar.
         </p>
       )}
 
       {!supported && (
-        <p className="rounded-md border border-border px-3 py-2 text-xs text-muted-foreground">
-          Não foi possível ler os temas de {registry.label} (servidor fora do ar ou relay antigo). A
-          lista abaixo é a última conhecida, e mudanças não vão salvar até ele responder.
+        <p className="border border-border px-3 py-2 text-xs text-muted-foreground">
+          Não foi possível ler os temas de {activeProfile.label} (servidor fora do ar ou relay
+          antigo). A lista abaixo é a última conhecida, e mudanças não vão salvar até ele responder.
         </p>
       )}
 
       <div className="flex flex-col gap-1.5">
-        {all.map((theme) => (
-          <ThemeRow
-            key={theme.id}
-            theme={theme}
-            selected={theme.id === current.id && !missing}
-            busy={busy}
-            onSelect={() => void selectTheme(theme)}
-            onEdit={isBuiltinTheme(theme.id) ? undefined : () => edit(theme)}
-            onDuplicate={() => duplicate(theme)}
-            onDelete={isBuiltinTheme(theme.id) ? undefined : () => setPendingDelete(theme)}
-          />
-        ))}
+        {catalog.map(({ theme, storeKey }) => {
+          const local = storeKey === registryKey;
+          return (
+            <ThemeRow
+              key={theme.id}
+              theme={theme}
+              selected={theme.id === current.id && !missing}
+              busy={busy}
+              onSelect={() => selectTheme(theme)}
+              onEdit={local ? () => edit(theme) : undefined}
+              onDuplicate={() => duplicate(theme)}
+              onDelete={local ? () => setPendingDelete(theme) : undefined}
+            />
+          );
+        })}
       </div>
 
       {error && <p className="text-sm text-destructive">{error}</p>}
@@ -276,10 +241,10 @@ export function ThemeSection({
       <ThemeImportDialog
         open={importOpen}
         onOpenChange={setImportOpen}
-        profile={registry}
+        profile={activeProfile}
         initialJson={importSeed}
         intent={importIntent}
-        onImported={(theme) => void selectTheme(theme)}
+        onImported={(theme) => selectTheme(theme)}
       />
 
       <AlertDialog open={pendingDelete !== null} onOpenChange={(open) => !open && setPendingDelete(null)}>
@@ -287,11 +252,9 @@ export function ThemeSection({
           <AlertDialogHeader>
             <AlertDialogTitle>Excluir o tema "{pendingDelete?.name}"?</AlertDialogTitle>
             <AlertDialogDescription>
-              {usedBy.length > 0
-                ? `${String(usedBy.length)} perfil(is) usam este tema (${usedBy
-                    .map((profile) => profile.label)
-                    .join(", ")}) e voltam para o tema padrão. Se você adicionar o tema de novo, a escolha volta sozinha.`
-                : "Some de todos os dispositivos que apontam para este servidor."}
+              Some de todos os dispositivos que apontam para este servidor. Se for o tema em uso
+              aqui, o app volta para o padrão — e se você adicionar o tema de novo, a escolha volta
+              sozinha.
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
