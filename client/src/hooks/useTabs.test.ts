@@ -354,3 +354,60 @@ describe("useTabs — persistence and migration", () => {
     expect(result.current.focusedGroupId).toBe(result.current.groups[0].id);
   });
 });
+
+/** These guard the render cost of the two calls the UI makes most often, not
+ * a visible behavior — both were already no-ops state-wise before the guards
+ * existed, and both still re-rendered `App` (and with it every mounted
+ * conversation) every time. A render counter is the only way to assert that
+ * from here; see the comments on `focusGroup`/`setActiveTab`. */
+describe("useTabs — no-op calls cost no render", () => {
+  it("focusing the already-focused group does not re-render", () => {
+    let renders = 0;
+    const { result } = renderHook(() => {
+      renders += 1;
+      return useTabs();
+    });
+    act(() => result.current.openTab("p1", "s1"));
+
+    const before = renders;
+    act(() => result.current.focusGroup(result.current.focusedGroupId));
+
+    expect(renders).toBe(before);
+  });
+
+  it("activating the already-active tab does not re-render", () => {
+    let renders = 0;
+    const { result } = renderHook(() => {
+      renders += 1;
+      return useTabs();
+    });
+    act(() => {
+      result.current.openTab("p1", "s1");
+      result.current.openTab("p1", "s2");
+    });
+
+    const before = renders;
+    act(() => result.current.setActiveTab("s2"));
+
+    expect(renders).toBe(before);
+    expect(result.current.activeTabId).toBe("s2");
+  });
+
+  it("still moves focus when the tab lives in another group", () => {
+    const { result } = renderHook(() => useTabs());
+    act(() => {
+      result.current.openTab("p1", "s1");
+      result.current.openTab("p1", "s2");
+    });
+    act(() => result.current.splitTabToNewGroup("s2", result.current.groups[0].id));
+    const [groupA, groupB] = result.current.groups;
+    act(() => result.current.focusGroup(groupA.id));
+
+    // `s2` is already its own group's active tab, but that group isn't the
+    // focused one — the guard must not swallow this.
+    act(() => result.current.setActiveTab("s2"));
+
+    expect(result.current.focusedGroupId).toBe(groupB.id);
+    expect(result.current.activeTabId).toBe("s2");
+  });
+});

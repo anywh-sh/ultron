@@ -203,14 +203,15 @@ function renderItem(item: RenderItem, userActions: UserActionHandlers, dict: Dic
   }
 }
 
-// Memoized: `ChatPanel` itself isn't memoized (its callback props are fresh
-// closures from `App`'s `renderPanel` on every render), so it re-renders on
-// any App-level state change — including for background tabs kept mounted
-// via TabGroupLayout's flat panel layer. `entries`/`streamingEntries` stay
+// Memoized: `ChatPanel` re-renders for reasons that have nothing to do with
+// the log — a turn starting, the connection flapping, the dock opening —
+// and it is mounted for every open tab at once (TabGroupLayout's flat panel
+// layer), not just the visible one. `entries`/`streamingEntries` stay
 // referentially stable across those unrelated re-renders (see useMessageLog),
 // so wrapping this in `memo` lets the expensive subtree (markdown parsing +
 // syntax highlighting in every row) bail out instead of re-rendering along
-// with `ChatPanel`.
+// with `ChatPanel`. `TabPanel`'s own `memo` is the outer half of this: it
+// keeps App-level state changes from reaching `ChatPanel` at all.
 export const MessageLog = memo(function MessageLog({
   entries,
   streamingEntries,
