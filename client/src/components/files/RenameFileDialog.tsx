@@ -1,5 +1,6 @@
 import { useEffect, useState, type FormEvent } from "react";
 import { Button } from "@/components/ui/button";
+import { useDict } from "@/i18n";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 
 interface RenameFileDialogProps {
@@ -15,6 +16,8 @@ interface RenameFileDialogProps {
  * validation (no `/`, since the relay only allows renaming within the same
  * directory — `relay/src/fsFiles.ts`). */
 export function RenameFileDialog({ open, onOpenChange, initialName, onSave }: RenameFileDialogProps) {
+  const dict = useDict();
+  const copy = dict.panels.files.tree.renameFile;
   const [name, setName] = useState(initialName);
 
   useEffect(() => {
@@ -32,19 +35,19 @@ export function RenameFileDialog({ open, onOpenChange, initialName, onSave }: Re
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="sm:max-w-md">
         <DialogHeader>
-          <DialogTitle>Renomear arquivo</DialogTitle>
-          <DialogDescription>Escolha um novo nome pra esse arquivo, sem mudar de pasta.</DialogDescription>
+          <DialogTitle>{copy.title}</DialogTitle>
+          <DialogDescription>{copy.description}</DialogDescription>
         </DialogHeader>
         <form onSubmit={handleSubmit} className="flex flex-col gap-3">
           <input
             value={name}
             onChange={(event) => setName(event.target.value)}
-            className="rounded-md border border-border bg-transparent px-2.5 py-1.5 text-sm outline-none focus:border-ring"
+            className="border border-border bg-transparent px-2.5 py-1.5 font-mono text-xs outline-none focus:border-primary"
             autoFocus
           />
           <DialogFooter>
             <Button type="submit" size="sm">
-              Renomear
+              {dict.common.rename}
             </Button>
           </DialogFooter>
         </form>
