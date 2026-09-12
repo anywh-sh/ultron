@@ -10,6 +10,7 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
+import { useDict } from "@/i18n";
 
 interface EditLinkDialogProps {
   open: boolean;
@@ -23,6 +24,8 @@ interface EditLinkDialogProps {
  * paste-to-link. Doesn't reuse `EmptyState`'s input pattern as a component,
  * just the same visual style — each one lives isolated in its own form. */
 export function EditLinkDialog({ open, onOpenChange, initialText, initialHref, onSave }: EditLinkDialogProps) {
+  const dict = useDict();
+  const copy = dict.chat.composer.editLink;
   const [text, setText] = useState(initialText);
   const [href, setHref] = useState(initialHref);
 
@@ -50,14 +53,14 @@ export function EditLinkDialog({ open, onOpenChange, initialText, initialHref, o
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="sm:max-w-md">
         <DialogHeader>
-          <DialogTitle>Editar link</DialogTitle>
+          <DialogTitle>{copy.title}</DialogTitle>
         </DialogHeader>
         <form onSubmit={handleSubmit} className="flex min-h-0 flex-1 flex-col">
           <DialogBody>
-            <DialogDescription>Altere o texto exibido ou o endereço do link.</DialogDescription>
+            <DialogDescription>{copy.description}</DialogDescription>
             <div className="flex flex-col gap-1.5">
               <label htmlFor="edit-link-text" className="font-mono text-[10.5px] tracking-[0.08em] text-text-faint uppercase">
-                Texto
+                {copy.text}
               </label>
               <Input
                 id="edit-link-text"
@@ -68,14 +71,14 @@ export function EditLinkDialog({ open, onOpenChange, initialText, initialHref, o
             </div>
             <div className="flex flex-col gap-1.5">
               <label htmlFor="edit-link-href" className="font-mono text-[10.5px] tracking-[0.08em] text-text-faint uppercase">
-                Link
+                {copy.link}
               </label>
               <Input id="edit-link-href" value={href} onChange={(event) => setHref(event.target.value)} />
             </div>
           </DialogBody>
           <DialogFooter>
             <Button type="submit" size="sm">
-              Salvar
+              {dict.common.save}
             </Button>
           </DialogFooter>
         </form>

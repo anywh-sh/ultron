@@ -4,6 +4,7 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import type { Profile } from "@/lib/profiles";
 import type { SetupState } from "@/lib/profileSetup";
 import { ProfileSetupDialog } from "./ProfileSetupDialog";
+import { en } from "@/i18n/en";
 
 const profile: Profile = {
   id: "new-profile",
@@ -37,11 +38,11 @@ describe("ProfileSetupDialog", () => {
     render(
       <ProfileSetupDialog state={state} queuedCount={0} onContinue={noop} onUseExisting={noop} onRetry={noop} onDismiss={noop} />,
     );
-    expect(screen.getByText("Conectando à nova máquina")).toBeInTheDocument();
-    expect(screen.getByText("Resgatando código")).toBeInTheDocument();
+    expect(screen.getByText(en.shell.profiles.setup.connectingTitle)).toBeInTheDocument();
+    expect(screen.getByText(en.shell.profiles.setup.steps.claim)).toBeInTheDocument();
     // Not yet failed or done — no action button beyond the always-present dismiss.
-    expect(screen.queryByRole("button", { name: "Tentar novamente" })).not.toBeInTheDocument();
-    expect(screen.queryByRole("button", { name: "Continuar para novo perfil" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: en.common.retry })).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: en.shell.profiles.setup.continueToProfile })).not.toBeInTheDocument();
   });
 
   it("shows the direct-mode step list with just one row", () => {
@@ -49,9 +50,9 @@ describe("ProfileSetupDialog", () => {
     render(
       <ProfileSetupDialog state={state} queuedCount={0} onContinue={noop} onUseExisting={noop} onRetry={noop} onDismiss={noop} />,
     );
-    expect(screen.getByText("Verificando")).toBeInTheDocument();
-    expect(screen.queryByText("Resgatando código")).not.toBeInTheDocument();
-    expect(screen.queryByText("Conectando")).not.toBeInTheDocument();
+    expect(screen.getByText(en.shell.profiles.setup.steps.verify)).toBeInTheDocument();
+    expect(screen.queryByText(en.shell.profiles.setup.steps.claim)).not.toBeInTheDocument();
+    expect(screen.queryByText(en.shell.profiles.setup.steps.connect)).not.toBeInTheDocument();
   });
 
   it("on ready, shows the session count and a working Continuar button", async () => {
@@ -61,11 +62,11 @@ describe("ProfileSetupDialog", () => {
       <ProfileSetupDialog state={state} queuedCount={0} onContinue={onContinue} onUseExisting={noop} onRetry={noop} onDismiss={noop} />,
     );
 
-    expect(screen.getByText("Máquina conectada")).toBeInTheDocument();
-    expect(screen.getByText(/3 conversa/)).toBeInTheDocument();
+    expect(screen.getByText(en.shell.profiles.setup.connectedTitle)).toBeInTheDocument();
+    expect(screen.getByText(en.shell.profiles.setup.ready.replace("{count}", "3"))).toBeInTheDocument();
 
     const user = userEvent.setup();
-    await user.click(screen.getByRole("button", { name: "Continuar para novo perfil" }));
+    await user.click(screen.getByRole("button", { name: en.shell.profiles.setup.continueToProfile }));
     expect(onContinue).toHaveBeenCalledWith(profile.id);
   });
 
@@ -85,7 +86,7 @@ describe("ProfileSetupDialog", () => {
     expect(screen.getByText(existingProfile.label, { exact: false })).toBeInTheDocument();
 
     const user = userEvent.setup();
-    await user.click(screen.getByRole("button", { name: "Ir para o perfil existente" }));
+    await user.click(screen.getByRole("button", { name: en.shell.profiles.setup.useExisting }));
     expect(onUseExisting).toHaveBeenCalledWith(existingProfile.id);
   });
 
@@ -95,9 +96,9 @@ describe("ProfileSetupDialog", () => {
       <ProfileSetupDialog state={state} queuedCount={0} onContinue={noop} onUseExisting={noop} onRetry={noop} onDismiss={noop} />,
     );
 
-    expect(screen.getByText("Não foi possível parear")).toBeInTheDocument();
-    expect(screen.queryByRole("button", { name: "Tentar novamente" })).not.toBeInTheDocument();
-    expect(screen.getByRole("button", { name: "Deixar para depois" })).toBeInTheDocument();
+    expect(screen.getByText(en.shell.profiles.setup.claimFailedTitle)).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: en.common.retry })).not.toBeInTheDocument();
+    expect(screen.getByRole("button", { name: en.shell.profiles.setup.later })).toBeInTheDocument();
   });
 
   it("on a recoverable connect failure, retrying calls onRetry", async () => {
@@ -107,9 +108,9 @@ describe("ProfileSetupDialog", () => {
       <ProfileSetupDialog state={state} queuedCount={0} onContinue={noop} onUseExisting={noop} onRetry={onRetry} onDismiss={noop} />,
     );
 
-    expect(screen.getByText("Falha ao conectar")).toBeInTheDocument();
+    expect(screen.getByText(en.shell.profiles.setup.connectFailedTitle)).toBeInTheDocument();
     const user = userEvent.setup();
-    await user.click(screen.getByRole("button", { name: "Tentar novamente" }));
+    await user.click(screen.getByRole("button", { name: en.common.retry }));
     expect(onRetry).toHaveBeenCalledTimes(1);
   });
 
@@ -121,7 +122,7 @@ describe("ProfileSetupDialog", () => {
     );
 
     const user = userEvent.setup();
-    await user.click(screen.getByRole("button", { name: "Deixar para depois" }));
+    await user.click(screen.getByRole("button", { name: en.shell.profiles.setup.later }));
     expect(onDismiss).toHaveBeenCalledTimes(1);
   });
 
@@ -142,6 +143,6 @@ describe("ProfileSetupDialog", () => {
     render(
       <ProfileSetupDialog state={state} queuedCount={2} onContinue={noop} onUseExisting={noop} onRetry={noop} onDismiss={noop} />,
     );
-    expect(screen.getByText("+2 na fila")).toBeInTheDocument();
+    expect(screen.getByText(en.shell.profiles.setup.queued.replace("{count}", "2"))).toBeInTheDocument();
   });
 });

@@ -10,6 +10,7 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
+import { useDict } from "@/i18n";
 import { parsePairingCode } from "@/lib/pairingCode";
 import { enqueueProfileSetup } from "@/lib/profileSetup";
 
@@ -37,6 +38,8 @@ interface AddRemoteMachineDialogProps {
  * it's how you get the first one to a machine you can't otherwise reach.
  */
 export function AddRemoteMachineDialog({ open, onOpenChange }: AddRemoteMachineDialogProps) {
+  const dict = useDict();
+  const copy = dict.shell.profiles.pair;
   const [label, setLabel] = useState("");
   const [code, setCode] = useState("");
 
@@ -67,35 +70,33 @@ export function AddRemoteMachineDialog({ open, onOpenChange }: AddRemoteMachineD
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="sm:max-w-md">
         <DialogHeader>
-          <DialogTitle>Adicionar máquina remota</DialogTitle>
+          <DialogTitle>{copy.title}</DialogTitle>
         </DialogHeader>
 
         <DialogBody>
-          <DialogDescription>
-            Cole o código de pareamento gerado pela máquina que você quer alcançar.
-          </DialogDescription>
+          <DialogDescription>{copy.description}</DialogDescription>
 
           <div className="flex flex-col gap-1.5">
             <label className="font-mono text-[10.5px] tracking-[0.08em] text-text-faint uppercase" htmlFor="add-remote-label">
-              Nome
+              {copy.nameLabel}
             </label>
             <Input
               id="add-remote-label"
               value={label}
               onChange={(event) => setLabel(event.target.value)}
-              placeholder="Ex.: Servidor de casa"
+              placeholder={copy.namePlaceholder}
             />
           </div>
 
           <div className="flex flex-col gap-1.5">
             <label className="font-mono text-[10.5px] tracking-[0.08em] text-text-faint uppercase" htmlFor="add-remote-code">
-              Código de pareamento
+              {copy.codeLabel}
             </label>
             <Input
               id="add-remote-code"
               value={code}
               onChange={(event) => setCode(event.target.value)}
-              placeholder="ABCDEF-GHJKMNPQ@exemplo.com"
+              placeholder={copy.codePlaceholder}
               autoCapitalize="characters"
               autoCorrect="off"
               spellCheck={false}
@@ -104,22 +105,22 @@ export function AddRemoteMachineDialog({ open, onOpenChange }: AddRemoteMachineD
 
           {parsed && (
             <p className="text-xs text-muted-foreground">
-              Vai parear com <span className="font-mono text-foreground">{parsed.origin}</span>
+              {copy.willPair.split("{origin}")[0]}
+              <span className="font-mono text-foreground">{parsed.origin}</span>
+              {copy.willPair.split("{origin}")[1]}
             </p>
           )}
           {code.trim() && !parsed && (
-            <p className="text-xs text-muted-foreground">
-              O código tem o formato <span className="font-mono">CÓDIGO@servidor</span>.
-            </p>
+            <p className="text-xs text-muted-foreground">{copy.format}</p>
           )}
         </DialogBody>
 
         <DialogFooter>
           <Button type="button" size="sm" variant="outline" onClick={() => onOpenChange(false)}>
-            Cancelar
+            {dict.common.cancel}
           </Button>
           <Button type="button" size="sm" disabled={!canSubmit} onClick={handlePair}>
-            Parear
+            {copy.submit}
           </Button>
         </DialogFooter>
       </DialogContent>

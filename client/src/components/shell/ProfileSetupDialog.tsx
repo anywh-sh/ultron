@@ -9,6 +9,7 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { ProfileSetupStepList } from "@/components/shell/ProfileSetupStepList";
+import { useDict, type Dictionary } from "@/i18n";
 import type { SetupState } from "@/lib/profileSetup";
 
 interface ProfileSetupDialogProps {
@@ -23,36 +24,33 @@ interface ProfileSetupDialogProps {
   onDismiss: () => void;
 }
 
-function titleFor(state: SetupState): string {
+function titleFor(state: SetupState, copy: Dictionary["shell"]["profiles"]["setup"]): string {
   switch (state.status) {
     case "claiming":
     case "connecting":
     case "verifying":
-      return "Conectando à nova máquina";
+      return copy.connectingTitle;
     case "ready":
-      return "Máquina conectada";
+      return copy.connectedTitle;
     case "failed":
-      if (state.stage === "claim") return "Não foi possível parear";
-      if (state.stage === "connect") return "Falha ao conectar";
-      return "Falha ao verificar a conexão";
+      if (state.stage === "claim") return copy.claimFailedTitle;
+      if (state.stage === "connect") return copy.connectFailedTitle;
+      return copy.verifyFailedTitle;
   }
 }
 
-function descriptionFor(state: SetupState): string {
+function descriptionFor(state: SetupState, copy: Dictionary["shell"]["profiles"]["setup"]): string {
   switch (state.status) {
     case "claiming":
-      return "Resgatando o código de pareamento…";
+      return copy.claiming;
     case "connecting":
-      return state.mode === "tailnet" ? "Entrando na rede…" : "Conectando…";
+      return state.mode === "tailnet" ? copy.joining : copy.dialing;
     case "verifying":
-      return "Verificando a conexão…";
+      return copy.verifying;
     case "ready":
-      return `Encontramos ${String(state.info.sessionCount)} conversa(s) nessa máquina.`;
+      return copy.ready.replace("{count}", String(state.info.sessionCount));
     case "failed":
-      if (state.stage === "claim") {
-        return "O código pode ter expirado, já ter sido usado, ou a máquina pode estar fora do ar.";
-      }
-      return "Não foi possível confirmar a conexão. Você pode tentar de novo — o código já foi resgatado, então isso não vai gastar outro.";
+      return state.stage === "claim" ? copy.claimFailedBody : copy.retryBody;
   }
 }
 
@@ -70,6 +68,9 @@ function descriptionFor(state: SetupState): string {
  * overridden here, and `DialogContent`'s close button is left enabled.
  */
 export function ProfileSetupDialog({ state, queuedCount, onContinue, onUseExisting, onRetry, onDismiss }: ProfileSetupDialogProps) {
+  const dict = useDict();
+  const copy = dict.shell.profiles.setup;
+
   return (
     <Dialog
       open={state !== null}
@@ -80,18 +81,20 @@ export function ProfileSetupDialog({ state, queuedCount, onContinue, onUseExisti
       {state && (
         <DialogContent className="sm:max-w-md">
           <DialogHeader>
-            <DialogTitle>{titleFor(state)}</DialogTitle>
+            <DialogTitle>{titleFor(state, copy)}</DialogTitle>
           </DialogHeader>
 
           <DialogBody>
-            <DialogDescription>{descriptionFor(state)}</DialogDescription>
+            <DialogDescription>{descriptionFor(state, copy)}</DialogDescription>
 
             <ProfileSetupStepList state={state} />
 
             {state.status === "ready" && state.duplicates.length > 0 && (
               <div className="flex flex-col gap-2 border border-border bg-bg-chrome p-3 text-sm">
                 <p>
-                  Você já tem um perfil pra essa máquina: <strong>{state.duplicates[0].label}</strong>.
+                  {copy.duplicate.split("{label}")[0]}
+                  <strong>{state.duplicates[0].label}</strong>
+                  {copy.duplicate.split("{label}")[1]}
                 </p>
                 <Button
                   type="button"
@@ -100,26 +103,30 @@ export function ProfileSetupDialog({ state, queuedCount, onContinue, onUseExisti
                   className="self-start"
                   onClick={() => onUseExisting(state.duplicates[0].id)}
                 >
-                  Ir para o perfil existente
+                  {copy.useExisting}
                 </Button>
               </div>
             )}
           </DialogBody>
 
           <DialogFooter className="items-center sm:justify-between">
-            {queuedCount > 0 && <span className="text-xs text-muted-foreground">+{queuedCount} na fila</span>}
+            {queuedCount > 0 && (
+              <span className="text-xs text-muted-foreground">
+                {copy.queued.replace("{count}", String(queuedCount))}
+              </span>
+            )}
             <div className="flex flex-col-reverse gap-2 sm:flex-row">
               <Button type="button" size="sm" variant="outline" onClick={onDismiss}>
-                Deixar para depois
+                {copy.later}
               </Button>
               {state.status === "failed" && state.stage !== "claim" && (
                 <Button type="button" size="sm" onClick={onRetry}>
-                  Tentar novamente
+                  {dict.common.retry}
                 </Button>
               )}
               {state.status === "ready" && (
                 <Button type="button" size="sm" onClick={() => onContinue(state.profile.id)}>
-                  Continuar para novo perfil
+                  {copy.continueToProfile}
                 </Button>
               )}
             </div>
