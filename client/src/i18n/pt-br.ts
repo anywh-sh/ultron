@@ -52,6 +52,28 @@ export const ptBr: Dictionary = {
       oneToolUsed: "1 ferramenta usada",
       toolsUsed: "{count} ferramentas usadas",
     },
+    log: {
+      loading: "Carregando conversa…",
+      error: "Erro: {message}",
+      stopped: "Interrompido por você.",
+      backgroundJobDone: "{label} — finalizado, resumindo o resultado",
+      compacted: "Conversa compactada",
+      compactedAuto: "Conversa compactada automaticamente",
+      idleSubtitle: "Escreva uma mensagem abaixo para começar.",
+    },
+    choice: {
+      previousQuestion: "Pergunta anterior",
+      nextQuestion: "Próxima pergunta",
+      questionPosition: "{index} de {total}",
+      closeAnswering: "Fechar e responder com o que já foi selecionado",
+      closeWithoutAnswering: "Fechar sem responder",
+      customPlaceholder: "Ou escreva sua própria resposta…",
+      customLabel: "Escrever uma resposta personalizada",
+      customAnswer: "resposta personalizada",
+      selectedCount: "{count} selecionado(s)",
+      skip: "Pular",
+      submit: "Enviar respostas",
+    },
   },
   shell: {
     titleBar: {

@@ -2,6 +2,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { act, cleanup, render, screen } from "@testing-library/react";
 import { CompactBoundaryToast } from "./CompactBoundaryToast";
 import type { CompactBoundaryEvent } from "@/hooks/useRelayClient";
+import { en } from "@/i18n/en";
 
 function event(overrides: Partial<CompactBoundaryEvent> = {}): CompactBoundaryEvent {
   return { trigger: "auto", preTokens: 100000, receivedAt: Date.now(), ...overrides };
@@ -24,7 +25,7 @@ describe("CompactBoundaryToast", () => {
 
   it("shows the automatic-compaction copy for an auto trigger, then hides itself after the visible window", () => {
     render(<CompactBoundaryToast event={event({ trigger: "auto" })} />);
-    expect(screen.getByText("Conversa compactada automaticamente")).toBeInTheDocument();
+    expect(screen.getByText(en.chat.log.compactedAuto)).toBeInTheDocument();
 
     act(() => vi.advanceTimersByTime(4000));
     expect(screen.queryByText(/compactad/i)).toBeNull();
@@ -32,7 +33,7 @@ describe("CompactBoundaryToast", () => {
 
   it("shows the manual-compaction copy for a manual trigger", () => {
     render(<CompactBoundaryToast event={event({ trigger: "manual" })} />);
-    expect(screen.getByText("Conversa compactada")).toBeInTheDocument();
+    expect(screen.getByText(en.chat.log.compacted)).toBeInTheDocument();
   });
 
   it("re-shows and restarts the timer on a new occurrence, even with the same trigger/preTokens", () => {
@@ -46,7 +47,7 @@ describe("CompactBoundaryToast", () => {
     // If the effect hadn't restarted (stale `receivedAt` treated as the same
     // occurrence), this would already be hidden by the first timer.
     act(() => vi.advanceTimersByTime(3000));
-    expect(screen.getByText("Conversa compactada automaticamente")).toBeInTheDocument();
+    expect(screen.getByText(en.chat.log.compactedAuto)).toBeInTheDocument();
 
     act(() => vi.advanceTimersByTime(1000));
     expect(screen.queryByText(/compactad/i)).toBeNull();

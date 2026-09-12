@@ -1,4 +1,5 @@
 import { cn } from "@/lib/utils";
+import { useDict } from "@/i18n";
 
 interface SkeletonRow {
   align: "left" | "right";
@@ -21,14 +22,15 @@ const ROWS: SkeletonRow[] = [
  * disabled, empty log, until the whole replay finishes arriving.
  */
 export function MessageLogSkeleton() {
+  const dict = useDict();
   return (
-    <div className="flex flex-1 flex-col overflow-hidden px-4 py-3" role="status" aria-label="Carregando conversa…">
+    <div className="flex flex-1 flex-col overflow-hidden px-4 py-3" role="status" aria-label={dict.chat.log.loading}>
       <div className="mx-auto flex w-full max-w-3xl flex-col gap-4">
         {ROWS.map((row, i) => (
           <div key={i} className={cn("flex", row.align === "right" ? "justify-end" : "justify-start")} aria-hidden="true">
             <div className={cn("flex flex-col gap-1.5", row.align === "right" && "items-end")}>
               {row.widths.map((width, j) => (
-                <div key={j} className={cn("h-3 animate-pulse rounded-full bg-border", width)} />
+                <div key={j} className={cn("h-3 animate-pulse bg-border", width)} />
               ))}
             </div>
           </div>

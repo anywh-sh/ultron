@@ -52,6 +52,28 @@ export const en: Dictionary = {
       oneToolUsed: "1 tool used",
       toolsUsed: "{count} tools used",
     },
+    log: {
+      loading: "Loading conversation…",
+      error: "Error: {message}",
+      stopped: "Stopped by you.",
+      backgroundJobDone: "{label} — finished, summarising the result",
+      compacted: "Conversation compacted",
+      compactedAuto: "Conversation compacted automatically",
+      idleSubtitle: "Write a message below to start.",
+    },
+    choice: {
+      previousQuestion: "Previous question",
+      nextQuestion: "Next question",
+      questionPosition: "{index} of {total}",
+      closeAnswering: "Close and answer with what is selected",
+      closeWithoutAnswering: "Close without answering",
+      customPlaceholder: "Or write your own answer…",
+      customLabel: "Write a custom answer",
+      customAnswer: "custom answer",
+      selectedCount: "{count} selected",
+      skip: "Skip",
+      submit: "Send answers",
+    },
   },
   shell: {
     titleBar: {

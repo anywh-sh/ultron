@@ -3,6 +3,7 @@ import { ArrowRight, Check, ChevronLeft, ChevronRight, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import { isIOS } from "@/lib/platform";
+import { useDict } from "@/i18n";
 import type { ChoiceAnswer, ChoiceQuestion } from "@/lib/relayClient";
 
 interface ChoiceCardProps {
@@ -34,6 +35,7 @@ interface ChoiceCardProps {
  * tool call always genuinely unblocks. `kind: "choice"` closes with no
  * `onAnswer` call at all instead — see `ChoiceCardProps.kind`. */
 export function ChoiceCard({ promptId, questions, kind, onAnswer, onClose }: ChoiceCardProps) {
+  const dict = useDict();
   const [index, setIndex] = useState(0);
   const [answers, setAnswers] = useState<Map<number, string[]>>(new Map());
   const [selected, setSelected] = useState<string[]>([]);
@@ -101,7 +103,7 @@ export function ChoiceCard({ promptId, questions, kind, onAnswer, onClose }: Cho
   return (
     <div
       className={cn(
-        "flex flex-col gap-2 rounded-xl border border-border bg-bg-elevated p-3",
+        "flex flex-col gap-2 border border-border bg-bg-elevated p-3",
         // On iOS the parent stack already provides horizontal padding + gap
         // between siblings — an extra margin here would misalign
         // this card against the composer/edit-warning next to it.
@@ -120,19 +122,19 @@ export function ChoiceCard({ promptId, questions, kind, onAnswer, onClose }: Cho
                 type="button"
                 onClick={() => goTo(index - 1)}
                 disabled={index === 0}
-                aria-label="Pergunta anterior"
+                aria-label={dict.chat.choice.previousQuestion}
                 className="cursor-pointer text-muted-foreground hover:text-foreground disabled:cursor-not-allowed disabled:opacity-30"
               >
                 <ChevronLeft className="size-4" />
               </button>
-              <span className="px-1 text-xs text-muted-foreground">
-                {index + 1} de {questions.length}
+              <span className="px-1 font-mono text-[11px] text-muted-foreground">
+                {dict.chat.choice.questionPosition.replace("{index}", String(index + 1)).replace("{total}", String(questions.length))}
               </span>
               <button
                 type="button"
                 onClick={() => goTo(index + 1)}
                 disabled={isLast}
-                aria-label="Próxima pergunta"
+                aria-label={dict.chat.choice.nextQuestion}
                 className="cursor-pointer text-muted-foreground hover:text-foreground disabled:cursor-not-allowed disabled:opacity-30"
               >
                 <ChevronRight className="size-4" />
@@ -142,7 +144,7 @@ export function ChoiceCard({ promptId, questions, kind, onAnswer, onClose }: Cho
           <button
             type="button"
             onClick={() => (kind === "approval" ? finish(new Map(answers).set(index, effectiveSelection)) : onClose())}
-            aria-label={kind === "approval" ? "Fechar e responder com o que já foi selecionado" : "Fechar sem responder"}
+            aria-label={kind === "approval" ? dict.chat.choice.closeAnswering : dict.chat.choice.closeWithoutAnswering}
             className="ml-1 cursor-pointer text-muted-foreground hover:text-foreground"
           >
             <X className="size-4" />
@@ -162,7 +164,7 @@ export function ChoiceCard({ promptId, questions, kind, onAnswer, onClose }: Cho
             >
               <span
                 className={cn(
-                  "flex size-4 shrink-0 items-center justify-center rounded border",
+                  "flex size-4 shrink-0 items-center justify-center border",
                   isSelected ? "border-primary bg-primary text-primary-foreground" : "border-border",
                 )}
               >
@@ -190,25 +192,27 @@ export function ChoiceCard({ promptId, questions, kind, onAnswer, onClose }: Cho
           onKeyDown={(event) => {
             if (event.key === "Enter" && customText.trim()) confirmCurrent([customText.trim()]);
           }}
-          placeholder="Ou escreva sua própria resposta…"
-          aria-label="Escrever uma resposta personalizada"
-          className="min-w-0 rounded-md border border-border bg-transparent px-2.5 py-1.5 text-sm text-foreground outline-none placeholder:text-muted-foreground focus:border-ring"
+          placeholder={dict.chat.choice.customPlaceholder}
+          aria-label={dict.chat.choice.customLabel}
+          className="min-w-0 border border-border bg-transparent px-2.5 py-1.5 text-sm text-foreground outline-none placeholder:text-muted-foreground focus:border-ring"
         />
       )}
 
       <div className="flex items-center justify-between pt-1">
-        <span className="text-xs text-muted-foreground">
-          {customText.trim() ? "resposta personalizada" : `${selected.length} selecionado(s)`}
+        <span className="font-mono text-[11px] text-text-faint">
+          {customText.trim()
+            ? dict.chat.choice.customAnswer
+            : dict.chat.choice.selectedCount.replace("{count}", String(selected.length))}
         </span>
         <div className="flex items-center gap-1.5">
           <Button type="button" variant="secondary" size="sm" onClick={() => confirmCurrent([])}>
-            Pular
+            {dict.chat.choice.skip}
           </Button>
           <Button
             type="button"
             size="icon-sm"
             onClick={() => confirmCurrent(effectiveSelection)}
-            aria-label={isLast ? "Enviar respostas" : "Próxima pergunta"}
+            aria-label={isLast ? dict.chat.choice.submit : dict.chat.choice.nextQuestion}
           >
             <ArrowRight className="size-4" />
           </Button>

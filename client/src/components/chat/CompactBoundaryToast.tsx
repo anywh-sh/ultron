@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { useDict } from "@/i18n";
 import type { CompactBoundaryEvent } from "@/hooks/useRelayClient";
 
 const VISIBLE_MS = 4000;
@@ -17,6 +18,7 @@ interface CompactBoundaryToastProps {
  * always reopens the timer instead of getting stuck on the first notice.
  */
 export function CompactBoundaryToast({ event }: CompactBoundaryToastProps) {
+  const dict = useDict();
   const [visible, setVisible] = useState(false);
 
   useEffect(() => {
@@ -29,8 +31,8 @@ export function CompactBoundaryToast({ event }: CompactBoundaryToastProps) {
   if (!event || !visible) return null;
 
   return (
-    <span className="text-xs text-muted-foreground">
-      {event.trigger === "auto" ? "Conversa compactada automaticamente" : "Conversa compactada"}
+    <span className="font-mono text-[11px] text-text-faint">
+      {event.trigger === "auto" ? dict.chat.log.compactedAuto : dict.chat.log.compacted}
     </span>
   );
 }
