@@ -30,6 +30,29 @@ describe("relayClient HTTP helpers, connect token", () => {
     expect((init?.headers as Record<string, string> | undefined)?.Authorization).toBeUndefined();
   });
 
+  // A self-hosted install updates client and relay separately, so a relay
+  // that predates `lastActiveAt` on `GET /sessions` is an ordinary state.
+  // Normalizing it to `null` here is what keeps an `undefined` hiding behind
+  // a `number` type out of the sidebar, where formatting one threw and took
+  // the whole app down with it.
+  it("fetchSessions normalizes a missing lastActiveAt to null", async () => {
+    const body = JSON.stringify({ sessions: [{ id: "s-1", title: "Old relay" }] });
+    vi.stubGlobal("fetch", vi.fn().mockResolvedValue(new Response(body)) as unknown as typeof fetch);
+
+    await expect(fetchSessions("127.0.0.1", 8765)).resolves.toEqual([
+      { id: "s-1", title: "Old relay", lastActiveAt: null },
+    ]);
+  });
+
+  it("fetchSessions keeps a lastActiveAt the relay did send", async () => {
+    const body = JSON.stringify({ sessions: [{ id: "s-1", title: "New relay", lastActiveAt: 1_700_000_000_000 }] });
+    vi.stubGlobal("fetch", vi.fn().mockResolvedValue(new Response(body)) as unknown as typeof fetch);
+
+    await expect(fetchSessions("127.0.0.1", 8765)).resolves.toEqual([
+      { id: "s-1", title: "New relay", lastActiveAt: 1_700_000_000_000 },
+    ]);
+  });
+
   it("renameSession merges the Authorization header with its own Content-Type", async () => {
     const fetchMock = vi.fn().mockResolvedValue(new Response("{}", { status: 200 })) as unknown as typeof fetch;
     vi.stubGlobal("fetch", fetchMock);

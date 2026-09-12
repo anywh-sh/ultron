@@ -12,9 +12,29 @@ function at(iso: string): number {
   return new Date(iso).getTime();
 }
 
-function session(id: string, lastActiveAt: number, profileId = "p1"): MergedSession {
+function session(id: string, lastActiveAt: number | null, profileId = "p1"): MergedSession {
   return { id, title: id, lastActiveAt, profileId };
 }
+
+describe("mergeProfileSessions, with an undated list", () => {
+  // `NaN` from a missing timestamp doesn't just misplace that one row: it
+  // makes the comparator inconsistent and leaves the whole list in an
+  // arbitrary order. Undated rows sort last, in the order the relay sent.
+  it("sorts undated rows last while keeping the relay's own order", () => {
+    const cache: SessionListCache = {
+      p1: {
+        syncedAt: NOW,
+        sessions: [
+          { id: "undated-first", title: "a", lastActiveAt: null },
+          { id: "undated-second", title: "b", lastActiveAt: null },
+          { id: "dated", title: "c", lastActiveAt: at("2026-03-14T09:00:00") },
+        ],
+      },
+    };
+    const merged = mergeProfileSessions(cache, new Set(["p1"]));
+    expect(merged.map((entry) => entry.id)).toEqual(["dated", "undated-first", "undated-second"]);
+  });
+});
 
 describe("mergeProfileSessions", () => {
   const cache: SessionListCache = {
@@ -113,5 +133,16 @@ describe("groupSessionsByRecency", () => {
 
   it("returns nothing for an empty list", () => {
     expect(groupSessionsByRecency([], NOW)).toEqual([]);
+  });
+
+  // A relay older than the release that put `lastActiveAt` on the wire is a
+  // normal state for a self-hosted install, which updates the two sides
+  // separately. Every row of such a list has no timestamp at all, and the
+  // whole sidebar has to keep working — this used to throw while formatting
+  // the row, which unmounts the entire app, not just the list.
+  it("files a session with no timestamp under \"older\"", () => {
+    const groups = groupSessionsByRecency([session("undated", null), session("today", NOW - 1000)], NOW);
+    expect(groups.map((group) => group.id)).toEqual(["today", "older"]);
+    expect(groups[1].sessions.map((entry) => entry.id)).toEqual(["undated"]);
   });
 });

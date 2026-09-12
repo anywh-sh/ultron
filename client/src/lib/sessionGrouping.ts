@@ -34,7 +34,11 @@ export function mergeProfileSessions(cache: SessionListCache, profileIds: Readon
     if (!profileIds.has(profileId)) continue;
     for (const session of entry.sessions) merged.push({ ...session, profileId });
   }
-  return merged.sort((a, b) => b.lastActiveAt - a.lastActiveAt);
+  // A row with no timestamp sorts to the bottom instead of poisoning the
+  // comparison with `NaN` (which would leave the whole list in an arbitrary
+  // order). Ties keep insertion order — `sort` is stable — so an outdated
+  // relay's list still reads in the order that relay sent it.
+  return merged.sort((a, b) => (b.lastActiveAt ?? -Infinity) - (a.lastActiveAt ?? -Infinity));
 }
 
 /** Midnight of the day `epochMs` falls on, in the device's own timezone —
@@ -72,10 +76,13 @@ export function groupSessionsByRecency(sessions: readonly MergedSession[], now: 
   const buckets: Record<SessionGroupId, MergedSession[]> = { today: [], yesterday: [], week: [], older: [] };
 
   for (const session of sessions) {
+    // No timestamp at all (a relay too old to send one) goes to "older":
+    // the one bucket that claims nothing about when the session was used.
+    if (session.lastActiveAt === null) buckets.older.push(session);
     // A timestamp in the future (a relay whose clock runs ahead, a device
     // whose clock runs behind) still belongs at the top of the list, which
     // is "today" — not in a bucket of its own and not dropped.
-    if (session.lastActiveAt >= today) buckets.today.push(session);
+    else if (session.lastActiveAt >= today) buckets.today.push(session);
     else if (session.lastActiveAt >= yesterday) buckets.yesterday.push(session);
     else if (session.lastActiveAt >= weekAgo) buckets.week.push(session);
     else buckets.older.push(session);

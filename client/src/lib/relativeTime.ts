@@ -1,5 +1,10 @@
 import type { Locale } from "@/i18n";
 
+/** Shown instead of a time when there is no usable one. Not in the
+ * dictionary on purpose: it is a dash in every language, and it marks a
+ * degraded state rather than copy anyone reads. */
+const UNKNOWN_TIME = "—";
+
 /**
  * "now", "2 hr. ago", "5 days ago" — after a week falls back to the absolute
  * date (`formatAbsoluteTime`): relative only makes sense while the order of
@@ -13,6 +18,11 @@ import type { Locale } from "@/i18n";
  * hand-writing eight more time phrases.
  */
 export function formatRelativeTime(epochMs: number, locale: Locale): string {
+  // A value that isn't a real instant (an older relay that doesn't send the
+  // field, a corrupted cache entry) must not reach `Intl`: both formatters
+  // throw `RangeError` on one, and these run during render — a single bad
+  // timestamp anywhere took the whole app down with it.
+  if (!Number.isFinite(epochMs)) return UNKNOWN_TIME;
   const relative = new Intl.RelativeTimeFormat(locale, { numeric: "auto" });
   const diffSeconds = Math.max(0, Math.floor((Date.now() - epochMs) / 1000));
   // `numeric: "auto"` turns a zero delta into the idiomatic "now"/"agora"
@@ -31,5 +41,6 @@ export function formatRelativeTime(epochMs: number, locale: Locale): string {
  * reveals the exact time) and as `formatRelativeTime`'s fallback after a
  * week. */
 export function formatAbsoluteTime(epochMs: number, locale: Locale): string {
+  if (!Number.isFinite(epochMs)) return UNKNOWN_TIME;
   return new Intl.DateTimeFormat(locale, { dateStyle: "medium", timeStyle: "short" }).format(new Date(epochMs));
 }

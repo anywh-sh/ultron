@@ -152,7 +152,7 @@ describe("sessionListCache", () => {
       expect(sessions.map((s) => s.id)).toEqual(["stale", "recent"]);
       // Order and timestamp have to agree, or the row would render at the
       // top of the list under a "7 days" heading.
-      expect(sessions[0].lastActiveAt).toBeGreaterThan(sessions[1].lastActiveAt);
+      expect(sessions[0].lastActiveAt).toBeGreaterThan(sessions[1].lastActiveAt ?? 0);
     });
 
     it("ignores a touch for a session that isn't listed yet", async () => {

@@ -51,7 +51,13 @@ function isRelayMessage(value: unknown): value is RelayMessage {
 export async function fetchSessions(host: string, port: number, token?: string): Promise<SessionSummary[]> {
   const response = await fetch(`http://${host}:${port}/sessions`, { headers: authHeaders(token) });
   const body = (await response.json()) as { sessions?: SessionSummary[] };
-  return body.sessions ?? [];
+  // `lastActiveAt` is normalized rather than trusted: a relay older than the
+  // release that added it sends `{id, title}` only, and an `undefined` behind
+  // a `number` type reaches the sidebar as a timestamp nothing can format.
+  return (body.sessions ?? []).map((session) => ({
+    ...session,
+    lastActiveAt: typeof session.lastActiveAt === "number" ? session.lastActiveAt : null,
+  }));
 }
 
 /** Manual rename (sidebar dialog) — works even for a session with no

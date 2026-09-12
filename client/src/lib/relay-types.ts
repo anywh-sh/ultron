@@ -270,8 +270,14 @@ export interface SessionSummary {
   /** Epoch ms of the last turn, the field the relay already sorted this list
    * by. On the wire because the sidebar buckets sessions by recency, and a
    * list merged across profiles loses the relay's own ordering — each side's
-   * rows have to be re-sorted against each other, which needs the key. */
-  lastActiveAt: number;
+   * rows have to be re-sorted against each other, which needs the key.
+   *
+   * `null` when the relay didn't send one. A self-hosted install updates the
+   * client and the relay separately, so a relay older than the release that
+   * added this field is a normal state, not a broken one: `fetchSessions`
+   * normalizes it here so the rest of the app has one shape to handle
+   * instead of an `undefined` that types claim can't happen. */
+  lastActiveAt: number | null;
 }
 
 /** A profile as the relay's control API exposes it on `GET /control/profiles`

@@ -192,6 +192,29 @@ describe("unified session list", () => {
     });
   });
 
+  // A self-hosted install updates the client and the relay separately, so
+  // talking to a relay that predates `lastActiveAt` on `GET /sessions` is an
+  // ordinary state. It used to throw while formatting the row's timestamp,
+  // and a throw during render unmounts the whole tree: the entire window
+  // went blank, and it stayed blank across restarts because the expanded
+  // sidebar is remembered.
+  it("renders the list against a relay that sends no lastActiveAt", async () => {
+    setProfiles(freshProfiles());
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async () => fakeJsonResponse({ sessions: [{ id: "s-legacy", title: "Conversa sem data" }] })),
+    );
+
+    renderApp();
+
+    expect(await screen.findByText("Conversa sem data")).toBeInTheDocument();
+    // Kept, under the one heading that claims nothing about when it was
+    // used — dropping the row instead would read as lost history.
+    expect(screen.getByText(en.shell.sidebar.groups.older)).toBeInTheDocument();
+    // Still the real shell around it, not a blank document.
+    expect(screen.getByRole("button", { name: en.shell.sidebar.newConversation })).toBeInTheDocument();
+  });
+
   it("shows the skeleton only when there is nothing cached to show", async () => {
     setProfiles(freshProfiles());
     vi.stubGlobal(

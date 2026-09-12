@@ -45,6 +45,10 @@ export function SessionListItem({
   const { locale } = useLocale();
   const menu = useContextMenu();
   const spinnerLabel = running ? dict.shell.sidebar.agentWorking : dict.shell.sidebar.backgroundJob;
+  // A relay too old to report when the session was last used leaves the row
+  // without a time rather than with a made-up one — the meta line then only
+  // exists if the profile name is on it.
+  const lastActive = session.lastActiveAt === null ? null : formatRelativeTime(session.lastActiveAt, locale);
 
   return (
     <div className="group relative flex items-center" onContextMenu={menu.onContextMenu}>
@@ -88,15 +92,13 @@ export function SessionListItem({
             />
           )}
         </span>
-        <span className="flex min-w-0 items-center gap-1.5 font-mono text-[10.5px] text-text-faint">
-          {showProfile && (
-            <>
-              <span className="max-w-22 shrink-0 truncate">{profileLabel}</span>
-              <span aria-hidden="true">·</span>
-            </>
-          )}
-          <span className="truncate">{formatRelativeTime(session.lastActiveAt, locale)}</span>
-        </span>
+        {(showProfile || lastActive !== null) && (
+          <span className="flex min-w-0 items-center gap-1.5 font-mono text-[10.5px] text-text-faint">
+            {showProfile && <span className="max-w-22 shrink-0 truncate">{profileLabel}</span>}
+            {showProfile && lastActive !== null && <span aria-hidden="true">·</span>}
+            {lastActive !== null && <span className="truncate">{lastActive}</span>}
+          </span>
+        )}
       </button>
       <button
         type="button"
