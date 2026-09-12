@@ -1,6 +1,6 @@
 import { generateTitle } from "./titleGenerator.js";
 import { SharedSession } from "./sharedSession.js";
-import type { SessionStore } from "./sessionStore.js";
+import type { SessionStore, TitledSession } from "./sessionStore.js";
 import { BackgroundJobTracker, type FinishedBackgroundJob } from "./backgroundJobs.js";
 import type { McpChoiceBridge } from "./mcpBridge.js";
 import type { McpPermissionBridge } from "./permissionBridge.js";
@@ -12,7 +12,9 @@ import type { McpPermissionBridge } from "./permissionBridge.js";
  * device watching the list itself (`/sessions/watch`), even devices that
  * never opened this session as a tab — e.g. a session created on mobile,
  * appearing live in the desktop sidebar. */
-export type SessionListEvent = { type: "upsert"; id: string; title: string } | { type: "remove"; id: string };
+export type SessionListEvent =
+  | { type: "upsert"; id: string; title: string; lastActiveAt: number }
+  | { type: "remove"; id: string };
 
 // Multiple sessions identified by id within the same profile (= one relay
 // process) — equivalent to what tmux windows provided in the old
@@ -108,8 +110,18 @@ export class SessionManager {
     this.sessions.get(sessionId)?.setBackgroundJobs(this.backgroundJobs.listWatchedForSession(sessionId));
   }
 
-  listTitled(): { id: string; title: string }[] {
+  listTitled(): TitledSession[] {
     return this.sessionStore.listTitled();
+  }
+
+  /** The timestamp to stamp an `upsert` event with. Read back from the store
+   * rather than taken as `Date.now()`: a manual rename doesn't touch
+   * `lastActiveAt`, so reporting "now" would make every other device file a
+   * years-old session under "today" the moment someone renames it. Falls
+   * back to now only for an id the store somehow doesn't know, which can't
+   * happen on either of the two call sites below. */
+  private lastActiveAtOf(id: string): number {
+    return this.sessionStore.getLastActiveAt(id) ?? Date.now();
   }
 
   /** Resolves when no session has a turn in progress — used by graceful
@@ -144,7 +156,7 @@ export class SessionManager {
     if (this.sessionStore.getTitle(id) === null && !this.sessions.has(id)) return false;
     this.sessionStore.setTitle(id, title);
     this.sessions.get(id)?.setTitle(title);
-    this.onListChanged?.({ type: "upsert", id, title });
+    this.onListChanged?.({ type: "upsert", id, title, lastActiveAt: this.lastActiveAtOf(id) });
     return true;
   }
 
@@ -210,7 +222,7 @@ export class SessionManager {
           .then((title) => {
             this.sessionStore.setTitle(id, title);
             session.setTitle(title);
-            this.onListChanged?.({ type: "upsert", id, title });
+            this.onListChanged?.({ type: "upsert", id, title, lastActiveAt: this.lastActiveAtOf(id) });
           })
           .catch((error: unknown) => {
             console.error("[relay] failed to generate session title:", error);

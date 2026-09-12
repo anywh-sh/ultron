@@ -5,8 +5,8 @@ import type { SessionSummary } from "@/lib/relay-types";
 import { SessionList } from "./SessionList";
 
 const sessions: SessionSummary[] = [
-  { id: "s1", title: "First session" },
-  { id: "s2", title: "Second session" },
+  { id: "s1", title: "First session", lastActiveAt: Date.now() },
+  { id: "s2", title: "Second session", lastActiveAt: Date.now() },
 ];
 
 function noop() {}
