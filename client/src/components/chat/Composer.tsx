@@ -37,7 +37,7 @@ import { ContextUsageButton } from "@/components/chat/ContextUsageButton";
 import { CompactBoundaryToast } from "@/components/chat/CompactBoundaryToast";
 import { SlashCommandMenu } from "@/components/chat/SlashCommandMenu";
 import { HARD_BREAK_ANCHOR, serializeEditorContent } from "@/lib/composerLinks";
-import { filterSlashCommands, parseSlashCommand, type SlashCommandEntry } from "@/lib/slashCommands";
+import { filterSlashCommands, parseSlashCommand, suggestSlashCommand, type SlashCommandEntry } from "@/lib/slashCommands";
 import type { CompactBoundaryEvent } from "@/hooks/useRelayClient";
 import type { ContextUsage, ModelChoice, PermissionMode } from "@/lib/relayClient";
 
@@ -528,6 +528,12 @@ export const Composer = forwardRef<ComposerHandle, ComposerProps>(function Compo
   const disabledRef = useRef(disabled);
   disabledRef.current = disabled;
   const [placeholderExtension] = useState(() => createPlaceholderExtension(suggestionRef));
+  // Set by `submit()` when the text looks like a typo'd command (`/cler`)
+  // instead of either a real command or plain text — blocks the send until
+  // the user picks the fix or confirms sending as-is (see the banner below
+  // `EditorContent`). Cleared on the next edit (`onUpdate`) since any further
+  // typing invalidates the suggestion it was computed from.
+  const [typoConfirm, setTypoConfirm] = useState<{ text: string; suggestion: string } | null>(null);
   // No autocomplete menu on iOS: `/model`/`/clear` still work when typed in
   // full (see the `parseSlashCommand` call in `ChatPanel.tsx`), just without
   // the popup — the desktop-only convenience this extension adds.
@@ -545,6 +551,7 @@ export const Composer = forwardRef<ComposerHandle, ComposerProps>(function Compo
     },
     onUpdate: ({ editor: current }) => {
       setIsEmpty(current.isEmpty);
+      setTypoConfirm(null);
       if (isIOS()) setIsMultiline(current.view.dom.scrollHeight > 34);
       if (suppressDraftRef.current) {
         suppressDraftRef.current = false;
@@ -661,19 +668,42 @@ export const Composer = forwardRef<ComposerHandle, ComposerProps>(function Compo
     onError: (message) => window.alert(message),
   });
 
-  function submit(): void {
-    if (!editor) return;
-    const text = serializeEditorContent(editor.getJSON()).trim();
-    if (!text && pendingImages.length === 0) return;
+  function performSend(text: string): void {
     onSend(text, pendingImages);
-    editor.commands.clearContent(true);
+    editor?.commands.clearContent(true);
     // Explicit immediate flush (not the debounce scheduled by the
     // `clearContent`-triggered `onUpdate`) — persists the empty draft right
     // away so it can't reappear if the app crashes in the gap right after
     // sending.
     flushDraftSync("");
+    setTypoConfirm(null);
+  }
+
+  function submit(): void {
+    if (!editor) return;
+    const text = serializeEditorContent(editor.getJSON()).trim();
+    if (!text && pendingImages.length === 0) return;
+    // Same text as an already-shown confirmation means the user is
+    // reconfirming (second Enter, or the "send anyway" button below) — only
+    // block on a *new* typo-shaped text, not the one already surfaced.
+    if (typoConfirm?.text !== text) {
+      const suggestion = parseSlashCommand(text) === null ? suggestSlashCommand(text) : null;
+      if (suggestion) {
+        setTypoConfirm({ text, suggestion });
+        return;
+      }
+    }
+    performSend(text);
   }
   submitRef.current = submit;
+
+  function applyTypoSuggestion(): void {
+    if (!editor || !typoConfirm) return;
+    suppressDraftRef.current = true;
+    editor.commands.setContent(buildComposerDoc(typoConfirm.suggestion));
+    editor.commands.focus("end");
+    setTypoConfirm(null);
+  }
 
   const isRecording = voice.state === "recording";
   const isTranscribing = voice.state === "transcribing";
@@ -730,6 +760,30 @@ export const Composer = forwardRef<ComposerHandle, ComposerProps>(function Compo
               </button>
             </div>
           ))}
+        </div>
+      )}
+
+      {typoConfirm && (
+        <div className="flex items-center justify-between gap-2 rounded-lg bg-border/60 px-2.5 py-1.5 text-xs">
+          <span className="min-w-0 truncate text-muted-foreground">
+            Comando desconhecido — quis dizer <span className="font-medium text-foreground">{typoConfirm.suggestion}</span>?
+          </span>
+          <div className="flex shrink-0 items-center gap-1">
+            <button
+              type="button"
+              onClick={applyTypoSuggestion}
+              className="cursor-pointer rounded-md px-2 py-1 font-medium text-primary hover:bg-border"
+            >
+              Usar
+            </button>
+            <button
+              type="button"
+              onClick={() => performSend(typoConfirm.text)}
+              className="cursor-pointer rounded-md px-2 py-1 text-muted-foreground hover:bg-border"
+            >
+              Enviar mesmo assim
+            </button>
+          </div>
         </div>
       )}
 

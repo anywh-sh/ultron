@@ -32,6 +32,74 @@ export function parseSlashCommand(text: string): SlashCommand | null {
   return null;
 }
 
+/** Base command keywords `suggestSlashCommand` typo-corrects against — just
+ * the two names `parseSlashCommand` recognizes, not the model catalog: a
+ * near-miss on `/model`'s *argument* (`/model gpt4`) is meant to fall through
+ * to the CLI's own error (see `parseSlashCommand`'s doc comment), only the
+ * keyword itself is worth flagging before it silently becomes a chat
+ * message. */
+const KNOWN_COMMAND_KEYWORDS = ["clear", "model"];
+
+/** Classic Levenshtein (single-character insert/delete/substitute), no
+ * transposition — plain substitution already gives adjacent-swap typos
+ * (`modle` vs `model`) a distance of 2, which the caller's threshold already
+ * covers, so the extra complexity of Damerau-Levenshtein isn't earning its
+ * keep here. */
+function levenshteinDistance(a: string, b: string): number {
+  const rows = a.length + 1;
+  const cols = b.length + 1;
+  const distances: number[][] = Array.from({ length: rows }, () => new Array(cols).fill(0));
+  for (let i = 0; i < rows; i++) distances[i][0] = i;
+  for (let j = 0; j < cols; j++) distances[0][j] = j;
+  for (let i = 1; i < rows; i++) {
+    for (let j = 1; j < cols; j++) {
+      const cost = a[i - 1] === b[j - 1] ? 0 : 1;
+      distances[i][j] = Math.min(
+        distances[i - 1][j] + 1,
+        distances[i][j - 1] + 1,
+        distances[i - 1][j - 1] + cost,
+      );
+    }
+  }
+  return distances[rows - 1][cols - 1];
+}
+
+/**
+ * Typo-correction for text that reads as an *attempted* command but doesn't
+ * parse as one — `/cler` (missing letter), `/modle opus` (transposition) —
+ * distinct from `parseSlashCommand`'s `null`, which also covers plain text
+ * that merely starts a line with `/` (a file path like `/etc/passwd`, or a
+ * date). Only the first "word" after the slash is compared against the known
+ * keywords (`KNOWN_COMMAND_KEYWORDS`); the CLI/`/model` argument, if any, is
+ * carried through unchanged into the suggested replacement.
+ *
+ * Returns `null` for: an exact match (already handled by
+ * `parseSlashCommand`), text that isn't slash-command-shaped at all, or a
+ * typed word too far from every known keyword to be a plausible typo — the
+ * threshold (max 2 edits, scaled down for short words) is deliberately tight
+ * to avoid flagging an unrelated short path segment (`/src/...`) or English
+ * word (`/close`) as a typo of a command nobody was trying to type.
+ */
+export function suggestSlashCommand(text: string): string | null {
+  const trimmed = text.trim();
+  if (!trimmed.startsWith("/")) return null;
+
+  const withoutSlash = trimmed.slice(1);
+  const boundary = withoutSlash.search(/\s/);
+  const typedWord = (boundary === -1 ? withoutSlash : withoutSlash.slice(0, boundary)).toLowerCase();
+  const rest = boundary === -1 ? "" : withoutSlash.slice(boundary);
+  if (!typedWord) return null;
+
+  let best: { keyword: string; distance: number } | null = null;
+  for (const keyword of KNOWN_COMMAND_KEYWORDS) {
+    if (typedWord === keyword) return null;
+    const distance = levenshteinDistance(typedWord, keyword);
+    const threshold = keyword.length <= 4 ? 1 : 2;
+    if (distance <= threshold && (!best || distance < best.distance)) best = { keyword, distance };
+  }
+  return best ? `/${best.keyword}${rest}` : null;
+}
+
 export interface SlashCommandEntry {
   /** Full text that fills the composer on selection — includes the slash. */
   command: string;
