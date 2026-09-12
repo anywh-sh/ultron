@@ -136,3 +136,26 @@ jobs:
         working-directory: client
       - run: xvfb-run -a npm run test:e2e
         working-directory: client
+
+  # The one job branch protection points at. Every other job above is gated on
+  # paths-filter, so which of them even report on a given PR changes with what
+  # it touched — naming them individually as required checks means the ruleset
+  # has to be edited by hand every time a job is added or renamed, and a typo
+  # there fails open (a required check that matches no job is simply never
+  # waited on). This aggregates them instead: it always runs, and it fails if
+  # anything it depends on failed or was cancelled. `skipped` is a pass on
+  # purpose — that's paths-filter correctly deciding a tier had nothing to do.
+  ci:
+    name: ci
+    needs: [changes, relay, client-unit, client-e2e]
+    if: always()
+    runs-on: ubuntu-latest
+    steps:
+      - name: Fail if any required job did not succeed
+        if: contains(needs.*.result, 'failure') || contains(needs.*.result, 'cancelled')
+        run: |
+          echo "changes=${{ needs.changes.result }}"
+          echo "relay=${{ needs.relay.result }}"
+          echo "client-unit=${{ needs.client-unit.result }}"
+          echo "client-e2e=${{ needs.client-e2e.result }}"
+          exit 1
