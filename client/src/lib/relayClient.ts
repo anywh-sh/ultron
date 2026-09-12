@@ -6,6 +6,7 @@ import type {
   ClaudeEvent,
   ContextUsage,
   CreatedProfile,
+  EditMessageErrorCode,
   HistoryPageMessage,
   ModelChoice,
   PermissionMode,
@@ -14,6 +15,7 @@ import type {
   RelayMessage,
   RemoteProfile,
   SessionSummary,
+  SetCwdErrorCode,
 } from "@/lib/relay-types";
 import type { Theme, ThemeValidationError } from "@/lib/theme";
 import { recordAvailableModels } from "@/lib/modelCatalog";
@@ -30,6 +32,7 @@ export type {
   ClaudeEvent,
   ContextUsage,
   CreatedProfile,
+  EditMessageErrorCode,
   HistoryMessage,
   HistoryPageMessage,
   ModelChoice,
@@ -38,6 +41,7 @@ export type {
   ProfileValidation,
   RemoteProfile,
   SessionSummary,
+  SetCwdErrorCode,
 } from "@/lib/relay-types";
 
 function isRelayMessage(value: unknown): value is RelayMessage {
@@ -254,7 +258,7 @@ export interface RelayClientCallbacks {
   /** Sent right on connection (before history replay) and again every
    * time the working directory changes or locks — see sharedSession.ts. */
   onCwdState: (cwd: string, locked: boolean) => void;
-  onSetCwdError?: (message: string) => void;
+  onSetCwdError?: (code: SetCwdErrorCode) => void;
   /** Sent right on connection (before the replay) and again every time the mode
    * changes — see sharedSession.ts::setPermissionMode. */
   onPermissionModeState: (mode: PermissionMode) => void;
@@ -321,7 +325,7 @@ export interface RelayClientCallbacks {
   onHistoryTruncated?: (page: HistoryPageMessage) => void;
   /** `edit_message` that was invalid or failed to truncate the real transcript —
    * arrives only for whoever requested the edit. */
-  onEditMessageError?: (message: string) => void;
+  onEditMessageError?: (code: EditMessageErrorCode) => void;
   /** Sent right on connection (before the replay) and again every time the
    * draft changes, from any device — see sharedSession.ts::setDraft. Lets a
    * reopened/restarted app restore what was typed but not yet sent. */
@@ -465,7 +469,7 @@ export class RelayClient {
       } else if (parsed.type === "cwd_state") {
         this.callbacks.onCwdState(parsed.cwd, parsed.locked);
       } else if (parsed.type === "set_cwd_error") {
-        this.callbacks.onSetCwdError?.(parsed.message);
+        this.callbacks.onSetCwdError?.(parsed.code);
       } else if (parsed.type === "session_title") {
         this.callbacks.onSessionTitle?.(parsed.title);
       } else if (parsed.type === "session_deleted") {
@@ -496,7 +500,7 @@ export class RelayClient {
       } else if (parsed.type === "history_truncated") {
         this.callbacks.onHistoryTruncated?.(parsed);
       } else if (parsed.type === "edit_message_error") {
-        this.callbacks.onEditMessageError?.(parsed.message);
+        this.callbacks.onEditMessageError?.(parsed.code);
       } else if (parsed.type === "choice_prompt") {
         this.callbacks.onChoicePrompt?.(parsed.promptId, parsed.questions, parsed.kind);
       } else if (parsed.type === "choice_resolved") {

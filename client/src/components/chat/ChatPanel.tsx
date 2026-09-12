@@ -25,6 +25,7 @@ import { physicalPositionToClientPoint } from "@/lib/dragDropPosition";
 import { cn } from "@/lib/utils";
 import { parseSlashCommand } from "@/lib/slashCommands";
 import type { Profile } from "@/lib/profiles";
+import { useDict } from "@/i18n";
 
 interface ChatPanelProps {
   profile: Profile;
@@ -135,6 +136,7 @@ export function ChatPanel({
   onOpenPath,
   isActiveTab,
 }: ChatPanelProps) {
+  const dict = useDict();
   const log = useMessageLog();
   const logRef = useRef(log);
   logRef.current = log;
@@ -332,7 +334,7 @@ export function ChatPanel({
       logRef.current.reset();
       logRef.current.hydrate(page);
     },
-    onEditMessageError: (message) => window.alert(message),
+    onEditMessageError: (code) => window.alert(dict.errors.editMessage[code]),
     onCaughtUp: () => {
       caughtUpRef.current = true;
       setReady(true);
@@ -362,12 +364,12 @@ export function ChatPanel({
     // (Composer.onSend) already covers the instant between the click and
     // this event coming back.
     onTurnState: (state) => setTurnStartedAt(state.active ? (state.startedAt ?? Date.now()) : null),
-    onSetCwdError: (message) => {
+    onSetCwdError: (code) => {
       if (suppressNextCwdErrorRef.current) {
         suppressNextCwdErrorRef.current = false;
         return;
       }
-      window.alert(`Não foi possível trocar a pasta: ${message}`);
+      window.alert(`${dict.errors.setCwdTitle}: ${dict.errors.setCwd[code]}`);
     },
     onSessionTitle: (title) => onTitleRef.current?.(title),
     onSessionDeleted: () => onDeletedRef.current?.(),

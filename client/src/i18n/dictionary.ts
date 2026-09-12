@@ -9,6 +9,8 @@
  * translating text that is about to be deleted. `common` is the slice that
  * survives any redesign — the verbs on buttons.
  */
+import type { EditMessageErrorCode, SetCwdErrorCode } from "@/lib/relay-types";
+
 export interface Dictionary {
   common: {
     add: string;
@@ -33,5 +35,18 @@ export interface Dictionary {
       title: string;
       description: string;
     };
+  };
+  /**
+   * Failures the relay reports as a code rather than as a sentence. Typed as
+   * a record over the wire contract's own unions on purpose: adding an error
+   * code on the relay side and forgetting the copy is then a compile error in
+   * both languages, instead of a raw enum like `not_found` reaching the user
+   * — which is exactly what used to happen to four of the five folder-picker
+   * failures.
+   */
+  errors: {
+    setCwdTitle: string;
+    setCwd: Record<SetCwdErrorCode, string>;
+    editMessage: Record<EditMessageErrorCode, string>;
   };
 }
