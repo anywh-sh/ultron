@@ -64,7 +64,8 @@ function isCachedProfileSessions(value: unknown): value is CachedProfileSessions
   return candidate.sessions.every((session: unknown) => {
     if (typeof session !== "object" || session === null) return false;
     const entry = session as Record<string, unknown>;
-    return typeof entry.id === "string" && typeof entry.title === "string" && typeof entry.lastActiveAt === "number";
+    if (typeof entry.id !== "string" || typeof entry.title !== "string") return false;
+    return entry.lastActiveAt === null || typeof entry.lastActiveAt === "number";
   });
 }
 
