@@ -7,13 +7,11 @@ import { isIOS } from "@/lib/platform";
 import { stripPlanChoiceMarkers } from "@/lib/planChoiceMarker";
 import { showNativeContextMenu } from "@/lib/nativeContextMenu";
 import { formatAbsoluteTime, formatRelativeTime } from "@/lib/relativeTime";
-import { useLocale } from "@/i18n";
+import { useDict, useLocale } from "@/i18n";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { MarkdownContent } from "@/components/chat/MarkdownContent";
-
-const IMAGE_EDIT_DISABLED_REASON = "Editar mensagem com anexo ainda não é suportado";
 
 interface UserBubbleProps {
   id: string;
@@ -41,7 +39,9 @@ function TimestampLabel({ sentAt }: { sentAt: number }) {
   return (
     <Tooltip>
       <TooltipTrigger asChild>
-        <span className="cursor-default select-none">{formatRelativeTime(sentAt, locale)}</span>
+        <span className="cursor-default px-1.5 font-mono text-[10.5px] text-text-faint transition-colors select-none hover:text-muted-foreground">
+          {formatRelativeTime(sentAt, locale)}
+        </span>
       </TooltipTrigger>
       <TooltipContent side="top">{formatAbsoluteTime(sentAt, locale)}</TooltipContent>
     </Tooltip>
@@ -69,6 +69,7 @@ export const UserBubble = memo(function UserBubble({
   onSaveEdit,
   onCopy,
 }: UserBubbleProps) {
+  const dict = useDict();
   const editDisabled = Boolean(images && images.length > 0);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const [copied, setCopied] = useState(false);
@@ -108,13 +109,13 @@ export const UserBubble = memo(function UserBubble({
     onLongPress: (point) => {
       void showNativeContextMenu(
         [
-          { id: "copy", label: "Copiar", systemIcon: "doc.on.doc" },
+          { id: "copy", label: dict.common.copy, systemIcon: "doc.on.doc" },
           {
             id: "edit",
-            label: "Editar",
+            label: dict.common.edit,
             systemIcon: "pencil",
             disabled: editDisabled,
-            disabledReason: editDisabled ? IMAGE_EDIT_DISABLED_REASON : undefined,
+            disabledReason: editDisabled ? dict.chat.message.editWithAttachment : undefined,
           },
         ],
         point,
@@ -129,8 +130,11 @@ export const UserBubble = memo(function UserBubble({
     <div className="group flex flex-col items-end">
       <div
         className={cn(
-          "flex max-w-[80%] flex-col gap-2 rounded-2xl px-3.5 py-2 text-sm text-foreground",
-          isEditing ? "w-[80%] bg-bg-elevated" : "bg-bubble-user",
+          // Square and bordered, like every other surface in this design —
+          // the rounded pill it used to be was the one bubble shape left
+          // over from the scaffold's visual language.
+          "flex max-w-[88%] flex-col gap-2 border border-border px-3.5 py-3 text-sm text-foreground",
+          isEditing ? "w-[88%] bg-bg-elevated" : "bg-bubble-user",
         )}
         {...(isIOS() && !isEditing ? longPress : undefined)}
       >
@@ -180,10 +184,10 @@ export const UserBubble = memo(function UserBubble({
       {isEditing ? (
         <div className="mt-1 flex h-7 items-center justify-end gap-1.5">
           <Button type="button" size="sm" variant="ghost" onClick={onCancelEdit}>
-            Cancelar
+            {dict.common.cancel}
           </Button>
           <Button type="button" size="sm" onClick={handleSave}>
-            Salvar
+            {dict.common.save}
           </Button>
         </div>
       ) : (
@@ -195,16 +199,17 @@ export const UserBubble = memo(function UserBubble({
         // iOS (the interaction is the long-press above, not hover — there's
         // no hover on touch).
         !isIOS() && (
-          <div className="mt-1 flex h-6 items-center justify-end gap-1 text-xs text-muted-foreground opacity-0 transition-opacity group-hover:opacity-100">
+          <div className="mt-1 flex h-6 items-center justify-end gap-0.5 opacity-0 transition-opacity group-hover:opacity-100">
             <TimestampLabel sentAt={sentAt} />
-            <button
+            <Button
               type="button"
+              variant="ghost"
+              size="icon-xs"
               onClick={handleCopy}
-              aria-label={copied ? "Copiado" : "Copiar mensagem"}
-              className="flex size-6 cursor-pointer items-center justify-center rounded-md hover:bg-border hover:text-foreground"
+              aria-label={copied ? dict.chat.message.copied : dict.chat.message.copy}
             >
-              {copied ? <Check className="size-3.5" /> : <Copy className="size-3.5" />}
-            </button>
+              {copied ? <Check /> : <Copy />}
+            </Button>
             {editDisabled ? (
               <Tooltip>
                 <TooltipTrigger asChild>
@@ -212,27 +217,23 @@ export const UserBubble = memo(function UserBubble({
                    * events at all, so the Tooltip would never open if the
                    * trigger were the button itself. */}
                   <span>
-                    <button
-                      type="button"
-                      disabled
-                      aria-label="Editar mensagem (indisponível)"
-                      className="flex size-6 cursor-not-allowed items-center justify-center rounded-md text-text-faint"
-                    >
-                      <Pencil className="size-3.5" />
-                    </button>
+                    <Button type="button" variant="ghost" size="icon-xs" disabled aria-label={dict.chat.message.editUnavailable}>
+                      <Pencil />
+                    </Button>
                   </span>
                 </TooltipTrigger>
-                <TooltipContent side="top">{IMAGE_EDIT_DISABLED_REASON}</TooltipContent>
+                <TooltipContent side="top">{dict.chat.message.editWithAttachment}</TooltipContent>
               </Tooltip>
             ) : (
-              <button
+              <Button
                 type="button"
+                variant="ghost"
+                size="icon-xs"
                 onClick={() => onStartEdit(id, text)}
-                aria-label="Editar mensagem"
-                className="flex size-6 cursor-pointer items-center justify-center rounded-md hover:bg-border hover:text-foreground"
+                aria-label={dict.chat.message.edit}
               >
-                <Pencil className="size-3.5" />
-              </button>
+                <Pencil />
+              </Button>
             )}
           </div>
         )
@@ -263,6 +264,7 @@ interface AssistantTextProps {
  * `streaming` is true: the response isn't final yet, and `sentAt` is only a
  * placeholder until the block actually commits (see `useMessageLog.ts`). */
 export const AssistantText = memo(function AssistantText({ text, sentAt, streaming, onCopy, onOpenPath }: AssistantTextProps) {
+  const dict = useDict();
   const [copied, setCopied] = useState(false);
 
   function handleCopy(): void {
@@ -274,7 +276,7 @@ export const AssistantText = memo(function AssistantText({ text, sentAt, streami
   // Long-press (iOS) — same pattern as `UserBubble`, just "Copiar" only.
   const longPress = useLongPress({
     onLongPress: (point) => {
-      void showNativeContextMenu([{ id: "copy", label: "Copiar", systemIcon: "doc.on.doc" }], point).then((selectedId) => {
+      void showNativeContextMenu([{ id: "copy", label: dict.common.copy, systemIcon: "doc.on.doc" }], point).then((selectedId) => {
         if (selectedId === "copy") handleCopy();
       });
     },
@@ -286,16 +288,17 @@ export const AssistantText = memo(function AssistantText({ text, sentAt, streami
         <MarkdownContent text={stripPlanChoiceMarkers(text)} onOpenPath={onOpenPath} />
       </div>
       {!streaming && !isIOS() && (
-        <div className="mt-1 flex h-6 items-center gap-1 text-xs text-muted-foreground opacity-0 transition-opacity group-hover:opacity-100">
+        <div className="mt-1 flex h-6 items-center gap-0.5 opacity-0 transition-opacity group-hover:opacity-100">
           <TimestampLabel sentAt={sentAt} />
-          <button
+          <Button
             type="button"
+            variant="ghost"
+            size="icon-xs"
             onClick={handleCopy}
-            aria-label={copied ? "Copiado" : "Copiar mensagem"}
-            className="flex size-6 cursor-pointer items-center justify-center rounded-md hover:bg-border hover:text-foreground"
+            aria-label={copied ? dict.chat.message.copied : dict.chat.message.copyResponse}
           >
-            {copied ? <Check className="size-3.5" /> : <Copy className="size-3.5" />}
-          </button>
+            {copied ? <Check /> : <Copy />}
+          </Button>
         </div>
       )}
     </div>
