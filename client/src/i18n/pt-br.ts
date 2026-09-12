@@ -111,6 +111,51 @@ export const ptBr: Dictionary = {
       skip: "Pular",
       submit: "Enviar respostas",
     },
+    composer: {
+      placeholder: "Escreva uma mensagem…",
+      sendShortcut: "↵",
+      attach: "Anexar imagem ou vídeo",
+      attachmentUploading: "enviando anexo…",
+      removeAttachment: "Remover anexo",
+      unnamedAttachment: "anexo",
+      record: "Gravar áudio",
+      stopRecording: "Parar gravação",
+      cancelRecording: "Descartar gravação",
+      transcribing: "Transcrevendo áudio…",
+      microphone: "Microfone",
+      selectMicrophone: "Selecionar microfone",
+      typo: {
+        question: "Comando desconhecido — quis dizer {command}?",
+        use: "Usar",
+        sendAnyway: "Enviar mesmo assim",
+      },
+      mode: {
+        default: { label: "Manual", hint: "Pergunta antes de cada edição ou comando" },
+        acceptEdits: { label: "Aceitar edições", hint: "Edita arquivos sem perguntar antes" },
+        plan: { label: "Modo plano", hint: "Planeja o trabalho sem tocar em nada" },
+        bypassPermissions: { label: "Ignorar permissões", hint: "Nunca pergunta, nem em comando destrutivo" },
+      },
+      pending: "…",
+      modelLocked: "O modelo fica fixo depois do primeiro turno da conversa",
+      context: {
+        label: "Janela de contexto",
+        ariaLabel: "Janela de contexto: {percent}% usada",
+        tokens: "{used} / {total} tokens",
+      },
+      voiceErrors: {
+        microphonePermission:
+          "Permissão de microfone não concedida. Autorize em Ajustes do Sistema > Privacidade e Segurança > Microfone.",
+        startFailed: "Não foi possível iniciar a gravação: {reason}",
+        transcriptionFailed: "Falha na transcrição: {reason}",
+      },
+      commands: {
+        clear: "Limpa o histórico desta conversa",
+        modelDefault: "Usa o modelo padrão da própria CLI",
+        modelOpus: "Usa o Opus — mais capaz, mais lento",
+        modelHaiku: "Usa o Haiku — mais rápido",
+        modelGeneric: "Usa o {model}",
+      },
+    },
   },
   shell: {
     titleBar: {

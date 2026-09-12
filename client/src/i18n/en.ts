@@ -111,6 +111,51 @@ export const en: Dictionary = {
       skip: "Skip",
       submit: "Send answers",
     },
+    composer: {
+      placeholder: "Write a message…",
+      sendShortcut: "↵",
+      attach: "Attach image or video",
+      attachmentUploading: "uploading attachment…",
+      removeAttachment: "Remove attachment",
+      unnamedAttachment: "attachment",
+      record: "Record audio",
+      stopRecording: "Stop recording",
+      cancelRecording: "Discard recording",
+      transcribing: "Transcribing audio…",
+      microphone: "Microphone",
+      selectMicrophone: "Select microphone",
+      typo: {
+        question: "Unknown command — did you mean {command}?",
+        use: "Use it",
+        sendAnyway: "Send anyway",
+      },
+      mode: {
+        default: { label: "Manual", hint: "Asks before every edit or command" },
+        acceptEdits: { label: "Accept edits", hint: "Edits files without asking first" },
+        plan: { label: "Plan mode", hint: "Plans the work without touching anything" },
+        bypassPermissions: { label: "Bypass permissions", hint: "Never asks, destructive commands included" },
+      },
+      pending: "…",
+      modelLocked: "The model is fixed after the conversation's first turn",
+      context: {
+        label: "Context window",
+        ariaLabel: "Context window: {percent}% used",
+        tokens: "{used} / {total} tokens",
+      },
+      voiceErrors: {
+        microphonePermission:
+          "Microphone access wasn't granted. Allow it under System Settings > Privacy & Security > Microphone.",
+        startFailed: "Couldn't start recording: {reason}",
+        transcriptionFailed: "Transcription failed: {reason}",
+      },
+      commands: {
+        clear: "Clears this conversation's history",
+        modelDefault: "Uses the CLI's own default model",
+        modelOpus: "Uses Opus — more capable, slower",
+        modelHaiku: "Uses Haiku — faster",
+        modelGeneric: "Uses {model}",
+      },
+    },
   },
   shell: {
     titleBar: {
