@@ -58,7 +58,7 @@ afterEach(() => {
 async function openConversation(): Promise<void> {
   const user = userEvent.setup({ delay: null });
   renderApp();
-  await user.click(await screen.findByRole("button", { name: "Nova conversa" }));
+  await user.click(await screen.findByRole("button", { name: en.shell.sidebar.newConversation }));
   await screen.findByLabelText(COMPOSER);
 }
 
