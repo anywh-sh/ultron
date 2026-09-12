@@ -3,6 +3,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { cleanup, render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { TooltipProvider } from "@/components/ui/tooltip";
+import { LocaleProvider } from "@/i18n";
 import App from "@/App";
 import { installFakeRelay, type FakeRelay } from "../ui/helpers/fakeRelay";
 
@@ -69,11 +70,13 @@ const onRender: ProfilerOnRenderCallback = (_id, _phase, actualDuration) => {
  * `<App />` alone throws) with the profiler wrapped around the app. */
 function renderProfiledApp() {
   return render(
-    <TooltipProvider>
-      <Profiler id="app" onRender={onRender}>
-        <App />
-      </Profiler>
-    </TooltipProvider>,
+    <LocaleProvider>
+      <TooltipProvider>
+        <Profiler id="app" onRender={onRender}>
+          <App />
+        </Profiler>
+      </TooltipProvider>
+    </LocaleProvider>,
   );
 }
 

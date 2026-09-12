@@ -1,6 +1,7 @@
 import { StrictMode } from "react";
 import { createRoot } from "react-dom/client";
 import { TooltipProvider } from "@/components/ui/tooltip";
+import { LocaleProvider } from "@/i18n";
 import App from "./App";
 import { applyFontSize, readFontSize } from "@/lib/fontSize";
 import { applyCachedTheme } from "@/lib/themeApply";
@@ -22,8 +23,10 @@ if (!root) {
 
 createRoot(root).render(
   <StrictMode>
-    <TooltipProvider>
-      <App />
-    </TooltipProvider>
+    <LocaleProvider>
+      <TooltipProvider>
+        <App />
+      </TooltipProvider>
+    </LocaleProvider>
   </StrictMode>,
 );
