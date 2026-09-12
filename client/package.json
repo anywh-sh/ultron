@@ -17,6 +17,7 @@
     "tauri:build:win:portable": "tauri build --no-bundle",
     "test": "vitest run",
     "test:watch": "vitest",
+    "perf": "vitest run --config vitest.perf.config.ts",
     "build:e2e": "tauri build --debug --no-bundle --features e2e --config src-tauri/tauri.e2e.conf.json",
     "test:e2e": "wdio run ./wdio.conf.js"
   },
