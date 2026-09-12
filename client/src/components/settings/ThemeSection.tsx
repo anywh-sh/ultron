@@ -1,19 +1,25 @@
 import { useState } from "react";
-import { Check, Copy, Pencil, Plus, Trash2 } from "lucide-react";
-import { Button } from "@/components/ui/button";
+import { Check, MoreHorizontal, Plus } from "lucide-react";
 import {
   AlertDialog,
   AlertDialogAction,
-  AlertDialogCancel,
   AlertDialogBody,
+  AlertDialogCancel,
   AlertDialogContent,
   AlertDialogDescription,
   AlertDialogFooter,
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 import { ThemeImportDialog, type ThemeDialogIntent } from "@/components/settings/ThemeImportDialog";
 import { useThemeCatalog, useThemeSync } from "@/hooks/useThemes";
+import { useDict } from "@/i18n";
 import { isBuiltinTheme } from "@/lib/builtinThemes";
 import { resolveConnection } from "@/lib/connectionResolver";
 import type { Profile } from "@/lib/profiles";
@@ -30,32 +36,30 @@ import {
 import { cn } from "@/lib/utils";
 
 /**
- * Miniature of the app's own layout — sidebar strip, a surface, a message
- * bubble, an accent — rather than a row of loose swatches: a theme is a
- * relationship between surfaces, and a row of squares says nothing about
- * how they sit together.
+ * What a theme looks like, in three bars over its own background: the
+ * accent, a line of text, a fainter one. Not a miniature of the app's
+ * layout — at this size the layout isn't readable anyway, and what
+ * actually distinguishes two themes is the contrast between those four
+ * colours.
  */
 function ThemePreview({ theme }: { theme: Theme }) {
   const { colors } = resolveTheme(theme);
   return (
-    <div
-      className="flex h-12 w-20 shrink-0 overflow-hidden rounded border"
-      style={{ background: colors.background, borderColor: colors.border }}
+    <span
+      className="flex h-14 flex-col justify-center gap-1.5 px-3"
+      style={{ background: colors.background }}
     >
-      <div className="h-full w-1/4" style={{ background: colors["bg-sidebar"] }} />
-      <div className="flex flex-1 flex-col justify-center gap-1 p-1.5">
-        <div className="h-1.5 w-full rounded-sm" style={{ background: colors["bubble-user"] }} />
-        <div className="h-1 w-3/4 rounded-sm" style={{ background: colors["muted-foreground"] }} />
-        <div className="h-1 w-1/3 rounded-sm" style={{ background: colors.primary }} />
-      </div>
-    </div>
+      <span className="h-1 w-[64%]" style={{ background: colors.primary }} />
+      <span className="h-1 w-full opacity-30" style={{ background: colors.foreground }} />
+      <span className="h-1 w-[42%] opacity-15" style={{ background: colors.foreground }} />
+    </span>
   );
 }
 
-function ThemeRow({
+function ThemeCard({
   theme,
   selected,
-  busy,
+  kind,
   onSelect,
   onEdit,
   onDuplicate,
@@ -63,51 +67,61 @@ function ThemeRow({
 }: {
   theme: Theme;
   selected: boolean;
-  busy: boolean;
+  kind: string;
   onSelect: () => void;
-  /** Absent for a built-in, which has no file on the host to rewrite. */
+  /** Absent for a built-in (no file anywhere) and for a theme mirrored from
+   * a host this device isn't connected to (a file it can't reach). */
   onEdit?: () => void;
   onDuplicate: () => void;
   onDelete?: () => void;
 }) {
+  const dict = useDict();
+  const copy = dict.settings.appearance.theme;
+
   return (
-    <div
-      className={cn(
-        "flex items-center gap-3 rounded-md border p-2",
-        selected ? "border-primary" : "border-border",
-      )}
-    >
+    <div className={cn("group relative flex flex-col border bg-bg-chrome", selected ? "border-primary" : "border-border")}>
       <button
         type="button"
-        disabled={busy}
         onClick={onSelect}
-        className="flex min-w-0 flex-1 cursor-pointer items-center gap-3 text-left"
+        className="flex cursor-pointer flex-col text-left transition-colors hover:bg-surface-hover"
       >
         <ThemePreview theme={theme} />
-        <div className="flex min-w-0 flex-col">
-          <span className="truncate text-sm">{theme.name}</span>
-          <span className="truncate text-xs text-muted-foreground">
-            {isBuiltinTheme(theme.id) ? "Embutido" : theme.appearance === "light" ? "Claro" : "Escuro"}
+        <span className="flex items-center gap-2 px-2.5 py-2">
+          <span className="flex min-w-0 flex-1 flex-col gap-0.5">
+            <span className="truncate font-mono text-[11.5px] text-foreground">{theme.name}</span>
+            <span className="truncate font-mono text-[9.5px] tracking-[0.06em] text-text-faint">{kind}</span>
           </span>
-        </div>
+          <span
+            className={cn(
+              "flex size-3 shrink-0 items-center justify-center border",
+              selected ? "border-primary bg-primary text-primary-foreground" : "border-border",
+            )}
+          >
+            {selected && <Check className="size-2.5" />}
+          </span>
+        </span>
       </button>
 
-      <div className="flex shrink-0 items-center gap-1">
-        {selected && <Check className="size-4 text-primary" />}
-        {onEdit && (
-          <Button variant="ghost" size="icon-sm" aria-label={`Editar ${theme.name}`} onClick={onEdit}>
-            <Pencil className="size-3.5" />
-          </Button>
-        )}
-        <Button variant="ghost" size="icon-sm" aria-label={`Duplicar ou exportar ${theme.name}`} onClick={onDuplicate}>
-          <Copy className="size-3.5" />
-        </Button>
-        {onDelete && (
-          <Button variant="ghost" size="icon-sm" aria-label={`Excluir ${theme.name}`} onClick={onDelete}>
-            <Trash2 className="size-3.5" />
-          </Button>
-        )}
-      </div>
+      {/* The design has no per-theme actions at all; the app does (editing,
+          exporting, deleting), so they live behind one control that only
+          shows up when the card is pointed at or focused — visible when
+          wanted, invisible while choosing. */}
+      <DropdownMenu modal={false}>
+        <DropdownMenuTrigger asChild>
+          <button
+            type="button"
+            aria-label={copy.options.replace("{name}", theme.name)}
+            className="absolute top-1 right-1 flex size-6 cursor-pointer items-center justify-center border border-transparent bg-bg-chrome text-text-faint opacity-0 transition-colors group-hover:opacity-100 hover:border-border hover:text-foreground focus-visible:opacity-100"
+          >
+            <MoreHorizontal className="size-3.5" />
+          </button>
+        </DropdownMenuTrigger>
+        <DropdownMenuContent align="end">
+          {onEdit && <DropdownMenuItem onSelect={onEdit}>{dict.common.edit}</DropdownMenuItem>}
+          <DropdownMenuItem onSelect={onDuplicate}>{dict.common.copy}</DropdownMenuItem>
+          {onDelete && <DropdownMenuItem onSelect={onDelete}>{dict.common.delete}</DropdownMenuItem>}
+        </DropdownMenuContent>
+      </DropdownMenu>
     </div>
   );
 }
@@ -125,6 +139,8 @@ function themeAsJson(theme: Theme, id: string, name: string): string {
 }
 
 export function ThemeSection({ activeProfile }: { activeProfile: Profile }) {
+  const dict = useDict();
+  const copy = dict.settings.appearance.theme;
   // One registry, not one per profile: a theme is a file on a machine, and
   // the only machine this device can reliably write to is the one it is
   // connected to right now. Themes mirrored from other hosts stay
@@ -180,38 +196,36 @@ export function ThemeSection({ activeProfile }: { activeProfile: Profile }) {
     }
   }
 
+  function kindOf(theme: Theme, local: boolean): string {
+    if (isBuiltinTheme(theme.id)) return copy.builtin;
+    if (!local) return copy.elsewhere;
+    return theme.appearance === "light" ? copy.light : copy.dark;
+  }
+
   return (
-    <div className="flex flex-col gap-3">
-      <div>
-        <h3 className="text-sm font-medium">Tema</h3>
-        <p className="text-xs text-muted-foreground">
-          Vale para o app inteiro neste dispositivo. Temas adicionados ficam no servidor e podem ser
-          usados por qualquer perfil dele.
-        </p>
+    <div className="flex flex-col gap-3 border-b border-border py-5">
+      <div className="flex items-baseline gap-2.5">
+        <span className="text-[13.5px] font-semibold text-foreground">{copy.title}</span>
+        <span className="flex-1 text-xs text-muted-foreground">{copy.description}</span>
       </div>
 
-      {missing && (
-        <p className="border border-border px-3 py-2 text-xs text-muted-foreground">
-          O tema escolhido não está mais no servidor — usando o padrão até ele voltar.
-        </p>
-      )}
+      {missing && <p className="border border-border px-3 py-2 text-xs text-muted-foreground">{copy.missing}</p>}
 
       {!supported && (
         <p className="border border-border px-3 py-2 text-xs text-muted-foreground">
-          Não foi possível ler os temas de {activeProfile.label} (servidor fora do ar ou relay
-          antigo). A lista abaixo é a última conhecida, e mudanças não vão salvar até ele responder.
+          {copy.unreadable.replace("{profile}", activeProfile.label)}
         </p>
       )}
 
-      <div className="flex flex-col gap-1.5">
+      <div className="grid grid-cols-[repeat(auto-fill,minmax(7.5rem,1fr))] gap-2.5">
         {catalog.map(({ theme, storeKey }) => {
           const local = storeKey === registryKey;
           return (
-            <ThemeRow
+            <ThemeCard
               key={theme.id}
               theme={theme}
+              kind={kindOf(theme, local)}
               selected={theme.id === current.id && !missing}
-              busy={busy}
               onSelect={() => selectTheme(theme)}
               onEdit={local ? () => edit(theme) : undefined}
               onDuplicate={() => duplicate(theme)}
@@ -219,25 +233,24 @@ export function ThemeSection({ activeProfile }: { activeProfile: Profile }) {
             />
           );
         })}
+
+        {supported && (
+          <button
+            type="button"
+            onClick={() => {
+              setImportSeed(undefined);
+              setImportIntent("import");
+              setImportOpen(true);
+            }}
+            className="flex min-h-[5.75rem] cursor-pointer flex-col items-center justify-center gap-1.5 border border-dashed border-border text-text-faint transition-colors hover:border-text-faint hover:bg-surface-hover hover:text-foreground"
+          >
+            <Plus className="size-4" />
+            <span className="font-mono text-[10.5px]">{copy.add}</span>
+          </button>
+        )}
       </div>
 
       {error && <p className="text-sm text-destructive">{error}</p>}
-
-      {supported && (
-        <Button
-          variant="outline"
-          size="sm"
-          className="self-start"
-          onClick={() => {
-            setImportSeed(undefined);
-            setImportIntent("import");
-            setImportOpen(true);
-          }}
-        >
-          <Plus className="size-3.5" />
-          Adicionar tema
-        </Button>
-      )}
 
       <ThemeImportDialog
         open={importOpen}
@@ -251,17 +264,13 @@ export function ThemeSection({ activeProfile }: { activeProfile: Profile }) {
       <AlertDialog open={pendingDelete !== null} onOpenChange={(open) => !open && setPendingDelete(null)}>
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>Excluir o tema "{pendingDelete?.name}"?</AlertDialogTitle>
+            <AlertDialogTitle>{copy.deleteTitle.replace("{name}", pendingDelete?.name ?? "")}</AlertDialogTitle>
           </AlertDialogHeader>
           <AlertDialogBody>
-            <AlertDialogDescription>
-              Some de todos os dispositivos que apontam para este servidor. Se for o tema em uso
-              aqui, o app volta para o padrão — e se você adicionar o tema de novo, a escolha volta
-              sozinha.
-            </AlertDialogDescription>
+            <AlertDialogDescription>{copy.deleteBody}</AlertDialogDescription>
           </AlertDialogBody>
           <AlertDialogFooter>
-            <AlertDialogCancel>Cancelar</AlertDialogCancel>
+            <AlertDialogCancel>{dict.common.cancel}</AlertDialogCancel>
             <AlertDialogAction
               disabled={busy}
               onClick={(event) => {
@@ -269,7 +278,7 @@ export function ThemeSection({ activeProfile }: { activeProfile: Profile }) {
                 if (pendingDelete) void confirmDelete(pendingDelete);
               }}
             >
-              {busy ? "Excluindo…" : "Excluir"}
+              {busy ? dict.settings.danger.deleting : dict.common.delete}
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>

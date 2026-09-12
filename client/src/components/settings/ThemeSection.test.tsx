@@ -19,7 +19,14 @@ vi.mock("@/lib/connectionResolver", () => ({
 import { fetchThemes, updateProfileMeta, deleteTheme } from "@/lib/relayClient";
 import { resolveConnection } from "@/lib/connectionResolver";
 import { getSelectedThemeId, setSelectedThemeId } from "@/lib/themes";
+import { en } from "@/i18n/en";
 import { ThemeSection } from "./ThemeSection";
+
+/** The per-card actions live behind one menu, so every test that reaches
+ * them opens that card's menu first. */
+async function openCardMenu(user: ReturnType<typeof userEvent.setup>, name: string): Promise<void> {
+  await user.click(screen.getByRole("button", { name: en.settings.appearance.theme.options.replace("{name}", name) }));
+}
 
 const CUSTOM_THEME: Theme = {
   version: 1,
@@ -95,10 +102,11 @@ describe("ThemeSection", () => {
     render(<ThemeSection activeProfile={activeProfile} />);
 
     await screen.findByText("Custom B");
-    await user.click(screen.getByRole("button", { name: "Excluir Custom B" }));
+    await openCardMenu(user, "Custom B");
+    await user.click(await within(document.body).findByRole("menuitem", { name: en.common.delete }));
 
     const dialog = await screen.findByRole("alertdialog");
-    await user.click(within(dialog).getByRole("button", { name: "Excluir" }));
+    await user.click(within(dialog).getByRole("button", { name: en.common.delete }));
 
     await vi.waitFor(() => expect(deleteTheme).toHaveBeenCalled());
     expect(deleteTheme).toHaveBeenCalledWith("127.0.0.1", 11111, "custom-b", "token-a");
@@ -107,11 +115,18 @@ describe("ThemeSection", () => {
   it("offers a theme mirrored from another host, without offering to edit a file it can't write", async () => {
     const { setThemesForHost } = await import("@/lib/themes");
     setThemesForHost(otherProfile.id, [{ ...CUSTOM_THEME, id: "from-b", name: "From B" }]);
+    const user = userEvent.setup();
 
     render(<ThemeSection activeProfile={activeProfile} />);
 
     await screen.findByText("From B");
-    expect(screen.queryByRole("button", { name: "Excluir From B" })).toBeNull();
-    expect(screen.queryByRole("button", { name: "Editar From B" })).toBeNull();
+    await openCardMenu(user, "From B");
+
+    const menu = within(await within(document.body).findByRole("menu"));
+    // Duplicating is local work (it only seeds the import dialog), so it
+    // survives; touching the file on the other machine does not.
+    expect(menu.getByRole("menuitem", { name: en.common.copy })).toBeInTheDocument();
+    expect(menu.queryByRole("menuitem", { name: en.common.edit })).toBeNull();
+    expect(menu.queryByRole("menuitem", { name: en.common.delete })).toBeNull();
   });
 });
