@@ -6,6 +6,8 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
+import { Button } from "@/components/ui/button";
+import { useDict } from "@/i18n";
 import type { PermissionMode } from "@/lib/relayClient";
 import { cn } from "@/lib/utils";
 
@@ -17,27 +19,24 @@ interface PermissionModeButtonProps {
 // 4 of the 6 values `claude --permission-mode` accepts — `auto` and
 // `dontAsk` were left out on purpose. Order aligned with the
 // CLI's Shift+Tab cycle (default -> acceptEdits -> plan), bypass last since
-// it's the riskiest.
-const MODES: { value: PermissionMode; label: string }[] = [
-  { value: "default", label: "Manual" },
-  { value: "acceptEdits", label: "Accept edits" },
-  { value: "plan", label: "Plan mode" },
-  { value: "bypassPermissions", label: "Bypass permissions" },
-];
-
-function labelFor(mode: PermissionMode | null): string {
-  return MODES.find((m) => m.value === mode)?.label ?? "…";
-}
+// it's the riskiest. Only the order lives here now; the label and the
+// one-line hint under it come from the dictionary.
+const MODES: PermissionMode[] = ["default", "acceptEdits", "plan", "bypassPermissions"];
 
 /**
- * Label + dropdown in the same row as the `Composer`'s file/audio
- * attachment, mirroring `WorkingDirectoryButton` (same button pill, same
- * `modal={false}` — Radix traps focus/pointer-events on the body while a
- * modal dropdown is open, and restoration fails on Tauri's WKWebView on
- * macOS).
+ * Label + dropdown in the composer's toolbar, first control on the row.
+ * Same `modal={false}` as every other dropdown in the app — Radix traps
+ * focus/pointer-events on the body while a modal dropdown is open, and
+ * restoration fails on Tauri's WKWebView on macOS.
+ *
+ * Bypass is the one mode that paints itself: it's the only choice that lets
+ * a destructive command through unasked, so it carries the accent tint
+ * instead of reading like the other three.
  */
 export function PermissionModeButton({ mode, onChange }: PermissionModeButtonProps) {
   const triggerRef = useRef<HTMLButtonElement>(null);
+  const dict = useDict();
+  const copy = dict.chat.composer;
 
   return (
     <DropdownMenu
@@ -47,23 +46,32 @@ export function PermissionModeButton({ mode, onChange }: PermissionModeButtonPro
       }}
     >
       <DropdownMenuTrigger asChild>
-        <button
+        <Button
           ref={triggerRef}
           type="button"
+          variant="outline"
+          size="sm"
           disabled={mode === null}
-          className="flex h-7 shrink-0 cursor-pointer items-center gap-1 rounded-md border border-border bg-bg-elevated px-2 text-xs text-foreground transition-colors hover:bg-border disabled:cursor-not-allowed disabled:opacity-50"
+          className={cn(
+            "min-w-0 gap-1.5 px-2",
+            mode === "bypassPermissions" &&
+              "border-primary bg-primary-soft text-primary-ink hover:border-primary hover:bg-primary-soft hover:text-primary-ink",
+          )}
         >
-          <ShieldAlert className="size-3.5 shrink-0 text-muted-foreground" />
-          <span className="truncate">{labelFor(mode)}</span>
-          <ChevronDown className="size-3 shrink-0 text-muted-foreground" />
-        </button>
+          <ShieldAlert className="size-3" />
+          <span className="truncate">{mode ? copy.mode[mode].label : copy.pending}</span>
+          <ChevronDown className="size-2.5 opacity-60" />
+        </Button>
       </DropdownMenuTrigger>
 
-      <DropdownMenuContent align="start">
-        {MODES.map((option) => (
-          <DropdownMenuItem key={option.value} onSelect={() => onChange(option.value)}>
-            <Check className={cn("size-3.5", option.value !== mode && "opacity-0")} />
-            {option.label}
+      <DropdownMenuContent align="start" className="min-w-59">
+        {MODES.map((value) => (
+          <DropdownMenuItem key={value} onSelect={() => onChange(value)} className="items-start gap-3 py-2">
+            <span className="flex min-w-0 flex-1 flex-col gap-0.5 text-left">
+              <span>{copy.mode[value].label}</span>
+              <span className="font-sans text-[11px] text-muted-foreground">{copy.mode[value].hint}</span>
+            </span>
+            <Check className={cn("mt-px size-3.5 text-primary!", value !== mode && "opacity-0")} />
           </DropdownMenuItem>
         ))}
       </DropdownMenuContent>
