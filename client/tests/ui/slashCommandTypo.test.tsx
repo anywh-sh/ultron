@@ -33,12 +33,18 @@ afterEach(() => {
 async function typeIntoComposer(user: ReturnType<typeof userEvent.setup>, text: string) {
   renderApp();
   await user.click(await screen.findByRole("button", { name: en.shell.sidebar.newConversation }));
-  const composer = await screen.findByLabelText("Escreva uma mensagem…");
+  const composer = await screen.findByLabelText(en.chat.composer.placeholder);
   await user.type(composer, text);
-  const sendButton = await screen.findByRole("button", { name: "Enviar" });
+  const sendButton = await screen.findByRole("button", { name: en.common.send });
   await vi.waitFor(() => expect(sendButton).toBeEnabled());
   return composer;
 }
+
+/** The banner's question with the suggested command spliced into the middle,
+ * so the assertion reads the dictionary rather than one language's wording.
+ * Matching on the leading half is enough — Testing Library compares a node's
+ * own text, and the command itself sits in a child `<span>` of its own. */
+const TYPO_QUESTION = en.chat.composer.typo.question.split("{command}")[0].trim();
 
 describe("typo'd slash command", () => {
   it("blocks the send and offers the fix instead of forwarding it as a chat message", async () => {
@@ -47,7 +53,7 @@ describe("typo'd slash command", () => {
 
     await user.type(composer, "{Enter}");
 
-    expect(await screen.findByText(/quis dizer/i)).toBeInTheDocument();
+    expect(await screen.findByText(TYPO_QUESTION, { exact: false })).toBeInTheDocument();
     expect(screen.getByText("/clear")).toBeInTheDocument();
     // Blocked: the text stays put in the composer (not cleared like a real
     // send would), and never became a chat message — no reply came back.
@@ -60,12 +66,12 @@ describe("typo'd slash command", () => {
     const composer = await typeIntoComposer(user, "/moel opus");
 
     await user.type(composer, "{Enter}");
-    await user.click(await screen.findByRole("button", { name: "Usar" }));
+    await user.click(await screen.findByRole("button", { name: en.chat.composer.typo.use }));
 
     expect(composer).toHaveTextContent("/model opus");
     // Applying the fix only fills the composer — it's still up to the user
     // to send it, same as picking an entry from the autocomplete menu.
-    expect(screen.queryByText(/quis dizer/i)).not.toBeInTheDocument();
+    expect(screen.queryByText(TYPO_QUESTION, { exact: false })).not.toBeInTheDocument();
     expect(screen.queryByText("fake relay reply")).not.toBeInTheDocument();
   });
 
@@ -74,7 +80,7 @@ describe("typo'd slash command", () => {
     const composer = await typeIntoComposer(user, "/cler");
 
     await user.type(composer, "{Enter}");
-    await user.click(await screen.findByRole("button", { name: "Enviar mesmo assim" }));
+    await user.click(await screen.findByRole("button", { name: en.chat.composer.typo.sendAnyway }));
 
     expect(await screen.findByText("/cler")).toBeInTheDocument();
     expect(await screen.findByText("fake relay reply")).toBeInTheDocument();

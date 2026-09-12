@@ -30,7 +30,7 @@ describe("composer autolink protocol requirement", () => {
     renderApp();
 
     await user.click(await screen.findByRole("button", { name: en.shell.sidebar.newConversation }));
-    const composer = await screen.findByLabelText("Escreva uma mensagem…");
+    const composer = await screen.findByLabelText(en.chat.composer.placeholder);
 
     // linkifyjs treats `.md` as a registered TLD (Moldova), so without
     // Composer.tsx's `shouldAutoLink` override this filename gets autolinked
@@ -47,7 +47,7 @@ describe("composer autolink protocol requirement", () => {
     renderApp();
 
     await user.click(await screen.findByRole("button", { name: en.shell.sidebar.newConversation }));
-    const composer = await screen.findByLabelText("Escreva uma mensagem…");
+    const composer = await screen.findByLabelText(en.chat.composer.placeholder);
 
     await user.type(composer, "see https://github.com/coder/xum ");
 

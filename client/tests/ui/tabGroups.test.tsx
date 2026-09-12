@@ -49,9 +49,9 @@ afterEach(() => {
 // query) would throw "multiple elements found" for the second tab onward.
 // Waits for the count to grow by exactly one instead.
 async function openNewConversation(user: ReturnType<typeof userEvent.setup>): Promise<void> {
-  const before = screen.queryAllByLabelText("Escreva uma mensagem…").length;
+  const before = screen.queryAllByLabelText(en.chat.composer.placeholder).length;
   await user.click(await screen.findByRole("button", { name: en.shell.sidebar.newConversation }));
-  await vi.waitFor(() => expect(screen.getAllByLabelText("Escreva uma mensagem…")).toHaveLength(before + 1));
+  await vi.waitFor(() => expect(screen.getAllByLabelText(en.chat.composer.placeholder)).toHaveLength(before + 1));
 }
 
 function visibleTabPanels(): Element[] {
@@ -78,7 +78,7 @@ describe("tab group split — end to end", () => {
     await user.keyboard("{Control>}\\{/Control}");
 
     await vi.waitFor(() => expect(visibleTabPanels()).toHaveLength(2));
-    expect(await screen.findAllByLabelText("Escreva uma mensagem…")).toHaveLength(2);
+    expect(await screen.findAllByLabelText(en.chat.composer.placeholder)).toHaveLength(2);
   });
 
   it("splitting a tab into a new group does not close its WebSocket", async () => {
@@ -144,7 +144,7 @@ describe("tab group resize — performance guards", () => {
   async function renderThreeGroupsAndWaitReady(): Promise<void> {
     seedThreeGroups();
     renderApp();
-    await vi.waitFor(() => expect(screen.getAllByLabelText("Escreva uma mensagem…")).toHaveLength(3));
+    await vi.waitFor(() => expect(screen.getAllByLabelText(en.chat.composer.placeholder)).toHaveLength(3));
   }
 
   function startResizeDrag(): void {

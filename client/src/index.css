@@ -395,22 +395,6 @@ body {
   animation: cursor-blink 1s steps(1) infinite;
 }
 
-/* Voice-recording waveform — a generic visual animation, not the audio
- * actually being captured (a deliberate choice). */
-@keyframes waveform-bar {
-  0%,
-  100% {
-    transform: scaleY(0.35);
-  }
-  50% {
-    transform: scaleY(1);
-  }
-}
-.animate-waveform-bar {
-  animation: waveform-bar 0.9s ease-in-out infinite;
-  transform-origin: center;
-}
-
 /* Turn indicator's progress band — a light sweep crossing the bar for as
  * long as a turn is in flight. Animates `transform` and nothing else, so it
  * runs on the compositor: the bar under it is never laid out or repainted
@@ -500,7 +484,9 @@ body {
   overflow-y: auto;
   padding: 0.25rem;
   font-size: var(--text-sm);
-  line-height: 1.4;
+  /* Roomier than a control's line-height: what is typed here is prose, and
+   * it is read back before being sent. */
+  line-height: 1.6;
   color: var(--foreground);
 }
 /* iOS: WebKit auto-zooms the whole page when an input with a font-size
