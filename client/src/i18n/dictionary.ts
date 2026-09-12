@@ -94,6 +94,28 @@ export interface Dictionary {
       oneToolUsed: string;
       toolsUsed: string;
     };
+    log: {
+      loading: string;
+      error: string;
+      stopped: string;
+      backgroundJobDone: string;
+      compacted: string;
+      compactedAuto: string;
+      idleSubtitle: string;
+    };
+    choice: {
+      previousQuestion: string;
+      nextQuestion: string;
+      questionPosition: string;
+      closeAnswering: string;
+      closeWithoutAnswering: string;
+      customPlaceholder: string;
+      customLabel: string;
+      customAnswer: string;
+      selectedCount: string;
+      skip: string;
+      submit: string;
+    };
   };
   /** The window frame and the session list — everything outside a
    * conversation. Grouped by the surface a string appears on rather than by

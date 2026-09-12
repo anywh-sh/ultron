@@ -7,6 +7,7 @@ import { ToolCallCard } from "@/components/chat/ToolCallCard";
 import { ToolCallGroup, type ToolPair } from "@/components/chat/ToolCallGroup";
 import { ErrorMessage } from "@/components/chat/ErrorMessage";
 import { cn } from "@/lib/utils";
+import { useDict, type Dictionary } from "@/i18n";
 import type { LogEntry } from "@/hooks/useMessageLog";
 
 interface MessageLogProps {
@@ -130,10 +131,10 @@ interface UserActionHandlers {
   cwd: string | null;
 }
 
-function renderItem(item: RenderItem, userActions: UserActionHandlers) {
+function renderItem(item: RenderItem, userActions: UserActionHandlers, dict: Dictionary) {
   if (item.kind === "tool") {
     return (
-      <LogEntryRow key={item.use.id} rail="neutral">
+      <LogEntryRow key={item.use.id}>
         <ToolCallCard use={item.use} result={item.result} cwd={userActions.cwd} onOpenPath={userActions.onOpenPath} />
       </LogEntryRow>
     );
@@ -141,7 +142,7 @@ function renderItem(item: RenderItem, userActions: UserActionHandlers) {
 
   if (item.kind === "tool-group") {
     return (
-      <LogEntryRow key={`group-${item.items[0].use.id}`} rail="neutral">
+      <LogEntryRow key={`group-${item.items[0].use.id}`}>
         <ToolCallGroup items={item.items} cwd={userActions.cwd} onOpenPath={userActions.onOpenPath} />
       </LogEntryRow>
     );
@@ -166,7 +167,7 @@ function renderItem(item: RenderItem, userActions: UserActionHandlers) {
       );
     case "text":
       return (
-        <LogEntryRow key={entry.id} rail="none">
+        <LogEntryRow key={entry.id}>
           <AssistantText
             text={entry.text}
             sentAt={entry.sentAt}
@@ -178,22 +179,22 @@ function renderItem(item: RenderItem, userActions: UserActionHandlers) {
       );
     case "error":
       return (
-        <LogEntryRow key={entry.id} rail="error">
+        <LogEntryRow key={entry.id}>
           <ErrorMessage message={entry.message} />
         </LogEntryRow>
       );
     case "stopped":
       return (
-        <LogEntryRow key={entry.id} rail="none">
-          <p className="text-xs text-muted-foreground">Interrompido pelo usuário.</p>
+        <LogEntryRow key={entry.id}>
+          <p className="font-mono text-[11px] text-text-faint">{dict.chat.log.stopped}</p>
         </LogEntryRow>
       );
     case "background-job-note":
       return (
-        <LogEntryRow key={entry.id} rail="none">
+        <LogEntryRow key={entry.id}>
           <p className="flex items-center gap-1.5 text-xs text-muted-foreground">
             <Loader2 className="size-3 shrink-0" />
-            <span className="truncate">{entry.label} — finalizado, resumindo o resultado</span>
+            <span className="truncate">{dict.chat.log.backgroundJobDone.replace("{label}", entry.label)}</span>
           </p>
         </LogEntryRow>
       );
@@ -227,6 +228,7 @@ export const MessageLog = memo(function MessageLog({
   isActiveTab,
 }: MessageLogProps) {
   const parentRef = useRef<HTMLDivElement>(null);
+  const dict = useDict();
   const userActions: UserActionHandlers = { editingMessageId, onStartEdit, onCancelEdit, onSaveEdit, onCopy, onOpenPath, cwd };
 
   // `entries` only gets a new reference when something is actually
@@ -457,7 +459,7 @@ export const MessageLog = memo(function MessageLog({
                 transform: `translateY(${virtualItem.start}px)`,
               }}
             >
-              {renderItem(item, userActions)}
+              {renderItem(item, userActions, dict)}
             </div>
           );
         })}
