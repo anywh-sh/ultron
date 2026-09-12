@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { X } from "lucide-react";
+import { Ban, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
   AlertDialog,
@@ -13,8 +13,19 @@ import {
 } from "@/components/ui/alert-dialog";
 import { useProfileRevoked } from "@/hooks/useProfileRevoked";
 import { useProfiles } from "@/hooks/useProfiles";
+import { useDict } from "@/i18n";
 import { clearProfileRevoked } from "@/lib/profileRevocation";
 import { removeProfile, type Profile } from "@/lib/profiles";
+
+/** The body names the profile in the middle of a sentence, and the name has
+ * to be styled differently from the prose around it — which a single string
+ * can't express. Splitting on the placeholder keeps the whole sentence in
+ * the dictionary (where a translator can reorder it) while still letting the
+ * name be its own element. */
+function splitAroundProfile(template: string, label: string) {
+  const [before, after = ""] = template.split("{profile}");
+  return { before, label, after };
+}
 
 /**
  * Surfaces the terminal state the four reconnect loops (chat, sessions/watch,
@@ -31,42 +42,50 @@ import { removeProfile, type Profile } from "@/lib/profiles";
  */
 export function RevokedProfileBanner({ profile }: { profile: Profile }) {
   const revoked = useProfileRevoked(profile.id);
+  const dict = useDict();
   const [confirmOpen, setConfirmOpen] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   if (!revoked) return null;
 
+  const body = splitAroundProfile(dict.shell.revoked.body, profile.label);
+
   return (
-    <div className="flex items-center justify-between gap-3 border-b border-destructive/40 bg-destructive/10 px-4 py-2 text-sm">
-      <span>
-        O dispositivo <strong>{profile.label}</strong> foi desconectado da conta — a conexão não vai mais funcionar.
-      </span>
-      <div className="flex shrink-0 items-center gap-2">
+    <div className="flex shrink-0 items-start gap-3 border-b border-destructive bg-bg-sidebar px-4 py-3 shadow-[inset_0_2px_0_var(--destructive)]">
+      <Ban className="mt-0.5 size-4 shrink-0 text-destructive" />
+      <div className="flex min-w-0 flex-1 flex-col gap-1">
+        <span className="font-mono text-[10.5px] tracking-[0.11em] text-destructive uppercase">
+          {dict.shell.revoked.eyebrow}
+        </span>
+        <span className="text-[13px] leading-relaxed text-pretty text-muted-foreground">
+          {body.before}
+          <span className="font-mono text-xs text-foreground">{body.label}</span>
+          {body.after}
+        </span>
+      </div>
+      <div className="flex shrink-0 items-center gap-1.5">
         <Button variant="destructive" size="sm" onClick={() => setConfirmOpen(true)}>
-          Remover perfil
+          {dict.shell.revoked.removeProfile}
         </Button>
-        <button
-          type="button"
-          aria-label="Dispensar aviso"
-          className="text-muted-foreground hover:text-foreground"
+        <Button
+          variant="ghost"
+          size="icon-sm"
+          aria-label={dict.shell.revoked.dismiss}
           onClick={() => clearProfileRevoked(profile.id)}
         >
-          <X className="size-4" />
-        </button>
+          <X className="size-3.5" />
+        </Button>
       </div>
 
       <AlertDialog open={confirmOpen} onOpenChange={setConfirmOpen}>
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>Remover o perfil "{profile.label}"?</AlertDialogTitle>
-            <AlertDialogDescription>
-              Esse dispositivo já foi desconectado da conta pelo painel — removê-lo aqui só limpa a entrada
-              local, sem efeito nenhum do lado do servidor.
-            </AlertDialogDescription>
+            <AlertDialogTitle>{dict.shell.revoked.confirmTitle.replace("{profile}", profile.label)}</AlertDialogTitle>
+            <AlertDialogDescription>{dict.shell.revoked.confirmBody}</AlertDialogDescription>
           </AlertDialogHeader>
           {error && <p className="text-sm text-destructive">{error}</p>}
           <AlertDialogFooter>
-            <AlertDialogCancel>Cancelar</AlertDialogCancel>
+            <AlertDialogCancel>{dict.common.cancel}</AlertDialogCancel>
             <AlertDialogAction
               onClick={(event) => {
                 event.preventDefault();
@@ -74,14 +93,14 @@ export function RevokedProfileBanner({ profile }: { profile: Profile }) {
                 // the only way this fails is being the sole profile left,
                 // which needs a different profile added first, not a retry.
                 if (!removeProfile(profile.id)) {
-                  setError("Não dá pra remover o único perfil que sobrou — adicione outro antes.");
+                  setError(dict.shell.revoked.lastProfile);
                   return;
                 }
                 clearProfileRevoked(profile.id);
                 setConfirmOpen(false);
               }}
             >
-              Remover
+              {dict.common.remove}
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>

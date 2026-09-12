@@ -49,4 +49,62 @@ export interface Dictionary {
     setCwd: Record<SetCwdErrorCode, string>;
     editMessage: Record<EditMessageErrorCode, string>;
   };
+  /** The window frame and the session list — everything outside a
+   * conversation. Grouped by the surface a string appears on rather than by
+   * the component that renders it, so moving a control between surfaces
+   * (the working directory, which went from the composer row to the title
+   * bar) doesn't drag its key along with it. */
+  shell: {
+    titleBar: {
+      menu: string;
+      settings: string;
+      back: string;
+      forward: string;
+      collapseSidebar: string;
+      expandSidebar: string;
+      openSidebar: string;
+      searchSessions: string;
+      minimize: string;
+      maximize: string;
+      restore: string;
+      close: string;
+      reconnecting: string;
+    };
+    profiles: {
+      heading: string;
+      activeProfile: string;
+      addRemoteMachine: string;
+      addProfile: string;
+      badgeLocal: string;
+      badgeRemote: string;
+      badgeRevoked: string;
+    };
+    revoked: {
+      eyebrow: string;
+      /** `{profile}` — the profile's label, rendered as its own element. */
+      body: string;
+      removeProfile: string;
+      dismiss: string;
+      /** `{profile}` — the profile's label. */
+      confirmTitle: string;
+      confirmBody: string;
+      lastProfile: string;
+    };
+    /** The folder a conversation runs in. Lives in the title bar since the
+     * shell redesign, but it is still per-conversation state. */
+    workingDirectory: {
+      chooseFolder: string;
+      connecting: string;
+      heading: string;
+      copyPath: string;
+      copyFailed: string;
+      recent: string;
+      noRecent: string;
+      browse: string;
+    };
+    idle: {
+      heading: string;
+      subtitle: string;
+    };
+  };
 }

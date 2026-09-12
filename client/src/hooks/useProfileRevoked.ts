@@ -1,5 +1,5 @@
 import { useSyncExternalStore } from "react";
-import { isProfileRevoked, subscribeProfileRevocation } from "@/lib/profileRevocation";
+import { getRevokedProfiles, isProfileRevoked, subscribeProfileRevocation } from "@/lib/profileRevocation";
 
 /** Reactive read of whether `profileId`'s connection was permanently
  * revoked — re-renders whenever any of the four reconnect loops (chat,
@@ -10,4 +10,11 @@ export function useProfileRevoked(profileId: string): boolean {
     subscribeProfileRevocation,
     () => isProfileRevoked(profileId),
   );
+}
+
+/** Reactive read of every revoked profile — for the profile switcher, which
+ * badges the whole list at once and so cannot subscribe per id: a per-id
+ * boolean snapshot only re-renders when that one profile flips. */
+export function useRevokedProfiles(): ReadonlySet<string> {
+  return useSyncExternalStore(subscribeProfileRevocation, getRevokedProfiles);
 }

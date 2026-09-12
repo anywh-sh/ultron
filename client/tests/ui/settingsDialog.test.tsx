@@ -3,6 +3,7 @@ import { cleanup, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { installFakeRelay, type FakeRelay } from "./helpers/fakeRelay";
 import { renderApp } from "./helpers/renderApp";
+import { en } from "@/i18n/en";
 
 // Same Tauri-API stubs sendMessage.test.tsx needs for ChatPanel to mount at
 // all under this tier (see the comment there) — App renders ChatPanel
@@ -63,7 +64,7 @@ describe("Settings dialog", () => {
     // DropdownMenuContent is portal-based (Radix) — same trap the tests
     // skill documents for Dialog/Popover/Tooltip: it renders into
     // document.body, not the app's root container.
-    await user.click(await within(document.body).findByText("Configurações"));
+    await user.click(await within(document.body).findByText(en.shell.titleBar.settings));
 
     const dialog = await screen.findByRole("dialog");
     await user.click(within(dialog).getByText("Personalização"));

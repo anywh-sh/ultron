@@ -14,7 +14,15 @@
 const revokedProfileIds = new Set<string>();
 const listeners = new Set<() => void>();
 
+/** A frozen copy handed to `useSyncExternalStore`, replaced on every change.
+ * The mutable set above can't serve as the snapshot: its identity never
+ * changes, so React would never see an update. A consumer that renders every
+ * profile's state at once (the switcher's badges) needs this rather than a
+ * per-id boolean, which only re-renders when that one id flips. */
+let snapshot: ReadonlySet<string> = new Set();
+
 function notify(): void {
+  snapshot = new Set(revokedProfileIds);
   for (const listener of listeners) listener();
 }
 
@@ -35,6 +43,12 @@ export function clearProfileRevoked(profileId: string): void {
 
 export function isProfileRevoked(profileId: string): boolean {
   return revokedProfileIds.has(profileId);
+}
+
+/** Every revoked profile at once — for UI that shows the state of the whole
+ * list, not of one profile. */
+export function getRevokedProfiles(): ReadonlySet<string> {
+  return snapshot;
 }
 
 export function subscribeProfileRevocation(listener: () => void): () => void {

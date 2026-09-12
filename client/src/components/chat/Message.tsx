@@ -7,6 +7,7 @@ import { isIOS } from "@/lib/platform";
 import { stripPlanChoiceMarkers } from "@/lib/planChoiceMarker";
 import { showNativeContextMenu } from "@/lib/nativeContextMenu";
 import { formatAbsoluteTime, formatRelativeTime } from "@/lib/relativeTime";
+import { useLocale } from "@/i18n";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
@@ -30,6 +31,7 @@ interface UserBubbleProps {
  * — its own component just to isolate the 60s tick (re-render) from the
  * rest of `UserBubble`, which doesn't need to re-render as time passes. */
 function TimestampLabel({ sentAt }: { sentAt: number }) {
+  const { locale } = useLocale();
   const [, tick] = useReducer((n: number) => n + 1, 0);
   useEffect(() => {
     const interval = window.setInterval(tick, 60_000);
@@ -39,9 +41,9 @@ function TimestampLabel({ sentAt }: { sentAt: number }) {
   return (
     <Tooltip>
       <TooltipTrigger asChild>
-        <span className="cursor-default select-none">{formatRelativeTime(sentAt)}</span>
+        <span className="cursor-default select-none">{formatRelativeTime(sentAt, locale)}</span>
       </TooltipTrigger>
-      <TooltipContent side="top">{formatAbsoluteTime(sentAt)}</TooltipContent>
+      <TooltipContent side="top">{formatAbsoluteTime(sentAt, locale)}</TooltipContent>
     </Tooltip>
   );
 }
