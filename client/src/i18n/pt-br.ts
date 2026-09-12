@@ -306,9 +306,85 @@ export const ptBr: Dictionary = {
     },
   },
   settings: {
+    title: "Configurações",
+    nav: {
+      app: "app",
+      profiles: "perfis",
+      appearance: "Aparência",
+    },
+    appearance: {
+      title: "Aparência",
+      scope: "vale para o app inteiro",
+      theme: {
+        title: "Tema da UI",
+        description: "Uma escolha só, deste dispositivo — trocar de perfil não repinta o app.",
+        add: "adicionar tema",
+        builtin: "embutido",
+        light: "claro",
+        dark: "escuro",
+        elsewhere: "outra máquina",
+        options: "Opções de {name}",
+        missing: "O tema escolhido não está mais no servidor — usando o padrão até ele voltar.",
+        unreadable:
+          "Não foi possível ler os temas em {profile} (servidor fora do ar, ou um relay antigo). A lista abaixo é a última conhecida, e mudanças não vão salvar até ele responder.",
+        deleteTitle: "Excluir o tema \"{name}\"?",
+        deleteBody:
+          "Some de todos os dispositivos que apontam para este servidor. Se for o tema em uso aqui, o app volta para o padrão — e adicionar o tema de novo traz a escolha de volta.",
+      },
+      fontSize: {
+        title: "Tamanho da fonte",
+        description: "Vale para as mensagens e o campo de escrita. O padrão é 15.",
+        sample: "O socket do relay não reconecta quando o app volta do background.",
+        reset: "restaurar",
+      },
+    },
     language: {
       title: "Idioma",
       description: "Vale para o app inteiro, só neste dispositivo.",
+    },
+    profile: {
+      sections: {
+        general: "geral",
+        personalization: "personalização",
+      },
+      home: {
+        title: "Pasta inicial",
+        description: "Onde uma conversa nova deste perfil começa.",
+        change: "alterar",
+        systemDefault: "Padrão do sistema",
+        useSystemDefault: "Usar o padrão do sistema",
+      },
+      model: {
+        title: "Modelo padrão",
+        description: "Já selecionado quando uma conversa nova deste perfil abre.",
+        lastUsed: "último usado",
+        fixed: "sempre o mesmo",
+      },
+      name: {
+        title: "Nome do perfil",
+        description: "Aparece na lista de sessões, nas abas e no seletor de perfil.",
+        saving: "Salvando…",
+      },
+      color: {
+        title: "Cor do perfil",
+        description: "Marca as abas e as sessões que pertencem a este perfil.",
+        swatch: "Cor {number}",
+      },
+    },
+    danger: {
+      heading: "zona de risco",
+      deleteTitle: "Excluir perfil",
+      removeTitle: "Remover perfil",
+      deleteBody:
+        "Some de todos os dispositivos que apontam para este host. A conta Claude e o histórico de conversas continuam na máquina.",
+      noExecutorBody: "Precisa de outro perfil no mesmo host para executar a exclusão.",
+      removeBody:
+        "Só limpa a entrada deste dispositivo — desconectar a máquina de verdade se faz pelo painel da conta.",
+      delete: "excluir perfil",
+      remove: "remover perfil",
+      confirmPrompt: "Digite {name} para confirmar.",
+      deleting: "Excluindo…",
+      lastProfile: "Não dá pra remover o único perfil que sobrou — adicione outro antes.",
     },
   },
   errors: {

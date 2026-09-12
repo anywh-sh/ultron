@@ -306,9 +306,85 @@ export const en: Dictionary = {
     },
   },
   settings: {
+    title: "Settings",
+    nav: {
+      app: "app",
+      profiles: "profiles",
+      appearance: "Appearance",
+    },
+    appearance: {
+      title: "Appearance",
+      scope: "applies to the whole app",
+      theme: {
+        title: "UI theme",
+        description: "One choice for this device — switching profile doesn't repaint the app.",
+        add: "add theme",
+        builtin: "built-in",
+        light: "light",
+        dark: "dark",
+        elsewhere: "another machine",
+        options: "Options for {name}",
+        missing: "The chosen theme isn't on the server anymore — using the default until it comes back.",
+        unreadable:
+          "Couldn't read the themes on {profile} (server down, or an older relay). The list below is the last one known, and changes won't save until it answers.",
+        deleteTitle: "Delete the theme \"{name}\"?",
+        deleteBody:
+          "It goes away for every device pointing at this server. If it's the theme in use here, the app falls back to the default — and adding it again brings the choice back.",
+      },
+      fontSize: {
+        title: "Text size",
+        description: "Applies to messages and the composer. The default is 15.",
+        sample: "The relay's socket doesn't reconnect when the app returns from the background.",
+        reset: "restore",
+      },
+    },
     language: {
       title: "Language",
       description: "Applies to the whole app, on this device only.",
+    },
+    profile: {
+      sections: {
+        general: "general",
+        personalization: "personalization",
+      },
+      home: {
+        title: "Starting folder",
+        description: "Where a new conversation in this profile begins.",
+        change: "change",
+        systemDefault: "System default",
+        useSystemDefault: "Use the system default",
+      },
+      model: {
+        title: "Default model",
+        description: "Already selected when a new conversation in this profile opens.",
+        lastUsed: "last used",
+        fixed: "always the same",
+      },
+      name: {
+        title: "Profile name",
+        description: "Shows up in the session list, the tabs and the profile picker.",
+        saving: "Saving…",
+      },
+      color: {
+        title: "Profile colour",
+        description: "Marks the tabs and the sessions that belong to this profile.",
+        swatch: "Colour {number}",
+      },
+    },
+    danger: {
+      heading: "danger zone",
+      deleteTitle: "Delete profile",
+      removeTitle: "Remove profile",
+      deleteBody:
+        "It disappears from every device pointing at this host. The Claude account and the conversation history stay on the machine.",
+      noExecutorBody: "Needs another profile on the same host to run the deletion.",
+      removeBody:
+        "Only clears this device's entry — disconnecting the machine for real is done from the account dashboard.",
+      delete: "delete profile",
+      remove: "remove profile",
+      confirmPrompt: "Type {name} to confirm.",
+      deleting: "Deleting…",
+      lastProfile: "The only profile left can't be removed — add another one first.",
     },
   },
   errors: {

@@ -42,9 +42,91 @@ export interface Dictionary {
     untitledSession: string;
   };
   settings: {
+    title: string;
+    nav: {
+      /** Eyebrow over the entries that belong to the app itself, not to any
+       * one profile. */
+      app: string;
+      profiles: string;
+      appearance: string;
+    };
+    appearance: {
+      title: string;
+      scope: string;
+      theme: {
+        title: string;
+        description: string;
+        add: string;
+        builtin: string;
+        light: string;
+        dark: string;
+        /** A theme mirrored from a host this device isn't connected to: it
+         * still paints, it just can't be edited or deleted from here. */
+        elsewhere: string;
+        options: string;
+        missing: string;
+        unreadable: string;
+        deleteTitle: string;
+        deleteBody: string;
+      };
+      fontSize: {
+        title: string;
+        description: string;
+        /** Sentence rendered at the chosen size, so the number means
+         * something before it is committed to. */
+        sample: string;
+        reset: string;
+      };
+    };
     language: {
       title: string;
       description: string;
+    };
+    profile: {
+      sections: {
+        general: string;
+        personalization: string;
+      };
+      home: {
+        title: string;
+        description: string;
+        change: string;
+        systemDefault: string;
+        useSystemDefault: string;
+      };
+      model: {
+        title: string;
+        description: string;
+        lastUsed: string;
+        fixed: string;
+      };
+      name: {
+        title: string;
+        description: string;
+        saving: string;
+      };
+      color: {
+        title: string;
+        description: string;
+        swatch: string;
+      };
+    };
+    danger: {
+      heading: string;
+      deleteTitle: string;
+      removeTitle: string;
+      /** Three ways this ends up worded, because the profile itself decides
+       * what deleting even means: a paired device is only ever removed
+       * locally, and deleting one on a host needs another profile there to
+       * run the request. */
+      deleteBody: string;
+      noExecutorBody: string;
+      removeBody: string;
+      delete: string;
+      remove: string;
+      confirmPrompt: string;
+      deleting: string;
+      lastProfile: string;
     };
   };
   /**
