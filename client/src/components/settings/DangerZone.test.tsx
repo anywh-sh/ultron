@@ -11,7 +11,7 @@ vi.mock("@/lib/profiles", async (importOriginal) => {
   return { ...actual, removeProfile: removeProfileMock };
 });
 
-import { DangerZone, findSameHostExecutor } from "./SettingsDialog";
+import { DangerZone, findSameHostExecutor } from "./DangerZone";
 
 function directProfile(id: string, host: string): Profile {
   return { id, label: id, host, relayPort: 8765 };

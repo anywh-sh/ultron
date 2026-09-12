@@ -1,547 +1,87 @@
 import { useEffect, useState } from "react";
-import { Folder, Minus, Plus, X } from "lucide-react";
-import { Button } from "@/components/ui/button";
-import {
-  AlertDialog,
-  AlertDialogAction,
-  AlertDialogCancel,
-  AlertDialogBody,
-  AlertDialogContent,
-  AlertDialogDescription,
-  AlertDialogFooter,
-  AlertDialogHeader,
-  AlertDialogTitle,
-} from "@/components/ui/alert-dialog";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { FolderPickerDialog } from "@/components/chat/FolderPickerDialog";
-import { ThemeSection } from "@/components/settings/ThemeSection";
-import { useDefaultPaths } from "@/hooks/useDefaultPaths";
-import { DEFAULT_FONT_SIZE, FONT_SIZE_STEP, MAX_FONT_SIZE, MIN_FONT_SIZE, useFontSize } from "@/hooks/useFontSize";
-import {
-  DEFAULT_MODEL_PREFERENCE,
-  useModelPreference,
-  type ModelPreference,
-  type ModelPreferenceMode,
-} from "@/hooks/useModelPreference";
-import { getKnownModels, labelForModel } from "@/lib/modelCatalog";
-import {
-  addProfile,
-  isTailnetProfile,
-  PROFILE_COLOR_COUNT,
-  profileColorClassForIndex,
-  removeProfile,
-  type Profile,
-} from "@/lib/profiles";
-import { deleteProfile, updateProfileMeta } from "@/lib/relayClient";
-import { resolveConnection } from "@/lib/connectionResolver";
-import { clearProfileRevoked } from "@/lib/profileRevocation";
+import { AppearanceSettings } from "@/components/settings/AppearanceSettings";
+import { ProfileSettings } from "@/components/settings/ProfileSettings";
+import { SettingsNav, type SettingsSection } from "@/components/settings/SettingsNav";
 import { useProfiles } from "@/hooks/useProfiles";
-import { cn } from "@/lib/utils";
-import { locales, localeNames, useDict, useLocale, type Locale } from "@/i18n";
+import { useDict } from "@/i18n";
+import type { Profile } from "@/lib/profiles";
 
 interface SettingsDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   activeProfile: Profile;
+  /** Whether the connected host runs the control API. Passed in rather than
+   * resolved here: the sync that answers it has to keep running with this
+   * dialog closed (same reason `ProfileSwitcher` takes it as a prop). */
+  profilesSupported: boolean;
 }
 
-type Section = "geral" | "personalizacao";
-
-const SECTIONS: { id: Section; label: string }[] = [
-  { id: "geral", label: "Geral" },
-  { id: "personalizacao", label: "Personalização" },
-];
-
-function ProfilePathRow({
-  profile,
-  path,
-  onSelect,
-  onClear,
-}: {
-  profile: Profile;
-  path: string | undefined;
-  onSelect: (path: string) => void;
-  onClear: () => void;
-}) {
-  const [pickerOpen, setPickerOpen] = useState(false);
-
-  return (
-    <div className="flex items-center justify-between gap-3 rounded-md border border-border px-3 py-2.5">
-      <span className={cn("min-w-0 truncate font-mono text-xs", path ? "text-foreground" : "text-muted-foreground")}>
-        {path ?? "Padrão do sistema"}
-      </span>
-      <div className="flex shrink-0 items-center gap-1">
-        {path && (
-          <Button variant="ghost" size="icon-sm" aria-label="Usar padrão do sistema" onClick={onClear}>
-            <X className="size-3.5" />
-          </Button>
-        )}
-        <Button variant="outline" size="sm" onClick={() => setPickerOpen(true)}>
-          <Folder className="size-3.5" />
-          Alterar
-        </Button>
-      </div>
-
-      <FolderPickerDialog
-        open={pickerOpen}
-        onOpenChange={setPickerOpen}
-        profile={profile}
-        initialPath={path ?? ""}
-        locked={false}
-        onSelect={onSelect}
-        onFocusComposer={() => {}}
-      />
-    </div>
-  );
-}
-
-function ProfileModelRow({
-  preference,
-  onChange,
-}: {
-  preference: ModelPreference;
-  onChange: (preference: ModelPreference) => void;
-}) {
-  return (
-    <div className="flex items-center justify-between gap-3 rounded-md border border-border px-3 py-2.5">
-      <Select
-        value={preference.mode}
-        onValueChange={(mode) => onChange({ ...preference, mode: mode as ModelPreferenceMode })}
-      >
-        <SelectTrigger size="sm">
-          <SelectValue />
-        </SelectTrigger>
-        <SelectContent>
-          <SelectItem value="lastUsed">Último usado</SelectItem>
-          <SelectItem value="fixed">Sempre o mesmo</SelectItem>
-        </SelectContent>
-      </Select>
-
-      {preference.mode === "fixed" && (
-        <Select
-          value={preference.fixedModel}
-          onValueChange={(fixedModel) => onChange({ ...preference, fixedModel: fixedModel as ModelPreference["fixedModel"] })}
-        >
-          <SelectTrigger size="sm">
-            <SelectValue />
-          </SelectTrigger>
-          <SelectContent>
-            {getKnownModels().map((choice) => (
-              <SelectItem key={choice} value={choice}>
-                {labelForModel(choice)}
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
-      )}
-    </div>
-  );
-}
-
-/** Device-local, not scoped to `scopedProfile` — unlike the rest of
- * "Personalização" this never touches a relay, so it doesn't move when the
- * profile selector above it changes. */
-function FontSizeRow() {
-  const { size, setSize } = useFontSize();
-
-  return (
-    <div className="flex items-center justify-between gap-3 rounded-md border border-border px-3 py-2.5">
-      <div className="flex items-center gap-2">
-        <Button
-          variant="outline"
-          size="icon-sm"
-          aria-label="Diminuir fonte"
-          disabled={size <= MIN_FONT_SIZE}
-          onClick={() => setSize(size - FONT_SIZE_STEP)}
-        >
-          <Minus className="size-3.5" />
-        </Button>
-        <span className="w-12 text-center text-sm tabular-nums">{size}px</span>
-        <Button
-          variant="outline"
-          size="icon-sm"
-          aria-label="Aumentar fonte"
-          disabled={size >= MAX_FONT_SIZE}
-          onClick={() => setSize(size + FONT_SIZE_STEP)}
-        >
-          <Plus className="size-3.5" />
-        </Button>
-      </div>
-      {size !== DEFAULT_FONT_SIZE && (
-        <Button variant="ghost" size="sm" onClick={() => setSize(DEFAULT_FONT_SIZE)}>
-          Redefinir
-        </Button>
-      )}
-    </div>
-  );
-}
-
-/** Name (propagates to other devices via `PATCH`) + color swatches for the
- * scoped profile. `effectiveColorIndex` (not `profile.colorIndex` directly)
- * so the currently-highlighted swatch matches what `profileColorClass`
- * actually renders elsewhere for a profile that predates the field. */
-function ProfileIdentityRow({ profile, effectiveColorIndex }: { profile: Profile; effectiveColorIndex: number }) {
-  const [label, setLabel] = useState(profile.label);
-  const [saving, setSaving] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-
-  useEffect(() => {
-    setLabel(profile.label);
-    setError(null);
-  }, [profile.id, profile.label]);
-
-  async function applyPatch(patch: { label?: string; colorIndex?: number }): Promise<void> {
-    setError(null);
-    try {
-      const { host, port, token } = await resolveConnection(profile);
-      const updated = await updateProfileMeta(host, port, profile.id, patch, token);
-      addProfile({ ...profile, label: updated.label, colorIndex: updated.colorIndex });
-    } catch (err) {
-      setError(err instanceof Error ? err.message : String(err));
-    }
-  }
-
-  async function handleSaveLabel(): Promise<void> {
-    const trimmed = label.trim();
-    if (!trimmed || trimmed === profile.label) return;
-    setSaving(true);
-    await applyPatch({ label: trimmed });
-    setSaving(false);
-  }
-
-  return (
-    <div className="flex flex-col gap-2">
-      <div className="flex items-center gap-2">
-        <input
-          value={label}
-          onChange={(event) => setLabel(event.target.value)}
-          className="min-w-0 flex-1 rounded-md border border-border bg-transparent px-2.5 py-1.5 text-sm outline-none focus:border-ring"
-        />
-        <Button
-          variant="outline"
-          size="sm"
-          disabled={saving || !label.trim() || label.trim() === profile.label}
-          onClick={() => void handleSaveLabel()}
-        >
-          {saving ? "Salvando…" : "Salvar"}
-        </Button>
-      </div>
-      <div className="flex items-center gap-1.5">
-        {Array.from({ length: PROFILE_COLOR_COUNT }, (_, index) => (
-          <button
-            key={index}
-            type="button"
-            aria-label={`Cor ${String(index + 1)}`}
-            onClick={() => void applyPatch({ colorIndex: index })}
-            className={cn(
-              "size-5 shrink-0 cursor-pointer rounded-full outline outline-offset-2",
-              profileColorClassForIndex(index),
-              effectiveColorIndex === index ? "outline-foreground" : "outline-transparent",
-            )}
-          />
-        ))}
-      </div>
-      {error && <p className="text-sm text-destructive">{error}</p>}
-    </div>
-  );
-}
-
-/** Picks another profile on the same relay as `scopedProfile` to run an
- * operation that must never execute through the profile's own relay
- * (deleting would make that relay disable its own systemd
- * instance mid-request). Exported for `SettingsDialog.test.tsx` — pure
- * logic, no need to render anything to exercise it.
+/**
+ * App settings — opened from the `TitleBar` menu. Two panes: a rail listing
+ * the app itself and every profile on this device, and the page for
+ * whichever of them is selected.
  *
- * A tailnet profile never has a valid executor: each one is its own
- * isolated sandbox behind the "127.0.0.1" sidecar placeholder every
- * tailnet profile shares (see ThemeSection's registry comment), so a host
- * match there proves nothing about actually sharing a machine — in either
- * direction. `isTailnetProfile(scopedProfile)` rules out the first
- * direction (another tailnet profile looking like a same-host sibling);
- * excluding a tailnet `p` from the candidates rules out the second (a real
- * loopback direct profile matching a tailnet profile's placeholder host). */
-export function findSameHostExecutor(scopedProfile: Profile, allProfiles: Profile[]): Profile | undefined {
-  if (isTailnetProfile(scopedProfile)) return undefined;
-  return allProfiles.find((p) => p.id !== scopedProfile.id && p.host === scopedProfile.host && !isTailnetProfile(p));
-}
-
-/** Exported for `SettingsDialog.test.tsx` — same reasoning as
- * `findSameHostExecutor` above: rendering the whole dialog just to reach
- * this section would drag in every other tab's own dependencies (theme
- * registry fetches, model preference, folder picker) for no benefit. */
-export function DangerZone({
-  scopedProfile,
-  allProfiles,
-  onProfileRemoved,
-}: {
-  scopedProfile: Profile;
-  allProfiles: Profile[];
-  onProfileRemoved: (removedId: string) => void;
-}) {
-  const [confirmOpen, setConfirmOpen] = useState(false);
-  const [deleting, setDeleting] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-
-  const executor = findSameHostExecutor(scopedProfile, allProfiles);
-  // A tailnet/brokered profile (paired via the dashboard's join code) has no
-  // `/control/profiles` host to call at all — `findSameHostExecutor` always
-  // returns `undefined` for one, by design (see its own comment). The
-  // "Excluir do servidor" flow below genuinely doesn't apply to it, so it
-  // gets its own local-only removal instead of a permanently disabled
-  // button with a hint ("precisa de outro perfil no mesmo host") that would
-  // be actively wrong here — no other profile could ever make that button
-  // work for a tailnet profile.
-  const tailnet = isTailnetProfile(scopedProfile);
-
-  async function handleDeleteFromServer(): Promise<void> {
-    if (!executor) return;
-    setDeleting(true);
-    setError(null);
-    try {
-      await deleteProfile(executor.host, executor.relayPort, scopedProfile.id);
-      // Optimistic local removal for immediate feedback on this device —
-      // `useActiveProfile`'s own reactive fallback handles switching away if
-      // this happened to be the active profile, and every other device
-      // picks up the removal on its next profile sync (useProfileSync).
-      removeProfile(scopedProfile.id);
-      onProfileRemoved(scopedProfile.id);
-      setConfirmOpen(false);
-    } catch (err) {
-      setError(err instanceof Error ? err.message : String(err));
-    } finally {
-      setDeleting(false);
-    }
-  }
-
-  function handleRemoveLocal(): void {
-    // Nothing server-side to call — a paired device is disconnected from
-    // the dashboard, which is what actually revokes it; this only clears
-    // the local entry (same action `RevokedProfileBanner` offers once a
-    // profile is already revoked — this is the same thing, offered
-    // proactively instead of waiting for that to happen).
-    if (!removeProfile(scopedProfile.id)) {
-      setError("Não dá pra remover o único perfil que sobrou — adicione outro antes.");
-      return;
-    }
-    clearProfileRevoked(scopedProfile.id);
-    onProfileRemoved(scopedProfile.id);
-    setConfirmOpen(false);
-  }
-
-  return (
-    <div className="flex flex-col gap-3 rounded-md border border-destructive/40 p-3">
-      <h3 className="text-sm font-medium text-destructive">Zona de risco</h3>
-
-      <div className="flex items-center justify-between gap-3">
-        <div className="flex min-w-0 flex-col">
-          <span className="text-sm">{tailnet ? "Remover perfil" : "Excluir do servidor"}</span>
-          <span className="text-xs text-muted-foreground">
-            {tailnet
-              ? "Só remove a entrada deste dispositivo — desconectar de verdade se faz pelo painel da conta."
-              : executor
-                ? "Some de todos os dispositivos — a conta e o histórico continuam no host."
-                : "Precisa de outro perfil no mesmo host pra executar a exclusão."}
-          </span>
-        </div>
-        <Button variant="destructive" size="sm" disabled={!tailnet && !executor} onClick={() => setConfirmOpen(true)}>
-          {tailnet ? "Remover" : "Excluir"}
-        </Button>
-      </div>
-
-      {error && <p className="text-sm text-destructive">{error}</p>}
-
-      <AlertDialog open={confirmOpen} onOpenChange={setConfirmOpen}>
-        <AlertDialogContent>
-          <AlertDialogHeader>
-            <AlertDialogTitle>
-              {tailnet ? "Remover" : "Excluir"} perfil "{scopedProfile.label}"?
-            </AlertDialogTitle>
-          </AlertDialogHeader>
-          <AlertDialogBody>
-            <AlertDialogDescription>
-              {tailnet
-                ? "Remove só a entrada local deste dispositivo. Se o dispositivo ainda estiver ativo do lado da conta, ele continua existindo lá — desconectar de verdade é uma ação separada, no painel."
-                : "Remove esse perfil de todos os dispositivos que apontam pra esse host. A conta Claude e o histórico de conversas continuam intactos na máquina."}
-            </AlertDialogDescription>
-          </AlertDialogBody>
-          <AlertDialogFooter>
-            <AlertDialogCancel>Cancelar</AlertDialogCancel>
-            <AlertDialogAction
-              disabled={deleting}
-              onClick={(event) => {
-                event.preventDefault();
-                if (tailnet) handleRemoveLocal();
-                else void handleDeleteFromServer();
-              }}
-            >
-              {deleting ? "Excluindo…" : tailnet ? "Remover" : "Excluir"}
-            </AlertDialogAction>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
-    </div>
-  );
-}
-
-/**
- * App settings dialog — opened from the `TitleBar` menu. Two-panel layout
- * (common pattern in desktop settings apps): dark nav on the left, lighter
- * content on the right, separated by a border — only "Geral" for now,
- * scoped to one profile at a time (`scopedProfileId`) via the selector at
- * the top, instead of listing every profile's row at once. Reset to
- * `activeProfile` whenever the dialog opens, so reopening after switching
- * profiles in the main UI lands on the profile you're actually looking at.
+ * A page per profile, rather than one set of fields with a profile picker
+ * on top: the fields were never app-wide to begin with, and a list of
+ * profiles you can click through makes that obvious instead of hiding it
+ * behind a dropdown someone has to notice. Opening always lands on the
+ * profile the app is actually connected to.
  */
-/**
- * Language is device-local, like the font size above it and unlike everything
- * else in this dialog: it is not scoped to a profile and never syncs through
- * the relay. Each option is written in its own language on purpose — someone
- * looking for Portuguese scans for "Português", not for whatever the current
- * language calls it.
- */
-function LanguageRow() {
-  const { locale, setLocale } = useLocale();
-
-  return (
-    <Select value={locale} onValueChange={(value) => setLocale(value as Locale)}>
-      <SelectTrigger size="sm" className="w-full">
-        <SelectValue />
-      </SelectTrigger>
-      <SelectContent>
-        {locales.map((option) => (
-          <SelectItem key={option} value={option}>
-            {localeNames[option]}
-          </SelectItem>
-        ))}
-      </SelectContent>
-    </Select>
-  );
-}
-
-export function SettingsDialog({ open, onOpenChange, activeProfile }: SettingsDialogProps) {
-  const [section, setSection] = useState<Section>("geral");
+export function SettingsDialog({ open, onOpenChange, activeProfile, profilesSupported }: SettingsDialogProps) {
   const dict = useDict();
   const profiles = useProfiles();
-  const [scopedProfileId, setScopedProfileId] = useState(activeProfile.id);
-  const { paths, setDefaultPath, clearDefaultPath } = useDefaultPaths();
-  const { preferences, setPreference } = useModelPreference();
+  const [section, setSection] = useState<SettingsSection>({ kind: "profile", profileId: activeProfile.id });
 
   useEffect(() => {
-    if (open) setScopedProfileId(activeProfile.id);
+    if (open) setSection({ kind: "profile", profileId: activeProfile.id });
   }, [open, activeProfile.id]);
 
-  const scopedProfileIndex = profiles.findIndex((profile) => profile.id === scopedProfileId);
-  const scopedProfile = scopedProfileIndex >= 0 ? profiles[scopedProfileIndex] : activeProfile;
-  const effectiveColorIndex = scopedProfile.colorIndex ?? Math.max(scopedProfileIndex, 0);
+  const selectedIndex =
+    section.kind === "profile" ? profiles.findIndex((profile) => profile.id === section.profileId) : -1;
+  const selectedProfile = selectedIndex >= 0 ? profiles[selectedIndex] : undefined;
+  // `profile.colorIndex` may be absent on a profile created before the
+  // field existed — fall back to its position, which is what
+  // `profileColorClass` paints everywhere else.
+  const effectiveColorIndex = selectedProfile?.colorIndex ?? Math.max(selectedIndex, 0);
 
   function handleProfileRemoved(removedId: string): void {
-    setScopedProfileId((current) => {
-      if (current !== removedId) return current;
+    setSection((current) => {
+      if (current.kind !== "profile" || current.profileId !== removedId) return current;
       const fallback = profiles.find((profile) => profile.id !== removedId);
-      return fallback ? fallback.id : current;
+      return fallback ? { kind: "profile", profileId: fallback.id } : { kind: "appearance" };
     });
   }
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-2xl">
+      <DialogContent className="h-[min(39rem,100%)] sm:max-w-4xl">
         <DialogHeader>
-          <DialogTitle>Configurações</DialogTitle>
+          <DialogTitle>{dict.settings.title}</DialogTitle>
         </DialogHeader>
 
-        <div className="flex min-h-96">
-          <div className="flex w-40 shrink-0 flex-col gap-0.5 border-r border-border bg-bg-sidebar p-2">
-            {SECTIONS.map((entry) => (
-              <button
-                key={entry.id}
-                type="button"
-                onClick={() => setSection(entry.id)}
-                className={cn(
-                  "cursor-pointer rounded-md px-2 py-1.5 text-left text-sm transition-colors",
-                  section === entry.id
-                    ? "bg-bg-elevated text-foreground"
-                    : "text-muted-foreground hover:text-foreground",
-                )}
-              >
-                {entry.label}
-              </button>
-            ))}
-          </div>
+        <div className="flex min-h-0 flex-1">
+          <SettingsNav
+            profiles={profiles}
+            activeProfile={activeProfile}
+            section={section}
+            onSelect={setSection}
+            supported={profilesSupported}
+          />
 
-          <div className="flex-1 overflow-y-auto bg-bg-elevated p-4">
-            {/* Every setting in this dialog belongs to one profile, so the
-                scoping selector sits above the sections instead of being
-                repeated inside each one. */}
-            <div className="mb-3">
-              <h3 className="text-sm font-medium">Perfil</h3>
-              <Select value={scopedProfileId} onValueChange={setScopedProfileId}>
-                <SelectTrigger size="sm" className="mt-1.5 w-full">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  {profiles.map((profile) => (
-                    <SelectItem key={profile.id} value={profile.id}>
-                      {profile.label}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-
-            {section === "personalizacao" && (
-              <div className="flex flex-col gap-3">
-                <div>
-                  <h3 className="text-sm font-medium">Identificação</h3>
-                  <p className="text-xs text-muted-foreground">Nome e cor deste perfil no seletor.</p>
-                </div>
-                <ProfileIdentityRow profile={scopedProfile} effectiveColorIndex={effectiveColorIndex} />
-                <ThemeSection activeProfile={activeProfile} />
-
-                <div>
-                  <h3 className="text-sm font-medium">Tamanho da fonte</h3>
-                  <p className="text-xs text-muted-foreground">
-                    Tamanho do texto do app — bom pra monitores pequenos ou grandes. Não muda o
-                    espaçamento nem o tamanho de janelas e ícones. Vale só pra este dispositivo, não
-                    é sincronizado entre perfis.
-                  </p>
-                </div>
-                <FontSizeRow />
-
-                <div>
-                  <h3 className="text-sm font-medium">{dict.settings.language.title}</h3>
-                  <p className="text-xs text-muted-foreground">{dict.settings.language.description}</p>
-                </div>
-                <LanguageRow />
-              </div>
-            )}
-
-            {section === "geral" && (
-              <div className="flex flex-col gap-3">
-                <div>
-                  <h3 className="text-sm font-medium">Pasta inicial</h3>
-                  <p className="text-xs text-muted-foreground">Pasta em que uma conversa nova deste perfil começa.</p>
-                </div>
-                <ProfilePathRow
-                  profile={scopedProfile}
-                  path={paths[scopedProfile.id]}
-                  onSelect={(path) => setDefaultPath(scopedProfile.id, path)}
-                  onClear={() => clearDefaultPath(scopedProfile.id)}
-                />
-
-                <div>
-                  <h3 className="text-sm font-medium">Modelo padrão</h3>
-                  <p className="text-xs text-muted-foreground">
-                    Modelo pré-selecionado quando uma conversa nova deste perfil começa.
-                  </p>
-                </div>
-                <ProfileModelRow
-                  preference={preferences[scopedProfile.id] ?? DEFAULT_MODEL_PREFERENCE}
-                  onChange={(preference) => setPreference(scopedProfile.id, preference)}
-                />
-
-                <DangerZone scopedProfile={scopedProfile} allProfiles={profiles} onProfileRemoved={handleProfileRemoved} />
-              </div>
+          <div className="min-w-0 flex-1 overflow-y-auto px-6 pb-8">
+            {/* A profile removed from another device leaves its page with
+                nothing to render — the rail is still right, so fall back to
+                the page that always exists rather than to a blank pane. */}
+            {selectedProfile ? (
+              <ProfileSettings
+                profile={selectedProfile}
+                allProfiles={profiles}
+                effectiveColorIndex={effectiveColorIndex}
+                onProfileRemoved={handleProfileRemoved}
+              />
+            ) : (
+              <AppearanceSettings activeProfile={activeProfile} />
             )}
           </div>
         </div>

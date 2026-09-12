@@ -858,7 +858,12 @@ export default function App() {
       <DownloadToasts />
 
       <SessionSearch open={searchOpen} onOpenChange={setSearchOpen} onSelectSession={handleSearchSelectSession} />
-      <SettingsDialog open={settingsOpen} onOpenChange={setSettingsOpen} activeProfile={activeProfile} />
+      <SettingsDialog
+        open={settingsOpen}
+        onOpenChange={setSettingsOpen}
+        activeProfile={activeProfile}
+        profilesSupported={profilesSupported}
+      />
 
       <div className="flex min-h-0 flex-1">
         {!isCompact && (
