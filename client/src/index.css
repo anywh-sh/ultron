@@ -549,7 +549,11 @@ body {
  * plugin — the app is small enough to write this by hand instead of pulling
  * in another dependency. */
 .prose-chat {
-  line-height: 1.65;
+  /* A step below `--foreground`, which is where the user's own bubble sits:
+     the design separates what you said from what the agent answered by tone
+     as well as by alignment. Headings, emphasis and code climb back up. */
+  color: var(--muted-foreground);
+  line-height: 1.7;
   /* `anywhere` (not just `break-word`) — a long path or URL with no spaces
    * is a single "word" to the browser, which by default has nowhere to break
    * it; without this it overflows the bubble's width and opens the phantom
@@ -562,40 +566,57 @@ body {
   -webkit-touch-callout: default;
 }
 .prose-chat > * + * {
-  margin-top: 0.6em;
+  margin-top: 1em;
 }
+/* Headings are the display face, the one place in a message that isn't body
+   text or code. `font-weight: 700` with negative tracking is how Familjen
+   Grotesk is set everywhere else in the brand — at 600 and default tracking
+   it reads as bolder body copy rather than as a title. */
 .prose-chat h1,
 .prose-chat h2,
 .prose-chat h3,
 .prose-chat h4,
 .prose-chat h5,
 .prose-chat h6 {
-  font-weight: 600;
-  margin-top: 1em;
+  font-family: var(--font-display);
+  font-weight: 700;
+  letter-spacing: -0.025em;
+  color: var(--foreground);
+  margin-top: 1.2em;
   margin-bottom: 0.3em;
 }
 .prose-chat h1 {
-  font-size: 1.25em;
+  font-size: 1.5em;
 }
 .prose-chat h2 {
-  font-size: 1.125em;
+  font-size: 1.35em;
 }
-.prose-chat h3,
+.prose-chat h3 {
+  font-size: 1.15em;
+}
 .prose-chat h4,
 .prose-chat h5,
 .prose-chat h6 {
   font-size: 1em;
 }
+/* The container is set in `--muted-foreground`, so anything the author
+   marked as standing out has to climb back to `--foreground` — otherwise
+   emphasis in a paragraph is weight alone, with no tonal change at all. */
+.prose-chat strong,
+.prose-chat em,
+.prose-chat b {
+  color: var(--foreground);
+}
 .prose-chat ul {
   list-style-type: disc;
-  padding-left: 1.4em;
+  padding-left: 1.5em;
 }
 .prose-chat ol {
   list-style-type: decimal;
-  padding-left: 1.4em;
+  padding-left: 1.5em;
 }
 .prose-chat li + li {
-  margin-top: 0.2em;
+  margin-top: 0.5em;
 }
 .prose-chat a {
   color: var(--primary);
@@ -612,26 +633,20 @@ body {
  * compete with the rest of the palette. */
 .prose-chat code {
   font-family: var(--font-mono);
-  background: color-mix(in srgb, var(--bg-sidebar) 55%, var(--background));
-  border: 1px solid var(--border);
-  border-radius: 5px;
-  padding: 0.15em 0.45em;
+  background: var(--surface-hover);
+  padding: 0.15em 0.4em;
   font-size: 0.85em;
-  font-weight: 500;
-  color: var(--primary);
+  color: var(--primary-ink);
 }
 /* Inline code that looks like a file path (`MarkdownContent`'s `code`
  * override) — same pill as `.prose-chat code` above, plus the affordance
  * that it opens in the file panel instead of just being styled text. */
 .prose-chat-path-link {
   font-family: var(--font-mono);
-  background: color-mix(in srgb, var(--bg-sidebar) 55%, var(--background));
-  border: 1px solid var(--border);
-  border-radius: 5px;
-  padding: 0.15em 0.45em;
+  background: var(--surface-hover);
+  padding: 0.15em 0.4em;
   font-size: 0.85em;
-  font-weight: 500;
-  color: var(--primary);
+  color: var(--primary-ink);
   cursor: pointer;
   text-decoration: underline;
   text-decoration-color: transparent;
@@ -648,13 +663,13 @@ body {
 }
 .prose-chat-path-link:hover {
   text-decoration-color: currentColor;
-  border-color: var(--primary);
+  color: var(--primary);
 }
+/* The frame (border, background) belongs to the wrapper `MarkdownCodeBlock`
+   puts around this, because the block now has a header bar above the code —
+   drawing a border here too would draw a second box inside the first. */
 .prose-chat pre {
-  background: var(--card);
-  border: 1px solid var(--border);
-  border-radius: 8px;
-  padding: 0.75em 1em;
+  padding: 0.85em 0.95em;
   overflow-x: auto;
 }
 .prose-chat pre code {
@@ -669,9 +684,10 @@ body {
   color: inherit;
 }
 .prose-chat blockquote {
-  border-left: 2px solid var(--border);
-  padding-left: 0.8em;
-  color: var(--muted-foreground);
+  border-left: 2px solid var(--primary);
+  background: var(--primary-soft);
+  padding: 0.8em 1em;
+  color: var(--foreground);
 }
 /* `.prose-chat > * + *` above only covers direct children — a multi-paragraph
  * blockquote or a "loose" list item (a bullet with more than one paragraph
@@ -681,16 +697,36 @@ body {
 .prose-chat li > * + * {
   margin-top: 0.4em;
 }
+/* Rules run horizontally only, with the outer border closing the shape —
+   the full grid the cells used to draw turned a three-column table into
+   graph paper, and the columns already read as columns from alignment. */
 .prose-chat table {
+  border: 1px solid var(--border);
   border-collapse: collapse;
   width: 100%;
-  font-size: 0.875em;
+  font-size: 0.9em;
 }
-.prose-chat th,
-.prose-chat td {
-  border: 1px solid var(--border);
-  padding: 0.35em 0.6em;
+.prose-chat thead {
+  background: var(--bg-sidebar);
+}
+.prose-chat th {
+  border-bottom: 1px solid var(--border);
+  padding: 0.6em 0.8em;
   text-align: left;
+  font-family: var(--font-mono);
+  font-size: 0.75em;
+  font-weight: 500;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--text-faint);
+}
+.prose-chat td {
+  border-bottom: 1px solid var(--border-soft);
+  padding: 0.65em 0.8em;
+  text-align: left;
+}
+.prose-chat tbody tr:last-child td {
+  border-bottom: 0;
 }
 
 /* Embedded terminal — xterm.js's own package CSS forces a solid black
