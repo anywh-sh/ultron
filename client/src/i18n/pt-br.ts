@@ -294,6 +294,13 @@ export const ptBr: Dictionary = {
       noRecent: "Nenhuma pasta recente",
       browse: "Escolher pasta…",
     },
+    folderPicker: {
+      title: "Selecionar pasta",
+      go: "ir",
+      parent: "um nível acima",
+      empty: "nenhuma subpasta aqui",
+      select: "selecionar pasta",
+    },
     idle: {
       heading: "Escolha uma conversa",
       subtitle: "Selecione uma sessão na barra lateral, ou comece uma nova.",

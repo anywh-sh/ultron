@@ -440,6 +440,15 @@ export interface Dictionary {
       noRecent: string;
       browse: string;
     };
+    /** The picker itself, opened both from the composer's working-directory
+     * button and from a profile's starting-folder setting. */
+    folderPicker: {
+      title: string;
+      go: string;
+      parent: string;
+      empty: string;
+      select: string;
+    };
     idle: {
       heading: string;
       subtitle: string;

@@ -294,6 +294,13 @@ export const en: Dictionary = {
       noRecent: "No recent folders",
       browse: "Choose folder…",
     },
+    folderPicker: {
+      title: "Select folder",
+      go: "go",
+      parent: "up one level",
+      empty: "no subfolders here",
+      select: "select folder",
+    },
     idle: {
       heading: "Pick a conversation",
       subtitle: "Choose a session in the sidebar, or start a new one.",

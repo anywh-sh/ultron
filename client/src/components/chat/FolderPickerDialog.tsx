@@ -11,8 +11,10 @@ import {
 } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { ScrollArea } from "@/components/ui/scroll-area";
+import { useDict } from "@/i18n";
 import { listDirectories, type FsEntry } from "@/lib/fsBrowse";
 import type { Profile } from "@/lib/profiles";
+import { cn } from "@/lib/utils";
 
 interface FolderPickerDialogProps {
   open: boolean;
@@ -73,6 +75,8 @@ export function FolderPickerDialog({
   onSelect,
   onFocusComposer,
 }: FolderPickerDialogProps) {
+  const dict = useDict();
+  const copy = dict.shell.folderPicker;
   const [browsePath, setBrowsePath] = useState(initialPath);
   const [pathInput, setPathInput] = useState(initialPath);
   const [entries, setEntries] = useState<FsEntry[]>([]);
@@ -124,17 +128,17 @@ export function FolderPickerDialog({
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent
-        className="sm:max-w-md"
+        className="sm:max-w-lg"
         onCloseAutoFocus={(event) => {
           event.preventDefault();
           onFocusComposer();
         }}
       >
         <DialogHeader>
-          <DialogTitle>Selecionar pasta</DialogTitle>
+          <DialogTitle>{copy.title}</DialogTitle>
         </DialogHeader>
 
-        <DialogBody>
+        <DialogBody className="gap-2.5">
           <form
             onSubmit={(event) => {
               event.preventDefault();
@@ -150,18 +154,23 @@ export function FolderPickerDialog({
               spellCheck={false}
             />
             <Button type="submit" size="sm" variant="outline">
-              Ir
+              {copy.go}
             </Button>
           </form>
 
-          <div className="flex items-center gap-1 overflow-x-auto whitespace-nowrap pb-1 text-sm">
+          {/* Every segment is clickable, which is also how you go up — the
+              breadcrumb is the navigation, not a label of where you are. */}
+          <div className="flex flex-wrap items-center gap-1 font-mono text-[11px]">
             {crumbs.map((crumb, index) => (
-              <div key={crumb.path} className="flex shrink-0 items-center gap-1">
-                {index > 0 && <ChevronRight className="size-3 shrink-0 text-muted-foreground" />}
+              <div key={crumb.path} className="flex items-center gap-1">
+                {index > 0 && <span className="text-text-faint">/</span>}
                 <button
                   type="button"
                   onClick={() => void navigate(crumb.path)}
-                  className="shrink-0 cursor-pointer rounded px-1 py-0.5 hover:bg-border"
+                  className={cn(
+                    "cursor-pointer px-1 py-0.5 transition-colors hover:text-foreground",
+                    index === crumbs.length - 1 ? "text-foreground" : "text-muted-foreground",
+                  )}
                 >
                   {crumb.label}
                 </button>
@@ -169,28 +178,29 @@ export function FolderPickerDialog({
             ))}
           </div>
 
-          <ScrollArea className="h-64 rounded-md border border-border">
+          <ScrollArea className="h-64 border border-border bg-bg-chrome p-1">
             {error ? (
-              <div className="flex h-64 items-center justify-center px-4 text-center text-sm text-destructive">
+              <div className="flex h-60 items-center justify-center px-4 text-center text-sm text-destructive">
                 {error}
               </div>
             ) : (
-              <div className="flex flex-col p-1">
+              <div className="flex flex-col">
                 {!atRoot && (
                   <button
                     type="button"
                     onClick={() => void navigate(parentOf(browsePath))}
-                    className="flex shrink-0 cursor-pointer items-center gap-2 rounded-md px-2 py-1.5 text-left text-sm hover:bg-border"
+                    className="flex shrink-0 cursor-pointer items-center gap-2.5 px-2 py-1.5 text-left font-mono text-xs text-muted-foreground transition-colors hover:bg-surface-hover hover:text-foreground"
                   >
-                    <Folder className="size-4 shrink-0 text-muted-foreground" />
-                    <span>..</span>
+                    <Folder className="size-3.5 shrink-0" />
+                    <span className="flex-1">..</span>
+                    <span className="sr-only">{copy.parent}</span>
                   </button>
                 )}
 
-                {loading && <div className="px-2 py-1.5 text-sm text-muted-foreground">Carregando…</div>}
+                {loading && <div className="px-2 py-1.5 font-mono text-xs text-text-faint">{dict.common.loading}</div>}
 
                 {!loading && entries.length === 0 && (
-                  <div className="px-2 py-1.5 text-sm text-muted-foreground">Nenhuma subpasta aqui.</div>
+                  <div className="px-3 py-8 text-center font-mono text-[11.5px] text-text-faint">{copy.empty}</div>
                 )}
 
                 {!loading &&
@@ -199,10 +209,11 @@ export function FolderPickerDialog({
                       key={entry.path}
                       type="button"
                       onClick={() => void navigate(entry.path)}
-                      className="flex shrink-0 cursor-pointer items-center gap-2 rounded-md px-2 py-1.5 text-left text-sm hover:bg-border"
+                      className="flex shrink-0 cursor-pointer items-center gap-2.5 px-2 py-1.5 text-left font-mono text-xs text-muted-foreground transition-colors hover:bg-surface-hover hover:text-foreground"
                     >
-                      <Folder className="size-4 shrink-0 text-muted-foreground" />
-                      <span className="truncate">{entry.name}</span>
+                      <Folder className="size-3.5 shrink-0" />
+                      <span className="min-w-0 flex-1 truncate">{entry.name}</span>
+                      <ChevronRight className="size-3 shrink-0 text-text-faint" />
                     </button>
                   ))}
               </div>
@@ -212,7 +223,7 @@ export function FolderPickerDialog({
 
         <DialogFooter>
           <Button type="button" size="sm" variant="outline" onClick={() => onOpenChange(false)}>
-            Cancelar
+            {dict.common.cancel}
           </Button>
           <Button
             type="button"
@@ -223,7 +234,7 @@ export function FolderPickerDialog({
               onOpenChange(false);
             }}
           >
-            Selecionar pasta
+            {copy.select}
           </Button>
         </DialogFooter>
       </DialogContent>
