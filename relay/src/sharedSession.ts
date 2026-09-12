@@ -1,7 +1,7 @@
 import { randomUUID } from "node:crypto";
 import type { WebSocket } from "ws";
 import { ClaudeSession, type ClaudeEvent } from "./claudeSession.js";
-import { checkDirectory } from "./fsBrowse.js";
+import { checkDirectory, type FsError } from "./fsBrowse.js";
 import {
   CHOICE_ALLOWED_TOOL,
   CHOICE_MCP_SERVER_NAME,
@@ -203,7 +203,21 @@ export interface SharedSessionOptions {
   mcpPermissionBridgeBaseUrl?: string;
 }
 
-export type SetCwdResult = { ok: true } | { ok: false; error: string };
+/**
+ * Every failure the folder picker can report, as a code. Never a sentence:
+ * this crosses the wire and the client owns the wording (and the language).
+ * `FsError` already worked this way — `locked` is the one case `setCwd` adds
+ * on top of it, and it used to be a Portuguese sentence sitting in a field
+ * typed `string`, which is how the other four ended up reaching the user as
+ * raw enum text.
+ */
+export type SetCwdError = FsError | "locked";
+
+export type SetCwdResult = { ok: true } | { ok: false; error: SetCwdError };
+
+/** Why an `edit_message` request could not be honored. Same contract as
+ * `SetCwdError`: a code, rendered by the client. */
+export type EditMessageError = "not_found" | "truncate_failed" | "relay_restarting";
 
 /**
  * A Claude session shared by every client connected to it. New clients
@@ -378,7 +392,7 @@ export class SharedSession {
    * (server.ts) already handles the `ok: false` case by sending an error
    * only to the client that asked, not a broadcast. */
   setCwd(path: string): SetCwdResult {
-    if (this.locked) return { ok: false, error: "working directory já travado, sessão já tem histórico" };
+    if (this.locked) return { ok: false, error: "locked" };
     const check = checkDirectory(path);
     if (!check.ok) return { ok: false, error: check.error };
     this.cwd = check.path;
@@ -749,7 +763,7 @@ export class SharedSession {
   editMessage(origin: WebSocket, fromEnd: number, text: string): void {
     const target = findEditTarget(this.history, fromEnd);
     if (!target) {
-      origin.send(JSON.stringify({ type: "edit_message_error", message: "Mensagem não encontrada — o histórico pode ter mudado." }));
+      origin.send(JSON.stringify({ type: "edit_message_error", code: "not_found" satisfies EditMessageError }));
       return;
     }
     this.clearSuggestion();
@@ -795,7 +809,7 @@ export class SharedSession {
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error);
       console.error("[relay] failed to truncate transcript for edit:", message);
-      origin.send(JSON.stringify({ type: "edit_message_error", message: "Não foi possível editar essa mensagem." }));
+      origin.send(JSON.stringify({ type: "edit_message_error", code: "truncate_failed" satisfies EditMessageError }));
       return;
     }
 

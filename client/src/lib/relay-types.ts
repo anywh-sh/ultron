@@ -135,6 +135,19 @@ export interface HistoryPageMessage {
   hasMore: boolean;
 }
 
+/**
+ * Why changing the session folder failed. Mirrors `SetCwdError` in
+ * relay/src/sharedSession.ts — the relay sends a code, never a sentence, and
+ * the wording (and its language) is the client's to own. Adding a code here
+ * without adding its string to the dictionary is a compile error, which is
+ * the point: `errors.setCwd` is typed as a record over this union.
+ */
+export type SetCwdErrorCode = "not_found" | "permission_denied" | "not_a_directory" | "invalid_path" | "locked";
+
+/** Why an `edit_message` request was refused. Mirrors `EditMessageError` in
+ * relay/src/sharedSession.ts, same contract as `SetCwdErrorCode`. */
+export type EditMessageErrorCode = "not_found" | "truncate_failed" | "relay_restarting";
+
 export type RelayMessage =
   | { type: "claude_event"; event: ClaudeEvent }
   | { type: "turn_complete"; stopped?: boolean }
@@ -149,7 +162,7 @@ export type RelayMessage =
    * connection flow, and only for the socket that asked. */
   | ({ type: "older_history" } & HistoryPageMessage)
   | { type: "cwd_state"; cwd: string; locked: boolean }
-  | { type: "set_cwd_error"; message: string }
+  | { type: "set_cwd_error"; code: SetCwdErrorCode }
   | { type: "session_title"; title: string }
   | { type: "session_deleted" }
   | { type: "permission_mode_state"; mode: PermissionMode }
@@ -200,7 +213,7 @@ export type RelayMessage =
   /** Response to an invalid `edit_message` (message not found — e.g. history
    * changed by another device) or one that failed to truncate the real
    * transcript. Only for the socket that requested it. */
-  | { type: "edit_message_error"; message: string }
+  | { type: "edit_message_error"; code: EditMessageErrorCode }
   /** The model called `present_choice` mid-turn and is genuinely
    * blocked waiting for an answer. "Current state" pattern like
    * `cwd_state`/`turn_state`: sent again to a device that (re)connects

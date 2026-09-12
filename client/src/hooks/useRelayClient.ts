@@ -6,10 +6,12 @@ import {
   type ChoiceQuestion,
   type ClaudeEvent,
   type ContextUsage,
+  type EditMessageErrorCode,
   type HistoryPageMessage,
   type ModelChoice,
   type PermissionMode,
   type RelayClientCallbacks,
+  type SetCwdErrorCode,
 } from "@/lib/relayClient";
 import { isBrokeredProfile, isTailnetProfile, type Profile } from "@/lib/profiles";
 import { acquireTailnetSidecar, releaseTailnetSidecar } from "@/lib/tailnetSidecar";
@@ -42,7 +44,7 @@ export interface UseRelayClientOptions {
   onTurnComplete?: (stopped: boolean) => void;
   onTurnError?: (message: string) => void;
   onCaughtUp?: () => void;
-  onSetCwdError?: (message: string) => void;
+  onSetCwdError?: (code: SetCwdErrorCode) => void;
   onSessionTitle?: (title: string) => void;
   onSessionDeleted?: () => void;
   /** See `RelayClientCallbacks.onReconnecting` — fires before any
@@ -64,7 +66,7 @@ export interface UseRelayClientOptions {
   onHistoryTruncated?: (page: HistoryPageMessage) => void;
   /** `edit_message` requested by this device failed — see
    * `RelayClientCallbacks.onEditMessageError`. */
-  onEditMessageError?: (message: string) => void;
+  onEditMessageError?: (code: EditMessageErrorCode) => void;
 }
 
 export interface UseRelayClientResult {
@@ -226,7 +228,7 @@ export function useRelayClient(
         setCwdState(newCwd);
         setCwdLocked(locked);
       },
-      onSetCwdError: (message) => optionsRef.current.onSetCwdError?.(message),
+      onSetCwdError: (code) => optionsRef.current.onSetCwdError?.(code),
       onPermissionModeState: setPermissionModeState,
       onModelState: setModelState,
       onDefaultModelState: setDefaultModel,

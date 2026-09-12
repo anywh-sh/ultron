@@ -9,6 +9,7 @@ import { buildChildEnv } from "./claudeSession.js";
 import { CLAUDE_BIN } from "./claudeCliConfig.js";
 import { detectDefaultModel, type DefaultModelInfo } from "./defaultModel.js";
 import { listDirectories } from "./fsBrowse.js";
+import type { EditMessageError } from "./sharedSession.js";
 import { resolveEditorDescriptor } from "./editorHostInfo.js";
 import {
   createFile,
@@ -1330,7 +1331,7 @@ wss.on("connection", (socket: WebSocket, request) => {
     }
     if (isSetCwdMessage(parsed)) {
       const result = session.setCwd(parsed.path);
-      if (!result.ok) socket.send(JSON.stringify({ type: "set_cwd_error", message: result.error }));
+      if (!result.ok) socket.send(JSON.stringify({ type: "set_cwd_error", code: result.error }));
       return;
     }
     if (isSetPermissionModeMessage(parsed)) {
@@ -1359,7 +1360,7 @@ wss.on("connection", (socket: WebSocket, request) => {
     }
     if (isEditMessageMessage(parsed)) {
       if (shuttingDown) {
-        socket.send(JSON.stringify({ type: "edit_message_error", message: "relay reiniciando, tente de novo em instantes" }));
+        socket.send(JSON.stringify({ type: "edit_message_error", code: "relay_restarting" satisfies EditMessageError }));
         return;
       }
       session.editMessage(socket, parsed.fromEnd, parsed.text);
