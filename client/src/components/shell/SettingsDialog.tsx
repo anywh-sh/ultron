@@ -37,6 +37,7 @@ import { resolveConnection } from "@/lib/connectionResolver";
 import { clearProfileRevoked } from "@/lib/profileRevocation";
 import { useProfiles } from "@/hooks/useProfiles";
 import { cn } from "@/lib/utils";
+import { locales, localeNames, useDict, useLocale, type Locale } from "@/i18n";
 
 interface SettingsDialogProps {
   open: boolean;
@@ -389,8 +390,35 @@ export function DangerZone({
  * `activeProfile` whenever the dialog opens, so reopening after switching
  * profiles in the main UI lands on the profile you're actually looking at.
  */
+/**
+ * Language is device-local, like the font size above it and unlike everything
+ * else in this dialog: it is not scoped to a profile and never syncs through
+ * the relay. Each option is written in its own language on purpose — someone
+ * looking for Portuguese scans for "Português", not for whatever the current
+ * language calls it.
+ */
+function LanguageRow() {
+  const { locale, setLocale } = useLocale();
+
+  return (
+    <Select value={locale} onValueChange={(value) => setLocale(value as Locale)}>
+      <SelectTrigger size="sm" className="w-full">
+        <SelectValue />
+      </SelectTrigger>
+      <SelectContent>
+        {locales.map((option) => (
+          <SelectItem key={option} value={option}>
+            {localeNames[option]}
+          </SelectItem>
+        ))}
+      </SelectContent>
+    </Select>
+  );
+}
+
 export function SettingsDialog({ open, onOpenChange, activeProfile }: SettingsDialogProps) {
   const [section, setSection] = useState<Section>("geral");
+  const dict = useDict();
   const profiles = useProfiles();
   const [scopedProfileId, setScopedProfileId] = useState(activeProfile.id);
   const { paths, setDefaultPath, clearDefaultPath } = useDefaultPaths();
@@ -476,6 +504,12 @@ export function SettingsDialog({ open, onOpenChange, activeProfile }: SettingsDi
                   </p>
                 </div>
                 <FontSizeRow />
+
+                <div>
+                  <h3 className="text-sm font-medium">{dict.settings.language.title}</h3>
+                  <p className="text-xs text-muted-foreground">{dict.settings.language.description}</p>
+                </div>
+                <LanguageRow />
               </div>
             )}
 
