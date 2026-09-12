@@ -1,5 +1,10 @@
 # node
-node_modules/
+# No trailing slash on purpose: `node_modules/` matches directories only, and
+# a git worktree whose deps are a symlink to the main checkout's (a normal way
+# to avoid a second full install) then has a trackable `node_modules` that
+# `git add -A` will happily commit as a symlink to an absolute local path.
+# Happened once; the client's own .gitignore already spelled it this way.
+node_modules
 dist/
 relay/sessions.local.json
 relay/.env
