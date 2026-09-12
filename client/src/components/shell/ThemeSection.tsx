@@ -5,6 +5,7 @@ import {
   AlertDialog,
   AlertDialogAction,
   AlertDialogCancel,
+  AlertDialogBody,
   AlertDialogContent,
   AlertDialogDescription,
   AlertDialogFooter,
@@ -251,12 +252,14 @@ export function ThemeSection({ activeProfile }: { activeProfile: Profile }) {
         <AlertDialogContent>
           <AlertDialogHeader>
             <AlertDialogTitle>Excluir o tema "{pendingDelete?.name}"?</AlertDialogTitle>
+          </AlertDialogHeader>
+          <AlertDialogBody>
             <AlertDialogDescription>
               Some de todos os dispositivos que apontam para este servidor. Se for o tema em uso
               aqui, o app volta para o padrão — e se você adicionar o tema de novo, a escolha volta
               sozinha.
             </AlertDialogDescription>
-          </AlertDialogHeader>
+          </AlertDialogBody>
           <AlertDialogFooter>
             <AlertDialogCancel>Cancelar</AlertDialogCancel>
             <AlertDialogAction

@@ -11,6 +11,7 @@ import {
   AlertDialog,
   AlertDialogAction,
   AlertDialogCancel,
+  AlertDialogBody,
   AlertDialogContent,
   AlertDialogDescription,
   AlertDialogFooter,
@@ -134,12 +135,14 @@ export function BackgroundJobIndicator({ jobs, onCancel }: BackgroundJobIndicato
         <AlertDialogContent>
           <AlertDialogHeader>
             <AlertDialogTitle>{confirmTarget === "all" ? "Cancelar todos os jobs" : "Cancelar job em background"}</AlertDialogTitle>
+          </AlertDialogHeader>
+          <AlertDialogBody>
             <AlertDialogDescription>
               {confirmTarget === "all"
                 ? `Cancelar os ${String(jobs.length)} jobs em background? Os processos são encerrados imediatamente — essa ação não pode ser desfeita.`
                 : `Cancelar "${confirmTarget?.label}"? O processo é encerrado imediatamente — essa ação não pode ser desfeita.`}
             </AlertDialogDescription>
-          </AlertDialogHeader>
+          </AlertDialogBody>
           <AlertDialogFooter>
             <AlertDialogCancel>Voltar</AlertDialogCancel>
             <AlertDialogAction

@@ -2,12 +2,14 @@ import { useEffect, useState } from "react";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
+  DialogBody,
   DialogContent,
   DialogDescription,
   DialogFooter,
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
+import { Input } from "@/components/ui/input";
 import { parsePairingCode } from "@/lib/pairingCode";
 import { enqueueProfileSetup } from "@/lib/profileSetup";
 
@@ -66,34 +68,33 @@ export function AddRemoteMachineDialog({ open, onOpenChange }: AddRemoteMachineD
       <DialogContent className="sm:max-w-md">
         <DialogHeader>
           <DialogTitle>Adicionar máquina remota</DialogTitle>
+        </DialogHeader>
+
+        <DialogBody>
           <DialogDescription>
             Cole o código de pareamento gerado pela máquina que você quer alcançar.
           </DialogDescription>
-        </DialogHeader>
 
-        <div className="flex flex-col gap-3">
           <div className="flex flex-col gap-1.5">
-            <label className="text-xs font-medium text-muted-foreground" htmlFor="add-remote-label">
+            <label className="font-mono text-[10.5px] tracking-[0.08em] text-text-faint uppercase" htmlFor="add-remote-label">
               Nome
             </label>
-            <input
+            <Input
               id="add-remote-label"
               value={label}
               onChange={(event) => setLabel(event.target.value)}
-              className="rounded-md border border-border bg-transparent px-2.5 py-1.5 text-sm outline-none focus:border-ring"
               placeholder="Ex.: Servidor de casa"
             />
           </div>
 
           <div className="flex flex-col gap-1.5">
-            <label className="text-xs font-medium text-muted-foreground" htmlFor="add-remote-code">
+            <label className="font-mono text-[10.5px] tracking-[0.08em] text-text-faint uppercase" htmlFor="add-remote-code">
               Código de pareamento
             </label>
-            <input
+            <Input
               id="add-remote-code"
               value={code}
               onChange={(event) => setCode(event.target.value)}
-              className="rounded-md border border-border bg-transparent px-2.5 py-1.5 font-mono text-xs outline-none focus:border-ring"
               placeholder="ABCDEF-GHJKMNPQ@exemplo.com"
               autoCapitalize="characters"
               autoCorrect="off"
@@ -111,7 +112,7 @@ export function AddRemoteMachineDialog({ open, onOpenChange }: AddRemoteMachineD
               O código tem o formato <span className="font-mono">CÓDIGO@servidor</span>.
             </p>
           )}
-        </div>
+        </DialogBody>
 
         <DialogFooter>
           <Button type="button" size="sm" variant="outline" onClick={() => onOpenChange(false)}>

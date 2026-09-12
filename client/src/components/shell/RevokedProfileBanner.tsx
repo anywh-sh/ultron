@@ -5,6 +5,7 @@ import {
   AlertDialog,
   AlertDialogAction,
   AlertDialogCancel,
+  AlertDialogBody,
   AlertDialogContent,
   AlertDialogDescription,
   AlertDialogFooter,
@@ -81,8 +82,10 @@ export function RevokedProfileBanner({ profile }: { profile: Profile }) {
         <AlertDialogContent>
           <AlertDialogHeader>
             <AlertDialogTitle>{dict.shell.revoked.confirmTitle.replace("{profile}", profile.label)}</AlertDialogTitle>
-            <AlertDialogDescription>{dict.shell.revoked.confirmBody}</AlertDialogDescription>
           </AlertDialogHeader>
+          <AlertDialogBody>
+            <AlertDialogDescription>{dict.shell.revoked.confirmBody}</AlertDialogDescription>
+          </AlertDialogBody>
           {error && <p className="text-sm text-destructive">{error}</p>}
           <AlertDialogFooter>
             <AlertDialogCancel>{dict.common.cancel}</AlertDialogCancel>

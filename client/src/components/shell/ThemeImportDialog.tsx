@@ -1,7 +1,8 @@
 import { useEffect, useRef, useState } from "react";
 import { Copy, Upload } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { Dialog, DialogBody, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { Textarea } from "@/components/ui/input";
 import type { Profile } from "@/lib/profiles";
 import { parseTheme, type Theme, type ThemeValidationError } from "@/lib/theme";
 import { saveTheme, ThemeSaveError } from "@/lib/relayClient";
@@ -134,13 +135,13 @@ export function ThemeImportDialog({
           <DialogTitle>{copy.title}</DialogTitle>
         </DialogHeader>
 
-        <div className="flex flex-col gap-3">
+        <DialogBody>
           <p className="text-xs text-muted-foreground">
             {copy.hint} O tema fica salvo em {profile.host} e pode ser usado por qualquer perfil desse
             servidor.
           </p>
 
-          <textarea
+          <Textarea
             value={json}
             onChange={(event) => {
               setJson(event.target.value);
@@ -149,11 +150,11 @@ export function ThemeImportDialog({
             }}
             spellCheck={false}
             placeholder={'{\n  "version": 1,\n  "id": "meu-tema",\n  "name": "Meu tema",\n  "appearance": "dark",\n  "colors": { "background": "#1e1e1e", … }\n}'}
-            className="h-56 w-full resize-none rounded-md border border-border bg-background px-3 py-2 font-mono text-xs outline-none focus:border-ring"
+            className="h-56 w-full"
           />
 
           {errors.length > 0 && (
-            <ul className="flex flex-col gap-1 rounded-md border border-destructive/40 p-2.5">
+            <ul className="flex flex-col gap-1 border border-destructive/40 p-2.5">
               {errors.map((error, index) => (
                 <li key={`${error.path}-${String(index)}`} className="text-xs text-destructive">
                   {error.path ? <span className="font-mono">{error.path}: </span> : null}
@@ -209,7 +210,7 @@ export function ThemeImportDialog({
               </Button>
             </div>
           </div>
-        </div>
+        </DialogBody>
       </DialogContent>
     </Dialog>
   );

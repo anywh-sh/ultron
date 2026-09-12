@@ -8,6 +8,7 @@ import {
   AlertDialog,
   AlertDialogAction,
   AlertDialogCancel,
+  AlertDialogBody,
   AlertDialogContent,
   AlertDialogDescription,
   AlertDialogFooter,
@@ -786,8 +787,10 @@ function FileTreeNode({
             <AlertDialogContent>
               <AlertDialogHeader>
                 <AlertDialogTitle>{copy.deleteFile.title}</AlertDialogTitle>
-                <AlertDialogDescription>{copy.deleteFile.description.replace("{name}", entry.name)}</AlertDialogDescription>
               </AlertDialogHeader>
+              <AlertDialogBody>
+                <AlertDialogDescription>{copy.deleteFile.description.replace("{name}", entry.name)}</AlertDialogDescription>
+              </AlertDialogBody>
               <AlertDialogFooter>
                 <AlertDialogCancel>{dict.common.cancel}</AlertDialogCancel>
                 <AlertDialogAction onClick={() => void handleDelete()}>{dict.common.delete}</AlertDialogAction>
@@ -798,10 +801,12 @@ function FileTreeNode({
             <AlertDialogContent>
               <AlertDialogHeader>
                 <AlertDialogTitle>{copy.deleteFiles.title}</AlertDialogTitle>
+              </AlertDialogHeader>
+              <AlertDialogBody>
                 <AlertDialogDescription>
                   {copy.deleteFiles.description.replace("{count}", String(selectedPaths.size))}
                 </AlertDialogDescription>
-              </AlertDialogHeader>
+              </AlertDialogBody>
               <AlertDialogFooter>
                 <AlertDialogCancel>{dict.common.cancel}</AlertDialogCancel>
                 <AlertDialogAction

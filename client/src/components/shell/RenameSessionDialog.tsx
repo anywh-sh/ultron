@@ -2,12 +2,14 @@ import { useEffect, useState, type FormEvent } from "react";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
+  DialogBody,
   DialogContent,
   DialogDescription,
   DialogFooter,
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
+import { Input } from "@/components/ui/input";
 
 interface RenameSessionDialogProps {
   open: boolean;
@@ -38,15 +40,12 @@ export function RenameSessionDialog({ open, onOpenChange, initialTitle, onSave }
       <DialogContent className="sm:max-w-md">
         <DialogHeader>
           <DialogTitle>Renomear sessão</DialogTitle>
-          <DialogDescription>Escolha um novo nome pra essa conversa.</DialogDescription>
         </DialogHeader>
-        <form onSubmit={handleSubmit} className="flex flex-col gap-3">
-          <input
-            value={title}
-            onChange={(event) => setTitle(event.target.value)}
-            className="rounded-md border border-border bg-transparent px-2.5 py-1.5 text-sm outline-none focus:border-ring"
-            autoFocus
-          />
+        <form onSubmit={handleSubmit} className="flex min-h-0 flex-1 flex-col">
+          <DialogBody>
+            <DialogDescription>Escolha um novo nome pra essa conversa.</DialogDescription>
+            <Input value={title} onChange={(event) => setTitle(event.target.value)} autoFocus />
+          </DialogBody>
           <DialogFooter>
             <Button type="submit" size="sm">
               Atualizar

@@ -52,7 +52,7 @@ function AlertDialogContent({
       <AlertDialogPrimitive.Content
         data-slot="alert-dialog-content"
         className={cn(
-          "fixed top-[50%] left-[50%] z-50 grid w-full max-w-[calc(100%-2rem)] translate-x-[-50%] translate-y-[-50%] gap-4 border border-border bg-bg-sidebar p-5 shadow-popover duration-200 outline-none data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=closed]:zoom-out-95 data-[state=open]:animate-in data-[state=open]:fade-in-0 data-[state=open]:zoom-in-95 sm:max-w-lg",
+          "fixed top-[50%] left-[50%] z-50 flex max-h-[calc(100%-3rem)] w-full max-w-[calc(100%-2rem)] translate-x-[-50%] translate-y-[-50%] flex-col overflow-hidden border border-border bg-bg-sidebar shadow-popover duration-200 outline-none data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=closed]:zoom-out-95 data-[state=open]:animate-in data-[state=open]:fade-in-0 data-[state=open]:zoom-in-95 sm:max-w-lg",
           className
         )}
         {...props}
@@ -61,11 +61,27 @@ function AlertDialogContent({
   )
 }
 
+/** Same band as `DialogHeader`, minus the close button: a confirmation is
+ * answered by one of its two actions, not dismissed from the corner. */
 function AlertDialogHeader({ className, ...props }: React.ComponentProps<"div">) {
   return (
     <div
       data-slot="alert-dialog-header"
-      className={cn("flex flex-col gap-2 text-center sm:text-left", className)}
+      className={cn(
+        "flex flex-none flex-col gap-1 border-b border-border bg-bg-chrome px-4 py-3",
+        className
+      )}
+      {...props}
+    />
+  )
+}
+
+/** The padded region under the band — where the description lives. */
+function AlertDialogBody({ className, ...props }: React.ComponentProps<"div">) {
+  return (
+    <div
+      data-slot="alert-dialog-body"
+      className={cn("flex min-h-0 flex-1 flex-col gap-3 overflow-y-auto px-4 py-4", className)}
       {...props}
     />
   )
@@ -76,7 +92,7 @@ function AlertDialogFooter({ className, ...props }: React.ComponentProps<"div">)
     <div
       data-slot="alert-dialog-footer"
       className={cn(
-        "flex flex-col-reverse gap-2 sm:flex-row sm:justify-end",
+        "flex flex-none flex-col-reverse gap-2 px-4 pb-4 sm:flex-row sm:justify-end",
         className
       )}
       {...props}
@@ -91,7 +107,7 @@ function AlertDialogTitle({
   return (
     <AlertDialogPrimitive.Title
       data-slot="alert-dialog-title"
-      className={cn("font-display text-[19px] leading-none font-bold tracking-[-0.025em]", className)}
+      className={cn("font-display text-[19px] leading-tight font-bold tracking-[-0.025em]", className)}
       {...props}
     />
   )
@@ -138,6 +154,7 @@ function AlertDialogCancel({
 
 export {
   AlertDialog,
+  AlertDialogBody,
   AlertDialogPortal,
   AlertDialogOverlay,
   AlertDialogTrigger,

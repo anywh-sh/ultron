@@ -2,12 +2,14 @@ import { useEffect, useState, type FormEvent } from "react";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
+  DialogBody,
   DialogContent,
   DialogDescription,
   DialogFooter,
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
+import { Input } from "@/components/ui/input";
 
 interface EditLinkDialogProps {
   open: boolean;
@@ -16,9 +18,6 @@ interface EditLinkDialogProps {
   initialHref: string;
   onSave: (text: string, href: string) => void;
 }
-
-const FIELD_CLASS =
-  "rounded-md border border-border bg-transparent px-2.5 py-1.5 text-sm outline-none focus:border-ring";
 
 /** "text" and "link" fields to edit a hyperlink created in the composer via
  * paste-to-link. Doesn't reuse `EmptyState`'s input pattern as a component,
@@ -52,32 +51,28 @@ export function EditLinkDialog({ open, onOpenChange, initialText, initialHref, o
       <DialogContent className="sm:max-w-md">
         <DialogHeader>
           <DialogTitle>Editar link</DialogTitle>
-          <DialogDescription>Altere o texto exibido ou o endereço do link.</DialogDescription>
         </DialogHeader>
-        <form onSubmit={handleSubmit} className="flex flex-col gap-3">
-          <div className="flex flex-col gap-1.5">
-            <label htmlFor="edit-link-text" className="text-xs text-muted-foreground">
-              Texto
-            </label>
-            <input
-              id="edit-link-text"
-              value={text}
-              onChange={(event) => setText(event.target.value)}
-              className={FIELD_CLASS}
-              autoFocus
-            />
-          </div>
-          <div className="flex flex-col gap-1.5">
-            <label htmlFor="edit-link-href" className="text-xs text-muted-foreground">
-              Link
-            </label>
-            <input
-              id="edit-link-href"
-              value={href}
-              onChange={(event) => setHref(event.target.value)}
-              className={FIELD_CLASS}
-            />
-          </div>
+        <form onSubmit={handleSubmit} className="flex min-h-0 flex-1 flex-col">
+          <DialogBody>
+            <DialogDescription>Altere o texto exibido ou o endereço do link.</DialogDescription>
+            <div className="flex flex-col gap-1.5">
+              <label htmlFor="edit-link-text" className="font-mono text-[10.5px] tracking-[0.08em] text-text-faint uppercase">
+                Texto
+              </label>
+              <Input
+                id="edit-link-text"
+                value={text}
+                onChange={(event) => setText(event.target.value)}
+                autoFocus
+              />
+            </div>
+            <div className="flex flex-col gap-1.5">
+              <label htmlFor="edit-link-href" className="font-mono text-[10.5px] tracking-[0.08em] text-text-faint uppercase">
+                Link
+              </label>
+              <Input id="edit-link-href" value={href} onChange={(event) => setHref(event.target.value)} />
+            </div>
+          </DialogBody>
           <DialogFooter>
             <Button type="submit" size="sm">
               Salvar

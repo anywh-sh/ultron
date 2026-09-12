@@ -4,6 +4,7 @@ import { Dialog as DialogPrimitive } from "radix-ui"
 
 import { cn } from "@/lib/utils"
 import { Button } from "@/components/ui/button"
+import { useDict } from "@/i18n"
 
 function Dialog({
   ...props
@@ -45,74 +46,91 @@ function DialogOverlay({
   )
 }
 
+/**
+ * A dialog is a framed panel, not a padded box: the header is a band in the
+ * chrome surface with a divider under it, and everything below it is laid
+ * out by `DialogBody`/`DialogFooter`. Hence no padding here — a consumer
+ * that needs an edge-to-edge region (the settings dialog's two panes) just
+ * doesn't use `DialogBody`.
+ */
 function DialogContent({
   className,
   children,
-  showCloseButton = true,
   ...props
-}: React.ComponentProps<typeof DialogPrimitive.Content> & {
-  showCloseButton?: boolean
-}) {
+}: React.ComponentProps<typeof DialogPrimitive.Content>) {
   return (
     <DialogPortal data-slot="dialog-portal">
       <DialogOverlay />
       <DialogPrimitive.Content
         data-slot="dialog-content"
         className={cn(
-          "fixed top-[50%] left-[50%] z-50 grid w-full max-w-[calc(100%-2rem)] translate-x-[-50%] translate-y-[-50%] gap-4 border border-border bg-bg-sidebar p-5 shadow-popover duration-200 outline-none data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=closed]:zoom-out-95 data-[state=open]:animate-in data-[state=open]:fade-in-0 data-[state=open]:zoom-in-95 sm:max-w-lg",
+          "fixed top-[50%] left-[50%] z-50 flex max-h-[calc(100%-3rem)] w-full max-w-[calc(100%-2rem)] translate-x-[-50%] translate-y-[-50%] flex-col overflow-hidden border border-border bg-bg-sidebar shadow-popover duration-200 outline-none data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=closed]:zoom-out-95 data-[state=open]:animate-in data-[state=open]:fade-in-0 data-[state=open]:zoom-in-95 sm:max-w-lg",
           className
         )}
         {...props}
       >
         {children}
-        {showCloseButton && (
-          <DialogPrimitive.Close
-            data-slot="dialog-close"
-            className="absolute top-4 right-4 opacity-70 ring-offset-background transition-opacity hover:opacity-100 focus:ring-2 focus:ring-ring focus:ring-offset-2 focus:outline-hidden disabled:pointer-events-none data-[state=open]:bg-accent data-[state=open]:text-muted-foreground [&_svg]:pointer-events-none [&_svg]:shrink-0 [&_svg:not([class*='size-'])]:size-4"
-          >
-            <XIcon />
-            <span className="sr-only">Close</span>
-          </DialogPrimitive.Close>
-        )}
       </DialogPrimitive.Content>
     </DialogPortal>
   )
 }
 
-function DialogHeader({ className, ...props }: React.ComponentProps<"div">) {
+/**
+ * The header band: title on the left, close button squared off on the
+ * right. `children` is normally just a `DialogTitle` — a description
+ * belongs in the body, where it can wrap without pushing the band around.
+ */
+function DialogHeader({
+  className,
+  children,
+  showCloseButton = true,
+  ...props
+}: React.ComponentProps<"div"> & { showCloseButton?: boolean }) {
+  const dict = useDict()
+
   return (
     <div
       data-slot="dialog-header"
-      className={cn("flex flex-col gap-2 text-center sm:text-left", className)}
+      className={cn(
+        "flex flex-none items-center gap-3 border-b border-border bg-bg-chrome py-3 pr-3 pl-4",
+        className
+      )}
+      {...props}
+    >
+      <div className="flex min-w-0 flex-1 flex-col gap-1">{children}</div>
+      {showCloseButton && (
+        <DialogPrimitive.Close asChild>
+          <Button variant="ghost" size="icon-sm" aria-label={dict.common.close}>
+            <XIcon className="size-3.5" />
+          </Button>
+        </DialogPrimitive.Close>
+      )}
+    </div>
+  )
+}
+
+/** The padded region under the band. Scrolls on its own so a long dialog
+ * keeps its header and footer in place. */
+function DialogBody({ className, ...props }: React.ComponentProps<"div">) {
+  return (
+    <div
+      data-slot="dialog-body"
+      className={cn("flex min-h-0 flex-1 flex-col gap-3 overflow-y-auto px-4 py-4", className)}
       {...props}
     />
   )
 }
 
-function DialogFooter({
-  className,
-  showCloseButton = false,
-  children,
-  ...props
-}: React.ComponentProps<"div"> & {
-  showCloseButton?: boolean
-}) {
+function DialogFooter({ className, ...props }: React.ComponentProps<"div">) {
   return (
     <div
       data-slot="dialog-footer"
       className={cn(
-        "flex flex-col-reverse gap-2 sm:flex-row sm:justify-end",
+        "flex flex-none flex-col-reverse gap-2 px-4 pb-4 sm:flex-row sm:justify-end",
         className
       )}
       {...props}
-    >
-      {children}
-      {showCloseButton && (
-        <DialogPrimitive.Close asChild>
-          <Button variant="outline">Close</Button>
-        </DialogPrimitive.Close>
-      )}
-    </div>
+    />
   )
 }
 
@@ -123,7 +141,7 @@ function DialogTitle({
   return (
     <DialogPrimitive.Title
       data-slot="dialog-title"
-      className={cn("font-display text-[19px] leading-none font-bold tracking-[-0.025em]", className)}
+      className={cn("truncate font-display text-[19px] leading-none font-bold tracking-[-0.025em]", className)}
       {...props}
     />
   )
@@ -144,6 +162,7 @@ function DialogDescription({
 
 export {
   Dialog,
+  DialogBody,
   DialogClose,
   DialogContent,
   DialogDescription,

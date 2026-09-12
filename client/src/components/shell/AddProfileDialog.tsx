@@ -2,12 +2,14 @@ import { useEffect, useState } from "react";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
+  DialogBody,
   DialogContent,
   DialogDescription,
   DialogFooter,
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
+import { Input } from "@/components/ui/input";
 import { addProfile, type Profile } from "@/lib/profiles";
 import { createProfile, validateProfile } from "@/lib/relayClient";
 
@@ -106,34 +108,33 @@ export function AddProfileDialog({ open, onOpenChange, activeProfile }: AddProfi
       <DialogContent className="sm:max-w-md">
         <DialogHeader>
           <DialogTitle>Adicionar perfil</DialogTitle>
+        </DialogHeader>
+
+        <DialogBody>
           <DialogDescription>
             Garanta que sua sessão do Claude está logada na máquina que hospeda o serviço.
           </DialogDescription>
-        </DialogHeader>
 
-        <div className="flex flex-col gap-3">
           <div className="flex flex-col gap-1.5">
-            <label className="text-xs font-medium text-muted-foreground" htmlFor="add-profile-label">
+            <label className="font-mono text-[10.5px] tracking-[0.08em] text-text-faint uppercase" htmlFor="add-profile-label">
               Nome
             </label>
-            <input
+            <Input
               id="add-profile-label"
               value={label}
               onChange={(event) => setLabel(event.target.value)}
-              className="rounded-md border border-border bg-transparent px-2.5 py-1.5 text-sm outline-none focus:border-ring"
               placeholder="Ex.: Cliente X"
             />
           </div>
 
           <div className="flex flex-col gap-1.5">
-            <label className="text-xs font-medium text-muted-foreground" htmlFor="add-profile-home">
+            <label className="font-mono text-[10.5px] tracking-[0.08em] text-text-faint uppercase" htmlFor="add-profile-home">
               Caminho de configuração (opcional — vazio usa a conta padrão da máquina)
             </label>
-            <input
+            <Input
               id="add-profile-home"
               value={homePath}
               onChange={(event) => setHomePath(event.target.value)}
-              className="rounded-md border border-border bg-transparent px-2.5 py-1.5 font-mono text-xs outline-none focus:border-ring"
               placeholder="/home/user/.anywh-cliente-x-home"
               spellCheck={false}
             />
@@ -157,7 +158,7 @@ export function AddProfileDialog({ open, onOpenChange, activeProfile }: AddProfi
               {validating ? "Verificando…" : "Verificar"}
             </Button>
           </div>
-        </div>
+        </DialogBody>
 
         <DialogFooter>
           <Button type="button" size="sm" variant="outline" onClick={() => onOpenChange(false)}>

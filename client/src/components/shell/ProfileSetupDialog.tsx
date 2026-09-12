@@ -1,5 +1,13 @@
 import { Button } from "@/components/ui/button";
-import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import {
+  Dialog,
+  DialogBody,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 import { ProfileSetupStepList } from "@/components/shell/ProfileSetupStepList";
 import type { SetupState } from "@/lib/profileSetup";
 
@@ -73,27 +81,30 @@ export function ProfileSetupDialog({ state, queuedCount, onContinue, onUseExisti
         <DialogContent className="sm:max-w-md">
           <DialogHeader>
             <DialogTitle>{titleFor(state)}</DialogTitle>
-            <DialogDescription>{descriptionFor(state)}</DialogDescription>
           </DialogHeader>
 
-          <ProfileSetupStepList state={state} />
+          <DialogBody>
+            <DialogDescription>{descriptionFor(state)}</DialogDescription>
 
-          {state.status === "ready" && state.duplicates.length > 0 && (
-            <div className="flex flex-col gap-2 rounded-md border border-border bg-muted/40 p-3 text-sm">
-              <p>
-                Você já tem um perfil pra essa máquina: <strong>{state.duplicates[0].label}</strong>.
-              </p>
-              <Button
-                type="button"
-                size="sm"
-                variant="outline"
-                className="self-start"
-                onClick={() => onUseExisting(state.duplicates[0].id)}
-              >
-                Ir para o perfil existente
-              </Button>
-            </div>
-          )}
+            <ProfileSetupStepList state={state} />
+
+            {state.status === "ready" && state.duplicates.length > 0 && (
+              <div className="flex flex-col gap-2 border border-border bg-bg-chrome p-3 text-sm">
+                <p>
+                  Você já tem um perfil pra essa máquina: <strong>{state.duplicates[0].label}</strong>.
+                </p>
+                <Button
+                  type="button"
+                  size="sm"
+                  variant="outline"
+                  className="self-start"
+                  onClick={() => onUseExisting(state.duplicates[0].id)}
+                >
+                  Ir para o perfil existente
+                </Button>
+              </div>
+            )}
+          </DialogBody>
 
           <DialogFooter className="items-center sm:justify-between">
             {queuedCount > 0 && <span className="text-xs text-muted-foreground">+{queuedCount} na fila</span>}

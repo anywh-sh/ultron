@@ -5,6 +5,7 @@ import {
   AlertDialog,
   AlertDialogAction,
   AlertDialogCancel,
+  AlertDialogBody,
   AlertDialogContent,
   AlertDialogDescription,
   AlertDialogFooter,
@@ -356,12 +357,14 @@ export function DangerZone({
             <AlertDialogTitle>
               {tailnet ? "Remover" : "Excluir"} perfil "{scopedProfile.label}"?
             </AlertDialogTitle>
+          </AlertDialogHeader>
+          <AlertDialogBody>
             <AlertDialogDescription>
               {tailnet
                 ? "Remove só a entrada local deste dispositivo. Se o dispositivo ainda estiver ativo do lado da conta, ele continua existindo lá — desconectar de verdade é uma ação separada, no painel."
                 : "Remove esse perfil de todos os dispositivos que apontam pra esse host. A conta Claude e o histórico de conversas continuam intactos na máquina."}
             </AlertDialogDescription>
-          </AlertDialogHeader>
+          </AlertDialogBody>
           <AlertDialogFooter>
             <AlertDialogCancel>Cancelar</AlertDialogCancel>
             <AlertDialogAction
@@ -442,8 +445,8 @@ export function SettingsDialog({ open, onOpenChange, activeProfile }: SettingsDi
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="gap-0 overflow-hidden p-0 sm:max-w-2xl">
-        <DialogHeader className="border-b border-border px-4 py-3">
+      <DialogContent className="sm:max-w-2xl">
+        <DialogHeader>
           <DialogTitle>Configurações</DialogTitle>
         </DialogHeader>
 

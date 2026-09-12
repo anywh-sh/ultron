@@ -3,11 +3,13 @@ import { ChevronRight, Folder } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
+  DialogBody,
   DialogContent,
   DialogFooter,
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
+import { Input } from "@/components/ui/input";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { listDirectories, type FsEntry } from "@/lib/fsBrowse";
 import type { Profile } from "@/lib/profiles";
@@ -132,79 +134,81 @@ export function FolderPickerDialog({
           <DialogTitle>Selecionar pasta</DialogTitle>
         </DialogHeader>
 
-        <form
-          onSubmit={(event) => {
-            event.preventDefault();
-            const trimmed = pathInput.trim();
-            if (trimmed) void navigate(trimmed);
-          }}
-          className="flex items-center gap-1.5"
-        >
-          <input
-            value={pathInput}
-            onChange={(event) => setPathInput(event.target.value)}
-            className="min-w-0 flex-1 rounded-md border border-border bg-transparent px-2.5 py-1.5 font-mono text-xs outline-none focus:border-ring"
-            spellCheck={false}
-          />
-          <Button type="submit" size="sm" variant="outline">
-            Ir
-          </Button>
-        </form>
+        <DialogBody>
+          <form
+            onSubmit={(event) => {
+              event.preventDefault();
+              const trimmed = pathInput.trim();
+              if (trimmed) void navigate(trimmed);
+            }}
+            className="flex items-center gap-1.5"
+          >
+            <Input
+              value={pathInput}
+              onChange={(event) => setPathInput(event.target.value)}
+              className="flex-1"
+              spellCheck={false}
+            />
+            <Button type="submit" size="sm" variant="outline">
+              Ir
+            </Button>
+          </form>
 
-        <div className="flex items-center gap-1 overflow-x-auto whitespace-nowrap pb-1 text-sm">
-          {crumbs.map((crumb, index) => (
-            <div key={crumb.path} className="flex shrink-0 items-center gap-1">
-              {index > 0 && <ChevronRight className="size-3 shrink-0 text-muted-foreground" />}
-              <button
-                type="button"
-                onClick={() => void navigate(crumb.path)}
-                className="shrink-0 cursor-pointer rounded px-1 py-0.5 hover:bg-border"
-              >
-                {crumb.label}
-              </button>
-            </div>
-          ))}
-        </div>
-
-        <ScrollArea className="h-64 rounded-md border border-border">
-          {error ? (
-            <div className="flex h-64 items-center justify-center px-4 text-center text-sm text-destructive">
-              {error}
-            </div>
-          ) : (
-            <div className="flex flex-col p-1">
-              {!atRoot && (
+          <div className="flex items-center gap-1 overflow-x-auto whitespace-nowrap pb-1 text-sm">
+            {crumbs.map((crumb, index) => (
+              <div key={crumb.path} className="flex shrink-0 items-center gap-1">
+                {index > 0 && <ChevronRight className="size-3 shrink-0 text-muted-foreground" />}
                 <button
                   type="button"
-                  onClick={() => void navigate(parentOf(browsePath))}
-                  className="flex shrink-0 cursor-pointer items-center gap-2 rounded-md px-2 py-1.5 text-left text-sm hover:bg-border"
+                  onClick={() => void navigate(crumb.path)}
+                  className="shrink-0 cursor-pointer rounded px-1 py-0.5 hover:bg-border"
                 >
-                  <Folder className="size-4 shrink-0 text-muted-foreground" />
-                  <span>..</span>
+                  {crumb.label}
                 </button>
-              )}
+              </div>
+            ))}
+          </div>
 
-              {loading && <div className="px-2 py-1.5 text-sm text-muted-foreground">Carregando…</div>}
-
-              {!loading && entries.length === 0 && (
-                <div className="px-2 py-1.5 text-sm text-muted-foreground">Nenhuma subpasta aqui.</div>
-              )}
-
-              {!loading &&
-                entries.map((entry) => (
+          <ScrollArea className="h-64 rounded-md border border-border">
+            {error ? (
+              <div className="flex h-64 items-center justify-center px-4 text-center text-sm text-destructive">
+                {error}
+              </div>
+            ) : (
+              <div className="flex flex-col p-1">
+                {!atRoot && (
                   <button
-                    key={entry.path}
                     type="button"
-                    onClick={() => void navigate(entry.path)}
+                    onClick={() => void navigate(parentOf(browsePath))}
                     className="flex shrink-0 cursor-pointer items-center gap-2 rounded-md px-2 py-1.5 text-left text-sm hover:bg-border"
                   >
                     <Folder className="size-4 shrink-0 text-muted-foreground" />
-                    <span className="truncate">{entry.name}</span>
+                    <span>..</span>
                   </button>
-                ))}
-            </div>
-          )}
-        </ScrollArea>
+                )}
+
+                {loading && <div className="px-2 py-1.5 text-sm text-muted-foreground">Carregando…</div>}
+
+                {!loading && entries.length === 0 && (
+                  <div className="px-2 py-1.5 text-sm text-muted-foreground">Nenhuma subpasta aqui.</div>
+                )}
+
+                {!loading &&
+                  entries.map((entry) => (
+                    <button
+                      key={entry.path}
+                      type="button"
+                      onClick={() => void navigate(entry.path)}
+                      className="flex shrink-0 cursor-pointer items-center gap-2 rounded-md px-2 py-1.5 text-left text-sm hover:bg-border"
+                    >
+                      <Folder className="size-4 shrink-0 text-muted-foreground" />
+                      <span className="truncate">{entry.name}</span>
+                    </button>
+                  ))}
+              </div>
+            )}
+          </ScrollArea>
+        </DialogBody>
 
         <DialogFooter>
           <Button type="button" size="sm" variant="outline" onClick={() => onOpenChange(false)}>
