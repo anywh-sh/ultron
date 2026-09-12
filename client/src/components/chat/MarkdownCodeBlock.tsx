@@ -1,23 +1,24 @@
 import { useRef, useState, type ComponentProps } from "react";
 import { Check, Copy } from "lucide-react";
-import { cn } from "@/lib/utils";
-import { isIOS } from "@/lib/platform";
+import { Button } from "@/components/ui/button";
+import { useDict } from "@/i18n";
 
-/** Override of `pre` in `AssistantText`'s `ReactMarkdown` — the code block
- * gets a copy button in the top-right corner. The button sits OUTSIDE the
- * `<pre>` (in a `relative` wrapper over it), not inside it: `.prose-chat
- * pre` has `overflow-x: auto` (long blocks scroll horizontally), and an
- * `absolute` child of a scrolling element scrolls along with the content —
- * it would drag sideways while scrolling instead of staying fixed in the
- * corner. Hover-only on desktop (opacity-0/group-hover) — always-visible
- * removes the need to overlay the code only when the user has actually
- * asked to see the button. Always visible on iOS, which has no hover: it
- * would only appear on tap (then disappear again), which doesn't help at
- * all. Reads the text via the `<pre>`'s own `textContent` at click time
- * instead of trying to recompose it from `children` (which already comes
- * with rehype-highlight spans — grabbing it from the rendered DOM is the
- * simple way to get the plain text back). */
+/** Override of `pre` in `MarkdownContent`'s `ReactMarkdown` — the code block
+ * gets a header bar, and the copy button lives in it.
+ *
+ * It used to float in the top-right corner of the code itself, revealed on
+ * hover, which meant it sat on top of the first line and covered whatever
+ * was written there. A bar of its own costs one row and covers nothing. The
+ * design puts the source file's path on the left of that bar; a fenced block
+ * in the middle of a reply has no file behind it, only the language the
+ * fence declared, so the left side stays empty here rather than repeating
+ * something the code itself already makes obvious.
+ *
+ * Reads the text via the `<pre>`'s own `textContent` at click time instead
+ * of recomposing it from `children` (which arrives with rehype-highlight
+ * spans already in it). */
 export function MarkdownCodeBlock({ children, className, ...props }: ComponentProps<"pre">) {
+  const dict = useDict();
   const preRef = useRef<HTMLPreElement>(null);
   const [copied, setCopied] = useState(false);
 
@@ -32,26 +33,21 @@ export function MarkdownCodeBlock({ children, className, ...props }: ComponentPr
       setCopied(true);
       setTimeout(() => setCopied(false), 1500);
     } catch {
-      window.alert("Não foi possível copiar o código.");
+      window.alert(dict.chat.code.copyFailed);
     }
   }
 
   return (
-    <div className="group relative">
+    <div className="border border-border bg-card">
+      <div className="flex items-center justify-end border-b border-border-soft bg-bg-chrome px-1.5 py-1">
+        <Button type="button" variant="ghost" size="xs" onClick={() => void handleCopy()}>
+          {copied ? <Check /> : <Copy />}
+          {copied ? dict.chat.code.copied : dict.chat.code.copy}
+        </Button>
+      </div>
       <pre ref={preRef} className={className} {...props}>
         {children}
       </pre>
-      <button
-        type="button"
-        onClick={() => void handleCopy()}
-        aria-label={copied ? "Copiado" : "Copiar código"}
-        className={cn(
-          "absolute top-2 right-2 flex size-6 cursor-pointer items-center justify-center rounded-md bg-card text-muted-foreground transition-opacity hover:bg-border hover:text-foreground",
-          isIOS() ? "opacity-100" : "opacity-0 group-hover:opacity-100",
-        )}
-      >
-        {copied ? <Check className="size-3.5" /> : <Copy className="size-3.5" />}
-      </button>
     </div>
   );
 }
