@@ -1,15 +1,19 @@
 import { useState } from "react";
-import { Check, ChevronsUpDown, Plus, Link2 } from "lucide-react";
+import { ChevronsUpDown, Plus, Link2 } from "lucide-react";
 import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
+  DropdownMenuLabel,
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
+import { Badge } from "@/components/ui/badge";
 import { cn } from "@/lib/utils";
-import { profileColorClass, type Profile } from "@/lib/profiles";
+import { isTailnetProfile, profileColorClass, type Profile } from "@/lib/profiles";
 import { useProfiles } from "@/hooks/useProfiles";
+import { useRevokedProfiles } from "@/hooks/useProfileRevoked";
+import { useDict, type Dictionary } from "@/i18n";
 import { AddProfileDialog } from "@/components/shell/AddProfileDialog";
 import { AddRemoteMachineDialog } from "@/components/shell/AddRemoteMachineDialog";
 
@@ -21,10 +25,31 @@ interface ProfileSwitcherProps {
   onChange: (profileId: string) => void;
 }
 
+/**
+ * How this device reaches the profile, as one word.
+ *
+ * Derived from the transport primitives the app already has, never from
+ * anything about who is hosting or paying for it: a profile dialled straight
+ * at a host is local, one reached through the tailnet is remote, and one the
+ * account owner has disconnected is revoked regardless of either.
+ */
+function profileBadge(
+  profile: Profile,
+  revoked: ReadonlySet<string>,
+  dict: Dictionary,
+): { label: string; variant: "outline" | "secondary" | "destructive" } {
+  if (revoked.has(profile.id)) return { label: dict.shell.profiles.badgeRevoked, variant: "destructive" };
+  if (isTailnetProfile(profile)) return { label: dict.shell.profiles.badgeRemote, variant: "secondary" };
+  return { label: dict.shell.profiles.badgeLocal, variant: "outline" };
+}
+
 export function ProfileSwitcher({ activeProfile, supported, onChange }: ProfileSwitcherProps) {
   const profiles = useProfiles();
+  const dict = useDict();
+  const revoked = useRevokedProfiles();
   const [addOpen, setAddOpen] = useState(false);
   const [pairOpen, setPairOpen] = useState(false);
+  const activeBadge = profileBadge(activeProfile, revoked, dict);
 
   return (
     <>
@@ -36,46 +61,52 @@ export function ProfileSwitcher({ activeProfile, supported, onChange }: ProfileS
         <DropdownMenuTrigger asChild>
           <button
             type="button"
-            aria-label="Perfil ativo"
-            className="flex w-full cursor-pointer items-center gap-2 rounded-md border border-input bg-transparent px-3 py-2 text-sm shadow-xs transition-colors hover:bg-bg-elevated"
+            aria-label={dict.shell.profiles.activeProfile}
+            className="flex w-full cursor-pointer items-center gap-2.5 border border-border bg-bg-chrome px-2.5 py-2 text-left transition-colors hover:border-text-faint"
           >
-            <span
-              className={cn(
-                "inline-block size-2 shrink-0 rounded-full",
-                profileColorClass(activeProfile.id),
-              )}
-            />
-            <span className="min-w-0 flex-1 truncate text-left">{activeProfile.label}</span>
-            <ChevronsUpDown className="size-4 shrink-0 text-muted-foreground" />
+            <span className={cn("inline-block size-2.5 shrink-0", profileColorClass(activeProfile.id))} />
+            <span className="min-w-0 flex-1 truncate font-mono text-xs text-foreground">{activeProfile.label}</span>
+            <Badge variant={activeBadge.variant}>{activeBadge.label}</Badge>
+            <ChevronsUpDown className="size-3.5 shrink-0 text-text-faint" />
           </button>
         </DropdownMenuTrigger>
         <DropdownMenuContent align="start" className="w-[var(--radix-dropdown-menu-trigger-width)]">
-          {profiles.map((profile) => (
-            <DropdownMenuItem key={profile.id} onSelect={() => onChange(profile.id)}>
-              <Check className={cn("size-3.5", profile.id !== activeProfile.id && "opacity-0")} />
-              <span
-                className={cn(
-                  "inline-block size-2 shrink-0 rounded-full",
-                  profileColorClass(profile.id),
-                )}
-              />
-              {profile.label}
-            </DropdownMenuItem>
-          ))}
+          <DropdownMenuLabel className="font-mono text-[9.5px] tracking-[0.12em] text-text-faint uppercase">
+            {dict.shell.profiles.heading}
+          </DropdownMenuLabel>
+          {profiles.map((profile) => {
+            const badge = profileBadge(profile, revoked, dict);
+            const active = profile.id === activeProfile.id;
+            return (
+              <DropdownMenuItem
+                key={profile.id}
+                onSelect={() => onChange(profile.id)}
+                // The active row is marked by its own profile colour down the
+                // left edge rather than by a checkmark — the same language
+                // the session list and the tab strip already use, so the
+                // colour means one thing everywhere.
+                className={cn("gap-2.5", active && "bg-surface-hover text-foreground shadow-[inset_2px_0_0_currentColor]")}
+              >
+                <span className={cn("inline-block size-2.5 shrink-0", profileColorClass(profile.id))} />
+                <span className="min-w-0 flex-1 truncate">{profile.label}</span>
+                <Badge variant={badge.variant}>{badge.label}</Badge>
+              </DropdownMenuItem>
+            );
+          })}
           <DropdownMenuSeparator />
-          {/* Ungated on `supported`, unlike "Adicionar perfil" below: that
-              one asks the active host to create an account and needs a
-              working connection to it, while this one is how you get a
-              connection in the first place — a fresh install with nothing
-              reachable is exactly when it's needed most. */}
+          {/* Ungated on `supported`, unlike "add profile" below: that one
+              asks the active host to create an account and needs a working
+              connection to it, while this one is how you get a connection in
+              the first place — a fresh install with nothing reachable is
+              exactly when it's needed most. */}
           <DropdownMenuItem onSelect={() => setPairOpen(true)}>
             <Link2 className="size-3.5" />
-            Adicionar máquina remota
+            {dict.shell.profiles.addRemoteMachine}
           </DropdownMenuItem>
           {supported && (
             <DropdownMenuItem onSelect={() => setAddOpen(true)}>
               <Plus className="size-3.5" />
-              Adicionar perfil
+              {dict.shell.profiles.addProfile}
             </DropdownMenuItem>
           )}
         </DropdownMenuContent>

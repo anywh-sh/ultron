@@ -5,6 +5,7 @@ import { setProfiles } from "@/lib/profiles";
 import { enqueueProfileSetup, __resetProfileSetupForTests } from "@/lib/profileSetup";
 import { installFakeRelay, type FakeRelay } from "./helpers/fakeRelay";
 import { renderApp } from "./helpers/renderApp";
+import { en } from "@/i18n/en";
 
 /**
  * Drives the real `App` through the pairing-code path (`ProfileSwitcher` ->
@@ -98,8 +99,8 @@ afterEach(() => {
 });
 
 async function pairByCode(user: ReturnType<typeof userEvent.setup>): Promise<void> {
-  await user.click(await screen.findByRole("button", { name: "Perfil ativo" }));
-  await user.click(await screen.findByRole("menuitem", { name: /Adicionar máquina remota/ }));
+  await user.click(await screen.findByRole("button", { name: en.shell.profiles.activeProfile }));
+  await user.click(await screen.findByRole("menuitem", { name: en.shell.profiles.addRemoteMachine }));
   await user.type(await screen.findByLabelText("Nome"), "New machine");
   await user.type(await screen.findByLabelText("Código de pareamento"), "ABCDEF-GHJKMNPQ@example.test");
   await user.click(await screen.findByRole("button", { name: "Parear" }));
@@ -121,7 +122,7 @@ describe("profile setup", () => {
 
     await user.click(screen.getByRole("button", { name: "Continuar para novo perfil" }));
 
-    await vi.waitFor(() => expect(screen.getByRole("button", { name: "Perfil ativo" })).toHaveTextContent("New machine"));
+    await vi.waitFor(() => expect(screen.getByRole("button", { name: en.shell.profiles.activeProfile })).toHaveTextContent("New machine"));
     expect(screen.queryByText("Máquina conectada")).not.toBeInTheDocument();
   });
 
@@ -136,7 +137,7 @@ describe("profile setup", () => {
     await user.keyboard("{Escape}");
 
     expect(screen.queryByText("Máquina conectada")).not.toBeInTheDocument();
-    expect(screen.getByRole("button", { name: "Perfil ativo" })).toHaveTextContent("Home");
+    expect(screen.getByRole("button", { name: en.shell.profiles.activeProfile })).toHaveTextContent("Home");
   });
 
   it("a deep-link import failing at connect shows a recoverable error instead of vanishing silently", async () => {

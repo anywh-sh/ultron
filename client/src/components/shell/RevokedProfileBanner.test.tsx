@@ -2,6 +2,7 @@ import { cleanup, render, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import type { Profile } from "@/lib/profiles";
+import { en } from "@/i18n/en";
 
 const { removeProfileMock } = vi.hoisted(() => ({
   removeProfileMock: vi.fn(() => true),
@@ -14,6 +15,8 @@ vi.mock("@/lib/profiles", async (importOriginal) => {
 import { RevokedProfileBanner, RevokedProfileBanners } from "@/components/shell/RevokedProfileBanner";
 import { clearProfileRevoked, markProfileRevoked } from "@/lib/profileRevocation";
 import { setProfiles } from "@/lib/profiles";
+
+const copy = en.shell.revoked;
 
 const profile: Profile = { id: "p1", label: "Sandbox", host: "127.0.0.1", relayPort: 8765 };
 const otherProfile: Profile = { id: "p2", label: "Trabalho", host: "127.0.0.1", relayPort: 8766 };
@@ -29,13 +32,13 @@ afterEach(() => {
 describe("RevokedProfileBanner", () => {
   it("renders nothing when the profile hasn't been revoked", () => {
     render(<RevokedProfileBanner profile={profile} />);
-    expect(screen.queryByText(/desconectado da conta/)).not.toBeInTheDocument();
+    expect(screen.queryByText(copy.eyebrow)).not.toBeInTheDocument();
   });
 
   it("shows the banner once the profile is marked revoked", () => {
     markProfileRevoked(profile.id);
     render(<RevokedProfileBanner profile={profile} />);
-    expect(screen.getByText(/desconectado da conta/)).toBeInTheDocument();
+    expect(screen.getByText(copy.eyebrow)).toBeInTheDocument();
   });
 
   it("removes the profile and hides the banner after confirming", async () => {
@@ -43,12 +46,12 @@ describe("RevokedProfileBanner", () => {
     render(<RevokedProfileBanner profile={profile} />);
     const user = userEvent.setup();
 
-    await user.click(screen.getByRole("button", { name: "Remover perfil" }));
-    const confirmButton = await within(document.body).findByRole("button", { name: "Remover" });
+    await user.click(screen.getByRole("button", { name: copy.removeProfile }));
+    const confirmButton = await within(document.body).findByRole("button", { name: en.common.remove });
     await user.click(confirmButton);
 
     expect(removeProfileMock).toHaveBeenCalledWith("p1");
-    expect(screen.queryByText(/desconectado da conta/)).not.toBeInTheDocument();
+    expect(screen.queryByText(copy.eyebrow)).not.toBeInTheDocument();
   });
 
   it("dismisses the banner without removing the profile via the close button", async () => {
@@ -56,10 +59,10 @@ describe("RevokedProfileBanner", () => {
     render(<RevokedProfileBanner profile={profile} />);
     const user = userEvent.setup();
 
-    await user.click(screen.getByRole("button", { name: "Dispensar aviso" }));
+    await user.click(screen.getByRole("button", { name: copy.dismiss }));
 
     expect(removeProfileMock).not.toHaveBeenCalled();
-    expect(screen.queryByText(/desconectado da conta/)).not.toBeInTheDocument();
+    expect(screen.queryByText(copy.eyebrow)).not.toBeInTheDocument();
   });
 
   it("keeps the banner and shows an error if this is the only profile left", async () => {
@@ -68,15 +71,15 @@ describe("RevokedProfileBanner", () => {
     render(<RevokedProfileBanner profile={profile} />);
     const user = userEvent.setup();
 
-    await user.click(screen.getByRole("button", { name: "Remover perfil" }));
-    const confirmButton = await within(document.body).findByRole("button", { name: "Remover" });
+    await user.click(screen.getByRole("button", { name: copy.removeProfile }));
+    const confirmButton = await within(document.body).findByRole("button", { name: en.common.remove });
     await user.click(confirmButton);
 
-    expect(await within(document.body).findByText(/único perfil/)).toBeInTheDocument();
+    expect(await within(document.body).findByText(copy.lastProfile)).toBeInTheDocument();
     // The banner itself is still mounted (background content behind an open
     // AlertDialog gets `aria-hidden`, so `getByRole` won't see it — a plain
     // text query still does).
-    expect(screen.getByText("Remover perfil")).toBeInTheDocument();
+    expect(screen.getByText(copy.removeProfile)).toBeInTheDocument();
   });
 });
 
@@ -99,7 +102,7 @@ describe("RevokedProfileBanners", () => {
 
     render(<RevokedProfileBanners />);
 
-    expect(screen.queryByText(/desconectado da conta/)).not.toBeInTheDocument();
+    expect(screen.queryByText(copy.eyebrow)).not.toBeInTheDocument();
   });
 
   it("stacks one banner per revoked profile", () => {
@@ -109,6 +112,6 @@ describe("RevokedProfileBanners", () => {
 
     render(<RevokedProfileBanners />);
 
-    expect(screen.getAllByText(/desconectado da conta/)).toHaveLength(2);
+    expect(screen.getAllByText(copy.eyebrow)).toHaveLength(2);
   });
 });

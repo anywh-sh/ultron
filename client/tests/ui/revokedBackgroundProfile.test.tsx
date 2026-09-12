@@ -3,6 +3,7 @@ import { cleanup, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { setProfiles, type Profile } from "@/lib/profiles";
 import { renderApp } from "./helpers/renderApp";
+import { en } from "@/i18n/en";
 
 /**
  * Full-chain reproduction: a background chat
@@ -159,9 +160,9 @@ describe("revocation of a non-active profile's background chat tab", () => {
 
     // Switch the sidebar to the other profile — the chat tab above must stay
     // mounted (TabBar forceMount) and its RelayClient must keep running.
-    await user.click(await screen.findByRole("button", { name: "Perfil ativo" }));
+    await user.click(await screen.findByRole("button", { name: en.shell.profiles.activeProfile }));
     await user.click(await screen.findByRole("menuitem", { name: /Trabalho/ }));
-    expect(await screen.findByRole("button", { name: /Perfil ativo/ })).toHaveTextContent("Trabalho");
+    expect(await screen.findByRole("button", { name: en.shell.profiles.activeProfile })).toHaveTextContent("Trabalho");
 
     // Simulate the dashboard revocation + the active-cutoff mechanism
     // closing the TCP connection: the device is now revoked, and the chat
@@ -176,11 +177,13 @@ describe("revocation of a non-active profile's background chat tab", () => {
     // without switching back to it.
     await vi.waitFor(
       () => {
-        expect(within(document.body).getByText(/Sandbox/)).toBeInTheDocument();
-        expect(within(document.body).getByText(/desconectado da conta/)).toBeInTheDocument();
+        // The eyebrow rather than the body sentence: the body names the
+        // profile in its own element, so it is not one matchable string.
+        expect(within(document.body).getByText(en.shell.revoked.eyebrow)).toBeInTheDocument();
+        expect(within(document.body).getByText("Sandbox", { exact: false })).toBeInTheDocument();
       },
-      { timeout: 10000 },
+      { timeout: 4000 },
     );
-    expect(screen.getByRole("button", { name: /Perfil ativo/ })).toHaveTextContent("Trabalho");
+    expect(screen.getByRole("button", { name: en.shell.profiles.activeProfile })).toHaveTextContent("Trabalho");
   });
 });

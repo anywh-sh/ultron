@@ -4,6 +4,7 @@ import userEvent from "@testing-library/user-event";
 import { setProfiles } from "@/lib/profiles";
 import { installFakeRelay, type FakeRelay } from "./helpers/fakeRelay";
 import { renderApp } from "./helpers/renderApp";
+import { en } from "@/i18n/en";
 
 /**
  * Drives the real `App` through a manual profile switch (via the desktop
@@ -67,8 +68,8 @@ describe("session list states across a profile switch", () => {
 
     await screen.findByText("Conversa da A");
 
-    await user.click(await screen.findByRole("button", { name: "Perfil ativo" }));
-    await user.click(await screen.findByRole("menuitem", { name: "Profile B" }));
+    await user.click(await screen.findByRole("button", { name: en.shell.profiles.activeProfile }));
+    await user.click(await screen.findByRole("menuitem", { name: /Profile B/ }));
 
     expect(screen.queryByText("Conversa da A")).not.toBeInTheDocument();
     expect(screen.getByRole("status", { name: "Carregando sessões…" })).toBeInTheDocument();

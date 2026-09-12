@@ -10,6 +10,7 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { useRecentFolders } from "@/hooks/useRecentFolders";
+import { useDict } from "@/i18n";
 import { FolderPickerDialog } from "@/components/chat/FolderPickerDialog";
 import type { Profile } from "@/lib/profiles";
 import { cn } from "@/lib/utils";
@@ -48,8 +49,9 @@ function folderName(path: string): string {
 }
 
 /**
- * Always-visible button above the `Composer`, showing (and letting you
- * change) the current session's working directory. Before the first turn,
+ * Shows (and lets you change) the current session's working directory. On
+ * desktop it is portalled into the centre of the title bar by `ChatPanel`;
+ * on iOS, which has no title bar, it stays above the `Composer`. Before the first turn,
  * the dropdown lists "Recent" (per profile, `useRecentFolders`) + "Choose
  * folder...". After the first turn the relay locks the folder (see
  * `SharedSession.runTurn` — Claude Code's session_id gets tied to the cwd
@@ -64,6 +66,7 @@ export function WorkingDirectoryButton({
   onSetCwd,
   onFocusComposer,
 }: WorkingDirectoryButtonProps) {
+  const dict = useDict();
   const { recents, addRecent } = useRecentFolders(profile.id);
   const [pickerOpen, setPickerOpen] = useState(false);
   const triggerRef = useRef<HTMLButtonElement>(null);
@@ -78,7 +81,7 @@ export function WorkingDirectoryButton({
     try {
       await navigator.clipboard.writeText(cwd);
     } catch {
-      window.alert("Não foi possível copiar o caminho.");
+      window.alert(dict.shell.workingDirectory.copyFailed);
     }
   }
 
@@ -108,14 +111,16 @@ export function WorkingDirectoryButton({
                 ref={triggerRef}
                 type="button"
                 disabled={!isNewConversation && (!cwd || !connected)}
-                className="flex h-7 shrink-0 cursor-pointer items-center gap-1.5 rounded-md border border-border bg-bg-elevated px-2 text-xs text-foreground transition-colors hover:bg-border disabled:cursor-not-allowed disabled:opacity-50"
+                className="flex h-[26px] max-w-full shrink cursor-pointer items-center gap-2 border border-border bg-bg-sidebar px-2.5 font-mono text-[11.5px] text-muted-foreground transition-colors hover:border-text-faint hover:text-foreground disabled:cursor-not-allowed disabled:opacity-50"
               >
-                <Folder className="size-3.5 shrink-0 text-muted-foreground" />
-                <span className="max-w-56 truncate font-mono">{cwd ? folderName(cwd) : "…"}</span>
+                <Folder className="size-3 shrink-0 text-primary" />
+                <span className="truncate">{cwd ? folderName(cwd) : "…"}</span>
               </button>
             </DropdownMenuTrigger>
           </TooltipTrigger>
-          <TooltipContent side="top">{cwd ?? (isNewConversation ? "Escolher pasta" : "Conectando…")}</TooltipContent>
+          <TooltipContent side="bottom">
+            {cwd ?? (isNewConversation ? dict.shell.workingDirectory.chooseFolder : dict.shell.workingDirectory.connecting)}
+          </TooltipContent>
         </Tooltip>
 
         <DropdownMenuContent
@@ -128,20 +133,20 @@ export function WorkingDirectoryButton({
           {locked ? (
             <>
               <DropdownMenuLabel className="flex flex-col gap-0.5">
-                <span>Working directory</span>
+                <span>{dict.shell.workingDirectory.heading}</span>
                 <span className="truncate font-mono text-xs text-foreground">{cwd}</span>
               </DropdownMenuLabel>
               <DropdownMenuSeparator />
               <DropdownMenuItem onSelect={() => void copyPath()}>
                 <Copy className="size-3.5" />
-                Copy path
+                {dict.shell.workingDirectory.copyPath}
               </DropdownMenuItem>
             </>
           ) : (
             <>
-              <DropdownMenuLabel>Recente</DropdownMenuLabel>
+              <DropdownMenuLabel>{dict.shell.workingDirectory.recent}</DropdownMenuLabel>
               {recents.length === 0 ? (
-                <div className="px-2 py-1.5 text-xs text-muted-foreground">Nenhuma pasta recente</div>
+                <div className="px-2 py-1.5 font-mono text-xs text-muted-foreground">{dict.shell.workingDirectory.noRecent}</div>
               ) : (
                 recents.map((path) => (
                   <DropdownMenuItem key={path} title={path} onSelect={() => selectFolder(path)}>
@@ -151,7 +156,7 @@ export function WorkingDirectoryButton({
                 ))
               )}
               <DropdownMenuSeparator />
-              <DropdownMenuItem onSelect={() => setPickerOpen(true)}>Escolher pasta...</DropdownMenuItem>
+              <DropdownMenuItem onSelect={() => setPickerOpen(true)}>{dict.shell.workingDirectory.browse}</DropdownMenuItem>
             </>
           )}
         </DropdownMenuContent>
