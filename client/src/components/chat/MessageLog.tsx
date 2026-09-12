@@ -192,7 +192,7 @@ function renderItem(item: RenderItem, userActions: UserActionHandlers, dict: Dic
     case "background-job-note":
       return (
         <LogEntryRow key={entry.id}>
-          <p className="flex items-center gap-1.5 text-xs text-muted-foreground">
+          <p className="flex items-center gap-1.5 font-mono text-[11px] text-text-faint">
             <Loader2 className="size-3 shrink-0" />
             <span className="truncate">{dict.chat.log.backgroundJobDone.replace("{label}", entry.label)}</span>
           </p>

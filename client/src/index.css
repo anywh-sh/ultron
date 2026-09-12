@@ -549,10 +549,13 @@ body {
  * plugin — the app is small enough to write this by hand instead of pulling
  * in another dependency. */
 .prose-chat {
-  /* A step below `--foreground`, which is where the user's own bubble sits:
-     the design separates what you said from what the agent answered by tone
-     as well as by alignment. Headings, emphasis and code climb back up. */
-  color: var(--muted-foreground);
+  /* Deliberately sets no colour: the agent's answer is the main content of
+     the screen and reads at full `--foreground`. The design dims it a step,
+     which was tried and reverted — dimmed prose landed on the same tone as
+     the log's system notes (a job finishing, a compaction, a stop), so the
+     agent's own words stopped being distinguishable from the app talking
+     about itself. Those notes are what moved instead: they are mono and
+     fainter now, and the separation comes from that. */
   line-height: 1.7;
   /* `anywhere` (not just `break-word`) — a long path or URL with no spaces
    * is a single "word" to the browser, which by default has nowhere to break
@@ -581,7 +584,6 @@ body {
   font-family: var(--font-display);
   font-weight: 700;
   letter-spacing: -0.025em;
-  color: var(--foreground);
   margin-top: 1.2em;
   margin-bottom: 0.3em;
 }
@@ -598,14 +600,6 @@ body {
 .prose-chat h5,
 .prose-chat h6 {
   font-size: 1em;
-}
-/* The container is set in `--muted-foreground`, so anything the author
-   marked as standing out has to climb back to `--foreground` — otherwise
-   emphasis in a paragraph is weight alone, with no tonal change at all. */
-.prose-chat strong,
-.prose-chat em,
-.prose-chat b {
-  color: var(--foreground);
 }
 .prose-chat ul {
   list-style-type: disc;
