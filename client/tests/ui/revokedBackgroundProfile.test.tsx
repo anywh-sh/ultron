@@ -151,9 +151,9 @@ describe("revocation of a non-active profile's background chat tab", () => {
     // send a message — proves a genuinely live, connected RelayClient exists
     // for it, same as the live scenario reported (a message got a reply).
     await user.click(await screen.findByRole("button", { name: en.shell.sidebar.newConversation }));
-    const composer = await screen.findByLabelText("Escreva uma mensagem…");
+    const composer = await screen.findByLabelText(en.chat.composer.placeholder);
     await user.type(composer, "oi");
-    const sendButton = await screen.findByRole("button", { name: "Enviar" });
+    const sendButton = await screen.findByRole("button", { name: en.common.send });
     await vi.waitFor(() => expect(sendButton).toBeEnabled());
     await user.click(sendButton);
     expect(await screen.findByText("reply")).toBeInTheDocument();

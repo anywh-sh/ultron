@@ -44,13 +44,13 @@ describe("sending a message", () => {
     // doesn't infer the implicit ARIA role for it, so `findByRole("textbox")`
     // never resolves. `findByLabelText` matches the same `aria-label`
     // without depending on that role mapping.
-    const composer = await screen.findByLabelText("Escreva uma mensagem…");
+    const composer = await screen.findByLabelText(en.chat.composer.placeholder);
     await user.type(composer, "hello there");
 
     // The send button only enables once BOTH the composer is non-empty and
     // the fake relay's `open` event has landed (RelayClient.connect ->
     // onConnectionChange) — same two gates a real user hits.
-    const sendButton = await screen.findByRole("button", { name: "Enviar" });
+    const sendButton = await screen.findByRole("button", { name: en.common.send });
     await vi.waitFor(() => expect(sendButton).toBeEnabled());
     await user.click(sendButton);
 

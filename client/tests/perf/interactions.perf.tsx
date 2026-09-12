@@ -44,7 +44,7 @@ vi.mock("@tauri-apps/api/webview", () => ({
 }));
 vi.mock("@tauri-apps/api/core", () => ({ invoke: async () => [] }));
 
-const COMPOSER = "Escreva uma mensagem…";
+const COMPOSER = en.chat.composer.placeholder;
 
 let relay: FakeRelay;
 

@@ -8,7 +8,7 @@ import {
   type CSSProperties,
   type MutableRefObject,
 } from "react";
-import { ArrowUp, Check, ChevronDown, Mic, Paperclip, Square, Video, X } from "lucide-react";
+import { ArrowUp, Check, ChevronDown, FileText, Mic, Paperclip, Square, Video, X } from "lucide-react";
 import { Extension, type JSONContent } from "@tiptap/core";
 import { EditorContent, ReactRenderer, useEditor } from "@tiptap/react";
 import StarterKit from "@tiptap/starter-kit";
@@ -27,6 +27,7 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { cn, formatDuration } from "@/lib/utils";
+import { useDict } from "@/i18n";
 import { isIOS } from "@/lib/platform";
 import { useVoiceRecording } from "@/hooks/useVoiceRecording";
 import type { PendingAttachment } from "@/hooks/useImageUpload";
@@ -39,6 +40,7 @@ import { SlashCommandMenu } from "@/components/chat/SlashCommandMenu";
 import { HARD_BREAK_ANCHOR, serializeEditorContent } from "@/lib/composerLinks";
 import { filterSlashCommands, parseSlashCommand, suggestSlashCommand, type SlashCommandEntry } from "@/lib/slashCommands";
 import type { CompactBoundaryEvent } from "@/hooks/useRelayClient";
+import type { Dictionary } from "@/i18n/dictionary";
 import type { ContextUsage, ModelChoice, PermissionMode } from "@/lib/relayClient";
 
 interface ComposerProps {
@@ -90,7 +92,6 @@ export interface ComposerHandle {
   setContent: (text: string) => void;
 }
 
-const WAVEFORM_BARS = [0, 1, 2, 3, 4];
 
 /**
  * Link rendered as a plain native `<a>` (no `addMarkView`/own `contentDOM`)
@@ -168,7 +169,12 @@ const EXTENSIONS = [
   HardBreakCaretAnchor,
 ];
 
-const DEFAULT_PLACEHOLDER = "Escreva uma mensagem…";
+/** Last path segment of an attachment, for the chip that stands in for a
+ * thumbnail that couldn't be produced. The relay hands back POSIX paths
+ * regardless of the machine it runs on, so splitting on "/" is enough. */
+function attachmentName(path: string, fallback: string): string {
+  return path.split("/").filter(Boolean).pop() ?? fallback;
+}
 
 /** Rebuilds the Tiptap doc from plain text (editing via composer on
  * iOS) — via JSON, not an interpolated HTML string: the text may have
@@ -187,13 +193,18 @@ function buildComposerDoc(text: string): JSONContent {
 }
 
 /** Dynamic placeholder: shows the next-message suggestion while it exists,
- * otherwise falls back to the usual generic text. Needs to be created per
- * `Composer` instance (not a module-level extension, like the rest of
+ * otherwise falls back to the generic invitation to type. Needs to be created
+ * per `Composer` instance (not a module-level extension, like the rest of
  * `EXTENSIONS`) — each tab has its own suggestion, and `useEditor` doesn't
- * recreate the editor on every prop change, so the value has to come from a
- * ref updated on every render (same pattern as `submitRef` below). */
-function createPlaceholderExtension(suggestionRef: MutableRefObject<string | null>) {
-  return Placeholder.configure({ placeholder: () => suggestionRef.current ?? DEFAULT_PLACEHOLDER });
+ * recreate the editor on every prop change, so both values have to come from
+ * refs updated on every render (same pattern as `submitRef` below). The
+ * fallback is a ref for the same reason the copy can't just be captured: the
+ * language can change while the editor stays mounted. */
+function createPlaceholderExtension(
+  suggestionRef: MutableRefObject<string | null>,
+  fallbackRef: MutableRefObject<string>,
+) {
+  return Placeholder.configure({ placeholder: () => suggestionRef.current ?? fallbackRef.current });
 }
 
 /**
@@ -329,7 +340,10 @@ function slashCommandDecorationPlugin() {
  * check, Enter would always submit the message instead of letting
  * Suggestion pick the selected item in the menu.
  */
-function createSlashCommandExtension(activeRef: MutableRefObject<boolean>) {
+function createSlashCommandExtension(
+  activeRef: MutableRefObject<boolean>,
+  commandsRef: MutableRefObject<Dictionary["chat"]["composer"]["commands"]>,
+) {
   return Extension.create({
     name: "slashCommand",
     addProseMirrorPlugins() {
@@ -370,7 +384,7 @@ function createSlashCommandExtension(activeRef: MutableRefObject<boolean>) {
           // complete, valid command — same check as `onSend` (ChatPanel) and
           // the visual decoration above.
           shouldShow: ({ text }) => parseSlashCommand(text) === null,
-          items: ({ query }) => filterSlashCommands(query),
+          items: ({ query }) => filterSlashCommands(query, commandsRef.current),
           command: ({ editor, range, props }) => {
             editor.chain().focus().insertContentAt(range, props.command).run();
           },
@@ -422,10 +436,10 @@ function createSlashCommandExtension(activeRef: MutableRefObject<boolean>) {
 }
 
 /** Keyboard focus highlights the whole container (textarea + toolbar), not
- * just the isolated textarea. Voice flow: record → waveform+timer
- * → cancel or stop → transcribe → text lands here for review (doesn't send
- * on its own) — the waveform is a generic animation, not
- * real audio). The text field is a Tiptap editor (not a `<textarea>`): needs
+ * just the isolated textarea. Voice flow: record → the mic button becomes a
+ * stop square with the elapsed time → cancel or stop → transcribe → text
+ * lands here for review (it doesn't send on its own). The text field is a
+ * Tiptap editor (not a `<textarea>`): needs
  * to support an inline hyperlink (own color, hover with edit) created via
  * paste-to-link — pasting a URL over selected text becomes a link, with no
  * selection the pasted URL already goes in as a link (Tiptap's `Link`
@@ -453,6 +467,8 @@ export const Composer = forwardRef<ComposerHandle, ComposerProps>(function Compo
   },
   ref,
 ) {
+  const dict = useDict();
+  const copy = dict.chat.composer;
   const [focused, setFocused] = useState(false);
   const [isEmpty, setIsEmpty] = useState(true);
   // Only used on iOS — the container morphs from a pill (one line)
@@ -515,7 +531,12 @@ export const Composer = forwardRef<ComposerHandle, ComposerProps>(function Compo
   // Suggestion's only channel back (outside React) to the editorProps below
   // — see the comment on `createSlashCommandExtension`.
   const slashMenuActiveRef = useRef(false);
-  const [slashCommandExtension] = useState(() => createSlashCommandExtension(slashMenuActiveRef));
+  // The autocomplete's blurbs, reaching Tiptap the same way the suggestion
+  // does — the extension is built once, outside React's render cycle, and
+  // has no way to read a hook.
+  const slashCopyRef = useRef(copy.commands);
+  slashCopyRef.current = copy.commands;
+  const [slashCommandExtension] = useState(() => createSlashCommandExtension(slashMenuActiveRef, slashCopyRef));
   // Channel back to the dynamic placeholder (see `createPlaceholderExtension`)
   // and to the `Tab` handler below — both live outside Tiptap's render
   // cycle, so they don't see the `suggestion` prop update on their own.
@@ -527,7 +548,9 @@ export const Composer = forwardRef<ComposerHandle, ComposerProps>(function Compo
   // no-ops on a closed socket) since only the send *button* checked `canSend`.
   const disabledRef = useRef(disabled);
   disabledRef.current = disabled;
-  const [placeholderExtension] = useState(() => createPlaceholderExtension(suggestionRef));
+  const placeholderRef = useRef(copy.placeholder);
+  placeholderRef.current = copy.placeholder;
+  const [placeholderExtension] = useState(() => createPlaceholderExtension(suggestionRef, placeholderRef));
   // Set by `submit()` when the text looks like a typo'd command (`/cler`)
   // instead of either a real command or plain text — blocks the send until
   // the user picks the fix or confirms sending as-is (see the banner below
@@ -560,7 +583,7 @@ export const Composer = forwardRef<ComposerHandle, ComposerProps>(function Compo
       }
     },
     editorProps: {
-      attributes: { class: "composer-prosemirror", "aria-label": "Escreva uma mensagem…" },
+      attributes: { class: "composer-prosemirror", "aria-label": copy.placeholder },
       handleKeyDown: (view, event) => {
         // Command menu open: let Suggestion handle Enter/arrows (see
         // `createSlashCommandExtension`) — without this Enter would always
@@ -647,6 +670,18 @@ export const Composer = forwardRef<ComposerHandle, ComposerProps>(function Compo
     },
   });
 
+  // The editor is created once and never recreated, so neither its ARIA
+  // label (set in `editorProps` above) nor the placeholder follow a language
+  // switch on their own — the placeholder is a decoration, and ProseMirror
+  // only recomputes decorations on a transaction. Dispatching an empty one
+  // forces the redraw. Runs only when the language actually changes, which
+  // is a rare, deliberate action.
+  useEffect(() => {
+    if (!editor) return;
+    editor.view.dom.setAttribute("aria-label", copy.placeholder);
+    editor.view.dispatch(editor.state.tr);
+  }, [editor, copy.placeholder]);
+
   useImperativeHandle(ref, () => ({
     focus: () => editor?.commands.focus(),
     setContent: (text) => {
@@ -705,6 +740,9 @@ export const Composer = forwardRef<ComposerHandle, ComposerProps>(function Compo
     setTypoConfirm(null);
   }
 
+  // The command itself is typed in the middle of the sentence, in mono — so
+  // the copy is split around its placeholder instead of interpolated.
+  const typoQuestion = copy.typo.question.split("{command}");
   const isRecording = voice.state === "recording";
   const isTranscribing = voice.state === "transcribing";
   const canSend = !disabled && (!isEmpty || pendingImages.length > 0);
@@ -716,73 +754,81 @@ export const Composer = forwardRef<ComposerHandle, ComposerProps>(function Compo
         submit();
       }}
       className={cn(
+        // Square, like every other box in the app: the border is the whole
+        // frame, and it firms up under the pointer the way the outline
+        // buttons inside it do.
         "flex flex-col gap-1.5 border p-2 transition-colors",
         isIOS()
-          ? [
-              // Same blur intensity as MobileTopBar — on the
-              // physical device the blur itself was imperceptible (possible
-              // WKWebView limitation with backdrop-filter), so opacity
-              // dropped a lot more (45%) to guarantee visible contrast
-              // behind it even if the blur doesn't render.
-              "bg-bg-elevated/45 shadow-lg backdrop-blur-lg backdrop-saturate-150",
-              "transition-[border-radius,border-color] duration-150",
-              isMultiline ? "rounded-[26px]" : "rounded-full",
-            ]
-          : "my-3 rounded-xl bg-bg-elevated",
-        focused ? "border-primary" : isIOS() ? "border-glass-tint/8" : "border-border",
+          ? // Same blur intensity as MobileTopBar — on the physical device
+            // the blur itself was imperceptible (possible WKWebView
+            // limitation with backdrop-filter), so opacity dropped a lot
+            // more (45%) to guarantee visible contrast behind it even if the
+            // blur doesn't render.
+            "bg-bg-elevated/45 shadow-lg backdrop-blur-lg backdrop-saturate-150"
+          : "my-3 bg-bg-elevated",
+        focused ? "border-primary" : isIOS() ? "border-glass-tint/8" : "border-border hover:border-text-faint",
       )}
     >
       <ComposerLinkHoverCard editor={editor} />
 
       {pendingImages.length > 0 && (
-        <div className="flex flex-wrap gap-1.5 px-1">
-          {pendingImages.map((image) => (
-            <div key={image.path} className="group relative">
-              {image.previewUrl ? (
-                <img src={image.previewUrl} alt="" className="size-14 rounded-lg object-cover" />
-              ) : (
-                <div className="flex size-14 items-center justify-center rounded-lg bg-border text-muted-foreground">
-                  <Video className="size-5" />
-                </div>
-              )}
-              {image.kind === "video" && (
-                <div className="pointer-events-none absolute bottom-0.5 left-0.5 flex size-4 items-center justify-center rounded-full bg-media-scrim text-media-scrim-foreground">
-                  <Video className="size-2.5" />
-                </div>
-              )}
-              <button
-                type="button"
-                onClick={() => onRemoveImage(image.path)}
-                aria-label="Remover anexo"
-                className="absolute -top-1.5 -right-1.5 flex size-4 cursor-pointer items-center justify-center rounded-full bg-border text-foreground opacity-0 transition-opacity group-hover:opacity-100"
+        <div className="flex flex-wrap items-center gap-1.5 px-1">
+          {pendingImages.map((image) =>
+            image.previewUrl ? (
+              <div key={image.path} className="group relative">
+                <img src={image.previewUrl} alt="" className="size-14 object-cover" />
+                {image.kind === "video" && (
+                  <div className="pointer-events-none absolute bottom-0 left-0 flex size-4 items-center justify-center bg-media-scrim text-media-scrim-foreground">
+                    <Video className="size-2.5" />
+                  </div>
+                )}
+                <button
+                  type="button"
+                  onClick={() => onRemoveImage(image.path)}
+                  aria-label={copy.removeAttachment}
+                  className="absolute -top-1.5 -right-1.5 flex size-4 cursor-pointer items-center justify-center border border-border bg-bg-elevated text-muted-foreground opacity-0 transition-opacity group-hover:opacity-100 hover:text-destructive"
+                >
+                  <X className="size-2.5" />
+                </button>
+              </div>
+            ) : (
+              // Nothing to preview (a video in a codec the webview can't
+              // decode): the design's mono chip, which names the file
+              // instead of standing in for a picture nobody can see.
+              <span
+                key={image.path}
+                className="flex h-7 items-center gap-2 border border-border bg-bg-sidebar px-2 font-mono text-[10.5px] text-muted-foreground"
               >
-                <X className="size-2.5" />
-              </button>
-            </div>
-          ))}
+                {image.kind === "video" ? <Video className="size-3 text-primary" /> : <FileText className="size-3 text-primary" />}
+                <span className="max-w-40 truncate">{attachmentName(image.path, copy.unnamedAttachment)}</span>
+                <button
+                  type="button"
+                  onClick={() => onRemoveImage(image.path)}
+                  aria-label={copy.removeAttachment}
+                  className="cursor-pointer text-text-faint transition-colors hover:text-destructive"
+                >
+                  <X className="size-3" />
+                </button>
+              </span>
+            ),
+          )}
         </div>
       )}
 
       {typoConfirm && (
-        <div className="flex items-center justify-between gap-2 rounded-lg bg-border/60 px-2.5 py-1.5 text-xs">
-          <span className="min-w-0 truncate text-muted-foreground">
-            Comando desconhecido — quis dizer <span className="font-medium text-foreground">{typoConfirm.suggestion}</span>?
+        <div className="flex items-center justify-between gap-2 border border-border bg-bg-sidebar px-2.5 py-1.5">
+          <span className="min-w-0 truncate font-sans text-xs text-muted-foreground">
+            {typoQuestion[0]}
+            <span className="font-mono text-foreground">{typoConfirm.suggestion}</span>
+            {typoQuestion[1]}
           </span>
           <div className="flex shrink-0 items-center gap-1">
-            <button
-              type="button"
-              onClick={applyTypoSuggestion}
-              className="cursor-pointer rounded-md px-2 py-1 font-medium text-primary hover:bg-border"
-            >
-              Usar
-            </button>
-            <button
-              type="button"
-              onClick={() => performSend(typoConfirm.text)}
-              className="cursor-pointer rounded-md px-2 py-1 text-muted-foreground hover:bg-border"
-            >
-              Enviar mesmo assim
-            </button>
+            <Button type="button" variant="ghost" size="xs" className="text-primary" onClick={applyTypoSuggestion}>
+              {copy.typo.use}
+            </Button>
+            <Button type="button" variant="ghost" size="xs" onClick={() => performSend(typoConfirm.text)}>
+              {copy.typo.sendAnyway}
+            </Button>
           </div>
         </div>
       )}
@@ -790,7 +836,7 @@ export const Composer = forwardRef<ComposerHandle, ComposerProps>(function Compo
       {isIOS() ? (
         // A single line (attach | text | send), like the prototype — not
         // desktop's text-on-top/buttons-below, which left the composer
-        // tall/misaligned instead of the approved compact pill.
+        // tall/misaligned instead of the approved compact bar.
         <div className={cn("flex gap-1", isMultiline ? "items-end" : "items-center")}>
           <input
             ref={fileInputRef}
@@ -807,9 +853,9 @@ export const Composer = forwardRef<ComposerHandle, ComposerProps>(function Compo
           <button
             type="button"
             onClick={() => fileInputRef.current?.click()}
-            aria-label="Anexar imagem ou vídeo"
+            aria-label={copy.attach}
             disabled={uploadingImage}
-            className="flex size-11 shrink-0 cursor-pointer items-center justify-center rounded-full text-muted-foreground transition-colors hover:bg-border disabled:cursor-not-allowed disabled:opacity-50"
+            className="flex size-11 shrink-0 cursor-pointer items-center justify-center text-muted-foreground transition-colors hover:bg-surface-hover disabled:cursor-not-allowed disabled:opacity-50"
           >
             <Paperclip className="size-5" />
           </button>
@@ -824,9 +870,9 @@ export const Composer = forwardRef<ComposerHandle, ComposerProps>(function Compo
             type={turnInFlight ? "button" : "submit"}
             onClick={turnInFlight ? onStop : undefined}
             disabled={!turnInFlight && !canSend}
-            aria-label={turnInFlight ? "Parar" : "Enviar"}
+            aria-label={turnInFlight ? dict.common.stop : dict.common.send}
             className={cn(
-              "flex size-11 shrink-0 cursor-pointer items-center justify-center rounded-full transition-colors",
+              "flex size-11 shrink-0 cursor-pointer items-center justify-center transition-colors",
               turnInFlight
                 ? "bg-destructive text-destructive-foreground"
                 : canSend
@@ -842,36 +888,20 @@ export const Composer = forwardRef<ComposerHandle, ComposerProps>(function Compo
           <EditorContent editor={editor} className="composer-editor" />
 
           <div className="flex items-center justify-between gap-2">
-            <div className="flex min-w-0 flex-1 items-center gap-2 px-1">
+            <div className="flex min-w-0 flex-1 items-center gap-1.5 px-1">
               <PermissionModeButton mode={permissionMode} onChange={onChangePermissionMode} />
-              <ModelButton model={model} defaultModel={defaultModel} onChange={onChangeModel} disabled={disabled || modelLocked} />
+              <ModelButton
+                model={model}
+                defaultModel={defaultModel}
+                onChange={onChangeModel}
+                disabled={disabled ?? false}
+                locked={modelLocked}
+              />
               <ContextUsageButton usage={contextUsage} />
               <CompactBoundaryToast event={compactBoundary} />
-              {isRecording && (
-                <>
-                  <div className="flex h-4 items-center gap-0.5">
-                    {WAVEFORM_BARS.map((i) => (
-                      <span
-                        key={i}
-                        className="h-full w-0.5 animate-waveform-bar rounded-full bg-destructive"
-                        style={{ animationDelay: `${i * 0.12}s` }}
-                      />
-                    ))}
-                  </div>
-                  <span className="font-mono text-xs text-destructive">{formatDuration(voice.elapsedSeconds)}</span>
-                  <button
-                    type="button"
-                    onClick={voice.cancel}
-                    aria-label="Cancelar gravação"
-                    className="flex size-6 cursor-pointer items-center justify-center rounded-md text-muted-foreground hover:bg-border"
-                  >
-                    <X className="size-3.5" />
-                  </button>
-                </>
-              )}
-              {isTranscribing && <span className="text-xs text-muted-foreground">Transcrevendo áudio…</span>}
+              {isTranscribing && <span className="font-mono text-[11px] text-muted-foreground">{copy.transcribing}</span>}
               {uploadingImage && !isRecording && !isTranscribing && (
-                <span className="text-xs text-muted-foreground">enviando anexo…</span>
+                <span className="font-mono text-[11px] text-muted-foreground">{copy.attachmentUploading}</span>
               )}
             </div>
 
@@ -890,45 +920,62 @@ export const Composer = forwardRef<ComposerHandle, ComposerProps>(function Compo
                       editor?.commands.focus();
                     }}
                   />
-                  <button
+                  <Button
                     type="button"
+                    variant="ghost"
+                    size="icon-sm"
                     onClick={() => fileInputRef.current?.click()}
-                    aria-label="Anexar imagem ou vídeo"
-                    className="flex size-7 shrink-0 cursor-pointer items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-border"
+                    aria-label={copy.attach}
                   >
-                    <Paperclip className="size-4" />
-                  </button>
+                    <Paperclip className="size-3.5" />
+                  </Button>
                 </>
               )}
 
+              {isRecording && (
+                <Button type="button" variant="ghost" size="icon-sm" onClick={voice.cancel} aria-label={copy.cancelRecording}>
+                  <X className="size-3.5" />
+                </Button>
+              )}
+
               <div className="flex items-center">
-                <button
+                {/* Recording turns the button itself into the state: a stop
+                    square and the elapsed time, in place of the microphone.
+                    The waveform that used to sit in the toolbar is gone —
+                    it animated nothing real (a generic loop, never the
+                    captured audio), and the timer next to a red button
+                    already says "this is live". */}
+                <Button
                   type="button"
+                  variant={isRecording ? "destructive" : "ghost"}
+                  size={isRecording ? "sm" : "icon-sm"}
                   onClick={() => (isRecording ? void voice.stop() : void voice.start())}
                   disabled={isTranscribing}
-                  aria-label={isRecording ? "Parar gravação" : "Gravar áudio"}
-                  className={cn(
-                    "flex size-7 shrink-0 cursor-pointer items-center justify-center rounded-md transition-colors",
-                    isRecording ? "bg-destructive text-foreground" : "text-muted-foreground hover:bg-border",
-                    isTranscribing && "cursor-not-allowed opacity-50",
-                  )}
+                  aria-label={isRecording ? copy.stopRecording : copy.record}
                 >
-                  {isRecording ? <Square className="size-3.5" /> : <Mic className="size-4" />}
-                </button>
+                  {isRecording ? (
+                    <>
+                      <span className="size-2 bg-current" />
+                      {formatDuration(voice.elapsedSeconds)}
+                    </>
+                  ) : (
+                    <Mic className="size-3.5" />
+                  )}
+                </Button>
 
                 {voice.devices.length > 1 && !isRecording && !isTranscribing && (
                   <DropdownMenu>
                     <DropdownMenuTrigger asChild>
                       <button
                         type="button"
-                        aria-label="Selecionar microfone"
-                        className="flex h-7 w-3.5 shrink-0 cursor-pointer items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-border"
+                        aria-label={copy.selectMicrophone}
+                        className="flex h-7 w-3.5 shrink-0 cursor-pointer items-center justify-center text-muted-foreground transition-colors hover:text-foreground"
                       >
                         <ChevronDown className="size-3" />
                       </button>
                     </DropdownMenuTrigger>
                     <DropdownMenuContent align="end">
-                      <DropdownMenuLabel>Microfone</DropdownMenuLabel>
+                      <DropdownMenuLabel>{copy.microphone}</DropdownMenuLabel>
                       <DropdownMenuSeparator />
                       {voice.devices.map((name) => (
                         <DropdownMenuItem key={name} onSelect={() => voice.setSelectedDevice(name)}>
@@ -942,12 +989,18 @@ export const Composer = forwardRef<ComposerHandle, ComposerProps>(function Compo
               </div>
               {turnInFlight ? (
                 <Button type="button" size="sm" variant="destructive" onClick={onStop}>
-                  <Square className="size-3" fill="currentColor" />
-                  Parar
+                  <span className="size-2 bg-current" />
+                  {dict.common.stop}
                 </Button>
               ) : (
-                <Button type="submit" size="sm" disabled={!canSend}>
-                  Enviar
+                // The shortcut glyph is decoration for the eye only: it is
+                // the button's own label that a screen reader should read,
+                // not the name of a key it can't press.
+                <Button type="submit" size="sm" disabled={!canSend} aria-label={dict.common.send}>
+                  {dict.common.send}
+                  <span aria-hidden="true" className="text-[10px] opacity-65">
+                    {copy.sendShortcut}
+                  </span>
                 </Button>
               )}
             </div>

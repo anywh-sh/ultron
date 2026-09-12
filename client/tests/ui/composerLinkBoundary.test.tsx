@@ -30,7 +30,7 @@ describe("composer paste-link boundary", () => {
     renderApp();
 
     await user.click(await screen.findByRole("button", { name: en.shell.sidebar.newConversation }));
-    const composer = await screen.findByLabelText("Escreva uma mensagem…");
+    const composer = await screen.findByLabelText(en.chat.composer.placeholder);
 
     // Reproduces the reported flow exactly: paste a bare URL (linkOnPaste
     // turns it into a link mark, cursor lands right after it), then keep
