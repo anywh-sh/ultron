@@ -3,6 +3,7 @@ import type { ChangeSignal } from "@/components/files/FilesPanel";
 import { fetchRawFile, readFile, rawFileUrl, type FileReadResult } from "@/lib/filesClient";
 import { isTailnetProfile, type Profile } from "@/lib/profiles";
 import { CodeFileView } from "@/components/files/CodeFileView";
+import { useDict } from "@/i18n";
 import { MarkdownFileView } from "@/components/files/MarkdownFileView";
 
 interface FileViewerProps {
@@ -78,6 +79,7 @@ function RawImage({
  * toggle) when switching files, instead of carrying it over.
  */
 export function FileViewer({ profile, sessionId, path, changedFile }: FileViewerProps) {
+  const copy = useDict().panels.files.viewer;
   const [result, setResult] = useState<FileReadResult | "loading" | "error">("loading");
 
   useEffect(() => {
@@ -113,26 +115,26 @@ export function FileViewer({ profile, sessionId, path, changedFile }: FileViewer
   }, [changedFile, path, profile, sessionId]);
 
   if (result === "loading") {
-    return <div className="flex h-full items-center justify-center text-xs text-muted-foreground">Carregando…</div>;
+    return <div className="flex h-full items-center justify-center font-mono text-[11px] text-muted-foreground">{copy.loading}</div>;
   }
   if (result === "error") {
-    return <div className="flex h-full items-center justify-center text-xs text-destructive">Não foi possível abrir o arquivo.</div>;
+    return <div className="flex h-full items-center justify-center font-mono text-[11px] text-destructive">{copy.failed}</div>;
   }
 
   if (result.kind === "image") {
     return (
       <div className="flex h-full flex-col items-center justify-center gap-2 overflow-auto p-4">
         <RawImage profile={profile} sessionId={sessionId} path={result.path} mtimeMs={result.mtimeMs} alt={path} />
-        <span className="text-xs text-muted-foreground">{formatBytes(result.size)}</span>
+        <span className="font-mono text-[11px] text-text-faint">{formatBytes(result.size)}</span>
       </div>
     );
   }
 
   if (result.kind === "binary") {
     return (
-      <div className="flex h-full flex-col items-center justify-center gap-1 text-xs text-muted-foreground">
-        <span>Arquivo binário, não visualizável</span>
-        <span>{formatBytes(result.size)}</span>
+      <div className="flex h-full flex-col items-center justify-center gap-1 font-mono text-[11px] text-muted-foreground">
+        <span>{copy.binary}</span>
+        <span className="text-text-faint">{formatBytes(result.size)}</span>
       </div>
     );
   }
@@ -144,9 +146,7 @@ export function FileViewer({ profile, sessionId, path, changedFile }: FileViewer
   return (
     <div className="flex h-full flex-col">
       {result.truncated && (
-        <div className="shrink-0 border-b border-border-soft bg-bg-elevated px-3 py-1 text-xs text-muted-foreground">
-          Arquivo grande — mostrando só o início.
-        </div>
+        <div className="shrink-0 border-b border-border-soft bg-bg-elevated px-3 py-1 font-mono text-[10.5px] text-muted-foreground">{copy.truncated}</div>
       )}
       <div className="min-h-0 flex-1">
         <CodeFileView path={result.path} content={result.content} />

@@ -36,7 +36,7 @@ export function CodeFileView({ path, content }: CodeFileViewProps) {
   });
 
   return (
-    <div ref={parentRef} className="selectable-content scrollbar-thin h-full overflow-auto font-mono text-xs">
+    <div ref={parentRef} className="selectable-content scrollbar-thin h-full overflow-auto bg-bg-sidebar font-mono text-xs">
       <div style={{ position: "relative", width: "100%", height: virtualizer.getTotalSize() }}>
         {virtualizer.getVirtualItems().map((virtualItem) => (
           <div
@@ -44,13 +44,17 @@ export function CodeFileView({ path, content }: CodeFileViewProps) {
             className="absolute top-0 left-0 flex w-full whitespace-pre"
             style={{ height: LINE_HEIGHT, transform: `translateY(${virtualItem.start}px)` }}
           >
+            {/* The gutter is a surface of its own, a shade darker than the
+              * code and divided from it — numbers are furniture, not
+              * content, and this keeps them from reading as a first column
+              * of the file. */}
             <span
-              className="shrink-0 select-none px-2 text-right text-muted-foreground/60"
+              className="shrink-0 border-r border-border-soft bg-bg-chrome px-2 text-right text-text-faint select-none"
               style={{ minWidth: `${gutterWidth + 2}ch` }}
             >
               {virtualItem.index + 1}
             </span>
-            <span className="pr-4">{highlighted[virtualItem.index]}</span>
+            <span className="pr-4 pl-3">{highlighted[virtualItem.index]}</span>
           </div>
         ))}
       </div>
