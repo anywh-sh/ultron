@@ -28,7 +28,7 @@ export function useSessionNames(profile: Profile): {
   sessions: SessionSummary[];
   loading: boolean;
   error: boolean;
-  upsertTitle: (id: string, title: string) => void;
+  upsertTitle: (id: string, title: string, lastActiveAt?: number) => void;
   removeSession: (id: string) => void;
   touch: (id: string) => void;
   reload: () => void;
@@ -92,12 +92,17 @@ export function useSessionNames(profile: Profile): {
   // switch or reload). Covers both cases: title inferred for the first
   // time (inserts at the top — it's always the most recent interaction) and rename of an
   // already-listed session (updates in place, without touching its position).
-  const upsertTitle = useCallback((id: string, title: string) => {
+  // `lastActiveAt` is only consulted when inserting: an already-listed entry
+  // keeps the timestamp it had, so renaming an old conversation doesn't file
+  // it under "today" in the recency grouping. Optional because the two call
+  // sites that rename don't know one and never need to — the entry is on
+  // screen for them to have clicked it in the first place.
+  const upsertTitle = useCallback((id: string, title: string, lastActiveAt?: number) => {
     setState((prev) => {
       const index = prev.sessions.findIndex((session) => session.id === id);
       const sessions =
         index === -1
-          ? [{ id, title }, ...prev.sessions]
+          ? [{ id, title, lastActiveAt: lastActiveAt ?? Date.now() }, ...prev.sessions]
           : prev.sessions.map((session, i) => (i === index ? { ...session, title } : session));
       return { ...prev, sessions };
     });
@@ -154,9 +159,15 @@ export function useSessionNames(profile: Profile): {
               return;
             }
             if (typeof parsed !== "object" || parsed === null) return;
-            const { type, id, title } = parsed as { type?: unknown; id?: unknown; title?: unknown };
+            const { type, id, title, lastActiveAt } = parsed as {
+              type?: unknown;
+              id?: unknown;
+              title?: unknown;
+              lastActiveAt?: unknown;
+            };
             if (typeof id !== "string") return;
-            if (type === "session_list_upsert" && typeof title === "string") upsertTitle(id, title);
+            if (type === "session_list_upsert" && typeof title === "string")
+              upsertTitle(id, title, typeof lastActiveAt === "number" ? lastActiveAt : undefined);
             else if (type === "session_list_removed") removeSession(id);
           });
           ws.addEventListener("close", () => {

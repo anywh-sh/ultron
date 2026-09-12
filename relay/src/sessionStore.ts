@@ -114,6 +114,16 @@ export interface SessionEntry {
 
 export type SessionRecord = Record<string, SessionEntry>;
 
+/** One row of `GET /sessions` — the already-titled sessions the sidebar
+ * lists, newest interaction first. `lastActiveAt` travels with the row
+ * because the client groups the list by recency ("today" / "yesterday" /
+ * "7 days") and has no other source for a per-session timestamp. */
+export interface TitledSession {
+  id: string;
+  title: string;
+  lastActiveAt: number;
+}
+
 /** Shape prior to this change: id -> { session_id, cwd/lock }, without
  * `title` — the id itself was already the "name" shown in the UI. Used only
  * to migrate files written before the title/rename feature. */
@@ -241,11 +251,19 @@ export class SessionStore {
    * manual rename) gives the session a title. Sorted by last interaction
    * (most recent first) — reopening an old session and chatting with it
    * moves it to the top. */
-  listTitled(): { id: string; title: string }[] {
+  listTitled(): TitledSession[] {
     return Object.entries(this.records)
       .filter((entry): entry is [string, SessionEntry & { title: string }] => entry[1].title !== null)
       .sort(([, a], [, b]) => b.lastActiveAt - a.lastActiveAt)
-      .map(([id, entry]) => ({ id, title: entry.title }));
+      .map(([id, entry]) => ({ id, title: entry.title, lastActiveAt: entry.lastActiveAt }));
+  }
+
+  /** Last-turn timestamp of a single session, for the callers that report a
+   * list change one entry at a time (`SessionManager`'s `onListChanged`)
+   * instead of re-reading the whole list. `undefined` for an id that was
+   * never recorded. */
+  getLastActiveAt(id: string): number | undefined {
+    return this.records[id]?.lastActiveAt;
   }
 
   getSessionId(id: string): string | undefined {

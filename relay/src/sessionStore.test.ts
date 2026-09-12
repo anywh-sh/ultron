@@ -37,7 +37,13 @@ test("setTitle records the title and the session starts showing up in listTitled
     store.recordId("abc-123");
     store.setTitle("abc-123", "Fix the save button bug");
     assert.equal(store.getTitle("abc-123"), "Fix the save button bug");
-    assert.deepEqual(store.listTitled(), [{ id: "abc-123", title: "Fix the save button bug" }]);
+    const listed = store.listTitled();
+    assert.equal(listed.length, 1);
+    assert.equal(listed[0].id, "abc-123");
+    assert.equal(listed[0].title, "Fix the save button bug");
+    // On the wire since the sidebar groups by recency — a row without it
+    // would leave the client with nothing to bucket the session under.
+    assert.equal(typeof listed[0].lastActiveAt, "number");
   });
 });
 
@@ -95,9 +101,16 @@ test("migration: pre-activity shape (with title, no lastActiveAt) gets lastActiv
     { s1: { sessionId: "sess-1", title: "Session 1", cwd: { cwd: "/tmp/projeto", locked: true } } },
     (filePath) => {
       const store = new SessionStore(filePath, DEFAULT_CWD);
-      assert.deepEqual(store.listTitled(), [{ id: "s1", title: "Session 1" }]);
+      const listed = store.listTitled();
+      assert.deepEqual(
+        listed.map(({ id, title }) => ({ id, title })),
+        [{ id: "s1", title: "Session 1" }],
+      );
       const persisted = JSON.parse(readFileSync(filePath, "utf8"));
       assert.equal(typeof persisted.s1.lastActiveAt, "number");
+      // The migrated record's seeded timestamp is what `listTitled` hands
+      // out, not a second `Date.now()` computed at read time.
+      assert.equal(listed[0].lastActiveAt, persisted.s1.lastActiveAt);
     },
   );
 });

@@ -82,11 +82,17 @@ test("a session renamed and deleted over HTTP disappears from GET /sessions, and
   });
   assert.equal(renameResponse.status, 200);
 
-  const listed = (await (await fetch(httpUrl("/sessions"))).json()) as { sessions: { id: string; title: string }[] };
+  const listed = (await (await fetch(httpUrl("/sessions"))).json()) as {
+    sessions: { id: string; title: string; lastActiveAt: number }[];
+  };
+  const renamed = listed.sessions.find((entry) => entry.id === "session-http-lifecycle");
   assert.deepEqual(
-    listed.sessions.find((entry) => entry.id === "session-http-lifecycle"),
+    renamed && { id: renamed.id, title: renamed.title },
     { id: "session-http-lifecycle", title: "Minha sessão" },
   );
+  // `lastActiveAt` (sessionListRecency.test.ts covers its semantics) travels
+  // on every row of this route, including a renamed one.
+  assert.equal(typeof renamed!.lastActiveAt, "number");
 
   const deleteResponse = await fetch(httpUrl("/sessions/delete"), {
     method: "POST",

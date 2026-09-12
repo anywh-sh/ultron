@@ -131,7 +131,8 @@ describe("useSessionNames", () => {
   });
 
   it("switching profile A -> B never shows A's sessions in the next render", async () => {
-    fetchSessionsMock.mockResolvedValueOnce([{ id: "s1", title: "From A" }]);
+    const fromA = { id: "s1", title: "From A", lastActiveAt: 1_700_000_000_000 };
+    fetchSessionsMock.mockResolvedValueOnce([fromA]);
     const profileB: Profile = { ...tailnetProfile, id: "sandbox-b" };
 
     const { result, rerender } = renderHook(({ profile }) => useSessionNames(profile), {
@@ -140,7 +141,7 @@ describe("useSessionNames", () => {
     await act(async () => {
       await vi.runAllTimersAsync();
     });
-    expect(result.current.sessions).toEqual([{ id: "s1", title: "From A" }]);
+    expect(result.current.sessions).toEqual([fromA]);
 
     fetchSessionsMock.mockResolvedValueOnce([]);
     rerender({ profile: profileB });

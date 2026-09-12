@@ -267,6 +267,11 @@ export interface BackgroundJobSummary {
 export interface SessionSummary {
   id: string;
   title: string;
+  /** Epoch ms of the last turn, the field the relay already sorted this list
+   * by. On the wire because the sidebar buckets sessions by recency, and a
+   * list merged across profiles loses the relay's own ordering — each side's
+   * rows have to be re-sorted against each other, which needs the key. */
+  lastActiveAt: number;
 }
 
 /** A profile as the relay's control API exposes it on `GET /control/profiles`
