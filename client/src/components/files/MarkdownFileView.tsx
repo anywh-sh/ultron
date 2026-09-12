@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { Code2, FileText } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { useDict } from "@/i18n";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { MarkdownContent } from "@/components/chat/MarkdownContent";
 import { CodeFileView } from "@/components/files/CodeFileView";
@@ -23,6 +24,7 @@ const LARGE_MARKDOWN_BYTES = 200 * 1024;
  * identical whether the agent shows it inline or the user opens it here.
  */
 export function MarkdownFileView({ path, content, truncated }: MarkdownFileViewProps) {
+  const copy = useDict().panels.files.viewer;
   const [showRaw, setShowRaw] = useState(content.length > LARGE_MARKDOWN_BYTES);
 
   return (
@@ -32,20 +34,18 @@ export function MarkdownFileView({ path, content, truncated }: MarkdownFileViewP
           <TooltipTrigger asChild>
             <Button
               variant="ghost"
-              size="icon-xs"
+              size="icon-sm"
               onClick={() => setShowRaw((current) => !current)}
-              aria-label={showRaw ? "Ver formatado" : "Ver código-fonte"}
+              aria-label={showRaw ? copy.viewFormatted : copy.viewSource}
             >
               {showRaw ? <FileText className="size-3.5" /> : <Code2 className="size-3.5" />}
             </Button>
           </TooltipTrigger>
-          <TooltipContent side="bottom">{showRaw ? "Ver formatado" : "Ver código-fonte"}</TooltipContent>
+          <TooltipContent side="bottom">{showRaw ? copy.viewFormatted : copy.viewSource}</TooltipContent>
         </Tooltip>
       </div>
       {truncated && (
-        <div className="shrink-0 border-b border-border-soft bg-bg-elevated px-3 py-1 text-xs text-muted-foreground">
-          Arquivo grande — mostrando só o início.
-        </div>
+        <div className="shrink-0 border-b border-border-soft bg-bg-elevated px-3 py-1 font-mono text-[10.5px] text-muted-foreground">{copy.truncated}</div>
       )}
       <div className="min-h-0 flex-1">
         {showRaw ? (

@@ -10,6 +10,17 @@ import {
   startBatchDownload,
   tickBatchDownload,
 } from "@/lib/downloadNotifications";
+import { en } from "@/i18n/en";
+
+const copy = en.panels.files.downloads;
+
+/** The phrasings, read from the dictionary so this test doesn't become a
+ * second place the wording lives. */
+const progress = (current: number, total: number) =>
+  copy.progress.replace("{current}", String(current)).replace("{total}", String(total));
+const done = (current: number, total: number) =>
+  copy.done.replace("{current}", String(current)).replace("{total}", String(total));
+const fileDone = (name: string) => copy.fileDone.replace("{name}", name);
 
 afterEach(() => {
   cleanup();
@@ -34,16 +45,16 @@ describe("DownloadToasts", () => {
     act(() => {
       id = startBatchDownload(3);
     });
-    expect(screen.getByText("Baixando 0/3 arquivos")).toBeInTheDocument();
+    expect(screen.getByText(progress(0, 3))).toBeInTheDocument();
 
     act(() => tickBatchDownload(id, 1));
-    expect(screen.getByText("Baixando 1/3 arquivos")).toBeInTheDocument();
+    expect(screen.getByText(progress(1, 3))).toBeInTheDocument();
 
     act(() => {
       tickBatchDownload(id, 3);
       finishBatchDownload(id);
     });
-    expect(screen.getByText("Baixado 3/3 arquivos")).toBeInTheDocument();
+    expect(screen.getByText(done(3, 3))).toBeInTheDocument();
   });
 
   it("shows the lone-file phrasing, truncated in a fixed-width toast, with the full name on hover", () => {
@@ -52,7 +63,7 @@ describe("DownloadToasts", () => {
     const longName = "a-suspiciously-long-report-filename-nobody-should-actually-use.pdf";
     act(() => notifyFileDownloaded(longName));
 
-    const toast = screen.getByText(`Arquivo ${longName} baixado`);
+    const toast = screen.getByText(fileDone(longName));
     expect(toast).toHaveClass("truncate");
     expect(toast.closest("div[title]")).toHaveAttribute("title", longName);
   });
@@ -62,9 +73,9 @@ describe("DownloadToasts", () => {
     render(<DownloadToasts />);
 
     act(() => notifyFileDownloaded("report.pdf"));
-    expect(screen.getByText("Arquivo report.pdf baixado")).toBeInTheDocument();
+    expect(screen.getByText(fileDone("report.pdf"))).toBeInTheDocument();
 
-    await user.click(screen.getByRole("button", { name: "Dispensar notificação" }));
-    expect(screen.queryByText("Arquivo report.pdf baixado")).toBeNull();
+    await user.click(screen.getByRole("button", { name: copy.dismiss }));
+    expect(screen.queryByText(fileDone("report.pdf"))).toBeNull();
   });
 });

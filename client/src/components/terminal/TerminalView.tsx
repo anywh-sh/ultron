@@ -8,6 +8,7 @@ import { useResolvedProfileTheme } from "@/hooks/useThemes";
 import { resolveConnection } from "@/lib/connectionResolver";
 import { BrokerRevokedError } from "@/lib/tailnetBroker";
 import { markProfileRevoked } from "@/lib/profileRevocation";
+import { useDict } from "@/i18n";
 
 interface TerminalViewProps {
   profile: Profile;
@@ -45,6 +46,7 @@ function isTerminalMessage(value: unknown): value is { type: "data"; data: strin
  * the way it was, with no need for any client-side scrollback buffer.
  */
 export function TerminalView({ profile, chatSessionId, terminalId, cwd }: TerminalViewProps) {
+  const dict = useDict();
   const containerRef = useRef<HTMLDivElement>(null);
   const termRef = useRef<XTerm | null>(null);
   const [reconnecting, setReconnecting] = useState(false);
@@ -284,8 +286,8 @@ export function TerminalView({ profile, chatSessionId, terminalId, cwd }: Termin
     <div className="relative h-full w-full" style={{ "--terminal-bg": terminalTheme.background } as React.CSSProperties}>
       <div ref={containerRef} className="selectable-content h-full w-full p-2" />
       {reconnecting && (
-        <div className="absolute top-2 right-2 rounded-md bg-bg-elevated px-2 py-0.5 text-xs text-muted-foreground">
-          Reconectando…
+        <div className="absolute top-2 right-2 border border-border bg-bg-elevated px-2 py-0.5 font-mono text-[10.5px] text-muted-foreground">
+          {dict.panels.terminal.reconnecting}
         </div>
       )}
     </div>

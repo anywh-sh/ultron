@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { Eye, EyeOff, UploadCloud } from "lucide-react";
+import { Eye, EyeOff, FolderInput } from "lucide-react";
 import { getCurrentWebview } from "@tauri-apps/api/webview";
 import { invoke } from "@tauri-apps/api/core";
 import { PaneTabStrip } from "@/components/shell/PaneTabStrip";
@@ -8,6 +8,7 @@ import { FileTree } from "@/components/files/FileTree";
 import { FileViewer } from "@/components/files/FileViewer";
 import { Button } from "@/components/ui/button";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
+import { useDict } from "@/i18n";
 import type { useFileTabs } from "@/hooks/useFileTabs";
 import { listFiles, uploadFile } from "@/lib/filesClient";
 import { resolveConnection } from "@/lib/connectionResolver";
@@ -183,7 +184,7 @@ function useTreeWidthDrag(width: number, onChange: (width: number) => void) {
  * is first checked against this panel's own `containerRef` via
  * `elementFromPoint`, exactly like `ChatPanel` checks against its own.
  */
-function useFilesDrop(profile: Profile, sessionId: string) {
+function useFilesDrop(profile: Profile, sessionId: string, uploadFailed: string) {
   const containerRef = useRef<HTMLDivElement>(null);
   const [isDraggingOver, setIsDraggingOver] = useState(false);
   const [dropTargetPath, setDropTargetPath] = useState<string | null>(null);
@@ -197,19 +198,25 @@ function useFilesDrop(profile: Profile, sessionId: string) {
     return { withinPanel: true, dir: folderRow?.dataset.fileTreeDir ?? null };
   }, []);
 
+  // The effect below is set up once per session, and the copy can change
+  // under it (a language switch) — so it reads the current wording through a
+  // ref instead of capturing whatever was current at subscribe time.
+  const uploadFailedRef = useRef(uploadFailed);
+  uploadFailedRef.current = uploadFailed;
+
   useEffect(() => {
     let unlisten: (() => void) | undefined;
     let cancelled = false;
 
     async function uploadDroppedPaths(paths: string[], dir: string | null): Promise<void> {
       for (const path of paths) {
-        const name = path.split(/[\\/]/).pop() ?? "arquivo";
+        const name = path.split(/[\\/]/).pop() ?? "";
         try {
           const buffer = await invoke<ArrayBuffer>("read_dropped_file", { path });
           await uploadFile(profile, sessionId, name, buffer, dir ?? undefined);
         } catch (error) {
           console.error("[anywh] failed to upload dropped file:", path, error);
-          window.alert(`Não foi possível enviar "${name}".`);
+          window.alert(uploadFailedRef.current.replace("{name}", name));
         }
       }
     }
@@ -256,6 +263,8 @@ function useFilesDrop(profile: Profile, sessionId: string) {
  * chat tab is active and the pane is open (decided by the caller, App.tsx).
  */
 export function FilesPanel({ profile, chatSessionId, maximized, fileTabs, onToggleMaximized, onClose, onOpenTerminal }: FilesPanelProps) {
+  const dict = useDict();
+  const copy = dict.panels.files;
   const { open, activePath, expanded, treeWidth, root } = fileTabs.getTabs(chatSessionId);
   // Not persisted — same as the terminal's tab list, this is view state, not
   // worth surviving a restart. Defaults to filtered.
@@ -286,7 +295,7 @@ export function FilesPanel({ profile, chatSessionId, maximized, fileTabs, onTogg
   // (not inside any expanded subfolder) never surface without a full reopen.
   const watchedDirs = useMemo(() => (root ? [root, ...expanded] : expanded), [root, expanded]);
   const { dirChanged, fileChanged } = useFilesWatch(profile, chatSessionId, watchedDirs, openPaths);
-  const { containerRef: dropContainerRef, isDraggingOver, dropTargetPath } = useFilesDrop(profile, chatSessionId);
+  const { containerRef: dropContainerRef, isDraggingOver, dropTargetPath } = useFilesDrop(profile, chatSessionId, copy.drop.failed);
 
   if (!root) {
     return (
@@ -294,9 +303,9 @@ export function FilesPanel({ profile, chatSessionId, maximized, fileTabs, onTogg
         maximized={maximized}
         onToggleMaximized={onToggleMaximized}
         onClose={onClose}
-        headerExtra={<div className="px-2.5 py-1 text-xs text-muted-foreground">Arquivos</div>}
+        headerExtra={<div className="flex h-8 items-center px-2.5 font-mono text-[11px] text-muted-foreground">{copy.title}</div>}
       >
-        <div className="flex h-full items-center justify-center text-xs text-muted-foreground">Carregando…</div>
+        <div className="flex h-full items-center justify-center font-mono text-[11px] text-muted-foreground">{copy.loading}</div>
       </SessionPanel>
     );
   }
@@ -312,15 +321,15 @@ export function FilesPanel({ profile, chatSessionId, maximized, fileTabs, onTogg
             <TooltipTrigger asChild>
               <Button
                 variant="ghost"
-                size="icon-xs"
+                size="icon-sm"
                 onClick={() => setShowHidden((current) => !current)}
-                aria-label={showHidden ? "Ocultar arquivos ocultos" : "Mostrar arquivos ocultos"}
-                className={cn("ml-1 shrink-0", showHidden && "text-foreground")}
+                aria-label={showHidden ? copy.hideHidden : copy.showHidden}
+                className={cn("h-8 shrink-0 rounded-none border-0 border-r border-border-soft hover:border-0 hover:border-r", showHidden && "text-foreground")}
               >
                 {showHidden ? <Eye className="size-3.5" /> : <EyeOff className="size-3.5" />}
               </Button>
             </TooltipTrigger>
-            <TooltipContent side="bottom">{showHidden ? "Ocultar arquivos ocultos" : "Mostrar arquivos ocultos"}</TooltipContent>
+            <TooltipContent side="bottom">{showHidden ? copy.hideHidden : copy.showHidden}</TooltipContent>
           </Tooltip>
           <PaneTabStrip
             tabs={open.map((tab) => ({ id: tab.path, label: fileLabel(tab.path), italic: !tab.pinned }))}
@@ -331,11 +340,22 @@ export function FilesPanel({ profile, chatSessionId, maximized, fileTabs, onTogg
         </div>
       }
     >
-      <div ref={dropContainerRef} className={cn("relative flex h-full min-h-0", isDraggingOver && "ring-2 ring-inset ring-primary")}>
+      <div ref={dropContainerRef} className="relative flex h-full min-h-0">
+        {/* Covers the panel instead of announcing itself in a strip at the
+          * top: the drop target is the whole pane, so that is what should
+          * light up. `pointer-events-none` keeps the tree underneath live —
+          * the folder row under the cursor is what decides where the file
+          * lands, and it can't stop receiving hover just because the overlay
+          * is on top of it. */}
         {isDraggingOver && (
-          <div className="pointer-events-none absolute inset-x-0 top-0 z-10 flex items-center justify-center gap-2 bg-primary/10 py-1 text-xs text-primary">
-            <UploadCloud className="size-3.5" />
-            {dropTargetPath ? `Solte para enviar para "${fileLabel(dropTargetPath)}"` : "Solte para enviar para a raiz"}
+          <div className="pointer-events-none absolute inset-2 z-10 flex flex-col items-center justify-center gap-2.5 border border-dashed border-primary bg-primary-soft">
+            <span className="flex size-9 items-center justify-center border border-primary text-primary">
+              <FolderInput className="size-4" />
+            </span>
+            <span className="font-mono text-xs text-foreground">{copy.drop.title}</span>
+            <span className="max-w-[85%] truncate font-mono text-[11px] text-muted-foreground">
+              {dropTargetPath ? copy.drop.toFolder.replace("{folder}", fileLabel(dropTargetPath)) : copy.drop.toRoot}
+            </span>
           </div>
         )}
         <div className="h-full shrink-0 overflow-hidden" style={{ width: treeWidth }}>
@@ -363,15 +383,23 @@ export function FilesPanel({ profile, chatSessionId, maximized, fileTabs, onTogg
         <div className="flex min-w-0 flex-1 flex-col">
           {activePath ? (
             <>
-              <div className="scrollbar-thin shrink-0 overflow-x-auto border-b border-border-soft px-3 py-1.5 font-mono text-xs text-muted-foreground">
-                {breadcrumbSegments(root, activePath).join(" / ")}
+              <div className="scrollbar-thin shrink-0 overflow-x-auto border-b border-border-soft px-3 py-1.5 font-mono text-[10.5px] whitespace-nowrap text-text-faint">
+                {breadcrumbSegments(root, activePath).map((segment, index, all) => (
+                  <span key={`${segment}-${String(index)}`}>
+                    {index > 0 && <span className="px-1">/</span>}
+                    {/* The file itself reads a step brighter than the folders
+                      * leading to it — the path is context, the name is the
+                      * subject. */}
+                    <span className={index === all.length - 1 ? "text-muted-foreground" : undefined}>{segment}</span>
+                  </span>
+                ))}
               </div>
               <div className="min-h-0 flex-1">
                 <FileViewer key={activePath} profile={profile} sessionId={chatSessionId} path={activePath} changedFile={fileChanged} />
               </div>
             </>
           ) : (
-            <div className="flex h-full items-center justify-center text-xs text-muted-foreground">Selecione um arquivo</div>
+            <div className="flex h-full items-center justify-center font-mono text-[11px] text-muted-foreground">{copy.noFileOpen}</div>
           )}
         </div>
       </div>

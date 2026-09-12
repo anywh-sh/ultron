@@ -2,6 +2,7 @@ import type { ReactNode } from "react";
 import { Maximize2, Minimize2, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
+import { useDict } from "@/i18n";
 
 interface SessionPanelProps {
   maximized: boolean;
@@ -27,32 +28,45 @@ interface SessionPanelProps {
  * an individual pane.
  */
 export function SessionPanel({ maximized, onToggleMaximized, onClose, headerExtra, children }: SessionPanelProps) {
+  const dict = useDict();
+
   return (
     <div className="relative flex h-full w-full min-w-0 flex-col bg-bg-sidebar">
-      <div className="flex shrink-0 items-center justify-between border-b border-border-soft">
+      {/* The header wears the chrome surface, like the title bar and the tab
+        * strip above it — the panel's content is what should read as content. */}
+      <div className="flex shrink-0 items-center justify-between border-b border-border bg-bg-chrome">
         <div className="min-w-0 flex-1">{headerExtra}</div>
-        {/* `py-1` same as the tab strip wrapper (PaneTabStrip) — without
-         * this the row's height was dictated by the button itself
-         * (`icon-sm`, bigger than the tabs' `icon-xs`), so its hover
-         * touched the top/bottom edges directly, with no gap at all.
-         * `icon-xs` here also makes maximize/close the same size as the
-         * strip's "+". */}
-        <div className="flex shrink-0 items-center gap-0.5 px-1 py-1">
+        {/* Square, flush and the same height as the strip's own controls —
+         * the border on the left is what separates this group from the tabs,
+         * the way the design groups the pane's actions. */}
+        <div className="flex h-8 shrink-0 items-stretch border-l border-border-soft">
           <Tooltip>
             <TooltipTrigger asChild>
-              <Button variant="ghost" size="icon-xs" onClick={onToggleMaximized} aria-label={maximized ? "Restaurar painel" : "Expandir painel"}>
+              <Button
+                variant="ghost"
+                size="icon-sm"
+                onClick={onToggleMaximized}
+                aria-label={maximized ? dict.panels.restore : dict.panels.maximize}
+                className="h-full rounded-none border-0 hover:border-0"
+              >
                 {maximized ? <Minimize2 className="size-3.5" /> : <Maximize2 className="size-3.5" />}
               </Button>
             </TooltipTrigger>
-            <TooltipContent side="bottom">{maximized ? "Restaurar" : "Expandir"}</TooltipContent>
+            <TooltipContent side="bottom">{maximized ? dict.panels.restore : dict.panels.maximize}</TooltipContent>
           </Tooltip>
           <Tooltip>
             <TooltipTrigger asChild>
-              <Button variant="ghost" size="icon-xs" onClick={onClose} aria-label="Fechar painel">
+              <Button
+                variant="ghost"
+                size="icon-sm"
+                onClick={onClose}
+                aria-label={dict.panels.close}
+                className="h-full rounded-none border-0 hover:border-0 hover:text-destructive"
+              >
                 <X className="size-3.5" />
               </Button>
             </TooltipTrigger>
-            <TooltipContent side="bottom">Fechar</TooltipContent>
+            <TooltipContent side="bottom">{dict.panels.close}</TooltipContent>
           </Tooltip>
         </div>
       </div>

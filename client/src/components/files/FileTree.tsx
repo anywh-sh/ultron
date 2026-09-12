@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { openUrl } from "@tauri-apps/plugin-opener";
-import { ChevronDown, ChevronRight, Code2, Download, File, FilePlus, Folder, Pencil, SquareTerminal, Trash2 } from "lucide-react";
+import { ChevronDown, ChevronRight, Code2, Download, FilePlus, Pencil, SquareTerminal, Trash2 } from "lucide-react";
 import type { ChangeSignal } from "@/components/files/FilesPanel";
 import { CreateFileDialog } from "@/components/files/CreateFileDialog";
 import { RenameFileDialog } from "@/components/files/RenameFileDialog";
@@ -32,6 +32,7 @@ import { downloadFile, downloadFolder } from "@/lib/fileDownload";
 import { createFile, deleteFile, getHostInfo, listFiles, renameFile, type FileEntry } from "@/lib/filesClient";
 import { isIOS } from "@/lib/platform";
 import type { Profile } from "@/lib/profiles";
+import { useDict } from "@/i18n";
 import { cn } from "@/lib/utils";
 
 type DirState = FileEntry[] | "loading" | "error";
@@ -91,11 +92,12 @@ interface EditorOpenMenuItemsProps {
   editors: DetectedEditor[];
   locality: EditorLocality;
   path: string;
-  /** e.g. `(label) => \`Abrir no ${label}\`` for a file/folder row, or
-   * `\`Abrir projeto no ${label}\`` for the panel-level root action. */
+  /** Built by the caller from the dictionary — "Open in {editor}" for a
+   * file/folder row, "Open the project in {editor}" for the panel-level
+   * root action. */
   itemLabel: (editorLabel: string) => string;
   /** Submenu trigger label used only when more than one editor was
-   * detected — e.g. "Abrir com" / "Abrir projeto com". */
+   * detected — "Open with" / "Open the project with". */
   subTriggerLabel: string;
   onSelected: () => void;
 }
@@ -105,7 +107,7 @@ interface EditorOpenMenuItemsProps {
  * locality (both `ANYWH_EDITOR_LOCAL`/`ANYWH_EDITOR_SSH` unset
  * relay-side), no detected editor, or on iOS (no deep link handler exists
  * there). One editor renders a plain item; more than one nests under an
- * "Abrir com" submenu, mirroring the file/folder row's existing pattern of
+ * "Open with" submenu, mirroring the file/folder row's existing pattern of
  * plain item vs. nested choice.
  */
 function EditorOpenMenuItems({ editors, locality, path, itemLabel, subTriggerLabel, onSelected }: EditorOpenMenuItemsProps) {
@@ -189,6 +191,8 @@ export function FileTree({
   onOpenTerminal,
   dropTargetPath,
 }: FileTreeProps) {
+  const dict = useDict();
+  const copy = dict.panels.files.tree;
   const [nodesByDir, setNodesByDir] = useState<Record<string, DirState>>({});
   const inFlightRef = useRef<Set<string>>(new Set());
   const panelMenu = useContextMenu();
@@ -245,7 +249,7 @@ export function FileTree({
         onFileDeleted(path);
       } catch (error) {
         console.error("[anywh] failed to delete file:", path, error);
-        window.alert(`Não foi possível excluir "${path.split("/").pop() ?? path}".`);
+        window.alert(copy.errors.delete);
       }
     }
     setSelectedPaths(new Set());
@@ -260,7 +264,7 @@ export function FileTree({
           await downloadFile(profile, sessionId, entry.path, entry.name, entry.mtimeMs);
         } catch (error) {
           console.error("[anywh] failed to download file:", path, error);
-          window.alert(`Não foi possível baixar "${entry.name}".`);
+          window.alert(copy.errors.download);
         }
       }
       tickBatchDownload(jobId, index + 1);
@@ -294,7 +298,7 @@ export function FileTree({
       onOpenPinned(result.path);
     } catch (error) {
       console.error("[anywh] failed to create file:", error);
-      window.alert("Não foi possível criar o arquivo.");
+      window.alert(copy.errors.create);
     }
   }
 
@@ -377,14 +381,14 @@ export function FileTree({
             }}
           >
             <FilePlus />
-            Novo arquivo
+            {copy.newFile.title}
           </DropdownMenuItem>
           <EditorOpenMenuItems
             editors={detectedEditors}
             locality={editorLocality}
             path={root}
-            itemLabel={(label) => `Abrir projeto no ${label}`}
-            subTriggerLabel="Abrir projeto com"
+            itemLabel={(label) => copy.openProjectIn.replace("{editor}", label)}
+            subTriggerLabel={copy.openProjectWith}
             onSelected={() => panelMenu.setOpen(false)}
           />
         </DropdownMenuContent>
@@ -442,27 +446,29 @@ function FileTreeChildren({
   onBulkDelete,
   onBulkDownload,
 }: ChildrenProps) {
+  const dict = useDict();
+  const copy = dict.panels.files;
   const nodes = nodesByDir[dir];
   const indent = `${depth * INDENT_PX + 8}px`;
 
   if (nodes === undefined || nodes === "loading") {
     return (
-      <div style={{ paddingLeft: indent }} className="py-1 text-muted-foreground">
-        Carregando…
+      <div style={{ paddingLeft: indent }} className="py-1 text-text-faint">
+        {copy.loading}
       </div>
     );
   }
   if (nodes === "error") {
     return (
       <div style={{ paddingLeft: indent }} className="py-1 text-destructive">
-        Não foi possível listar essa pasta.
+        {copy.tree.listFailed}
       </div>
     );
   }
   if (nodes.length === 0) {
     return (
-      <div style={{ paddingLeft: indent }} className="py-1 text-muted-foreground italic">
-        Pasta vazia
+      <div style={{ paddingLeft: indent }} className="py-1 text-text-faint italic">
+        {copy.tree.emptyFolder}
       </div>
     );
   }
@@ -522,6 +528,8 @@ function FileTreeNode({
   onBulkDelete,
   onBulkDownload,
 }: NodeProps) {
+  const dict = useDict();
+  const copy = dict.panels.files.tree;
   const isDir = entry.kind === "dir";
   const isExpanded = isDir && expanded.includes(entry.path);
   const isActive = entry.path === activePath;
@@ -541,7 +549,7 @@ function FileTreeNode({
       if (await downloadFile(profile, sessionId, entry.path, entry.name, entry.mtimeMs)) notifyFileDownloaded(entry.name);
     } catch (error) {
       console.error("[anywh] failed to download file:", error);
-      window.alert("Não foi possível baixar o arquivo.");
+      window.alert(copy.errors.download);
     }
   }
 
@@ -552,7 +560,7 @@ function FileTreeNode({
       setRenameOpen(false);
     } catch (error) {
       console.error("[anywh] failed to rename file:", error);
-      window.alert("Não foi possível renomear o arquivo.");
+      window.alert(copy.errors.rename);
     }
   }
 
@@ -562,7 +570,7 @@ function FileTreeNode({
       onFileDeleted(entry.path);
     } catch (error) {
       console.error("[anywh] failed to delete file:", error);
-      window.alert("Não foi possível excluir o arquivo.");
+      window.alert(copy.errors.delete);
     }
   }
 
@@ -575,7 +583,7 @@ function FileTreeNode({
       });
     } catch (error) {
       console.error("[anywh] failed to download folder:", error);
-      window.alert(error instanceof Error ? error.message : "Não foi possível baixar a pasta.");
+      window.alert(error instanceof Error ? error.message : copy.errors.downloadFolder);
     } finally {
       if (jobId !== null) finishBatchDownload(jobId);
     }
@@ -621,21 +629,33 @@ function FileTreeNode({
         }}
         style={{ paddingLeft: `${depth * INDENT_PX + 8}px` }}
         className={cn(
-          "flex cursor-pointer items-center gap-1 rounded py-1 pr-2 hover:bg-border",
-          isActive ? "bg-bg-elevated text-foreground" : isMultiSelected ? "bg-primary/10 text-foreground" : "text-muted-foreground",
-          isDir && dropTargetPath === entry.path && "bg-primary/15 text-foreground ring-1 ring-inset ring-primary",
+          // Kind is read from weight, not from an icon: an open folder is the
+          // brightest thing on the row, a closed one a step down, a file a
+          // step below that. The caret alone marks what can be expanded —
+          // which also spares a node per row on a tree that routinely has
+          // hundreds.
+          "flex cursor-pointer items-center gap-1.5 py-0.5 pr-2 transition-colors hover:bg-surface-hover",
+          isActive
+            ? "bg-primary-soft text-primary-ink"
+            : isMultiSelected
+              ? "bg-primary-soft/60 text-foreground"
+              : isDir
+                ? isExpanded
+                  ? "text-foreground"
+                  : "text-muted-foreground"
+                : "text-text-faint",
+          isDir && dropTargetPath === entry.path && "bg-primary-soft text-primary-ink outline outline-primary -outline-offset-1",
         )}
       >
         {isDir ? (
           isExpanded ? (
-            <ChevronDown className="size-3.5 shrink-0" />
+            <ChevronDown className="size-3 shrink-0 text-text-faint" />
           ) : (
-            <ChevronRight className="size-3.5 shrink-0" />
+            <ChevronRight className="size-3 shrink-0 text-text-faint" />
           )
         ) : (
-          <span className="size-3.5 shrink-0" />
+          <span className="size-3 shrink-0" />
         )}
-        {isDir ? <Folder className="size-3.5 shrink-0" /> : <File className="size-3.5 shrink-0" />}
         <span className="truncate">{entry.name}</span>
         {!isDir && (
           <DropdownMenu open={menu.open} onOpenChange={menu.setOpen}>
@@ -651,7 +671,7 @@ function FileTreeNode({
                     }}
                   >
                     <Download />
-                    Baixar {selectedPaths.size} arquivos
+                    {copy.downloadMany.replace("{count}", String(selectedPaths.size))}
                   </DropdownMenuItem>
                   <DropdownMenuSeparator />
                   <DropdownMenuItem
@@ -663,7 +683,7 @@ function FileTreeNode({
                     }}
                   >
                     <Trash2 />
-                    Excluir {selectedPaths.size} arquivos
+                    {copy.deleteMany.replace("{count}", String(selectedPaths.size))}
                   </DropdownMenuItem>
                 </>
               ) : (
@@ -675,14 +695,14 @@ function FileTreeNode({
                       onOpenPinned(entry.path);
                     }}
                   >
-                    Abrir em nova aba
+                    {copy.openInNewTab}
                   </DropdownMenuItem>
                   <EditorOpenMenuItems
                     editors={detectedEditors}
                     locality={editorLocality}
                     path={entry.path}
-                    itemLabel={(label) => `Abrir no ${label}`}
-                    subTriggerLabel="Abrir com"
+                    itemLabel={(label) => copy.openIn.replace("{editor}", label)}
+                    subTriggerLabel={copy.openWith}
                     onSelected={() => menu.setOpen(false)}
                   />
                   <DropdownMenuSeparator />
@@ -694,7 +714,7 @@ function FileTreeNode({
                     }}
                   >
                     <Download />
-                    Baixar
+                    {copy.download}
                   </DropdownMenuItem>
                   <DropdownMenuItem
                     onSelect={(event) => {
@@ -704,7 +724,7 @@ function FileTreeNode({
                     }}
                   >
                     <Pencil />
-                    Renomear
+                    {copy.rename}
                   </DropdownMenuItem>
                   <DropdownMenuItem
                     variant="destructive"
@@ -715,7 +735,7 @@ function FileTreeNode({
                     }}
                   >
                     <Trash2 />
-                    Excluir
+                    {copy.delete}
                   </DropdownMenuItem>
                 </>
               )}
@@ -734,14 +754,14 @@ function FileTreeNode({
                 }}
               >
                 <SquareTerminal />
-                Abrir no terminal
+                {copy.openInTerminal}
               </DropdownMenuItem>
               <EditorOpenMenuItems
                 editors={detectedEditors}
                 locality={editorLocality}
                 path={entry.path}
-                itemLabel={(label) => `Abrir no ${label}`}
-                subTriggerLabel="Abrir com"
+                itemLabel={(label) => copy.openIn.replace("{editor}", label)}
+                subTriggerLabel={copy.openWith}
                 onSelected={() => menu.setOpen(false)}
               />
               <DropdownMenuSeparator />
@@ -753,7 +773,7 @@ function FileTreeNode({
                 }}
               >
                 <Download />
-                Baixar
+                {copy.download}
               </DropdownMenuItem>
             </DropdownMenuContent>
           </DropdownMenu>
@@ -765,32 +785,32 @@ function FileTreeNode({
           <AlertDialog open={deleteConfirmOpen} onOpenChange={setDeleteConfirmOpen}>
             <AlertDialogContent>
               <AlertDialogHeader>
-                <AlertDialogTitle>Excluir arquivo</AlertDialogTitle>
-                <AlertDialogDescription>Excluir "{entry.name}"? Essa ação não pode ser desfeita.</AlertDialogDescription>
+                <AlertDialogTitle>{copy.deleteFile.title}</AlertDialogTitle>
+                <AlertDialogDescription>{copy.deleteFile.description.replace("{name}", entry.name)}</AlertDialogDescription>
               </AlertDialogHeader>
               <AlertDialogFooter>
-                <AlertDialogCancel>Cancelar</AlertDialogCancel>
-                <AlertDialogAction onClick={() => void handleDelete()}>Excluir</AlertDialogAction>
+                <AlertDialogCancel>{dict.common.cancel}</AlertDialogCancel>
+                <AlertDialogAction onClick={() => void handleDelete()}>{dict.common.delete}</AlertDialogAction>
               </AlertDialogFooter>
             </AlertDialogContent>
           </AlertDialog>
           <AlertDialog open={bulkDeleteConfirmOpen} onOpenChange={setBulkDeleteConfirmOpen}>
             <AlertDialogContent>
               <AlertDialogHeader>
-                <AlertDialogTitle>Excluir arquivos</AlertDialogTitle>
+                <AlertDialogTitle>{copy.deleteFiles.title}</AlertDialogTitle>
                 <AlertDialogDescription>
-                  Excluir {selectedPaths.size} arquivos selecionados? Essa ação não pode ser desfeita.
+                  {copy.deleteFiles.description.replace("{count}", String(selectedPaths.size))}
                 </AlertDialogDescription>
               </AlertDialogHeader>
               <AlertDialogFooter>
-                <AlertDialogCancel>Cancelar</AlertDialogCancel>
+                <AlertDialogCancel>{dict.common.cancel}</AlertDialogCancel>
                 <AlertDialogAction
                   onClick={() => {
                     onBulkDelete(Array.from(selectedPaths));
                     setBulkDeleteConfirmOpen(false);
                   }}
                 >
-                  Excluir
+                  {dict.common.delete}
                 </AlertDialogAction>
               </AlertDialogFooter>
             </AlertDialogContent>

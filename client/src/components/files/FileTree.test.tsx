@@ -3,6 +3,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { cleanup, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { FileTree } from "./FileTree";
+import { en } from "@/i18n/en";
 import type { Profile } from "@/lib/profiles";
 import type { FilesListResult } from "@/lib/filesClient";
 
@@ -87,17 +88,17 @@ function renderTree(
 }
 
 describe("FileTree context menu", () => {
-  it("shows Baixar/Renomear/Excluir on right-click and downloads on Baixar", async () => {
+  it("shows download/rename/delete on right-click and downloads on the first", async () => {
     const user = userEvent.setup();
     renderTree();
     const row = await screen.findByText("notas.txt");
 
     await user.pointer({ keys: "[MouseRight]", target: row });
-    expect(await screen.findByText("Baixar")).toBeInTheDocument();
-    expect(screen.getByText("Renomear")).toBeInTheDocument();
-    expect(screen.getByText("Excluir")).toBeInTheDocument();
+    expect(await screen.findByText(en.panels.files.tree.download)).toBeInTheDocument();
+    expect(screen.getByText(en.panels.files.tree.rename)).toBeInTheDocument();
+    expect(screen.getByText(en.panels.files.tree.delete)).toBeInTheDocument();
 
-    await user.click(screen.getByText("Baixar"));
+    await user.click(screen.getByText(en.panels.files.tree.download));
     expect(downloadFile).toHaveBeenCalledWith(profile, "session-1", `${root}/notas.txt`, "notas.txt", 1000);
   });
 
@@ -109,13 +110,13 @@ describe("FileTree context menu", () => {
     const row = await screen.findByText("notas.txt");
 
     await user.pointer({ keys: "[MouseRight]", target: row });
-    await user.click(await screen.findByText("Renomear"));
+    await user.click(await screen.findByText(en.panels.files.tree.rename));
 
     const dialog = await screen.findByRole("dialog");
     const input = within(dialog).getByDisplayValue("notas.txt");
     await user.clear(input);
     await user.type(input, "renomeado.txt");
-    await user.click(within(dialog).getByRole("button", { name: "Renomear" }));
+    await user.click(within(dialog).getByRole("button", { name: en.common.rename }));
 
     await waitFor(() => expect(renameFile).toHaveBeenCalledWith(profile, "session-1", `${root}/notas.txt`, "renomeado.txt"));
     expect(onFileRenamed).toHaveBeenCalledWith(`${root}/notas.txt`, `${root}/renomeado.txt`);
@@ -129,12 +130,12 @@ describe("FileTree context menu", () => {
     const row = await screen.findByText("notas.txt");
 
     await user.pointer({ keys: "[MouseRight]", target: row });
-    await user.click(await screen.findByText("Excluir"));
+    await user.click(await screen.findByText(en.panels.files.tree.delete));
 
     // The confirmation dialog, not the delete call, should gate the action.
     const dialog = await screen.findByRole("alertdialog");
     expect(deleteFile).not.toHaveBeenCalled();
-    await user.click(within(dialog).getByRole("button", { name: "Excluir" }));
+    await user.click(within(dialog).getByRole("button", { name: en.common.delete }));
 
     await waitFor(() => expect(deleteFile).toHaveBeenCalledWith(profile, "session-1", `${root}/notas.txt`));
     expect(onFileDeleted).toHaveBeenCalledWith(`${root}/notas.txt`);
@@ -146,8 +147,8 @@ describe("FileTree context menu", () => {
     const row = await screen.findByText("notas.txt");
 
     await user.pointer({ keys: "[MouseRight]", target: row });
-    expect(await screen.findByText("Baixar")).toBeInTheDocument();
-    expect(screen.queryByText("Novo arquivo")).toBeNull();
+    expect(await screen.findByText(en.panels.files.tree.download)).toBeInTheDocument();
+    expect(screen.queryByText(en.panels.files.tree.newFile.title)).toBeNull();
   });
 
   it("creates a new file from the panel's background menu and opens it", async () => {
@@ -161,37 +162,37 @@ describe("FileTree context menu", () => {
     // background is what the panel-level menu listens on.
     const panel = container.firstElementChild as HTMLElement;
     await user.pointer({ keys: "[MouseRight]", target: panel });
-    await user.click(await screen.findByText("Novo arquivo"));
+    await user.click(await screen.findByText(en.panels.files.tree.newFile.title));
 
     const dialog = await screen.findByRole("dialog");
-    await user.type(within(dialog).getByPlaceholderText("nome-do-arquivo.txt"), "criado.txt");
-    await user.click(within(dialog).getByRole("button", { name: "Criar" }));
+    await user.type(within(dialog).getByPlaceholderText(en.panels.files.tree.newFile.placeholder), "criado.txt");
+    await user.click(within(dialog).getByRole("button", { name: en.common.create }));
 
     await waitFor(() => expect(createFile).toHaveBeenCalledWith(profile, "session-1", "criado.txt"));
     expect(onOpenPinned).toHaveBeenCalledWith(`${root}/criado.txt`);
   });
 
-  it("shows Abrir no terminal on right-click of a folder, and reports its path", async () => {
+  it("shows open-in-terminal on right-click of a folder, and reports its path", async () => {
     const onOpenTerminal = vi.fn();
     const user = userEvent.setup();
     renderTree({ onOpenTerminal });
     const row = await screen.findByText("src");
 
     await user.pointer({ keys: "[MouseRight]", target: row });
-    expect(screen.queryByText("Renomear")).toBeNull();
-    expect(screen.queryByText("Excluir")).toBeNull();
-    await user.click(await screen.findByText("Abrir no terminal"));
+    expect(screen.queryByText(en.panels.files.tree.rename)).toBeNull();
+    expect(screen.queryByText(en.panels.files.tree.delete)).toBeNull();
+    await user.click(await screen.findByText(en.panels.files.tree.openInTerminal));
 
     expect(onOpenTerminal).toHaveBeenCalledWith(`${root}/src`);
   });
 
-  it("downloads a folder on Baixar from its context menu", async () => {
+  it("downloads a folder from its context menu", async () => {
     const user = userEvent.setup();
     renderTree();
     const row = await screen.findByText("src");
 
     await user.pointer({ keys: "[MouseRight]", target: row });
-    await user.click(await screen.findByText("Baixar"));
+    await user.click(await screen.findByText(en.panels.files.tree.download));
 
     expect(downloadFolder).toHaveBeenCalledWith(profile, "session-1", `${root}/src`, "src", expect.any(Function));
   });
@@ -249,12 +250,12 @@ describe("FileTree multi-select (SHIFT range)", () => {
     // Right-clicking the row in between (never itself clicked) still counts
     // as part of the range and surfaces the batch menu, not the single-file one.
     await user.pointer({ keys: "[MouseRight]", target: screen.getByText("b.txt") });
-    expect(await screen.findByText("Baixar 3 arquivos")).toBeInTheDocument();
-    const deleteItem = await screen.findByText("Excluir 3 arquivos");
+    expect(await screen.findByText(en.panels.files.tree.downloadMany.replace("{count}", "3"))).toBeInTheDocument();
+    const deleteItem = await screen.findByText(en.panels.files.tree.deleteMany.replace("{count}", "3"));
 
     await user.click(deleteItem);
     const dialog = await screen.findByRole("alertdialog");
-    await user.click(within(dialog).getByRole("button", { name: "Excluir" }));
+    await user.click(within(dialog).getByRole("button", { name: en.common.delete }));
 
     await waitFor(() => expect(deleteFile).toHaveBeenCalledTimes(3));
     expect(onFileDeleted).toHaveBeenCalledWith(`${root}/a.txt`);
@@ -271,8 +272,8 @@ describe("FileTree multi-select (SHIFT range)", () => {
     fireEvent.click(await screen.findByText("b.txt"), { shiftKey: true });
 
     await user.pointer({ keys: "[MouseRight]", target: screen.getByText("c.txt") });
-    expect(await screen.findByText("Excluir")).toBeInTheDocument();
-    expect(screen.queryByText("Excluir 2 arquivos")).toBeNull();
+    expect(await screen.findByText(en.panels.files.tree.delete)).toBeInTheDocument();
+    expect(screen.queryByText(en.panels.files.tree.deleteMany.replace("{count}", "2"))).toBeNull();
   });
 });
 
@@ -285,9 +286,9 @@ describe("FileTree 'open in editor' menu", () => {
     const row = await screen.findByText("notas.txt");
 
     await user.pointer({ keys: "[MouseRight]", target: row });
-    expect(await screen.findByText("Baixar")).toBeInTheDocument();
+    expect(await screen.findByText(en.panels.files.tree.download)).toBeInTheDocument();
     expect(screen.queryByText(/Abrir no/)).toBeNull();
-    expect(screen.queryByText("Abrir com")).toBeNull();
+    expect(screen.queryByText(en.panels.files.tree.openWith)).toBeNull();
   });
 
   it("hides the feature entirely when no editor was detected, even if the relay declares a local editor", async () => {
@@ -298,11 +299,11 @@ describe("FileTree 'open in editor' menu", () => {
     const row = await screen.findByText("notas.txt");
 
     await user.pointer({ keys: "[MouseRight]", target: row });
-    expect(await screen.findByText("Baixar")).toBeInTheDocument();
+    expect(await screen.findByText(en.panels.files.tree.download)).toBeInTheDocument();
     expect(screen.queryByText(/Abrir no/)).toBeNull();
   });
 
-  it("shows a plain 'Abrir no <Editor>' item for a file, a folder, and the panel background when exactly one editor is detected, opening the local deep link", async () => {
+  it("shows a plain 'Open in <Editor>' item for a file, a folder, and the panel background when exactly one editor is detected, opening the local deep link", async () => {
     vi.mocked(getHostInfo).mockResolvedValue({ hostname: "host", platform: "linux", editor: { kind: "local" } });
     vi.mocked(detectEditors).mockResolvedValue([{ id: "zed", label: "Zed" }]);
     const user = userEvent.setup();
@@ -310,18 +311,18 @@ describe("FileTree 'open in editor' menu", () => {
 
     const fileRow = await screen.findByText("notas.txt");
     await user.pointer({ keys: "[MouseRight]", target: fileRow });
-    await user.click(await screen.findByText("Abrir no Zed"));
+    await user.click(await screen.findByText(en.panels.files.tree.openIn.replace("{editor}", "Zed")));
     expect(openUrl).toHaveBeenCalledWith(`zed://file${root}/notas.txt`);
 
     const folderRow = await screen.findByText("src");
     await user.pointer({ keys: "[MouseRight]", target: folderRow });
-    expect(await screen.findByText("Abrir no terminal")).toBeInTheDocument();
-    await user.click(await screen.findByText("Abrir no Zed"));
+    expect(await screen.findByText(en.panels.files.tree.openInTerminal)).toBeInTheDocument();
+    await user.click(await screen.findByText(en.panels.files.tree.openIn.replace("{editor}", "Zed")));
     expect(openUrl).toHaveBeenCalledWith(`zed://file${root}/src`);
 
     const panel = container.firstElementChild as HTMLElement;
     await user.pointer({ keys: "[MouseRight]", target: panel });
-    await user.click(await screen.findByText("Abrir projeto no Zed"));
+    await user.click(await screen.findByText(en.panels.files.tree.openProjectIn.replace("{editor}", "Zed")));
     expect(openUrl).toHaveBeenCalledWith(`zed://file${root}`);
   });
 
@@ -340,10 +341,10 @@ describe("FileTree 'open in editor' menu", () => {
     const row = await screen.findByText("notas.txt");
 
     await user.pointer({ keys: "[MouseRight]", target: row });
-    expect(screen.queryByText("Abrir no Zed")).toBeNull();
+    expect(screen.queryByText(en.panels.files.tree.openIn.replace("{editor}", "Zed"))).toBeNull();
     // Radix's `DropdownMenuSub` opens on hover, not click — a plain click on
     // the trigger toggles the top-level menu closed instead.
-    await user.hover(await screen.findByText("Abrir com"));
+    await user.hover(await screen.findByText(en.panels.files.tree.openWith));
     const vsCodeItem = await within(document.body).findByText("VS Code");
     // `userEvent.click` gives up on this element: happy-dom has no real
     // layout engine, so its "is this element actually the topmost hit at
