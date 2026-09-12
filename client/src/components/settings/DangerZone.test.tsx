@@ -1,6 +1,7 @@
 import { cleanup, render, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, describe, expect, it, vi } from "vitest";
+import { en } from "@/i18n/en";
 import type { Profile } from "@/lib/profiles";
 
 const { removeProfileMock } = vi.hoisted(() => ({
@@ -61,25 +62,43 @@ describe("DangerZone", () => {
     const scoped = tailnetProfile("sandbox-a");
     render(<DangerZone scopedProfile={scoped} allProfiles={[scoped]} onProfileRemoved={() => {}} />);
 
-    // Not the "Excluir do servidor" flow's disabled button — a tailnet
-    // profile has no host to call, so it gets its own always-enabled
-    // "Remover" action instead of a permanently disabled "Excluir".
-    const removeButton = screen.getByRole("button", { name: "Remover" });
+    // Not the server-delete flow's disabled button — a tailnet profile has
+    // no host to call, so it gets its own always-enabled "remove" action
+    // instead of a permanently disabled "delete".
+    const removeButton = screen.getByRole("button", { name: en.settings.danger.remove });
     expect(removeButton).toBeEnabled();
 
     const user = userEvent.setup();
     await user.click(removeButton);
-    const confirmButton = await within(document.body).findByRole("button", { name: "Remover" });
+
+    const dialog = within(await screen.findByRole("dialog"));
+    const confirmButton = dialog.getByRole("button", { name: en.settings.danger.remove });
+    expect(confirmButton).toBeDisabled();
+
+    await user.type(dialog.getByRole("textbox"), "sandbox-a");
     await user.click(confirmButton);
 
     expect(removeProfileMock).toHaveBeenCalledWith("sandbox-a");
+  });
+
+  it("keeps the confirmation armed only for the exact name", async () => {
+    const scoped = tailnetProfile("sandbox-a");
+    render(<DangerZone scopedProfile={scoped} allProfiles={[scoped]} onProfileRemoved={() => {}} />);
+    const user = userEvent.setup();
+
+    await user.click(screen.getByRole("button", { name: en.settings.danger.remove }));
+    const dialog = within(await screen.findByRole("dialog"));
+    await user.type(dialog.getByRole("textbox"), "sandbox");
+
+    expect(dialog.getByRole("button", { name: en.settings.danger.remove })).toBeDisabled();
+    expect(removeProfileMock).not.toHaveBeenCalled();
   });
 
   it("keeps the server-delete flow, disabled with no executor, for a direct profile", () => {
     const scoped = directProfile("solo", "192.168.0.10");
     render(<DangerZone scopedProfile={scoped} allProfiles={[scoped]} onProfileRemoved={() => {}} />);
 
-    expect(screen.getByRole("button", { name: "Excluir" })).toBeDisabled();
+    expect(screen.getByRole("button", { name: en.settings.danger.delete })).toBeDisabled();
   });
 
   it("reports an error instead of removing the sole remaining tailnet profile", async () => {
@@ -88,10 +107,11 @@ describe("DangerZone", () => {
     render(<DangerZone scopedProfile={scoped} allProfiles={[scoped]} onProfileRemoved={() => {}} />);
     const user = userEvent.setup();
 
-    await user.click(screen.getByRole("button", { name: "Remover" }));
-    const confirmButton = await within(document.body).findByRole("button", { name: "Remover" });
-    await user.click(confirmButton);
+    await user.click(screen.getByRole("button", { name: en.settings.danger.remove }));
+    const dialog = within(await screen.findByRole("dialog"));
+    await user.type(dialog.getByRole("textbox"), "only-one");
+    await user.click(dialog.getByRole("button", { name: en.settings.danger.remove }));
 
-    expect(await screen.findByText(/único perfil/)).toBeInTheDocument();
+    expect(await screen.findByText(en.settings.danger.lastProfile)).toBeInTheDocument();
   });
 });

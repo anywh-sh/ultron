@@ -1,16 +1,7 @@
 import { useState } from "react";
 import { Button } from "@/components/ui/button";
-import {
-  AlertDialog,
-  AlertDialogAction,
-  AlertDialogBody,
-  AlertDialogCancel,
-  AlertDialogContent,
-  AlertDialogDescription,
-  AlertDialogFooter,
-  AlertDialogHeader,
-  AlertDialogTitle,
-} from "@/components/ui/alert-dialog";
+import { DeleteProfileDialog } from "@/components/settings/DeleteProfileDialog";
+import { useDict } from "@/i18n";
 import { isTailnetProfile, removeProfile, type Profile } from "@/lib/profiles";
 import { deleteProfile } from "@/lib/relayClient";
 import { clearProfileRevoked } from "@/lib/profileRevocation";
@@ -18,8 +9,8 @@ import { clearProfileRevoked } from "@/lib/profileRevocation";
 /** Picks another profile on the same relay as `scopedProfile` to run an
  * operation that must never execute through the profile's own relay
  * (deleting would make that relay disable its own systemd
- * instance mid-request). Exported for `SettingsDialog.test.tsx` — pure
- * logic, no need to render anything to exercise it.
+ * instance mid-request). Exported for `DangerZone.test.tsx` — pure logic,
+ * no need to render anything to exercise it.
  *
  * A tailnet profile never has a valid executor: each one is its own
  * isolated sandbox behind the "127.0.0.1" sidecar placeholder every
@@ -34,10 +25,15 @@ export function findSameHostExecutor(scopedProfile: Profile, allProfiles: Profil
   return allProfiles.find((p) => p.id !== scopedProfile.id && p.host === scopedProfile.host && !isTailnetProfile(p));
 }
 
-/** Exported for `SettingsDialog.test.tsx` — same reasoning as
- * `findSameHostExecutor` above: rendering the whole dialog just to reach
- * this section would drag in every other tab's own dependencies (theme
- * registry fetches, model preference, folder picker) for no benefit. */
+/** The bottom of a profile's page: the one thing here that destroys
+ * something. Framed in the destructive colour rather than hidden behind
+ * another tab — it should be findable, just impossible to hit by accident
+ * (see `DeleteProfileDialog`).
+ *
+ * Exported for `DangerZone.test.tsx` on its own: rendering the whole
+ * settings dialog just to reach this section would drag in every other
+ * page's dependencies (theme registry fetches, model preference, folder
+ * picker) for no benefit. */
 export function DangerZone({
   scopedProfile,
   allProfiles,
@@ -47,6 +43,8 @@ export function DangerZone({
   allProfiles: Profile[];
   onProfileRemoved: (removedId: string) => void;
 }) {
+  const dict = useDict();
+  const copy = dict.settings.danger;
   const [confirmOpen, setConfirmOpen] = useState(false);
   const [deleting, setDeleting] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -55,11 +53,11 @@ export function DangerZone({
   // A tailnet/brokered profile (paired via the dashboard's join code) has no
   // `/control/profiles` host to call at all — `findSameHostExecutor` always
   // returns `undefined` for one, by design (see its own comment). The
-  // "Excluir do servidor" flow below genuinely doesn't apply to it, so it
-  // gets its own local-only removal instead of a permanently disabled
-  // button with a hint ("precisa de outro perfil no mesmo host") that would
-  // be actively wrong here — no other profile could ever make that button
-  // work for a tailnet profile.
+  // server-delete flow below genuinely doesn't apply to it, so it gets its
+  // own local-only removal instead of a permanently disabled button with a
+  // hint ("needs another profile on the same host") that would be actively
+  // wrong here — no other profile could ever make that button work for a
+  // tailnet profile.
   const tailnet = isTailnetProfile(scopedProfile);
 
   async function handleDeleteFromServer(): Promise<void> {
@@ -89,7 +87,7 @@ export function DangerZone({
     // profile is already revoked — this is the same thing, offered
     // proactively instead of waiting for that to happen).
     if (!removeProfile(scopedProfile.id)) {
-      setError("Não dá pra remover o único perfil que sobrou — adicione outro antes.");
+      setError(copy.lastProfile);
       return;
     }
     clearProfileRevoked(scopedProfile.id);
@@ -98,56 +96,49 @@ export function DangerZone({
   }
 
   return (
-    <div className="flex flex-col gap-3 rounded-md border border-destructive/40 p-3">
-      <h3 className="text-sm font-medium text-destructive">Zona de risco</h3>
+    <div className="mt-7 border border-destructive/70">
+      <h3 className="border-b border-destructive/70 px-3 py-2 font-mono text-[9.5px] tracking-[0.12em] text-destructive uppercase">
+        {copy.heading}
+      </h3>
 
-      <div className="flex items-center justify-between gap-3">
-        <div className="flex min-w-0 flex-col">
-          <span className="text-sm">{tailnet ? "Remover perfil" : "Excluir do servidor"}</span>
-          <span className="text-xs text-muted-foreground">
-            {tailnet
-              ? "Só remove a entrada deste dispositivo — desconectar de verdade se faz pelo painel da conta."
-              : executor
-                ? "Some de todos os dispositivos — a conta e o histórico continuam no host."
-                : "Precisa de outro perfil no mesmo host pra executar a exclusão."}
+      <div className="flex items-start gap-6 bg-destructive/5 px-3 py-3.5">
+        <div className="flex min-w-0 flex-1 flex-col gap-1">
+          <span className="text-[13.5px] font-semibold text-foreground">
+            {tailnet ? copy.removeTitle : copy.deleteTitle}
           </span>
+          <span className="text-xs leading-relaxed text-pretty text-muted-foreground">
+            {tailnet ? copy.removeBody : executor ? copy.deleteBody : copy.noExecutorBody}
+          </span>
+          {/* Only while the dialog that produced it is closed — otherwise
+              the same sentence would be on screen twice. */}
+          {error && !confirmOpen && <span className="pt-1 text-xs text-destructive">{error}</span>}
         </div>
-        <Button variant="destructive" size="sm" disabled={!tailnet && !executor} onClick={() => setConfirmOpen(true)}>
-          {tailnet ? "Remover" : "Excluir"}
+        <Button
+          variant="outline"
+          size="sm"
+          className="border-destructive text-destructive hover:border-destructive hover:bg-destructive hover:text-destructive-foreground"
+          disabled={!tailnet && !executor}
+          onClick={() => {
+            setError(null);
+            setConfirmOpen(true);
+          }}
+        >
+          {tailnet ? copy.remove : copy.delete}
         </Button>
       </div>
 
-      {error && <p className="text-sm text-destructive">{error}</p>}
-
-      <AlertDialog open={confirmOpen} onOpenChange={setConfirmOpen}>
-        <AlertDialogContent>
-          <AlertDialogHeader>
-            <AlertDialogTitle>
-              {tailnet ? "Remover" : "Excluir"} perfil "{scopedProfile.label}"?
-            </AlertDialogTitle>
-          </AlertDialogHeader>
-          <AlertDialogBody>
-            <AlertDialogDescription>
-              {tailnet
-                ? "Remove só a entrada local deste dispositivo. Se o dispositivo ainda estiver ativo do lado da conta, ele continua existindo lá — desconectar de verdade é uma ação separada, no painel."
-                : "Remove esse perfil de todos os dispositivos que apontam pra esse host. A conta Claude e o histórico de conversas continuam intactos na máquina."}
-            </AlertDialogDescription>
-          </AlertDialogBody>
-          <AlertDialogFooter>
-            <AlertDialogCancel>Cancelar</AlertDialogCancel>
-            <AlertDialogAction
-              disabled={deleting}
-              onClick={(event) => {
-                event.preventDefault();
-                if (tailnet) handleRemoveLocal();
-                else void handleDeleteFromServer();
-              }}
-            >
-              {deleting ? "Excluindo…" : tailnet ? "Remover" : "Excluir"}
-            </AlertDialogAction>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
+      <DeleteProfileDialog
+        profile={scopedProfile}
+        tailnet={tailnet}
+        open={confirmOpen}
+        onOpenChange={setConfirmOpen}
+        busy={deleting}
+        error={error}
+        onConfirm={() => {
+          if (tailnet) handleRemoveLocal();
+          else void handleDeleteFromServer();
+        }}
+      />
     </div>
   );
 }
