@@ -1,5 +1,12 @@
 import { useCallback, useEffect, useRef, useState } from "react";
-import { ensureMicrophonePermission, listInputDevices, startRecording, stopRecordingAndTranscribe } from "@/lib/voice";
+import {
+  ensureMicrophonePermission,
+  listInputDevices,
+  MicrophonePermissionError,
+  startRecording,
+  stopRecordingAndTranscribe,
+} from "@/lib/voice";
+import { useDict } from "@/i18n";
 import { isIOS } from "@/lib/platform";
 
 const MIC_STORAGE_KEY = "anywh:selected-mic";
@@ -23,9 +30,11 @@ export interface UseVoiceRecordingResult {
 }
 
 /** State envelope on top of the 3 existing Tauri commands (voice.rs, no
- * change) — records (waveform+timer in the composer) → transcribes → text lands in the
+ * change) — records (the composer's mic button becomes a stop square with a
+ * timer) → transcribes → text lands in the
  * composer for review, without sending on its own. */
 export function useVoiceRecording({ onTranscribed, onError }: UseVoiceRecordingOptions): UseVoiceRecordingResult {
+  const copy = useDict().chat.composer.voiceErrors;
   const [state, setState] = useState<VoiceRecordingState>("idle");
   const [elapsedSeconds, setElapsedSeconds] = useState(0);
   const [devices, setDevices] = useState<string[]>([]);
@@ -68,13 +77,17 @@ export function useVoiceRecording({ onTranscribed, onError }: UseVoiceRecordingO
       await ensureMicrophonePermission();
       await startRecording(selectedDevice || undefined);
     } catch (error) {
-      onError(`Não foi possível iniciar a gravação: ${error instanceof Error ? error.message : String(error)}`);
+      onError(
+        error instanceof MicrophonePermissionError
+          ? copy.microphonePermission
+          : copy.startFailed.replace("{reason}", error instanceof Error ? error.message : String(error)),
+      );
       return;
     }
     setState("recording");
     setElapsedSeconds(0);
     timerRef.current = window.setInterval(() => setElapsedSeconds((s) => s + 1), 1000);
-  }, [selectedDevice, onError]);
+  }, [selectedDevice, onError, copy]);
 
   const stop = useCallback(async () => {
     stopTimer();
@@ -84,12 +97,12 @@ export function useVoiceRecording({ onTranscribed, onError }: UseVoiceRecordingO
       if (!cancelledRef.current) onTranscribed(text);
     } catch (error) {
       if (!cancelledRef.current) {
-        onError(`Falha na transcrição: ${error instanceof Error ? error.message : String(error)}`);
+        onError(copy.transcriptionFailed.replace("{reason}", error instanceof Error ? error.message : String(error)));
       }
     } finally {
       setState("idle");
     }
-  }, [onTranscribed, onError]);
+  }, [onTranscribed, onError, copy]);
 
   const cancel = useCallback(() => {
     cancelledRef.current = true;
