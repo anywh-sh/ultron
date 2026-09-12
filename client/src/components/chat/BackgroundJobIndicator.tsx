@@ -22,10 +22,10 @@ import type { BackgroundJobSummary } from "@/lib/relayClient";
 
 interface BackgroundJobIndicatorProps {
   jobs: BackgroundJobSummary[];
-  /** Docs/32, Phase F — asks the relay to kill the job. Only called after
-   * confirmation (`AlertDialog` below, not `window.confirm`: the WebView's
-   * native dialog isn't reliable across all platforms — same class of
-   * problem documented in `SessionDeleteMenu`). */
+  /** Asks the relay to kill the job. Only called after confirmation
+   * (`AlertDialog` below, not `window.confirm`: the WebView's native dialog
+   * isn't reliable across all platforms — same class of problem documented
+   * in `SessionDeleteMenu`). */
   onCancel: (id: string) => void;
 }
 
