@@ -1,6 +1,7 @@
 import { useMemo, useState } from "react";
 import { cn } from "@/lib/utils";
 import { highlightLines } from "@/lib/highlightCode";
+import { useDict } from "@/i18n";
 
 export interface CodeLine {
   text: string;
@@ -28,6 +29,7 @@ const PREVIEW_LINE_COUNT = 14;
  * reused both for the Edit diff (`DiffView`) and for Write's new content
  * (treated as "everything added"). */
 export function CodeLines({ language, lines }: CodeLinesProps) {
+  const dict = useDict();
   const [expanded, setExpanded] = useState(false);
   const visible = expanded ? lines : lines.slice(0, PREVIEW_LINE_COUNT);
   const hiddenCount = lines.length - visible.length;
@@ -41,7 +43,7 @@ export function CodeLines({ language, lines }: CodeLinesProps) {
   );
 
   return (
-    <div className="overflow-x-auto rounded-md border border-border bg-card font-mono text-xs">
+    <div className="overflow-x-auto border border-border bg-card font-mono text-xs">
       {visible.map((line, index) =>
         line.kind === "gap" ? (
           <div key={index} className="border-t border-border-soft px-2 py-0.5 text-muted-foreground/60">
@@ -74,9 +76,9 @@ export function CodeLines({ language, lines }: CodeLinesProps) {
         <button
           type="button"
           onClick={() => setExpanded(true)}
-          className="w-full cursor-pointer border-t border-border-soft px-2 py-1 text-left text-muted-foreground hover:text-foreground"
+          className="w-full cursor-pointer border-t border-border-soft px-2 py-1 text-left text-muted-foreground transition-colors hover:text-foreground"
         >
-          Mostrar mais {hiddenCount} linhas
+          {dict.chat.code.showMoreLines.replace("{count}", String(hiddenCount))}
         </button>
       )}
     </div>

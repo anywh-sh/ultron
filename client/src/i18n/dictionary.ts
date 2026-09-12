@@ -77,6 +77,18 @@ export interface Dictionary {
       editUnavailable: string;
       editWithAttachment: string;
     };
+    toolCall: {
+      viewFile: string;
+      running: string;
+      usingTools: string;
+      usedTools: string;
+    };
+    code: {
+      copy: string;
+      copied: string;
+      copyFailed: string;
+      showMoreLines: string;
+    };
   };
   /** The window frame and the session list — everything outside a
    * conversation. Grouped by the surface a string appears on rather than by
