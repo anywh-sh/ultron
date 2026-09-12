@@ -1,5 +1,6 @@
 import { FolderTree } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { useDict } from "@/i18n";
 import { Tooltip, TooltipContent, TooltipShortcut, TooltipTrigger } from "@/components/ui/tooltip";
 import { cn } from "@/lib/utils";
 
@@ -17,6 +18,8 @@ interface FilesToggleButtonProps {
  * without one.
  */
 export function FilesToggleButton({ cwd, open, onToggle }: FilesToggleButtonProps) {
+  const dict = useDict();
+
   return (
     <Tooltip>
       <TooltipTrigger asChild>
@@ -25,14 +28,14 @@ export function FilesToggleButton({ cwd, open, onToggle }: FilesToggleButtonProp
           size="icon-sm"
           disabled={!cwd}
           onClick={onToggle}
-          aria-label={open ? "Fechar arquivos" : "Abrir arquivos"}
+          aria-label={open ? dict.panels.closeFiles : dict.panels.openFiles}
           className={cn(open && "bg-bg-elevated")}
         >
           <FolderTree className="size-3.5" />
         </Button>
       </TooltipTrigger>
       <TooltipContent side="top">
-        {open ? "Fechar arquivos" : "Abrir arquivos"}
+        {open ? dict.panels.closeFiles : dict.panels.openFiles}
         {/* Literal Ctrl even on macOS — VS Code's own Explorer shortcut,
          * same reasoning as the terminal's `Ctrl+\``. */}
         <TooltipShortcut>Ctrl+Shift+E</TooltipShortcut>
