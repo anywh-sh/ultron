@@ -1,11 +1,13 @@
 import { useRef, useState } from "react";
-import { Check, ChevronDown, Cpu } from "lucide-react";
+import { Check, ChevronDown, Lock, Target } from "lucide-react";
 import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
+import { Button } from "@/components/ui/button";
+import { useDict } from "@/i18n";
 import type { ModelChoice } from "@/lib/relayClient";
 import { getKnownModels, labelForModel } from "@/lib/modelCatalog";
 import { cn } from "@/lib/utils";
@@ -18,32 +20,38 @@ interface ModelButtonProps {
    * Opus), so we can't just hardcode a name here without really probing it. */
   defaultModel: string | null;
   onChange: (model: ModelChoice) => void;
-  /** `true` before the first `permission_mode_state`/`model_state` arrives
-   * (nothing to show yet) OR after the conversation already had its first
-   * turn: switching the model mid-conversation would require rereading the
-   * whole history to rebuild context under the new model, so the switch is
-   * only valid before the first turn (same reasoning as `cwdLocked` /
-   * `WorkingDirectoryButton`). */
+  /** `true` before the first `permission_mode_state`/`model_state` arrives —
+   * nothing to show yet, and nothing to switch to. */
   disabled: boolean;
-}
-
-function labelFor(model: ModelChoice | null, defaultModel: string | null): string {
-  if (model) return labelForModel(model);
-  return defaultModel ?? "…";
+  /** `true` once the conversation has had its first turn: switching the
+   * model then would require rereading the whole history for the CLI to
+   * rebuild context under the new model, so the switch is only valid before
+   * that (same reasoning as `cwdLocked` / `WorkingDirectoryButton`). Kept
+   * separate from `disabled` because this is the state the button explains
+   * — it grows a padlock and a tooltip saying why, instead of just going
+   * grey for no visible reason. */
+  locked: boolean;
 }
 
 /**
- * Label + dropdown in the same row as `PermissionModeButton`, next to it —
- * same button pill, same `modal={false}` (Radix traps focus/pointer-events
- * on the body while a modal dropdown is open, and restoration fails on
- * Tauri's WKWebView on macOS). Before this the model was just text
- * (`ModelLabel`); it became a dropdown so it doesn't depend on typing
- * `/model` in the composer.
+ * Label + dropdown next to `PermissionModeButton`, second control on the
+ * composer's toolbar. Same `modal={false}` as the rest — Radix traps
+ * focus/pointer-events on the body while a modal dropdown is open, and
+ * restoration fails on Tauri's WKWebView on macOS. Before this the model was
+ * just text (`ModelLabel`); it became a dropdown so it doesn't depend on
+ * typing `/model` in the composer.
+ *
+ * The items are one line each, with no blurb under them — unlike the
+ * permission modes next door. The catalog is whatever the CLI reports at
+ * runtime (`getKnownModels`), so a curated blurb per alias would go stale
+ * the day the CLI ships a new one, and the fallback would read worse than
+ * no blurb at all.
  */
-export function ModelButton({ model, defaultModel, onChange, disabled }: ModelButtonProps) {
+export function ModelButton({ model, defaultModel, onChange, disabled, locked }: ModelButtonProps) {
   const triggerRef = useRef<HTMLButtonElement>(null);
-  const label = labelFor(model, defaultModel);
-  const isDisabled = disabled || label === "…";
+  const dict = useDict();
+  const label = model ? labelForModel(model) : (defaultModel ?? dict.chat.composer.pending);
+  const isDisabled = disabled || locked || label === dict.chat.composer.pending;
   const [open, setOpen] = useState(false);
 
   return (
@@ -66,23 +74,29 @@ export function ModelButton({ model, defaultModel, onChange, disabled }: ModelBu
       }}
     >
       <DropdownMenuTrigger asChild disabled={isDisabled}>
-        <button
+        <Button
           ref={triggerRef}
           type="button"
+          variant="outline"
+          size="sm"
           disabled={isDisabled}
-          className="flex h-7 shrink-0 cursor-pointer items-center gap-1 rounded-md border border-border bg-bg-elevated px-2 text-xs text-foreground transition-colors hover:bg-border disabled:cursor-not-allowed disabled:opacity-50"
+          title={locked ? dict.chat.composer.modelLocked : undefined}
+          // A locked model is still information worth reading, so it keeps a
+          // surface instead of fading out with the rest of the disabled
+          // controls.
+          className={cn("min-w-0 gap-1.5 px-2", locked && "bg-bg-sidebar text-muted-foreground opacity-100")}
         >
-          <Cpu className="size-3.5 shrink-0 text-muted-foreground" />
+          <Target className="size-3" />
           <span className="truncate">{label}</span>
-          <ChevronDown className="size-3 shrink-0 text-muted-foreground" />
-        </button>
+          {locked ? <Lock className="size-2.5 opacity-60" /> : <ChevronDown className="size-2.5 opacity-60" />}
+        </Button>
       </DropdownMenuTrigger>
 
-      <DropdownMenuContent align="start">
+      <DropdownMenuContent align="start" className="min-w-53">
         {getKnownModels().map((choice) => (
-          <DropdownMenuItem key={choice} onSelect={() => onChange(choice)}>
-            <Check className={cn("size-3.5", choice !== model && "opacity-0")} />
-            {labelForModel(choice)}
+          <DropdownMenuItem key={choice} onSelect={() => onChange(choice)} className="gap-3">
+            <span className="flex-1 truncate text-left">{labelForModel(choice)}</span>
+            <Check className={cn("size-3.5 text-primary!", choice !== model && "opacity-0")} />
           </DropdownMenuItem>
         ))}
       </DropdownMenuContent>
