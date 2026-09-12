@@ -9,7 +9,7 @@
  * translating text that is about to be deleted. `common` is the slice that
  * survives any redesign — the verbs on buttons.
  */
-import type { EditMessageErrorCode, SetCwdErrorCode } from "@/lib/relay-types";
+import type { EditMessageErrorCode, PermissionMode, SetCwdErrorCode } from "@/lib/relay-types";
 
 export interface Dictionary {
   common: {
@@ -121,6 +121,73 @@ export interface Dictionary {
       selectedCount: string;
       skip: string;
       submit: string;
+    };
+    /**
+     * The composer and its toolbar. The two verbs on the send button aren't
+     * here — `Send`/`Stop` are the same words the rest of the app uses and
+     * stay in `common`.
+     */
+    composer: {
+      placeholder: string;
+      /** Drawn next to `Send`. Not translated in either language — it names
+       * a physical key. It says Enter (not the design's `⌘↵`) because Enter
+       * is what actually sends here: Shift+Enter breaks the line and there
+       * is no modifier variant to advertise. */
+      sendShortcut: string;
+      attach: string;
+      attachmentUploading: string;
+      removeAttachment: string;
+      /** Name shown on an attachment with no visual preview (a file the
+       * picker accepted but can't thumbnail) — the image/video case renders
+       * the thumbnail itself instead. */
+      unnamedAttachment: string;
+      record: string;
+      stopRecording: string;
+      cancelRecording: string;
+      transcribing: string;
+      microphone: string;
+      selectMicrophone: string;
+      /** Shown when the typed text reads as a mistyped command (`/cler`)
+       * rather than a real one — the send waits on this answer. */
+      typo: {
+        question: string;
+        use: string;
+        sendAnyway: string;
+      };
+      /** Keyed by the wire contract's own union, so a permission mode added
+       * on the relay is a compile error in both languages until it has copy.
+       * `hint` is the dropdown item's second line; the model dropdown has no
+       * equivalent because its catalog is whatever the CLI reports at
+       * runtime, and a blurb per alias would go stale the day the CLI ships
+       * a new one. */
+      mode: Record<PermissionMode, { label: string; hint: string }>;
+      /** Both toolbar dropdowns' label before the relay has reported this
+       * session's mode/model. */
+      pending: string;
+      modelLocked: string;
+      context: {
+        label: string;
+        ariaLabel: string;
+        tokens: string;
+      };
+      /** The three ways voice input fails. The first is a state the user can
+       * fix and is written as an instruction; the other two carry whatever
+       * the OS or the transcriber said, which is untranslated by nature. */
+      voiceErrors: {
+        microphonePermission: string;
+        startFailed: string;
+        transcriptionFailed: string;
+      };
+      /** Blurbs for the autocomplete menu. A model alias the CLI ships later
+       * falls back to `modelGeneric`, so it shows up in the menu without a
+       * copy change — same reasoning as `labelForModel`. */
+      commands: {
+        clear: string;
+        modelDefault: string;
+        modelOpus: string;
+        modelHaiku: string;
+        modelGeneric: string;
+      };
     };
   };
   /** The window frame and the session list — everything outside a
