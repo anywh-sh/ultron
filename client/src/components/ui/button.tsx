@@ -4,31 +4,46 @@ import { Slot } from "radix-ui"
 
 import { cn } from "@/lib/utils"
 
+/**
+ * Controls are mono, square and dense — that is the brand, not a style
+ * preference: every control label in the design is IBM Plex Mono, and the sans
+ * face is reserved for prose (message content, descriptions) and the display
+ * face for titles.
+ *
+ * Two structural choices worth knowing before editing:
+ *
+ * - The base carries `border border-transparent`, so the variants that grow a
+ *   border on hover don't shift their own layout by a pixel when they do.
+ * - `transition-colors`, never `transition-all`. `all` includes layout
+ *   properties, and a button is the single most repeated element in the app —
+ *   this is the first place a careless transition costs frames.
+ */
 const buttonVariants = cva(
-  "inline-flex shrink-0 cursor-pointer items-center justify-center gap-2 rounded-md text-sm font-medium whitespace-nowrap transition-all outline-none select-none focus-visible:border-ring focus-visible:ring-[3px] focus-visible:ring-ring/50 disabled:pointer-events-none disabled:opacity-50 aria-invalid:border-destructive aria-invalid:ring-destructive/20 dark:aria-invalid:ring-destructive/40 [&_svg]:pointer-events-none [&_svg]:shrink-0 [&_svg:not([class*='size-'])]:size-4",
+  "inline-flex shrink-0 cursor-pointer items-center justify-center gap-2 border border-transparent font-mono font-medium whitespace-nowrap transition-colors outline-none select-none focus-visible:ring-2 focus-visible:ring-ring/60 disabled:pointer-events-none disabled:opacity-50 aria-invalid:border-destructive [&_svg]:pointer-events-none [&_svg]:shrink-0 [&_svg:not([class*='size-'])]:size-4",
   {
     variants: {
       variant: {
-        default: "bg-primary text-primary-foreground hover:bg-primary/90",
+        default: "border-primary bg-primary text-primary-foreground hover:border-primary-hover hover:bg-primary-hover",
         destructive:
-          "bg-destructive text-destructive-foreground hover:bg-destructive/90 focus-visible:ring-destructive/20 dark:bg-destructive/60 dark:focus-visible:ring-destructive/40",
-        outline:
-          "border bg-background shadow-xs hover:bg-accent hover:text-accent-foreground dark:border-input dark:bg-input/30 dark:hover:bg-input/50",
-        secondary:
-          "bg-secondary text-secondary-foreground hover:bg-secondary/80",
-        ghost:
-          "hover:bg-accent hover:text-accent-foreground dark:hover:bg-accent/50",
+          "border-destructive bg-destructive text-destructive-foreground hover:border-destructive-hover hover:bg-destructive-hover focus-visible:ring-destructive/50",
+        // The design's default control: an outline that only commits to a
+        // border color, and firms up on hover rather than filling in.
+        outline: "border-border text-muted-foreground hover:border-text-faint hover:bg-bg-elevated hover:text-foreground",
+        secondary: "border-border bg-bg-elevated text-foreground hover:bg-surface-hover",
+        // Chrome buttons (title bar, panel headers): invisible until pointed
+        // at, then they acquire the outline variant's look.
+        ghost: "text-muted-foreground hover:border-border hover:bg-bg-elevated hover:text-foreground",
         link: "text-primary underline-offset-4 hover:underline",
       },
       size: {
-        default: "h-9 px-4 py-2 has-[>svg]:px-3",
-        xs: "h-6 gap-1 rounded-md px-2 text-xs has-[>svg]:px-1.5 [&_svg:not([class*='size-'])]:size-3",
-        sm: "h-8 gap-1.5 rounded-md px-3 has-[>svg]:px-2.5",
-        lg: "h-10 rounded-md px-6 has-[>svg]:px-4",
-        icon: "size-9",
-        "icon-xs": "size-6 rounded-md [&_svg:not([class*='size-'])]:size-3",
-        "icon-sm": "size-8",
-        "icon-lg": "size-10",
+        default: "h-8 gap-2 px-3.5 text-xs",
+        xs: "h-6 gap-1 px-2 text-[10.5px] [&_svg:not([class*='size-'])]:size-3",
+        sm: "h-7 gap-1.5 px-3 text-[11.5px]",
+        lg: "h-9 px-5 text-[13px]",
+        icon: "size-8",
+        "icon-xs": "size-6 [&_svg:not([class*='size-'])]:size-3",
+        "icon-sm": "size-7",
+        "icon-lg": "size-9",
       },
     },
     defaultVariants: {
