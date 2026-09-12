@@ -3,6 +3,7 @@ import { cleanup, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { installFakeRelay, type FakeRelay } from "./helpers/fakeRelay";
 import { renderApp } from "./helpers/renderApp";
+import { en } from "@/i18n/en";
 
 // ChatPanel registers a drag-drop listener unconditionally on mount
 // (client/src/components/chat/ChatPanel.tsx) via getCurrentWebview(), which
@@ -36,7 +37,7 @@ describe("sending a message", () => {
     const user = userEvent.setup();
     renderApp();
 
-    await user.click(await screen.findByRole("button", { name: "Nova conversa" }));
+    await user.click(await screen.findByRole("button", { name: en.shell.sidebar.newConversation }));
 
     // Tiptap's editable div is a bare `[contenteditable]` with no explicit
     // `role="textbox"` (confirmed in the rendered DOM) — dom-testing-library

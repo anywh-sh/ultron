@@ -3,6 +3,7 @@ import { cleanup, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { installFakeRelay, type FakeRelay } from "./helpers/fakeRelay";
 import { renderApp } from "./helpers/renderApp";
+import { en } from "@/i18n/en";
 
 // Same mocks as sendMessage.test.tsx — see the comment there for why these
 // two are unavoidable outside a real Tauri shell.
@@ -31,7 +32,7 @@ afterEach(() => {
  * pressing Enter — callers decide how the text is (or isn't) submitted. */
 async function typeIntoComposer(user: ReturnType<typeof userEvent.setup>, text: string) {
   renderApp();
-  await user.click(await screen.findByRole("button", { name: "Nova conversa" }));
+  await user.click(await screen.findByRole("button", { name: en.shell.sidebar.newConversation }));
   const composer = await screen.findByLabelText("Escreva uma mensagem…");
   await user.type(composer, text);
   const sendButton = await screen.findByRole("button", { name: "Enviar" });

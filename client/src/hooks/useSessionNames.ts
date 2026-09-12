@@ -3,48 +3,56 @@ import { fetchSessions } from "@/lib/relayClient";
 import { resolveConnection } from "@/lib/connectionResolver";
 import { BrokerRevokedError } from "@/lib/tailnetBroker";
 import { markProfileRevoked } from "@/lib/profileRevocation";
-import type { SessionSummary } from "@/lib/relay-types";
+import { removeCachedSession, setCachedSessions, upsertCachedSession } from "@/lib/sessionListCache";
 import type { Profile } from "@/lib/profiles";
 
-interface SessionsState {
-  /** Which profile `sessions`/`loading`/`error` actually describe — read
-   * against `profile.id` on every render (see below) so a profile switch
-   * resets the visible state in the SAME render, not on the next one. */
+interface SyncState {
+  /** Which profile `loading`/`error` actually describe — read against
+   * `profile.id` on every render (see below) so a profile switch resets the
+   * visible state in the SAME render, not on the next one. */
   profileId: string;
-  sessions: SessionSummary[];
   loading: boolean;
   error: boolean;
 }
 
-function initialState(profileId: string): SessionsState {
-  return { profileId, sessions: [], loading: true, error: false };
+function initialState(profileId: string): SyncState {
+  return { profileId, loading: true, error: false };
 }
 
 /**
+ * Keeps one profile — the active one — freshly synced: a full fetch when it
+ * becomes active, then a live socket for as long as it stays that way.
+ *
+ * The rows themselves live in `sessionListCache.ts`, not here. The sidebar
+ * lists every profile at once, so a hook scoped to one of them can't be the
+ * source of truth for it; what this hook still owns is the part that IS
+ * scoped to one profile, namely whether that profile's own sync is in
+ * flight or has failed. Everything it learns it writes to the shared cache,
+ * which is also why a profile switch no longer blanks the list: the
+ * previous profile's rows are still cached, and still on screen.
+ *
  * The relay already lists sessions ordered by last interaction (most recent
  * first — `SessionStore.listTitled`), so there's no need to reorder here.
  */
 export function useSessionNames(profile: Profile): {
-  sessions: SessionSummary[];
+  /** A sync is in flight for this profile. The sidebar only turns it into a
+   * skeleton when it has nothing cached for that profile yet — otherwise a
+   * refresh would replace a perfectly good list with pulsing bars. */
   loading: boolean;
   error: boolean;
-  upsertTitle: (id: string, title: string, lastActiveAt?: number) => void;
-  removeSession: (id: string) => void;
-  touch: (id: string) => void;
   reload: () => void;
 } {
-  const [state, setState] = useState<SessionsState>(() => initialState(profile.id));
+  const [state, setState] = useState<SyncState>(() => initialState(profile.id));
   const [reloadTick, setReloadTick] = useState(0);
 
-  // Adjusts state during render (React's own sanctioned pattern for
-  // "reset when a prop changes") rather than in an effect: a switch lands
-  // on the skeleton in this exact render, instead of one frame showing the
-  // previous profile's sessions while the effect below catches up (the bug:
-  // the old code only ever called `setLoading(true)`, which never cleared
-  // `sessions`). Stamped by `profile.id` alone, not the effect's full deps
-  // list below (which also includes `host`/`brokerUrl`) — a benign resync
-  // from `useProfileSync` changing one of those must refetch without
-  // wiping the list a user is currently looking at.
+  // Adjusts state during render (React's own sanctioned pattern for "reset
+  // when a prop changes") rather than in an effect, so a switch reports the
+  // new profile's state in this exact render instead of a frame claiming the
+  // previous profile's sync result. Stamped by `profile.id` alone, not the
+  // effect's full deps list below (which also includes `host`/`brokerUrl`) —
+  // a benign resync from `useProfileSync` changing one of those must refetch
+  // without flipping a list the user is currently looking at back to
+  // loading.
   if (state.profileId !== profile.id) setState(initialState(profile.id));
 
   useEffect(() => {
@@ -53,8 +61,15 @@ export function useSessionNames(profile: Profile): {
     resolveConnection(profile)
       .then(({ host, port, token }) => fetchSessions(host, port, token))
       .then((list) => {
+        // Written to the cache even if this effect was cancelled meanwhile
+        // (profile switched away mid-flight): the response is a real, fresh
+        // list for `profileId`, and throwing it away would leave that
+        // profile's rows staler than they need to be for no reason. Only
+        // the loading/error flags are guarded, since those describe the
+        // profile currently being shown.
+        setCachedSessions(profileId, list);
         if (cancelled) return;
-        setState((prev) => (prev.profileId === profileId ? { ...prev, sessions: list, loading: false, error: false } : prev));
+        setState((prev) => (prev.profileId === profileId ? { ...prev, loading: false, error: false } : prev));
       })
       .catch((error: unknown) => {
         console.error("[anywh] failed to list sessions", error);
@@ -77,67 +92,27 @@ export function useSessionNames(profile: Profile): {
     reloadTick,
   ]);
 
-  /** Manual retry (SessionList's "Tentar novamente") — flips back to the
-   * skeleton right away (unlike the effect above, which never touches
-   * `loading` on its own for a same-profile refetch) and bumps `reloadTick`
-   * to make the effect run again with the exact same profile fields. */
+  /** Manual retry (the sidebar's "try again") — flips back to loading right
+   * away (unlike the effect above, which never touches `loading` on its own
+   * for a same-profile refetch) and bumps `reloadTick` to make the effect
+   * run again with the exact same profile fields. */
   const reload = useCallback(() => {
     setState((prev) => ({ ...prev, loading: true, error: false }));
     setReloadTick((tick) => tick + 1);
   }, []);
 
-  // Optimistic update: a session only actually exists in the relay's list
-  // once it gets a title (first prompt processed, or manual rename) — without
-  // this, it would only show up in the sidebar after a refetch (profile
-  // switch or reload). Covers both cases: title inferred for the first
-  // time (inserts at the top — it's always the most recent interaction) and rename of an
-  // already-listed session (updates in place, without touching its position).
-  // `lastActiveAt` is only consulted when inserting: an already-listed entry
-  // keeps the timestamp it had, so renaming an old conversation doesn't file
-  // it under "today" in the recency grouping. Optional because the two call
-  // sites that rename don't know one and never need to — the entry is on
-  // screen for them to have clicked it in the first place.
-  const upsertTitle = useCallback((id: string, title: string, lastActiveAt?: number) => {
-    setState((prev) => {
-      const index = prev.sessions.findIndex((session) => session.id === id);
-      const sessions =
-        index === -1
-          ? [{ id, title, lastActiveAt: lastActiveAt ?? Date.now() }, ...prev.sessions]
-          : prev.sessions.map((session, i) => (i === index ? { ...session, title } : session));
-      return { ...prev, sessions };
-    });
-  }, []);
-
-  const removeSession = useCallback((id: string) => {
-    setState((prev) => ({ ...prev, sessions: prev.sessions.filter((session) => session.id !== id) }));
-  }, []);
-
-  // Moves a session to the top when interacting with it again (sending a message
-  // in an old session) — mirrors `SessionStore.touch` on the relay side,
-  // but optimistic/local, to avoid waiting for a refetch. No-op if the session isn't
-  // in the list yet (e.g. initial turn of a session with no title).
-  const touch = useCallback((id: string) => {
-    setState((prev) => {
-      const index = prev.sessions.findIndex((session) => session.id === id);
-      if (index <= 0) return prev;
-      const sessions = [...prev.sessions];
-      const [session] = sessions.splice(index, 1);
-      sessions.unshift(session);
-      return { ...prev, sessions };
-    });
-  }, []);
-
   // Keeps the list live across devices: a session created (and titled) or
   // renamed/deleted on ANOTHER client connected to the same relay/profile
   // (e.g. a conversation started on mobile) only reaches this device through
-  // this socket — `upsertTitle`/`removeSession` elsewhere in the app are
-  // wired to a specific open tab's `RelayClient`, which this device may not
-  // have for a session it never opened. Without this, the sidebar only
-  // picked up other devices' changes on the next profile switch or reload.
+  // this socket — the cache writes elsewhere in the app are wired to a
+  // specific open tab's `RelayClient`, which this device may not have for a
+  // session it never opened. Without this, the sidebar only picked up other
+  // devices' changes on the next profile switch or reload.
   useEffect(() => {
     let cancelled = false;
     let socket: WebSocket | undefined;
     let reconnectTimer: number | undefined;
+    const profileId = profile.id;
 
     // A tailnet connection needs its own fresh, unspent connect token on
     // every new TCP connection — a reconnect
@@ -167,8 +142,8 @@ export function useSessionNames(profile: Profile): {
             };
             if (typeof id !== "string") return;
             if (type === "session_list_upsert" && typeof title === "string")
-              upsertTitle(id, title, typeof lastActiveAt === "number" ? lastActiveAt : undefined);
-            else if (type === "session_list_removed") removeSession(id);
+              upsertCachedSession(profileId, id, title, typeof lastActiveAt === "number" ? lastActiveAt : undefined);
+            else if (type === "session_list_removed") removeCachedSession(profileId, id);
           });
           ws.addEventListener("close", () => {
             if (socket !== ws || cancelled) return;
@@ -204,9 +179,7 @@ export function useSessionNames(profile: Profile): {
     profile.tailnetTarget,
     profile.brokerUrl,
     profile.brokerNodeId,
-    upsertTitle,
-    removeSession,
   ]);
 
-  return { sessions: state.sessions, loading: state.loading, error: state.error, upsertTitle, removeSession, touch, reload };
+  return { loading: state.loading, error: state.error, reload };
 }

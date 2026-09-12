@@ -3,6 +3,7 @@ import { cleanup, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { installFakeRelay, type FakeRelay } from "./helpers/fakeRelay";
 import { renderApp } from "./helpers/renderApp";
+import { en } from "@/i18n/en";
 
 // Same Tauri-API shims as sendMessage.test.tsx — required to get the
 // composer to mount at all under happy-dom (see that file's comment).
@@ -28,7 +29,7 @@ describe("composer paste-link boundary", () => {
     const user = userEvent.setup();
     renderApp();
 
-    await user.click(await screen.findByRole("button", { name: "Nova conversa" }));
+    await user.click(await screen.findByRole("button", { name: en.shell.sidebar.newConversation }));
     const composer = await screen.findByLabelText("Escreva uma mensagem…");
 
     // Reproduces the reported flow exactly: paste a bare URL (linkOnPaste

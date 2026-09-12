@@ -4,21 +4,22 @@ import { MobileTopBar } from "@/components/shell/MobileTopBar";
 import { REVEAL_PUSH_PX, useRevealDrawer } from "@/hooks/useRevealDrawer";
 import { cn } from "@/lib/utils";
 import type { Profile } from "@/lib/profiles";
-import type { SessionSummary } from "@/lib/relay-types";
+import type { MergedSession } from "@/lib/sessionGrouping";
 
 interface MobileShellProps {
   activeProfile: Profile;
+  profiles: Profile[];
   onProfileChange: (profileId: string) => void;
-  sessions: SessionSummary[];
+  sessions: MergedSession[];
   sessionsLoading: boolean;
   sessionsError: boolean;
   onRetrySessions: () => void;
   selectedSession: string | null;
   runningSessions: Set<string>;
   backgroundJobSessions: Set<string>;
-  onSelectSession: (id: string) => void;
-  onRenameSession: (id: string, title: string) => void;
-  onDeleteSession: (id: string) => void;
+  onSelectSession: (session: MergedSession) => void;
+  onRenameSession: (session: MergedSession, title: string) => void;
+  onDeleteSession: (session: MergedSession) => void;
   onOpenSearch: () => void;
   title: string;
   connected: boolean;
@@ -36,6 +37,7 @@ interface MobileShellProps {
  */
 export function MobileShell({
   activeProfile,
+  profiles,
   onProfileChange,
   sessions,
   sessionsLoading,
@@ -62,6 +64,7 @@ export function MobileShell({
     >
       <MobileSidebar
         activeProfile={activeProfile}
+        profiles={profiles}
         onProfileChange={onProfileChange}
         sessions={sessions}
         sessionsLoading={sessionsLoading}
@@ -70,8 +73,8 @@ export function MobileShell({
         selectedSession={selectedSession}
         runningSessions={runningSessions}
         backgroundJobSessions={backgroundJobSessions}
-        onSelectSession={(id) => {
-          onSelectSession(id);
+        onSelectSession={(session) => {
+          onSelectSession(session);
           drawer.closeDrawer();
         }}
         onRenameSession={onRenameSession}

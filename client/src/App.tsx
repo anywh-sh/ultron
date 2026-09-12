@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { Menu } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Sheet, SheetContent, SheetTitle } from "@/components/ui/sheet";
@@ -20,6 +20,9 @@ import { TerminalPanelSlot } from "@/components/terminal/TerminalPanelSlot";
 import { useActiveProfile } from "@/hooks/useActiveProfile";
 import { useNavigationHistory } from "@/hooks/useNavigationHistory";
 import { useSessionNames } from "@/hooks/useSessionNames";
+import { useSessionListBootstrap } from "@/hooks/useSessionListBootstrap";
+import { useMergedSessions } from "@/hooks/useMergedSessions";
+import { useProfiles } from "@/hooks/useProfiles";
 import { useResizableSidebar } from "@/hooks/useResizableSidebar";
 import { useIsCompactViewport } from "@/hooks/useIsCompactViewport";
 import { useTabs, type Tab } from "@/hooks/useTabs";
@@ -35,6 +38,13 @@ import { useProfileSync } from "@/hooks/useProfileSync";
 import { useTailnetSidecarOwner } from "@/hooks/useTailnetSidecarOwner";
 import { addProfile, findProfile, getProfiles, removeProfile, type Profile } from "@/lib/profiles";
 import { clearProfileRevoked, isProfileRevoked } from "@/lib/profileRevocation";
+import {
+  pruneCachedProfiles,
+  removeCachedSession,
+  touchCachedSession,
+  upsertCachedSession,
+} from "@/lib/sessionListCache";
+import type { MergedSession } from "@/lib/sessionGrouping";
 import { completeProfileSetup, dismissProfileSetup, retryProfileSetup } from "@/lib/profileSetup";
 import { resolveChatPath } from "@/lib/filesClient";
 import { resolveConnection } from "@/lib/connectionResolver";
@@ -53,15 +63,21 @@ function readQueryOverride(): { profile: string | null; session: string | null }
 export default function App() {
   const queryOverride = useMemo(readQueryOverride, []);
   const [activeProfile, setActiveProfileId] = useActiveProfile(queryOverride.profile);
-  const {
-    sessions,
-    loading: sessionsLoading,
-    error: sessionsError,
-    upsertTitle,
-    removeSession,
-    touch,
-    reload: reloadSessions,
-  } = useSessionNames(activeProfile);
+  const { loading: sessionsLoading, error: sessionsError, reload: reloadSessions } = useSessionNames(activeProfile);
+  const profiles = useProfiles();
+  // One fetch per profile this device has never synced, ever — every other
+  // profile's rows come from the cache and are refreshed by whatever
+  // connection the app was already making.
+  useSessionListBootstrap(activeProfile.id);
+  // Which profiles the sidebar shows, deliberately not `activeProfile`:
+  // that one means "where work happens" (connection, theme, where a new
+  // conversation lands) and already moves on its own when a tab from another
+  // profile takes focus. Overloading it with "what am I looking at" would
+  // make switching tabs silently change the filter.
+  const [selectedProfileIds, setSelectedProfileIds] = useState<ReadonlySet<string>>(
+    () => new Set(getProfiles().map((profile) => profile.id)),
+  );
+  const sessions = useMergedSessions(selectedProfileIds);
   const isCompact = useIsCompactViewport();
   const resizable = useResizableSidebar();
   const tabsState = useTabs();
@@ -97,6 +113,40 @@ export default function App() {
   // a tab from another profile gets focus (search/notification click) while
   // the sidebar's own selection hasn't moved yet.
   useTailnetSidecarOwner(themeProfile);
+
+  // A profile added (pairing, setup) joins the view; one removed leaves it,
+  // along with its cached rows. Reconciled here rather than at each
+  // `removeProfile` call site — there are already several, and a persisted
+  // cache that stays correct only while every future one remembers to clean
+  // up is a bug waiting to be written.
+  useEffect(() => {
+    const known = new Set(profiles.map((profile) => profile.id));
+    pruneCachedProfiles(known);
+    setSelectedProfileIds((previous) => {
+      const next = new Set([...previous].filter((id) => known.has(id)));
+      for (const id of known) if (!previous.has(id)) next.add(id);
+      // Every profile deselected would leave an empty sidebar with no way
+      // back except the filter menu — fall back to showing everything.
+      if (next.size === 0) return known;
+      return next.size === previous.size && [...next].every((id) => previous.has(id)) ? previous : next;
+    });
+  }, [profiles]);
+
+  const toggleProfileFilter = useCallback((profileId: string) => {
+    setSelectedProfileIds((previous) => {
+      const next = new Set(previous);
+      // Turning the last one off would show nothing at all — the way to see
+      // one profile is to leave one selected, not to select none.
+      if (next.has(profileId) && next.size === 1) return previous;
+      if (next.has(profileId)) next.delete(profileId);
+      else next.add(profileId);
+      return next;
+    });
+  }, []);
+
+  const clearProfileFilter = useCallback(() => {
+    setSelectedProfileIds(new Set(getProfiles().map((profile) => profile.id)));
+  }, []);
 
   const [drawerOpen, setDrawerOpen] = useState(false);
   const [searchOpen, setSearchOpen] = useState(false);
@@ -238,13 +288,26 @@ export default function App() {
   // arrives (ChatPanel's onTitle below), not before.
   function handleNewConversation(): void {
     const id = crypto.randomUUID();
-    tabsState.openTab(activeProfile.id, id, null, true);
+    // Filtered down to exactly one profile, that profile is unambiguously
+    // the one being worked in, so a new conversation belongs there. With
+    // several selected there is nothing to infer from, and it falls back to
+    // the focused tab's profile as before.
+    const [onlySelected] = selectedProfileIds;
+    const target = selectedProfileIds.size === 1 ? onlySelected : activeProfile.id;
+    tabsState.openTab(target, id, null, true);
     setDrawerOpen(false);
   }
 
-  function handleSelectSession(id: string): void {
-    const title = sessions.find((session) => session.id === id)?.title ?? null;
-    tabsState.openTab(activeProfile.id, id, title);
+  /** A row in the sidebar can belong to any profile now, so this goes
+   * through `focusSession` — the same path search and notification clicks
+   * already used for "jump to a session that may not be in the current
+   * profile". `openTab` records the profile on the tab but does not move
+   * `activeProfile` on its own, and leaving that behind would keep the live
+   * `/sessions/watch` socket, the tailnet-sidecar reference and the default
+   * target for a new conversation pointing at the profile the user just
+   * navigated away from. */
+  function handleSelectSession(session: MergedSession): void {
+    focusSession(session.profileId, session.id, session.title);
     setDrawerOpen(false);
   }
 
@@ -285,7 +348,7 @@ export default function App() {
       .then(({ host, port, token }) => renameSession(host, port, id, title, token))
       .then(() => {
         tabsState.setTabTitle(id, title);
-        if (profileId === activeProfile.id) upsertTitle(id, title);
+        upsertCachedSession(profileId, id, title);
       })
       .catch((error: unknown) => {
         console.error("[anywh] failed to rename session", error);
@@ -308,7 +371,7 @@ export default function App() {
         sessionDock.removeSession(id);
         terminalTabs.removeSession(id);
         fileTabs.removeSession(id);
-        if (profileId === activeProfile.id) removeSession(id);
+        removeCachedSession(profileId, id);
       })
       .catch((error: unknown) => {
         console.error("[anywh] failed to delete session", error);
@@ -483,25 +546,24 @@ export default function App() {
     resizable.toggleCollapsed,
   ]);
 
-  // "Running" sessions only for the profile currently selected in the
-  // sidebar — that's the universe the sidebar list shows (tabs
-  // themselves no longer have a notion of selected profile, only the sidebar
-  // does).
-  const runningSessions = new Set(
-    tabsState.tabs.filter((tab) => tab.profileId === activeProfile.id && tab.isRunning).map((tab) => tab.id),
-  );
-  // Same reasoning as `runningSessions` — only covers sessions open as a tab:
-  // a session without a tab has no live WS connection to
-  // know whether it has a job running, same limitation `isRunning` already
-  // had.
-  const backgroundJobSessions = new Set(
-    tabsState.tabs.filter((tab) => tab.profileId === activeProfile.id && tab.hasBackgroundJob).map((tab) => tab.id),
-  );
+  // Every profile's running sessions, not just the selected profile's — the
+  // sidebar lists them all now, and a turn running in another profile's tab
+  // is exactly the kind of thing the indicator exists to surface.
+  //
+  // Still only covers sessions open as a tab: a session with no tab has no
+  // live WS connection to know whether it's running, the same limitation
+  // `isRunning` always had.
+  const runningSessions = new Set(tabsState.tabs.filter((tab) => tab.isRunning).map((tab) => tab.id));
+  const backgroundJobSessions = new Set(tabsState.tabs.filter((tab) => tab.hasBackgroundJob).map((tab) => tab.id));
 
   const sidebarProps = {
     activeProfile,
+    profiles,
     profilesSupported,
     onProfileChange: handleProfileChange,
+    selectedProfileIds,
+    onToggleProfileFilter: toggleProfileFilter,
+    onClearProfileFilter: clearProfileFilter,
     sessions,
     sessionsLoading,
     sessionsError,
@@ -511,8 +573,9 @@ export default function App() {
     backgroundJobSessions,
     onSelectSession: handleSelectSession,
     onNewConversation: handleNewConversation,
-    onRenameSession: (id: string, title: string) => handleRenameSession(activeProfile.id, id, title),
-    onDeleteSession: (id: string) => handleDeleteSession(activeProfile.id, id),
+    onRenameSession: (session: MergedSession, title: string) =>
+      handleRenameSession(session.profileId, session.id, title),
+    onDeleteSession: (session: MergedSession) => handleDeleteSession(session.profileId, session.id),
   };
 
   const activeTab = tabsState.tabs.find((tab) => tab.id === activeTabId);
@@ -562,17 +625,21 @@ export default function App() {
         }}
         onTitle={(title) => {
           tabsState.setTabTitle(tab.id, title);
-          if (tab.profileId === activeProfile.id) upsertTitle(tab.id, title);
+          // Ungated on the active profile, unlike before: with every profile
+          // in one list, a conversation titled in a background tab has to
+          // appear under its own profile whether or not that profile is the
+          // one currently selected.
+          upsertCachedSession(tab.profileId, tab.id, title, Date.now());
         }}
         onActivity={() => {
-          if (tab.profileId === activeProfile.id) touch(tab.id);
+          touchCachedSession(tab.profileId, tab.id);
         }}
         onDeleted={() => {
           tabsState.closeTab(tab.id);
           sessionDock.removeSession(tab.id);
           terminalTabs.removeSession(tab.id);
           fileTabs.removeSession(tab.id);
-          if (tab.profileId === activeProfile.id) removeSession(tab.id);
+          removeCachedSession(tab.profileId, tab.id);
         }}
         onConnectedChange={(connected) => {
           setConnectedByTab((prev) => (prev[tab.id] === connected ? prev : { ...prev, [tab.id]: connected }));
@@ -722,7 +789,7 @@ export default function App() {
   // Mounted in both layout branches below — iOS has no `ProfileSwitcher`
   // (the only other UI that used to trigger a profile import) to hang this
   // off of, and the desktop sidebar unmounts entirely while collapsed, same
-  // reasoning `RevokedProfileBanners` already followed right above it.
+  // reasoning `RevokedProfileBanners` follows.
   const profileSetupDialog = (
     <ProfileSetupDialog
       state={setupSnapshot.state}
@@ -747,6 +814,7 @@ export default function App() {
         <SessionSearch open={searchOpen} onOpenChange={setSearchOpen} onSelectSession={handleSearchSelectSession} />
         <MobileShell
           activeProfile={activeProfile}
+          profiles={profiles}
           onProfileChange={handleProfileChange}
           sessions={sessions}
           sessionsLoading={sessionsLoading}
@@ -756,8 +824,8 @@ export default function App() {
           runningSessions={runningSessions}
           backgroundJobSessions={backgroundJobSessions}
           onSelectSession={handleSelectSession}
-          onRenameSession={(id, title) => handleRenameSession(activeProfile.id, id, title)}
-          onDeleteSession={(id) => handleDeleteSession(activeProfile.id, id)}
+          onRenameSession={(session, title) => handleRenameSession(session.profileId, session.id, title)}
+          onDeleteSession={(session) => handleDeleteSession(session.profileId, session.id)}
           onOpenSearch={() => setSearchOpen(true)}
           title={activeTab?.title ?? "Nova sessão"}
           connected={activeConnected}
@@ -783,7 +851,6 @@ export default function App() {
         onOpenSettings={() => setSettingsOpen(true)}
         connected={activeConnected}
       />
-      <RevokedProfileBanners />
       {profileSetupDialog}
       <DownloadToasts />
 
@@ -820,7 +887,12 @@ export default function App() {
           </Sheet>
         )}
 
+        {/* Inside the main column, not above it: the notice is about a
+         * profile's connection, and the conversation and panels are what
+         * stop working. The session list keeps working — its rows are cached
+         * locally and still readable — so covering it would claim otherwise. */}
         <div className="relative flex min-w-0 flex-1 flex-col">
+          <RevokedProfileBanners />
           {isCompact && (
             <div className="flex items-center gap-2 p-2">
               <Tooltip>

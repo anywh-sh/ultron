@@ -4,6 +4,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { Profile } from "@/lib/profiles";
 import type { SessionSummary } from "@/lib/relay-types";
 import { BrokerRevokedError } from "@/lib/tailnetBroker";
+import { getCachedSessions } from "@/lib/sessionListCache";
 
 const { fetchSessionsMock, resolveConnectionMock } = vi.hoisted(() => ({
   fetchSessionsMock: vi.fn(async (): Promise<SessionSummary[]> => []),
@@ -51,6 +52,7 @@ const tailnetProfile: Profile = {
 };
 
 beforeEach(() => {
+  localStorage.clear();
   vi.useFakeTimers();
   FakeWebSocket.instances = [];
   vi.stubGlobal("WebSocket", FakeWebSocket);
@@ -130,7 +132,22 @@ describe("useSessionNames", () => {
     consoleErrorSpy.mockRestore();
   });
 
-  it("switching profile A -> B never shows A's sessions in the next render", async () => {
+  it("writes the fetched list into the shared cache under the profile's own id", async () => {
+    const fromA = { id: "s1", title: "From A", lastActiveAt: 1_700_000_000_000 };
+    fetchSessionsMock.mockResolvedValueOnce([fromA]);
+
+    await act(async () => {
+      renderHook(() => useSessionNames(tailnetProfile));
+      await vi.runAllTimersAsync();
+    });
+
+    // The hook holds no list of its own any more: the sidebar shows every
+    // profile at once, so the rows have to land somewhere shared.
+    expect(getCachedSessions(tailnetProfile.id).sessions).toEqual([fromA]);
+    expect(getCachedSessions(tailnetProfile.id).syncedAt).not.toBeNull();
+  });
+
+  it("switching profile A -> B reports B's sync state, and keeps A's rows cached", async () => {
     const fromA = { id: "s1", title: "From A", lastActiveAt: 1_700_000_000_000 };
     fetchSessionsMock.mockResolvedValueOnce([fromA]);
     const profileB: Profile = { ...tailnetProfile, id: "sandbox-b" };
@@ -141,19 +158,52 @@ describe("useSessionNames", () => {
     await act(async () => {
       await vi.runAllTimersAsync();
     });
-    expect(result.current.sessions).toEqual([fromA]);
+    expect(result.current.loading).toBe(false);
 
     fetchSessionsMock.mockResolvedValueOnce([]);
     rerender({ profile: profileB });
-    // The render right after the switch — before the new profile's fetch
-    // effect has any chance to run — must already show the skeleton state,
-    // not a frame with A's sessions still in it.
-    expect(result.current.sessions).toEqual([]);
+    // The render right after the switch already describes B, not a frame
+    // still claiming A's finished sync.
     expect(result.current.loading).toBe(true);
+    // And A's rows survive it — that is the entire point of the shared
+    // cache: switching profile no longer throws a list away.
+    expect(getCachedSessions(tailnetProfile.id).sessions).toEqual([fromA]);
 
     await act(async () => {
       await vi.runAllTimersAsync();
     });
+  });
+
+  it("keeps a late response for a profile that was switched away from", async () => {
+    // The response is a real, fresh list for that profile; discarding it
+    // because the user moved on would leave those rows staler than they
+    // need to be, for no benefit.
+    let resolveA: (value: SessionSummary[]) => void = () => {};
+    fetchSessionsMock.mockImplementationOnce(
+      () =>
+        new Promise<SessionSummary[]>((resolve) => {
+          resolveA = resolve;
+        }),
+    );
+    const profileB: Profile = { ...tailnetProfile, id: "sandbox-b" };
+
+    const { rerender } = renderHook(({ profile }) => useSessionNames(profile), {
+      initialProps: { profile: tailnetProfile },
+    });
+    rerender({ profile: profileB });
+    // Lets A's `resolveConnection` settle so its `fetchSessions` actually
+    // runs — until it does, nothing is in flight to arrive late.
+    await act(async () => {
+      await vi.runAllTimersAsync();
+    });
+
+    const late = [{ id: "late", title: "Arrived after the switch", lastActiveAt: 5 }];
+    await act(async () => {
+      resolveA(late);
+      await vi.runAllTimersAsync();
+    });
+
+    expect(getCachedSessions(tailnetProfile.id).sessions).toEqual(late);
   });
 
   it("sets error when the one-shot fetch rejects", async () => {

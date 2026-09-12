@@ -4,22 +4,23 @@ import { SessionList } from "@/components/shell/SessionList";
 import { RenameSessionDialog } from "@/components/shell/RenameSessionDialog";
 import { cn } from "@/lib/utils";
 import { profileColorClass, type Profile } from "@/lib/profiles";
-import { useProfiles } from "@/hooks/useProfiles";
-import type { SessionSummary } from "@/lib/relay-types";
+import { useDict } from "@/i18n";
+import type { MergedSession } from "@/lib/sessionGrouping";
 
 interface MobileSidebarProps {
   activeProfile: Profile;
   onProfileChange: (profileId: string) => void;
-  sessions: SessionSummary[];
+  profiles: Profile[];
+  sessions: MergedSession[];
   sessionsLoading: boolean;
   sessionsError: boolean;
   onRetrySessions: () => void;
   selectedSession: string | null;
   runningSessions: Set<string>;
   backgroundJobSessions: Set<string>;
-  onSelectSession: (id: string) => void;
-  onRenameSession: (id: string, title: string) => void;
-  onDeleteSession: (id: string) => void;
+  onSelectSession: (session: MergedSession) => void;
+  onRenameSession: (session: MergedSession, title: string) => void;
+  onDeleteSession: (session: MergedSession) => void;
   onOpenSearch: () => void;
 }
 
@@ -36,6 +37,7 @@ interface MobileSidebarProps {
  */
 export function MobileSidebar({
   activeProfile,
+  profiles,
   onProfileChange,
   sessions,
   sessionsLoading,
@@ -49,8 +51,8 @@ export function MobileSidebar({
   onDeleteSession,
   onOpenSearch,
 }: MobileSidebarProps) {
-  const [renaming, setRenaming] = useState<{ id: string; title: string } | null>(null);
-  const profiles = useProfiles();
+  const dict = useDict();
+  const [renaming, setRenaming] = useState<{ session: MergedSession; title: string } | null>(null);
 
   return (
     <div className="absolute inset-y-0 left-0 z-0 flex w-[var(--push)] min-w-0 flex-col gap-3.5 bg-bg-sidebar pt-14 pr-4 pb-6 pl-4">
@@ -89,18 +91,19 @@ export function MobileSidebar({
         className="flex cursor-pointer items-center gap-2 rounded-xl bg-bg-elevated px-3 py-2.5 text-left text-sm text-muted-foreground"
       >
         <Search className="size-3.5 shrink-0" />
-        Buscar sessão
+        {dict.shell.titleBar.searchSessions}
       </button>
 
-      {/* "Recentes" + list become their own group, with a short gap between
-       * the two — the "large" gap is the outer column's
-       * (gap-3.5), between the search and this group, not between the
-       * label and the first item. */}
-      <div className="flex min-h-0 flex-1 flex-col gap-1.5">
-        <p className="px-1 font-mono text-[10.5px] tracking-wide text-text-faint uppercase">Recentes</p>
-
+      {/* No "Recentes" heading any more: the list groups itself by recency
+       * now, so a label saying the same thing would sit right on top of one
+       * that says it more precisely. */}
+      <div className="flex min-h-0 flex-1 flex-col">
         <SessionList
           sessions={sessions}
+          profiles={profiles}
+          // iOS has no filter control (the mobile layout is out of scope for
+          // the shell redesign), so it always shows every profile.
+          selectedProfileCount={profiles.length}
           loading={sessionsLoading}
           error={sessionsError}
           onRetry={onRetrySessions}
@@ -108,8 +111,9 @@ export function MobileSidebar({
           running={runningSessions}
           backgroundJobSessions={backgroundJobSessions}
           onSelect={onSelectSession}
-          onRename={(id, title) => setRenaming({ id, title })}
+          onRename={(session) => setRenaming({ session, title: session.title })}
           onDelete={onDeleteSession}
+          onClearFilter={() => {}}
           size="lg"
         />
       </div>
@@ -121,7 +125,7 @@ export function MobileSidebar({
         }}
         initialTitle={renaming?.title ?? ""}
         onSave={(title) => {
-          if (renaming) onRenameSession(renaming.id, title);
+          if (renaming) onRenameSession(renaming.session, title);
           setRenaming(null);
         }}
       />

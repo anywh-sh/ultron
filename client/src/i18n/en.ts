@@ -35,6 +35,30 @@ export const en: Dictionary = {
       close: "Close",
       reconnecting: "Reconnecting…",
     },
+    sidebar: {
+      label: "Sidebar",
+      newConversation: "New conversation",
+      filterByProfile: "Filter by profile",
+      filterHeading: "filter profiles",
+      allProfiles: "all",
+      loadingSessions: "Loading sessions…",
+      loadFailed: "Could not load the conversations.",
+      emptyTitle: "no sessions yet",
+      emptyBody: "Open a project and send the first instruction — the history stays on your machine.",
+      noMatches: "no sessions in the filtered profiles",
+      noMatchesHint: "Clear the filter to see every profile again.",
+      syncedAt: "synced {time}",
+      neverSynced: "never synced",
+      renameSession: "Rename {title}",
+      agentWorking: "Agent working in this session",
+      backgroundJob: "Background job running in this session",
+      groups: {
+        today: "today",
+        yesterday: "yesterday",
+        week: "7 days",
+        older: "older",
+      },
+    },
     profiles: {
       heading: "profiles",
       activeProfile: "Active profile",
@@ -67,6 +91,12 @@ export const en: Dictionary = {
     idle: {
       heading: "Pick a conversation",
       subtitle: "Choose a session in the sidebar, or start a new one.",
+    },
+    search: {
+      title: "Search sessions",
+      description: "Search a session by name, across every profile.",
+      placeholder: "Search sessions…",
+      noResults: "No sessions found.",
     },
   },
   settings: {

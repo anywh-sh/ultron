@@ -4,6 +4,7 @@ import userEvent from "@testing-library/user-event";
 import { setProfiles } from "@/lib/profiles";
 import { installFakeRelay, type FakeRelay } from "./helpers/fakeRelay";
 import { renderApp } from "./helpers/renderApp";
+import { en } from "@/i18n/en";
 
 // Same Tauri-API guards as sendMessage.test.tsx — this tier renders the same
 // ChatPanel/composer path to reach the point where RelayClient opens its
@@ -33,7 +34,7 @@ describe("Profile.connectToken", () => {
 
     const user = userEvent.setup();
     renderApp();
-    await user.click(await screen.findByRole("button", { name: "Nova conversa" }));
+    await user.click(await screen.findByRole("button", { name: en.shell.sidebar.newConversation }));
 
     // `/sessions/watch` (useSessionNames) opens its own socket independent of
     // RelayClient — filter to the session socket RelayClient.connect opens.
@@ -47,7 +48,7 @@ describe("Profile.connectToken", () => {
 
     const user = userEvent.setup();
     renderApp();
-    await user.click(await screen.findByRole("button", { name: "Nova conversa" }));
+    await user.click(await screen.findByRole("button", { name: en.shell.sidebar.newConversation }));
 
     await vi.waitFor(() => expect(relay.sockets.some((s) => s.url.includes("?session="))).toBe(true));
     const sessionSocket = relay.sockets.find((s) => s.url.includes("?session="))!;

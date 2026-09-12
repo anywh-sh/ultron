@@ -6,6 +6,7 @@ import { TooltipProvider } from "@/components/ui/tooltip";
 import { LocaleProvider } from "@/i18n";
 import App from "@/App";
 import { installFakeRelay, type FakeRelay } from "../ui/helpers/fakeRelay";
+import { en } from "@/i18n/en";
 
 /**
  * Render-cost baseline for the interactions a user performs constantly:
@@ -130,7 +131,7 @@ async function measureRepeated(
 
 async function openNewConversation(user: ReturnType<typeof userEvent.setup>): Promise<void> {
   const before = screen.queryAllByLabelText(COMPOSER).length;
-  await user.click(await screen.findByRole("button", { name: "Nova conversa" }));
+  await user.click(await screen.findByRole("button", { name: en.shell.sidebar.newConversation }));
   await vi.waitFor(() => expect(screen.getAllByLabelText(COMPOSER)).toHaveLength(before + 1));
 }
 
@@ -144,7 +145,7 @@ describe("interaction baseline", () => {
     // screen), which is what a cold launch actually renders.
     commitDurations = [];
     renderProfiledApp();
-    await screen.findByRole("button", { name: "Nova conversa" });
+    await screen.findByRole("button", { name: en.shell.sidebar.newConversation });
     recordCommits("mount");
     record("mount.domNodes", domNodes());
 
@@ -165,8 +166,14 @@ describe("interaction baseline", () => {
       await user.click(screen.getAllByRole("tab")[iteration % tabCount]);
     });
 
+    // The label flips between collapse and expand on each press, so it can't
+    // be resolved once outside the loop.
+    const sidebarToggleName = new RegExp(
+      `${en.shell.titleBar.collapseSidebar}|${en.shell.titleBar.expandSidebar}`,
+      "i",
+    );
     await measureRepeated("sidebarToggle", 6, async () => {
-      await user.click(screen.getByRole("button", { name: /barra lateral/ }));
+      await user.click(screen.getByRole("button", { name: sidebarToggleName }));
     });
 
     const width = Math.max(...Object.keys(report).map((key) => key.length));

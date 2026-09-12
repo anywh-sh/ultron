@@ -70,6 +70,31 @@ export interface Dictionary {
       close: string;
       reconnecting: string;
     };
+    sidebar: {
+      label: string;
+      newConversation: string;
+      filterByProfile: string;
+      filterHeading: string;
+      allProfiles: string;
+      loadingSessions: string;
+      loadFailed: string;
+      emptyTitle: string;
+      emptyBody: string;
+      noMatches: string;
+      noMatchesHint: string;
+      /** `{time}` — a relative moment ("2 hr. ago"). */
+      syncedAt: string;
+      neverSynced: string;
+      renameSession: string;
+      agentWorking: string;
+      backgroundJob: string;
+      groups: {
+        today: string;
+        yesterday: string;
+        week: string;
+        older: string;
+      };
+    };
     profiles: {
       heading: string;
       activeProfile: string;
@@ -105,6 +130,12 @@ export interface Dictionary {
     idle: {
       heading: string;
       subtitle: string;
+    };
+    search: {
+      title: string;
+      description: string;
+      placeholder: string;
+      noResults: string;
     };
   };
 }
