@@ -150,7 +150,7 @@ describe("revocation of a non-active profile's background chat tab", () => {
     // Open a real chat tab on the (initially active) tailnet profile and
     // send a message — proves a genuinely live, connected RelayClient exists
     // for it, same as the live scenario reported (a message got a reply).
-    await user.click(await screen.findByRole("button", { name: "Nova conversa" }));
+    await user.click(await screen.findByRole("button", { name: en.shell.sidebar.newConversation }));
     const composer = await screen.findByLabelText("Escreva uma mensagem…");
     await user.type(composer, "oi");
     const sendButton = await screen.findByRole("button", { name: "Enviar" });

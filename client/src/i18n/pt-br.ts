@@ -35,6 +35,30 @@ export const ptBr: Dictionary = {
       close: "Fechar",
       reconnecting: "Reconectando…",
     },
+    sidebar: {
+      label: "Barra lateral",
+      newConversation: "Nova conversa",
+      filterByProfile: "Filtrar por perfil",
+      filterHeading: "filtrar perfis",
+      allProfiles: "todos",
+      loadingSessions: "Carregando sessões…",
+      loadFailed: "Não foi possível carregar as conversas.",
+      emptyTitle: "nenhuma sessão ainda",
+      emptyBody: "Abra um projeto e mande a primeira instrução — o histórico fica na sua máquina.",
+      noMatches: "nenhuma sessão nos perfis filtrados",
+      noMatchesHint: "Limpe o filtro para ver todos os perfis de novo.",
+      syncedAt: "sincronizado {time}",
+      neverSynced: "nunca sincronizado",
+      renameSession: "Renomear {title}",
+      agentWorking: "Agente trabalhando nesta sessão",
+      backgroundJob: "Job em background rodando nesta sessão",
+      groups: {
+        today: "hoje",
+        yesterday: "ontem",
+        week: "7 dias",
+        older: "mais antigas",
+      },
+    },
     profiles: {
       heading: "perfis",
       activeProfile: "Perfil ativo",
@@ -67,6 +91,12 @@ export const ptBr: Dictionary = {
     idle: {
       heading: "Escolha uma conversa",
       subtitle: "Selecione uma sessão na barra lateral, ou comece uma nova.",
+    },
+    search: {
+      title: "Buscar sessão",
+      description: "Busque uma sessão por nome, em todos os perfis.",
+      placeholder: "Buscar sessão…",
+      noResults: "Nenhuma sessão encontrada.",
     },
   },
   settings: {

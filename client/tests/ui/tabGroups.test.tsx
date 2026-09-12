@@ -4,6 +4,7 @@ import userEvent from "@testing-library/user-event";
 import * as ChatPanelModule from "@/components/chat/ChatPanel";
 import { installFakeRelay, type FakeRelay } from "./helpers/fakeRelay";
 import { renderApp } from "./helpers/renderApp";
+import { en } from "@/i18n/en";
 
 // ChatPanel registers a Tauri drag-drop listener unconditionally on mount
 // (getCurrentWebview(), reads window.__TAURI_INTERNALS__ synchronously) —
@@ -49,7 +50,7 @@ afterEach(() => {
 // Waits for the count to grow by exactly one instead.
 async function openNewConversation(user: ReturnType<typeof userEvent.setup>): Promise<void> {
   const before = screen.queryAllByLabelText("Escreva uma mensagem…").length;
-  await user.click(await screen.findByRole("button", { name: "Nova conversa" }));
+  await user.click(await screen.findByRole("button", { name: en.shell.sidebar.newConversation }));
   await vi.waitFor(() => expect(screen.getAllByLabelText("Escreva uma mensagem…")).toHaveLength(before + 1));
 }
 
