@@ -1,0 +1,42 @@
+name: Feature request
+description: Propose something the project should do that it doesn't do today
+labels: ["enhancement"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Check the [roadmap](https://github.com/anywh-sh/anywh#roadmap) first —
+        more agent CLIs, per-session git worktrees and direct model access are
+        already planned, and a comment on an existing issue is more useful than
+        a new one.
+
+  - type: textarea
+    id: problem
+    attributes:
+      label: The problem
+      description: >
+        What you're trying to do and where the project gets in the way. Describe
+        the situation, not the solution — the solution goes in the next box.
+    validations:
+      required: true
+
+  - type: textarea
+    id: proposal
+    attributes:
+      label: What you'd like it to do
+    validations:
+      required: true
+
+  - type: textarea
+    id: alternatives
+    attributes:
+      label: Alternatives you considered
+      description: Including whatever you're doing today to work around it.
+
+  - type: checkboxes
+    id: scope
+    attributes:
+      label: Scope
+      options:
+        - label: This keeps working with a self-hosted relay on a trusted network — it doesn't depend on a hosted service
+        - label: I'd be willing to work on this
