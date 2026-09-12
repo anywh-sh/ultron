@@ -42,6 +42,9 @@ interface MessageLogProps {
    * `undefined` on compact/iOS, where that panel doesn't exist (see
    * `Message.tsx`'s `AssistantText`). */
   onOpenPath?: (path: string) => void;
+  /** The session's working directory — a tool call's header shows the file
+   * it touched relative to this, not as the relay's absolute path. */
+  cwd: string | null;
   /** Whether this tab is the one currently on screen — background tabs stay
    * mounted (`invisible` in `TabGroupLayout`'s flat panel layer), so this is the
    * only signal telling this instance it just came back into view. See the
@@ -124,13 +127,14 @@ interface UserActionHandlers {
   onSaveEdit: (id: string, text: string) => void;
   onCopy: (text: string) => void;
   onOpenPath?: (path: string) => void;
+  cwd: string | null;
 }
 
 function renderItem(item: RenderItem, userActions: UserActionHandlers) {
   if (item.kind === "tool") {
     return (
       <LogEntryRow key={item.use.id} rail="neutral">
-        <ToolCallCard use={item.use} result={item.result} />
+        <ToolCallCard use={item.use} result={item.result} cwd={userActions.cwd} onOpenPath={userActions.onOpenPath} />
       </LogEntryRow>
     );
   }
@@ -138,7 +142,7 @@ function renderItem(item: RenderItem, userActions: UserActionHandlers) {
   if (item.kind === "tool-group") {
     return (
       <LogEntryRow key={`group-${item.items[0].use.id}`} rail="neutral">
-        <ToolCallGroup items={item.items} />
+        <ToolCallGroup items={item.items} cwd={userActions.cwd} onOpenPath={userActions.onOpenPath} />
       </LogEntryRow>
     );
   }
@@ -219,10 +223,11 @@ export const MessageLog = memo(function MessageLog({
   onSaveEdit,
   onCopy,
   onOpenPath,
+  cwd,
   isActiveTab,
 }: MessageLogProps) {
   const parentRef = useRef<HTMLDivElement>(null);
-  const userActions: UserActionHandlers = { editingMessageId, onStartEdit, onCancelEdit, onSaveEdit, onCopy, onOpenPath };
+  const userActions: UserActionHandlers = { editingMessageId, onStartEdit, onCancelEdit, onSaveEdit, onCopy, onOpenPath, cwd };
 
   // `entries` only gets a new reference when something is actually
   // committed (see reducer in useMessageLog) — memoizing here avoids

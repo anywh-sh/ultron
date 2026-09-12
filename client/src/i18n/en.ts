@@ -35,6 +35,18 @@ export const en: Dictionary = {
       editUnavailable: "Edit message (unavailable)",
       editWithAttachment: "Editing a message with an attachment isn't supported yet",
     },
+    toolCall: {
+      viewFile: "View file",
+      running: "running…",
+      usingTools: "Using {count} tools",
+      usedTools: "Used {count} tools",
+    },
+    code: {
+      copy: "Copy code",
+      copied: "Copied",
+      copyFailed: "Couldn't copy the code.",
+      showMoreLines: "Show {count} more lines",
+    },
   },
   shell: {
     titleBar: {

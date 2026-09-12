@@ -560,6 +560,7 @@ export function ChatPanel({
           onSaveEdit={onSaveEdit}
           onCopy={onCopyMessage}
           onOpenPath={onOpenPath}
+          cwd={cwd}
           isActiveTab={isActiveTab}
         />
       ) : (

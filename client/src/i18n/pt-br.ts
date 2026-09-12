@@ -35,6 +35,18 @@ export const ptBr: Dictionary = {
       editUnavailable: "Editar mensagem (indisponível)",
       editWithAttachment: "Editar mensagem com anexo ainda não é suportado",
     },
+    toolCall: {
+      viewFile: "Ver arquivo",
+      running: "executando…",
+      usingTools: "Usando {count} ferramentas",
+      usedTools: "Usou {count} ferramentas",
+    },
+    code: {
+      copy: "Copiar código",
+      copied: "Copiado",
+      copyFailed: "Não foi possível copiar o código.",
+      showMoreLines: "Mostrar mais {count} linhas",
+    },
   },
   shell: {
     titleBar: {
