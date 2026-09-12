@@ -29,6 +29,16 @@ export interface Dictionary {
     search: string;
     send: string;
     stop: string;
+    /** Fallback name for a session the relay hasn't titled yet (`title` is
+     * still `null`). Lives in `common` rather than under a surface because
+     * it is the session's own identity, and five surfaces render it: the
+     * tab, its tooltip and close label, the title bar, the idle screen and
+     * the turn-complete notification. Distinct from the default title the
+     * relay *persists* (`titleGenerator.ts`), which stays untranslated: that
+     * one is written into the session record, so translating it would leave
+     * every already-stored session named in the old language while new ones
+     * arrived in the new one. */
+    untitledSession: string;
   };
   settings: {
     language: {
@@ -48,6 +58,17 @@ export interface Dictionary {
     setCwdTitle: string;
     setCwd: Record<SetCwdErrorCode, string>;
     editMessage: Record<EditMessageErrorCode, string>;
+  };
+  /** The conversation itself — the tab strip down to the message log.
+   * Same grouping rule as `shell` below: by the surface the string appears
+   * on, not by the component that renders it. */
+  chat: {
+    tabs: {
+      newTab: string;
+      close: string;
+      agentWorking: string;
+      sessionDone: string;
+    };
   };
   /** The window frame and the session list — everything outside a
    * conversation. Grouped by the surface a string appears on rather than by

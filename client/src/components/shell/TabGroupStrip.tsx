@@ -1,12 +1,13 @@
 import { useRef, useState } from "react";
-import { Loader2, X } from "lucide-react";
+import { Loader2, Plus, X } from "lucide-react";
 import { useDroppable } from "@dnd-kit/core";
 import { SortableContext, horizontalListSortingStrategy, useSortable } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
+import { useDict } from "@/i18n";
 import { cn, scrollHorizontallyOnWheel, truncateWords } from "@/lib/utils";
 import type { Tab } from "@/hooks/useTabs";
-import { profileActiveBgClass } from "@/lib/profiles";
+import { profileActiveBgClass, profileColorClass } from "@/lib/profiles";
 import { useContextMenu } from "@/hooks/useContextMenu";
 import { SessionDeleteMenu } from "@/components/shell/SessionDeleteMenu";
 import { RenameSessionDialog } from "@/components/shell/RenameSessionDialog";
@@ -40,6 +41,11 @@ interface TabGroupStripProps {
   onRenameSession: (tabId: string, title: string) => void;
   onDelete: (tabId: string) => void;
   onSplitToNewGroup: (tabId: string) => void;
+  /** The `+` at the end of the strip — opens a new conversation in THIS
+   * group, which is why it isn't just the sidebar's own handler: `openTab`
+   * always appends to the focused group, so the caller has to focus this
+   * one first (see `TabGroupLayout`). */
+  onNewTab: () => void;
 }
 
 interface SortableTabProps {
@@ -57,15 +63,18 @@ interface SortableTabProps {
 // Was Radix's `TabsTrigger` (`components/ui/tabs.tsx`) before a group could
 // have more than one strip alive at once — Radix's `Tabs` root only supports
 // a single active `value` shared by every descendant, which stopped working
-// the moment two groups each needed their own independently-active tab. This
-// reproduces its exact resolved classes by hand (the "line" variant,
-// horizontal orientation — the only combination this app ever used) and
-// keeps setting `data-state`/`aria-selected` itself instead of delegating to
-// Radix, so `profileActiveBgClass`'s `data-[state=active]:bg-*` classes (and
-// every other `data-[state=active]:` selector already written against this
-// markup) keep working completely unmodified.
+// the moment two groups each needed their own independently-active tab. What
+// stood here was the exact resolved class string of Radix's "line" variant,
+// carried over verbatim so nothing broke in the swap; the redesign is where
+// that debt gets paid, since the tab is being restyled anyway. It still sets
+// `data-state`/`aria-selected` itself instead of delegating to Radix, which
+// is what keeps `profileActiveBgClass`'s `data-[state=active]:bg-*` working.
+//
+// The hover background is gated on `data-[state=inactive]` on purpose: the
+// active tab's background IS the profile tint, and an ungated `hover:bg-*`
+// would paint over the one thing that marks which tab is selected.
 const TAB_TRIGGER_CLASS =
-  "relative z-10 inline-flex h-[calc(100%-1px)] flex-1 items-center justify-center gap-1.5 rounded-md border border-transparent px-2 py-1 text-sm font-medium whitespace-nowrap text-foreground/60 transition-colors hover:text-foreground focus-visible:border-ring focus-visible:ring-[3px] focus-visible:ring-ring/50 focus-visible:outline-1 focus-visible:outline-ring disabled:pointer-events-none disabled:opacity-50 dark:text-muted-foreground dark:hover:text-foreground [&_svg]:pointer-events-none [&_svg]:shrink-0 [&_svg:not([class*='size-'])]:size-4 bg-transparent data-[state=active]:border-transparent data-[state=active]:bg-background data-[state=active]:text-foreground dark:data-[state=active]:border-input dark:data-[state=active]:text-foreground min-w-0 gap-1.5 rounded-none py-2 pr-7 pl-3 font-mono text-xs";
+  "relative z-10 inline-flex h-full min-w-0 flex-1 cursor-pointer items-center gap-1.5 border-r border-border-soft py-1 pr-7 pl-3 font-mono text-xs whitespace-nowrap text-text-faint transition-colors hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring/60 focus-visible:outline-none data-[state=active]:text-foreground data-[state=inactive]:hover:bg-surface-hover";
 
 /**
  * Only spreads dnd-kit's `listeners`/`setNodeRef`, not `attributes` — avoids
@@ -78,6 +87,8 @@ const TAB_TRIGGER_CLASS =
 function SortableTab({ tab, isActive, canSplit, onSelect, onClose, onRename, onDelete, onSplitToNewGroup, buttonRef }: SortableTabProps) {
   const { setNodeRef, listeners, transform, transition, isDragging } = useSortable({ id: tab.id });
   const menu = useContextMenu();
+  const dict = useDict();
+  const title = tab.title ?? dict.common.untitledSession;
 
   return (
     <Tooltip>
@@ -131,13 +142,21 @@ function SortableTab({ tab, isActive, canSplit, onSelect, onClose, onRename, onD
             className={cn(TAB_TRIGGER_CLASS, profileActiveBgClass(tab.profileId))}
           >
             {tab.isRunning ? (
-              <Loader2 className="size-3 shrink-0 animate-spin text-foreground" aria-label="Agente trabalhando nesta sessão" />
+              <Loader2 className="size-3 shrink-0 animate-spin text-foreground" aria-label={dict.chat.tabs.agentWorking} />
             ) : (
               tab.hasUnreadCompletion && (
-                <span className="size-1.5 shrink-0 rounded-full bg-status-done" aria-label="Sessão finalizada" />
+                // The "turn finished, unseen" dot takes the profile's own
+                // colour. This deliberately reverses an earlier call: the
+                // dot used to be `--status-done`, a blue chosen precisely so
+                // it would NOT be read as a profile colour. In a tab the
+                // ambiguity never materialised — the tab already carries its
+                // profile tint, so a dot in that same colour reads as "this
+                // session", not as a second, competing signal. That token
+                // had no other consumer and goes away with this.
+                <span className={cn("size-1.5 shrink-0 rounded-full", profileColorClass(tab.profileId))} aria-label={dict.chat.tabs.sessionDone} />
               )
             )}
-            <span className="min-w-0 flex-1 truncate">{tab.title ?? "Nova sessão"}</span>
+            <span className="min-w-0 flex-1 truncate">{title}</span>
           </button>
           <button
             type="button"
@@ -145,22 +164,22 @@ function SortableTab({ tab, isActive, canSplit, onSelect, onClose, onRename, onD
               event.stopPropagation();
               onClose(tab.id);
             }}
-            aria-label={`Fechar aba ${tab.title ?? "nova sessão"}`}
+            aria-label={dict.chat.tabs.close.replace("{title}", title)}
             className={cn(
               // `z-20`: the tab button sits at `z-10` and, being `position:
               // relative`, paints above this sibling `button` otherwise —
               // its clickable box covers the full row including the `pr-7`
               // padding reserved for this button, so without a higher
               // z-index the trigger intercepts every click meant for the X.
-              "absolute right-1.5 z-20 cursor-pointer rounded p-0.5 opacity-0 transition-opacity",
-              "hover:bg-border group-hover:opacity-100",
+              "absolute right-1.5 z-20 cursor-pointer p-0.5 opacity-45 transition-colors",
+              "hover:bg-surface-hover hover:opacity-100",
             )}
           >
             <X className="size-3" />
           </button>
           <SessionDeleteMenu
             menu={menu}
-            title={tab.title ?? "nova sessão"}
+            title={title}
             onRename={() => onRename(tab)}
             onDelete={() => onDelete(tab.id)}
             onMoveToNewGroup={canSplit ? () => onSplitToNewGroup(tab.id) : undefined}
@@ -171,7 +190,7 @@ function SortableTab({ tab, isActive, canSplit, onSelect, onClose, onRename, onD
           (which wraps to balance line lengths) — with the word cap above,
           there's no need to wrap at all, and wrapping read as a bug here. */}
       <TooltipContent side="bottom" className="whitespace-nowrap">
-        {truncateWords(tab.title ?? "Nova sessão", MAX_TOOLTIP_TITLE_WORDS)}
+        {truncateWords(title, MAX_TOOLTIP_TITLE_WORDS)}
       </TooltipContent>
     </Tooltip>
   );
@@ -190,7 +209,8 @@ function SortableTab({ tab, isActive, canSplit, onSelect, onClose, onRename, onD
  * possible at all. This only contributes its `SortableContext` (for
  * same-strip reordering) and the trailing drop zone.
  */
-export function TabGroupStrip({ groupId, tabs, activeTabId, allowSplit, onSelect, onClose, onRenameSession, onDelete, onSplitToNewGroup }: TabGroupStripProps) {
+export function TabGroupStrip({ groupId, tabs, activeTabId, allowSplit, onSelect, onClose, onRenameSession, onDelete, onSplitToNewGroup, onNewTab }: TabGroupStripProps) {
+  const dict = useDict();
   const [renaming, setRenaming] = useState<{ id: string; title: string } | null>(null);
   const buttonRefs = useRef(new Map<string, HTMLButtonElement>());
   // Fills whatever width the tabs don't — a separate, non-overlapping
@@ -221,37 +241,56 @@ export function TabGroupStrip({ groupId, tabs, activeTabId, allowSplit, onSelect
   return (
     <>
       <SortableContext items={tabs.map((tab) => tab.id)} strategy={horizontalListSortingStrategy}>
-        <div
-          role="tablist"
-          aria-orientation="horizontal"
-          onWheel={scrollHorizontallyOnWheel}
-          onKeyDown={handleTabListKeyDown}
-          // `overflow-y-hidden` isn't decorative here: per the CSS overflow
-          // spec, `overflow-x: auto` with `overflow-y` left at its default
-          // `visible` gets that default computed up to `auto` too — so
-          // without this, shrinking the window narrow enough for a tab's
-          // content to wrap could pop a vertical scrollbar on a strip
-          // that's meant to only ever scroll horizontally.
-          className="scrollbar-thin flex h-9 w-full flex-nowrap items-center justify-start gap-0 overflow-x-auto overflow-y-hidden rounded-none border-b border-border-soft bg-transparent p-0 text-muted-foreground"
-        >
-          {tabs.map((tab) => (
-            <SortableTab
-              key={tab.id}
-              tab={tab}
-              isActive={tab.id === activeTabId}
-              canSplit={allowSplit && tabs.length > 1}
-              onSelect={onSelect}
-              onClose={onClose}
-              onRename={(renamedTab) => setRenaming({ id: renamedTab.id, title: renamedTab.title ?? "" })}
-              onDelete={onDelete}
-              onSplitToNewGroup={onSplitToNewGroup}
-              buttonRef={(id, el) => {
-                if (el) buttonRefs.current.set(id, el);
-                else buttonRefs.current.delete(id);
-              }}
-            />
-          ))}
-          <div ref={setEndDropRef} className={cn("h-full min-w-2 flex-1", isOverEnd && "bg-border")} />
+        {/* The height, the chrome background and the bottom rule live on this
+            wrapper rather than on the tablist, so the `+` can sit OUTSIDE the
+            horizontal scroller and stay pinned to the right edge instead of
+            scrolling away with the tabs. */}
+        <div className="flex h-9 w-full items-stretch border-b border-border bg-bg-chrome">
+          <div
+            role="tablist"
+            aria-orientation="horizontal"
+            onWheel={scrollHorizontallyOnWheel}
+            onKeyDown={handleTabListKeyDown}
+            // `overflow-y-hidden` isn't decorative here: per the CSS overflow
+            // spec, `overflow-x: auto` with `overflow-y` left at its default
+            // `visible` gets that default computed up to `auto` too — so
+            // without this, shrinking the window narrow enough for a tab's
+            // content to wrap could pop a vertical scrollbar on a strip
+            // that's meant to only ever scroll horizontally.
+            className="scrollbar-thin flex min-w-0 flex-1 flex-nowrap items-stretch justify-start gap-0 overflow-x-auto overflow-y-hidden p-0 text-muted-foreground"
+          >
+            {tabs.map((tab) => (
+              <SortableTab
+                key={tab.id}
+                tab={tab}
+                isActive={tab.id === activeTabId}
+                canSplit={allowSplit && tabs.length > 1}
+                onSelect={onSelect}
+                onClose={onClose}
+                onRename={(renamedTab) => setRenaming({ id: renamedTab.id, title: renamedTab.title ?? "" })}
+                onDelete={onDelete}
+                onSplitToNewGroup={onSplitToNewGroup}
+                buttonRef={(id, el) => {
+                  if (el) buttonRefs.current.set(id, el);
+                  else buttonRefs.current.delete(id);
+                }}
+              />
+            ))}
+            <div ref={setEndDropRef} className={cn("h-full min-w-2 flex-1", isOverEnd && "bg-border")} />
+          </div>
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <button
+                type="button"
+                onClick={onNewTab}
+                aria-label={dict.chat.tabs.newTab}
+                className="flex w-9 shrink-0 cursor-pointer items-center justify-center border-l border-border-soft text-text-faint transition-colors hover:bg-surface-hover hover:text-foreground"
+              >
+                <Plus className="size-3.5" />
+              </button>
+            </TooltipTrigger>
+            <TooltipContent side="bottom">{dict.chat.tabs.newTab}</TooltipContent>
+          </Tooltip>
         </div>
       </SortableContext>
 

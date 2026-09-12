@@ -17,6 +17,7 @@ import { SessionDock } from "@/components/shell/SessionDock";
 import { DownloadToasts } from "@/components/files/DownloadToasts";
 import { FilesPanelSlot } from "@/components/files/FilesPanelSlot";
 import { TerminalPanelSlot } from "@/components/terminal/TerminalPanelSlot";
+import { useDict } from "@/i18n";
 import { useActiveProfile } from "@/hooks/useActiveProfile";
 import { useNavigationHistory } from "@/hooks/useNavigationHistory";
 import { useSessionNames } from "@/hooks/useSessionNames";
@@ -61,6 +62,7 @@ function readQueryOverride(): { profile: string | null; session: string | null }
 }
 
 export default function App() {
+  const dict = useDict();
   const queryOverride = useMemo(readQueryOverride, []);
   const [activeProfile, setActiveProfileId] = useActiveProfile(queryOverride.profile);
   const { loading: sessionsLoading, error: sessionsError, reload: reloadSessions } = useSessionNames(activeProfile);
@@ -296,6 +298,17 @@ export default function App() {
     const target = selectedProfileIds.size === 1 ? onlySelected : activeProfile.id;
     tabsState.openTab(target, id, null, true);
     setDrawerOpen(false);
+  }
+
+  /** The `+` on a group's tab strip. `openTab` always appends to the focused
+   * group, so clicking `+` on a strip that isn't focused would otherwise
+   * open the tab in the other column. Focusing first works in one click
+   * because both are functional updaters on the same `useTabs` state: React
+   * batches them and `openTab`'s updater already sees the new
+   * `focusedGroupId` — no second render needed in between. */
+  function handleNewTabInGroup(groupId: string): void {
+    tabsState.focusGroup(groupId);
+    handleNewConversation();
   }
 
   /** A row in the sidebar can belong to any profile now, so this goes
@@ -621,7 +634,7 @@ export default function App() {
           const stillVisible = tab.id === tabsState.activeTabId && windowFocused;
           if (stillVisible) return;
           tabsState.setUnread(tab.id, true);
-          notifyTurnComplete(tab.id, profile, tab.title ?? "Nova sessão", lastUserText, lastAssistantText, stopped);
+          notifyTurnComplete(tab.id, profile, tab.title ?? dict.common.untitledSession, lastUserText, lastAssistantText, stopped);
         }}
         onTitle={(title) => {
           tabsState.setTabTitle(tab.id, title);
@@ -768,6 +781,7 @@ export default function App() {
           splitEnabled={!isCompact}
           onSelect={tabsState.setActiveTab}
           onFocusGroup={tabsState.focusGroup}
+          onNewTab={handleNewTabInGroup}
           onClose={tabsState.closeTab}
           onMoveTab={tabsState.moveTab}
           onSplitTabToNewGroup={tabsState.splitTabToNewGroup}
@@ -827,7 +841,7 @@ export default function App() {
           onRenameSession={(session, title) => handleRenameSession(session.profileId, session.id, title)}
           onDeleteSession={(session) => handleDeleteSession(session.profileId, session.id)}
           onOpenSearch={() => setSearchOpen(true)}
-          title={activeTab?.title ?? "Nova sessão"}
+          title={activeTab?.title ?? dict.common.untitledSession}
           connected={activeConnected}
           onNewConversation={handleNewConversation}
         >
