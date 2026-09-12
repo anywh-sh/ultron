@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { cn, formatDurationLong } from "@/lib/utils";
 import { isIOS } from "@/lib/platform";
+import { pickThinkingWord } from "@/lib/thinkingWords";
 import { useDict } from "@/i18n";
 
 interface TurnIndicatorProps {
@@ -35,13 +36,20 @@ export function TurnIndicator({ startedAt, toolCount }: TurnIndicatorProps) {
   const dict = useDict();
   const active = startedAt !== null;
   const [elapsedSeconds, setElapsedSeconds] = useState(0);
+  const [word, setWord] = useState(() => pickThinkingWord(dict.chat.turn.workingWords));
 
   useEffect(() => {
     if (startedAt === null) return;
+    // Redrawn per turn, not per tick — `startedAt` changing IS a new turn.
+    setWord(pickThinkingWord(dict.chat.turn.workingWords));
     const tick = () => setElapsedSeconds(Math.floor((Date.now() - startedAt) / 1000));
     tick();
     const interval = setInterval(tick, 1000);
     return () => clearInterval(interval);
+    // `dict` is deliberately not a dependency: switching language mid-turn
+    // shouldn't reroll the verb, and the list it reads is only ever used at
+    // the instant a turn starts.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [startedAt]);
 
   const tools =
@@ -71,7 +79,7 @@ export function TurnIndicator({ startedAt, toolCount }: TurnIndicatorProps) {
           <span className="animate-turn-sweep pointer-events-none absolute inset-y-0 left-0 w-1/3 bg-gradient-to-r from-transparent via-primary-soft to-transparent" />
           <span className="relative size-3 shrink-0 animate-spin rounded-full border-2 border-border border-t-primary" />
           <span className="relative flex-1 truncate font-mono text-[11px] text-muted-foreground">
-            {dict.chat.turn.working}
+            {word}…
             {tools && ` · ${tools}`}
           </span>
           <span className="relative shrink-0 font-mono text-[11px] text-text-faint">{formatDurationLong(elapsedSeconds)}</span>
