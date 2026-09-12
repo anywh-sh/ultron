@@ -59,8 +59,12 @@ representative at an online or offline event.
 ## Enforcement
 
 Instances of abusive, harassing, or otherwise unacceptable behavior may be
-reported to the community leaders responsible for enforcement at
-**conduct@anywh.sh**.
+reported to the maintainers by opening a
+[private report](https://github.com/anywh-sh/anywh/security/advisories/new) on
+this repository. That form is GitHub's private vulnerability reporting channel,
+used here because it is the only route that is private by construction and does
+not depend on a mailbox staying alive. **Begin the report with "Code of
+Conduct"** so it isn't triaged as a security issue.
 
 All complaints will be reviewed and investigated promptly and fairly.
 
