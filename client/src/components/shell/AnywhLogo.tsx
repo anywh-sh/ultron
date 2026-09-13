@@ -35,7 +35,7 @@ export function AnywhLockup({ className }: { className?: string }) {
   return (
     <span className={className}>
       <AnywhLogo className="size-[18px] shrink-0" />
-      <span className="truncate font-mono text-[13px] font-semibold tracking-[-0.02em] text-foreground">anywh.sh</span>
+      <span className="truncate font-mono text-[length:calc(13px*var(--font-scale-ratio))] font-semibold tracking-[-0.02em] text-foreground">anywh.sh</span>
     </span>
   );
 }

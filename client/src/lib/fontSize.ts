@@ -59,6 +59,12 @@ export function applyFontSize(px: number): void {
   for (const [key, rem] of Object.entries(TEXT_SCALE_REM)) {
     root.setProperty(`--text-${key}`, `${rem * ROOT_PX * ratio}px`);
   }
+  // For the chrome text that's hand-tuned in raw px (`text-[10.5px]` and
+  // friends — the sidebar's labels/timestamps, below the smallest named
+  // step) instead of the named scale above: those multiply their own literal
+  // by this ratio via `calc()` rather than getting a named step each, so the
+  // setting still reaches them without inventing a token per one-off size.
+  root.setProperty("--font-scale-ratio", String(ratio));
 }
 
 let size = readStoredSize();

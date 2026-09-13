@@ -347,6 +347,21 @@ const PROFILE_ACTIVE_BG_CLASSES = [
   "data-[state=active]:bg-profile-6-soft",
 ];
 
+// Same `-soft` tint as the active tab state above, reused as the tab's
+// close button's own hover — a variation of the tab's own background rather
+// than the generic neutral `surface-hover` every other hover in the shell
+// uses. The tab itself no longer changes background on hover at all (only
+// the close button does), so this is the one hover cue the tab row still
+// gives.
+const PROFILE_CLOSE_HOVER_CLASSES = [
+  "hover:bg-profile-1-soft",
+  "hover:bg-profile-2-soft",
+  "hover:bg-profile-3-soft",
+  "hover:bg-profile-4-soft",
+  "hover:bg-profile-5-soft",
+  "hover:bg-profile-6-soft",
+];
+
 // The selected tab's underline — an `inset` shadow rather than a border or an
 // extra element, so it doesn't shift the tab's box or its content by a pixel
 // when it turns on. Toggled purely by the `data-state` attribute (no
@@ -372,4 +387,11 @@ function profileColorIndex(profileId: string): number {
 export function profileTabClasses(profileId: string): string {
   const index = profileColorIndex(profileId) % PROFILE_COLOR_CLASSES.length;
   return `${PROFILE_FAINT_BG_CLASSES[index]} ${PROFILE_ACTIVE_BG_CLASSES[index]} ${PROFILE_ACTIVE_UNDERLINE_CLASSES[index]}`;
+}
+
+/** The tab's own `-soft` tint, as a hover class for its close button — see
+ * `PROFILE_CLOSE_HOVER_CLASSES`. */
+export function profileCloseHoverClass(profileId: string): string {
+  const index = profileColorIndex(profileId) % PROFILE_COLOR_CLASSES.length;
+  return PROFILE_CLOSE_HOVER_CLASSES[index];
 }

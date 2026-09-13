@@ -159,7 +159,7 @@ export function SessionList({
                 {row.kind === "heading" ? (
                   <div
                     className={cn(
-                      "px-1 pt-4 pb-1.5 font-mono text-[10px] tracking-[0.14em] text-text-faint uppercase",
+                      "px-1 pt-4 pb-1.5 font-mono text-[length:calc(10px*var(--font-scale-ratio))] tracking-[0.14em] text-text-faint uppercase",
                       // `first:pt-2` can't do this job once rows are
                       // windowed: the first rendered child is whatever
                       // happens to be scrolled into view, not row zero.

@@ -1,4 +1,4 @@
-import { useCallback, useRef, useState } from "react";
+import { useCallback, useRef } from "react";
 
 /** Right panel resize drag — same mechanics as `useResizableSidebar.ts`,
  * just mirrored: the draggable edge sits on the panel's left, so moving the
@@ -8,14 +8,12 @@ import { useCallback, useRef, useState } from "react";
  * translates pointer events into `onChange` calls.
  */
 export function usePanelDrag(width: number, onChange: (width: number) => void, onDragEnd?: () => void) {
-  const [isDragging, setIsDragging] = useState(false);
   const draggingRef = useRef(false);
 
   const startDrag = useCallback(
     (event: React.PointerEvent) => {
       event.preventDefault();
       draggingRef.current = true;
-      setIsDragging(true);
 
       const startX = event.clientX;
       const startWidth = width;
@@ -27,7 +25,6 @@ export function usePanelDrag(width: number, onChange: (width: number) => void, o
 
       function onUp(): void {
         draggingRef.current = false;
-        setIsDragging(false);
         window.removeEventListener("pointermove", onMove);
         window.removeEventListener("pointerup", onUp);
         onDragEnd?.();
@@ -39,5 +36,5 @@ export function usePanelDrag(width: number, onChange: (width: number) => void, o
     [width, onChange, onDragEnd],
   );
 
-  return { isDragging, startDrag };
+  return { startDrag };
 }

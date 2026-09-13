@@ -19,13 +19,12 @@ interface SessionDockProps {
 
 /**
  * Right-side dock column — took over the role `TerminalPanelSlot` used to
- * play alone: mounted the whole time the chat tab is active
- * even with the dock closed (`dock.panes.length === 0`), which is what
- * gives it the open/close width animation (same trick as the left sidebar's
- * `useResizableSidebar`) instead of content popping in/out with nothing to
- * transition from. `TerminalPanelSlot`/`FilesPanelSlot` no longer own the
- * column's width — they just fill 100% of the pane space this component
- * hands them.
+ * play alone: mounted the whole time the chat tab is active even with the
+ * dock closed (`dock.panes.length === 0`), so opening/closing it doesn't
+ * remount the pane (and lose its scroll position / virtualizer cache) —
+ * closing just snaps its width to 0 instead of unmounting.
+ * `TerminalPanelSlot`/`FilesPanelSlot` no longer own the column's width —
+ * they just fill 100% of the pane space this component hands them.
  *
  * Also owns the column-level resize handle (left edge, horizontal) and,
  * when two panes are stacked, the divider between them (split, vertical) —
@@ -34,7 +33,7 @@ interface SessionDockProps {
  */
 export function SessionDock({ dock, onWidthChange, onSplitRatioChange, onDragEnd, panes }: SessionDockProps) {
   const stackRef = useRef<HTMLDivElement>(null);
-  const { isDragging, startDrag } = usePanelDrag(dock.width, onWidthChange, onDragEnd);
+  const { startDrag } = usePanelDrag(dock.width, onWidthChange, onDragEnd);
   const { isDragging: isSplitDragging, startDrag: startSplitDrag } = useSplitDrag(dock.splitRatio, onSplitRatioChange, stackRef, onDragEnd);
 
   const open = dock.panes.length > 0;
@@ -43,10 +42,7 @@ export function SessionDock({ dock, onWidthChange, onSplitRatioChange, onDragEnd
   return (
     <div
       className={cn("relative h-full shrink-0 overflow-hidden border-l border-border-soft bg-bg-sidebar", maximizedOpen && "flex-1")}
-      style={{
-        width: open ? (dock.maximized ? undefined : dock.width) : 0,
-        transition: isDragging ? "none" : "width 150ms ease",
-      }}
+      style={{ width: open ? (dock.maximized ? undefined : dock.width) : 0 }}
     >
       {open && !dock.maximized && (
         <div

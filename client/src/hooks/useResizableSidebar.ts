@@ -20,7 +20,6 @@ export interface ResizableSidebar {
   /** Largura efetiva em px — 0 quando colapsada, sem depender de regra CSS separada. */
   width: number;
   collapsed: boolean;
-  isDragging: boolean;
   toggleCollapsed: () => void;
   startDrag: (event: React.PointerEvent) => void;
 }
@@ -28,7 +27,6 @@ export interface ResizableSidebar {
 export function useResizableSidebar(): ResizableSidebar {
   const [width, setWidth] = useState(readInitialWidth);
   const [collapsed, setCollapsed] = useState(readInitialCollapsed);
-  const [isDragging, setIsDragging] = useState(false);
   const draggingRef = useRef(false);
 
   const startDrag = useCallback(
@@ -36,7 +34,6 @@ export function useResizableSidebar(): ResizableSidebar {
       if (collapsed) return;
       event.preventDefault();
       draggingRef.current = true;
-      setIsDragging(true);
 
       const startX = event.clientX;
       const startWidth = width;
@@ -49,7 +46,6 @@ export function useResizableSidebar(): ResizableSidebar {
 
       function onUp(): void {
         draggingRef.current = false;
-        setIsDragging(false);
         window.removeEventListener("pointermove", onMove);
         window.removeEventListener("pointerup", onUp);
         setWidth((value) => {
@@ -72,5 +68,5 @@ export function useResizableSidebar(): ResizableSidebar {
     });
   }, []);
 
-  return { width: collapsed ? 0 : width, collapsed, isDragging, toggleCollapsed, startDrag };
+  return { width: collapsed ? 0 : width, collapsed, toggleCollapsed, startDrag };
 }

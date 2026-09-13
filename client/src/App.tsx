@@ -854,10 +854,7 @@ export default function App() {
         {!isCompact && (
           <div
             className="relative flex shrink-0 border-r border-border-soft"
-            style={{
-              width: resizable.width,
-              transition: resizable.isDragging ? "none" : "width 150ms ease",
-            }}
+            style={{ width: resizable.width }}
           >
             <div className="min-w-0 flex-1 overflow-hidden">
               {!resizable.collapsed && <Sidebar {...sidebarProps} />}

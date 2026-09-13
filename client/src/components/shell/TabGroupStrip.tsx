@@ -7,7 +7,7 @@ import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip
 import { useDict } from "@/i18n";
 import { cn, scrollHorizontallyOnWheel, truncateWords } from "@/lib/utils";
 import type { Tab } from "@/hooks/useTabs";
-import { profileColorClass, profileTabClasses } from "@/lib/profiles";
+import { profileCloseHoverClass, profileColorClass, profileTabClasses } from "@/lib/profiles";
 import { useContextMenu } from "@/hooks/useContextMenu";
 import { SessionDeleteMenu } from "@/components/shell/SessionDeleteMenu";
 import { RenameSessionDialog } from "@/components/shell/RenameSessionDialog";
@@ -70,12 +70,11 @@ interface SortableTabProps {
 // `data-state`/`aria-selected` itself instead of delegating to Radix, which
 // is what keeps `profileTabClasses`'s `data-[state=active]:bg-*` working.
 //
-// The hover background is gated on `data-[state=inactive]` on purpose: an
-// ungated `hover:bg-*` would paint over the profile tint every tab already
-// carries (`profileTabClasses`), brighter on the active one and topped with
-// its own underline.
+// No hover background on the tab itself — only its close button gets one
+// (see the button below). Hovering a tab still changes its text color, just
+// not its fill.
 const TAB_TRIGGER_CLASS =
-  "relative z-10 inline-flex h-full min-w-0 flex-1 cursor-pointer items-center gap-1.5 border-r border-border-soft py-1 pr-7 pl-3 font-mono text-xs whitespace-nowrap text-text-faint transition-colors hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring/60 focus-visible:outline-none data-[state=active]:text-foreground data-[state=inactive]:hover:bg-surface-hover";
+  "relative z-10 inline-flex h-full min-w-0 flex-1 cursor-pointer items-center gap-1.5 border-r border-border-soft py-1 pr-7 pl-3 font-mono text-xs whitespace-nowrap text-text-faint transition-colors hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring/60 focus-visible:outline-none data-[state=active]:text-foreground";
 
 /**
  * Only spreads dnd-kit's `listeners`/`setNodeRef`, not `attributes` — avoids
@@ -170,7 +169,8 @@ function SortableTab({ tab, isActive, canSplit, onSelect, onClose, onRename, onD
               // padding reserved for this button, so without a higher
               // z-index the trigger intercepts every click meant for the X.
               "absolute right-1.5 z-20 cursor-pointer p-0.5 opacity-45 transition-colors",
-              "hover:bg-surface-hover hover:opacity-100",
+              "hover:opacity-100",
+              profileCloseHoverClass(tab.profileId),
             )}
           >
             <X className="size-3" />

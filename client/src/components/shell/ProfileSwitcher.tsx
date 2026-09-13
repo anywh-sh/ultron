@@ -54,7 +54,7 @@ export function ProfileSwitcher({ activeProfile, supported, onChange }: ProfileS
           </button>
         </DropdownMenuTrigger>
         <DropdownMenuContent align="start" className="w-[var(--radix-dropdown-menu-trigger-width)]">
-          <DropdownMenuLabel className="font-mono text-[9.5px] tracking-[0.12em] text-text-faint uppercase">
+          <DropdownMenuLabel className="font-mono text-[length:calc(9.5px*var(--font-scale-ratio))] tracking-[0.12em] text-text-faint uppercase">
             {dict.shell.profiles.heading}
           </DropdownMenuLabel>
           {profiles.map((profile) => {
