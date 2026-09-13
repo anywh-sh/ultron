@@ -1,9 +1,4 @@
 import { ListFilter } from "lucide-react";
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { useSessionListCache } from "@/hooks/useMergedSessions";
 import { useDict, useLocale } from "@/i18n";
@@ -11,7 +6,51 @@ import { profileColorClass, type Profile } from "@/lib/profiles";
 import { formatRelativeTime } from "@/lib/relativeTime";
 import { cn } from "@/lib/utils";
 
-interface ProfileFilterProps {
+interface ProfileFilterTriggerProps {
+  filtering: boolean;
+  selectedCount: number;
+  open: boolean;
+  onToggle: () => void;
+}
+
+/**
+ * The header button that opens `ProfileFilterPanel` below it. Kept separate
+ * from the panel (rather than one component owning both, Radix-dropdown
+ * style) because the panel isn't a floating overlay — per the design, it's
+ * an inline section of the sidebar with its own background, sitting below
+ * the whole header row, not next to this button in the same flex line.
+ * `Sidebar` renders the two apart and holds the shared `open` state.
+ */
+export function ProfileFilterTrigger({ filtering, selectedCount, open, onToggle }: ProfileFilterTriggerProps) {
+  const dict = useDict();
+
+  return (
+    <Tooltip>
+      <TooltipTrigger asChild>
+        <button
+          type="button"
+          aria-label={dict.shell.sidebar.filterByProfile}
+          aria-expanded={open}
+          onClick={onToggle}
+          className={cn(
+            "flex h-6 shrink-0 cursor-pointer items-center gap-1 border px-1.5 font-mono text-[10px] transition-colors",
+            open || filtering
+              ? "border-border bg-primary-soft text-primary-ink"
+              : "border-transparent text-muted-foreground hover:border-border hover:bg-bg-elevated hover:text-foreground",
+          )}
+        >
+          <ListFilter className="size-3.5" />
+          {/* The count only appears while a filter is actually narrowing
+           * the list — a badge reading "3 of 3" is noise. */}
+          {filtering && selectedCount}
+        </button>
+      </TooltipTrigger>
+      <TooltipContent side="bottom">{dict.shell.sidebar.filterByProfile}</TooltipContent>
+    </Tooltip>
+  );
+}
+
+interface ProfileFilterPanelProps {
   profiles: Profile[];
   selected: ReadonlySet<string>;
   onToggle: (profileId: string) => void;
@@ -29,53 +68,35 @@ interface ProfileFilterProps {
  * Multi-select, so the answer can be more than one profile without being all
  * of them. Every profile selected is the default and also the way to say
  * "everything" — there is no separate "all" state to keep in sync.
+ *
+ * An inline section of the sidebar (own background, own border, pushes the
+ * session list down) rather than a floating dropdown — per the design, this
+ * reads as part of the sidebar's own chrome, not a transient overlay on top
+ * of it.
  */
-export function ProfileFilter({ profiles, selected, onToggle, onSelectAll }: ProfileFilterProps) {
+export function ProfileFilterPanel({ profiles, selected, onToggle, onSelectAll }: ProfileFilterPanelProps) {
   const dict = useDict();
   const { locale } = useLocale();
   const cache = useSessionListCache();
   const filtering = selected.size < profiles.length;
 
   return (
-    <DropdownMenu modal={false}>
-      <Tooltip>
-        <TooltipTrigger asChild>
-          <DropdownMenuTrigger asChild>
-            <button
-              type="button"
-              aria-label={dict.shell.sidebar.filterByProfile}
-              className={cn(
-                "flex h-6 shrink-0 cursor-pointer items-center gap-1 border px-1.5 font-mono text-[10px] transition-colors",
-                filtering
-                  ? "border-border bg-primary-soft text-primary-ink"
-                  : "border-transparent text-muted-foreground hover:border-border hover:bg-bg-elevated hover:text-foreground",
-              )}
-            >
-              <ListFilter className="size-3.5" />
-              {/* The count only appears while a filter is actually narrowing
-               * the list — a badge reading "3 of 3" is noise. */}
-              {filtering && selected.size}
-            </button>
-          </DropdownMenuTrigger>
-        </TooltipTrigger>
-        <TooltipContent side="bottom">{dict.shell.sidebar.filterByProfile}</TooltipContent>
-      </Tooltip>
+    <div className="flex shrink-0 flex-col gap-1.5 border-b border-border-soft bg-bg-chrome px-2.5 py-2">
+      <div className="flex items-center gap-2">
+        <span className="flex-1 font-mono text-[length:calc(9.5px*var(--font-scale-ratio))] tracking-[0.12em] text-text-faint uppercase">
+          {dict.shell.sidebar.filterHeading}
+        </span>
+        <button
+          type="button"
+          onClick={onSelectAll}
+          disabled={!filtering}
+          className="cursor-pointer font-mono text-[length:calc(10px*var(--font-scale-ratio))] text-text-faint transition-colors hover:text-foreground disabled:cursor-default disabled:opacity-40"
+        >
+          {dict.shell.sidebar.allProfiles}
+        </button>
+      </div>
 
-      <DropdownMenuContent align="end" className="min-w-56">
-        <div className="flex items-center gap-2 px-2 pt-1.5 pb-1">
-          <span className="flex-1 font-mono text-[9.5px] tracking-[0.12em] text-text-faint uppercase">
-            {dict.shell.sidebar.filterHeading}
-          </span>
-          <button
-            type="button"
-            onClick={onSelectAll}
-            disabled={!filtering}
-            className="cursor-pointer font-mono text-[10px] text-text-faint transition-colors hover:text-foreground disabled:cursor-default disabled:opacity-40"
-          >
-            {dict.shell.sidebar.allProfiles}
-          </button>
-        </div>
-
+      <div className="flex flex-col gap-0.5">
         {profiles.map((profile) => {
           const checked = selected.has(profile.id);
           const syncedAt = cache[profile.id]?.syncedAt ?? null;
@@ -86,10 +107,6 @@ export function ProfileFilter({ profiles, selected, onToggle, onSelectAll }: Pro
               type="button"
               role="menuitemcheckbox"
               aria-checked={checked}
-              // Not a `DropdownMenuCheckboxItem`: Radix closes the menu on
-              // select, and picking several profiles in a row is the normal
-              // way to use this. Staying open is the behaviour, not an
-              // oversight.
               onClick={() => onToggle(profile.id)}
               className={cn(
                 "flex w-full cursor-pointer items-center gap-2.5 px-2 py-1.5 text-left transition-colors hover:bg-surface-hover",
@@ -108,7 +125,7 @@ export function ProfileFilter({ profiles, selected, onToggle, onSelectAll }: Pro
                  * only the active profile has a live socket, so every other
                  * row is showing data of unknown age. That has to be visible,
                  * not implied. */}
-                <span className="truncate font-mono text-[10px] text-text-faint">
+                <span className="truncate font-mono text-[length:calc(10.5px*var(--font-scale-ratio))] text-text-faint">
                   {syncedAt === null
                     ? dict.shell.sidebar.neverSynced
                     : dict.shell.sidebar.syncedAt.replace("{time}", formatRelativeTime(syncedAt, locale))}
@@ -117,7 +134,7 @@ export function ProfileFilter({ profiles, selected, onToggle, onSelectAll }: Pro
             </button>
           );
         })}
-      </DropdownMenuContent>
-    </DropdownMenu>
+      </div>
+    </div>
   );
 }

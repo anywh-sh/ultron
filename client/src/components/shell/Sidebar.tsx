@@ -4,7 +4,7 @@ import { Button } from "@/components/ui/button";
 import { Tooltip, TooltipContent, TooltipShortcut, TooltipTrigger } from "@/components/ui/tooltip";
 import { AnywhLockup } from "@/components/shell/AnywhLogo";
 import { SessionList } from "@/components/shell/SessionList";
-import { ProfileFilter } from "@/components/shell/ProfileFilter";
+import { ProfileFilterTrigger, ProfileFilterPanel } from "@/components/shell/ProfileFilter";
 import { RenameSessionDialog } from "@/components/shell/RenameSessionDialog";
 import { ProfileSwitcher } from "@/components/shell/ProfileSwitcher";
 import { useDict } from "@/i18n";
@@ -72,16 +72,18 @@ export const Sidebar = memo(function Sidebar({
 }: SidebarProps) {
   const dict = useDict();
   const [renaming, setRenaming] = useState<{ session: MergedSession; title: string } | null>(null);
+  const [profileFilterOpen, setProfileFilterOpen] = useState(false);
+  const profileFiltering = selectedProfileIds.size < profiles.length;
 
   return (
     <div className="flex h-full min-w-0 flex-col bg-bg-sidebar">
       <div className="flex shrink-0 items-center gap-2 border-b border-border-soft px-3 py-2.5">
         <AnywhLockup className="flex min-w-0 flex-1 items-center gap-2" />
-        <ProfileFilter
-          profiles={profiles}
-          selected={selectedProfileIds}
-          onToggle={onToggleProfileFilter}
-          onSelectAll={onClearProfileFilter}
+        <ProfileFilterTrigger
+          filtering={profileFiltering}
+          selectedCount={selectedProfileIds.size}
+          open={profileFilterOpen}
+          onToggle={() => setProfileFilterOpen((value) => !value)}
         />
         <Tooltip>
           <TooltipTrigger asChild>
@@ -95,6 +97,15 @@ export const Sidebar = memo(function Sidebar({
           </TooltipContent>
         </Tooltip>
       </div>
+
+      {profileFilterOpen && (
+        <ProfileFilterPanel
+          profiles={profiles}
+          selected={selectedProfileIds}
+          onToggle={onToggleProfileFilter}
+          onSelectAll={onClearProfileFilter}
+        />
+      )}
 
       <SessionList
         sessions={sessions}
