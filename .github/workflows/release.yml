@@ -37,6 +37,20 @@ jobs:
             });
             return data.id;
 
+      - uses: actions/checkout@v7
+
+      # install.sh ships as a release asset, not only as a file on `main`,
+      # because https://anywh.sh/install redirects to
+      # releases/latest/download/install.sh. Serving the *released* script
+      # rather than the branch means a bad commit on main can't reach a new
+      # installer before it has been tagged, and a rollback is a re-tag
+      # instead of a hotfix push. The checksums job below sums it like any
+      # other asset, so `curl | sh` is verifiable end to end.
+      - name: Upload the install script
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: gh release upload "${GITHUB_REF_NAME}" install.sh --repo "${{ github.repository }}" --clobber
+
   build:
     needs: create-release
     strategy:
