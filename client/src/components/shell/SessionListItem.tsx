@@ -100,7 +100,7 @@ export const SessionListItem = memo(function SessionListItem({
           {running ? (
             <span
               aria-label={indicatorLabel}
-              className="size-[9px] shrink-0 animate-spin rounded-full border-[1.5px] border-border"
+              className="size-3 shrink-0 animate-spin rounded-full border-2 border-border"
               style={{ borderTopColor: profileColorVar(session.profileId) }}
             />
           ) : (
