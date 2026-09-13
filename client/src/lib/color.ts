@@ -88,3 +88,46 @@ export function tint(color: Rgba, percent: number): Rgba {
 export function luminance({ r, g, b }: Rgba): number {
   return 0.299 * r + 0.587 * g + 0.114 * b;
 }
+
+/**
+ * WCAG 2.1 relative luminance, 0–1. Deliberately not the same function as
+ * `luminance` above and not interchangeable with it: that one is a cheap
+ * weighted average of the raw channels, good enough to answer "is this
+ * background dark?", while this one linearizes each channel first, which is
+ * what makes the ratio below correspond to what a person can actually read.
+ * BT.601 would call `#e0642a` and `#eceae4` far apart; the linearized numbers
+ * put them at 2.9:1, which is under the readability floor.
+ */
+function relativeLuminance({ r, g, b }: Rgba): number {
+  const channel = (value: number): number => {
+    const c = value / 255;
+    return c <= 0.03928 ? c / 12.92 : ((c + 0.055) / 1.055) ** 2.4;
+  };
+  return 0.2126 * channel(r) + 0.7152 * channel(g) + 0.0722 * channel(b);
+}
+
+/** WCAG 2.1 contrast ratio between two opaque colors, 1–21. Alpha is ignored:
+ * a translucent color has no contrast of its own until it's composited, so
+ * callers flatten first. */
+export function contrastRatio(a: Rgba, b: Rgba): number {
+  const first = relativeLuminance(a);
+  const second = relativeLuminance(b);
+  return (Math.max(first, second) + 0.05) / (Math.min(first, second) + 0.05);
+}
+
+/**
+ * Which end of a theme's own ramp to print *on* a filled accent. Answering
+ * "the foreground, obviously" is what produced a 2.9:1 button label on the
+ * built-in dark theme: an accent saturated enough to read as an accent sits
+ * between the page and its text, so which end wins is a measurement, not a
+ * property of whether the theme is dark or light.
+ *
+ * Pure, and separate from `themeApply.ts`, because it is the only part of the
+ * derivation a test can reach: `parseColor` above needs `getComputedStyle` to
+ * resolve a color, and the unit tier's happy-dom returns nothing for it — so
+ * every derivation that starts from a parse is, in that tier, silently the
+ * built-in fallback instead.
+ */
+export function readableInkOn(fill: Rgba, background: Rgba, foreground: Rgba): Rgba {
+  return contrastRatio(fill, background) >= contrastRatio(fill, foreground) ? background : foreground;
+}

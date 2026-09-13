@@ -1,5 +1,5 @@
 import { DEFAULT_THEME } from "@/lib/builtinThemes";
-import { luminance, mix, parseColor, shade, tint, toCss, type Rgba } from "@/lib/color";
+import { luminance, mix, parseColor, readableInkOn, shade, tint, toCss, type Rgba } from "@/lib/color";
 import {
   OPTIONAL_COLOR_KEYS,
   TERMINAL_COLOR_KEYS,
@@ -90,6 +90,21 @@ function derivedColors(theme: Theme): ResolvedColors {
   const primary = parseColor(declared.primary);
   put("primary-soft", primary ? toCss({ ...primary, a: dark ? 0.14 : 0.08 }) : undefined);
   put("primary-ink", primary ? (dark ? tint(primary, 65) : shade(primary, 26)) : undefined);
+
+  // The label printed *on* a filled button. This used to be `--foreground`
+  // outright, which is wrong whenever the accent is mid-tone — and an accent
+  // bright enough to read as an accent always is: the dark theme's cream on
+  // its own orange measures 2.9:1, well under the 4.5:1 a 12px button label
+  // needs. So pick whichever end of the theme's own ramp contrasts more with
+  // the fill. For both built-ins that answer is the *background*, in both
+  // directions — near-black on the dark theme's brighter orange, near-white
+  // on the light theme's deeper one — which is exactly the point of choosing
+  // by measurement instead of by which theme is which.
+  const foreground = parseColor(declared.foreground);
+  const onFill = (fill: Rgba | undefined): string | undefined =>
+    fill && foreground && background ? toCss(readableInkOn(fill, background, foreground)) : undefined;
+  put("primary-foreground", onFill(primary));
+  put("destructive-foreground", onFill(parseColor(declared.destructive)));
 
   // No sane derivation from a UI palette: the warning tone and the "added
   // line" green are their own hues by construction (see index.css), so an

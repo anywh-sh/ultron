@@ -38,9 +38,14 @@
 
   --foreground: #eceae4;
   --muted-foreground: #b1aba2;
-  --text-faint: #98928a;
+  --text-faint: #9d978f;
 
   --primary: #e0642a;
+  /* The label printed on a filled accent button. Measured, not assumed: the
+     accent is mid-tone, so `--foreground` on it is 2.9:1 — under the floor
+     for a button label. themeApply.ts derives this per theme by taking
+     whichever end of the ramp contrasts more with the fill. */
+  --primary-foreground: #1b1a18;
   /* Tinted fill + the text tone that stays legible on top of it: an accent
      surface can't use `--primary` itself for its own label, and can't use
      the Tailwind alpha modifier either (that composites with whatever is
@@ -49,7 +54,8 @@
      *soft* variant (active tool-call badge, selected menu row, drop zone). */
   --primary-soft: rgb(224 100 42 / 0.14);
   --primary-ink: #f2c6ac;
-  --destructive: #d4614f;
+  --destructive: #dc6f5c;
+  --destructive-foreground: #1b1a18;
   /* Midpoint of the context-window usage ring/bar (lib/contextUsage.ts) —
      it interpolates from `--primary` (0%) to here (~70%) and from here to
      `--destructive` (~90%+) via color-mix(), never a fixed hex at either
@@ -187,7 +193,7 @@
   --color-popover-foreground: var(--foreground);
 
   --color-primary: var(--primary);
-  --color-primary-foreground: var(--foreground);
+  --color-primary-foreground: var(--primary-foreground);
   --color-primary-soft: var(--primary-soft);
   --color-primary-ink: var(--primary-ink);
 
@@ -207,7 +213,7 @@
   --color-accent-foreground: var(--foreground);
 
   --color-destructive: var(--destructive);
-  --color-destructive-foreground: var(--foreground);
+  --color-destructive-foreground: var(--destructive-foreground);
 
   /* Hover state of the two filled buttons. Mixing toward `--foreground`
      instead of toward white (or toward `transparent`, which is what the

@@ -54,6 +54,12 @@ export const OPTIONAL_COLOR_KEYS = [
   "text-faint",
   "primary-soft",
   "primary-ink",
+  // The label on a filled button. Derived from the accent itself
+  // (themeApply.ts) rather than defaulting to `foreground`, which is
+  // unreadable on any mid-tone accent — declarable here only so a theme whose
+  // accent sits near the middle can make the call itself.
+  "primary-foreground",
+  "destructive-foreground",
   "border-soft",
   "context-ring-warn",
   "diff-add",
