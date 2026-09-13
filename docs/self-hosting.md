@@ -37,7 +37,14 @@ place and never touches profile state.
 Override the destination with `ANYWH_INSTALL_DIR` if `~/.local/share/anywh`
 isn't where you want it.
 
-The script always installs the latest release; there's no version pin yet.
+It installs the latest release by default. To pin one:
+
+```bash
+curl -fsSL https://anywh.sh/install | sh -s -- --version v0.1.1
+```
+
+The leading `v` is optional, and the pinned download is checksum-verified
+against that release's own `SHA256SUMS` exactly like the latest one.
 
 ### From source
 
