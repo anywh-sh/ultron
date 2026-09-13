@@ -71,7 +71,9 @@ macOS, `.AppImage`/`.deb`/`.rpm` on Linux.
 
 Needs the [Tauri prerequisites](https://v2.tauri.app/start/prerequisites/)
 for your OS — a Rust toolchain plus platform system libraries — and a Go
-toolchain, for the sidecar described below.
+toolchain, which the build uses for a bundled helper binary and invokes for
+you. Any Go from 1.21 on works; the exact version the helper pins is fetched
+automatically.
 
 ```bash
 cd client
@@ -80,38 +82,8 @@ npm run tauri dev     # full desktop app
 npm run dev           # Vite only, in a browser, without Tauri APIs
 ```
 
-`npm run dev` alone needs neither Go nor Rust. It serves the frontend in a
+`npm run dev` alone needs neither Go nor Rust — it serves the frontend in a
 browser without Tauri APIs, which is enough for pure UI work.
-
-Any Go from 1.21 on will do, even though `client/tailnet-sidecar/go.mod`
-pins something newer: with the default `GOTOOLCHAIN=auto`, the go command
-fetches the pinned toolchain itself.
-
-#### The bundled Go sidecar
-
-The client ships a small Go binary (`client/tailnet-sidecar`) that Tauri is
-configured to bundle as an `externalBin`. It is not committed, so a fresh
-clone has nothing in `src-tauri/binaries/` and a Tauri build would otherwise
-fail in `build.rs` before Rust compiles anything.
-
-You do not have to do anything about it. Every Tauri command runs
-`npm run build:sidecar` first, through a `pretauri` hook — including after a
-change to the Go sources, which is the case that used to bite: Tauri bundles
-whatever binary is already on disk, so a stale one makes a Go change look
-like it did nothing at all.
-
-If the machine you are building on has no Go, the sidecar is pure Go with
-`CGO_ENABLED=0`, so any machine that has Go can cross-build it for yours:
-
-```bash
-npm run build:sidecar -- --target linux-x64
-```
-
-Known targets are `linux-x64`, `linux-arm64`, `darwin-arm64`, `darwin-x64`
-and `win32-x64`. Copy the result into `client/src-tauri/binaries/` under the
-exact filename the script prints. Tauri builds on that machine then warn that
-the sidecar could not be rebuilt and use your copy as-is, rather than
-failing — which is why the copy has to be kept current by hand.
 
 ## Pointing the client at your relay
 

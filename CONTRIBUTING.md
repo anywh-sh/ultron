@@ -21,10 +21,8 @@ from source. Three things worth repeating here:
 - The relay needs an agent CLI installed and logged in on the same machine.
 - The client needs the [Tauri prerequisites](https://v2.tauri.app/start/prerequisites/)
   for your OS — a Rust toolchain plus platform system deps.
-- The client also needs a Go toolchain: it bundles `tailnet-sidecar`, which
-  isn't committed. A `pretauri` hook builds it before every Tauri command, so
-  there's nothing to run by hand — see
-  [the bundled Go sidecar](./docs/self-hosting.md#the-bundled-go-sidecar).
+- The client also needs a Go toolchain, for a bundled helper binary. Every
+  Tauri command builds it first, so there is nothing to run by hand.
 
 The repo is two independent codebases with no shared code:
 
