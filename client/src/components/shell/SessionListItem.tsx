@@ -1,4 +1,5 @@
 import { memo } from "react";
+import { SquareTerminal } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useDict, useLocale } from "@/i18n";
 import { profileColorClass, profileColorVar } from "@/lib/profiles";
@@ -50,7 +51,7 @@ export const SessionListItem = memo(function SessionListItem({
   const dict = useDict();
   const { locale } = useLocale();
   const menu = useContextMenu();
-  const spinnerLabel = running ? dict.shell.sidebar.agentWorking : dict.shell.sidebar.backgroundJob;
+  const indicatorLabel = running ? dict.shell.sidebar.agentWorking : dict.shell.sidebar.backgroundJob;
   // A relay too old to report when the session was last used leaves the row
   // without a time rather than with a made-up one — the meta line then only
   // exists if the profile name is on it.
@@ -88,22 +89,24 @@ export const SessionListItem = memo(function SessionListItem({
           >
             {session.title}
           </span>
-          {/* One animated indicator per row at most — a live turn and a
-           * background job on the same session would otherwise stack two
-           * infinite spinners in one line. A ring in the session's own
-           * profile color (design's live-session marker), not a neutral
-           * icon — dimmed rather than swapped for the background-job case,
-           * so the two states stay visually related instead of unrelated
-           * glyphs. */}
-          {(running || hasBackgroundJob) && (
+          {/* One animated indicator per row at most, `running` first — a
+           * live turn and a background job on the same session would
+           * otherwise stack two. The ring (the design's live-session marker,
+           * tinted in the session's own profile color) is reserved for an
+           * actual turn in flight; the design never modeled a background
+           * job at all, so that case gets its own glyph instead of being
+           * forced into the same language — a pulsing terminal icon, since
+           * that is literally what `anywh-bg` runs. */}
+          {running ? (
             <span
-              aria-label={spinnerLabel}
-              className={cn(
-                "size-[9px] shrink-0 animate-spin rounded-full border-[1.5px] border-border",
-                !running && "opacity-60",
-              )}
+              aria-label={indicatorLabel}
+              className="size-[9px] shrink-0 animate-spin rounded-full border-[1.5px] border-border"
               style={{ borderTopColor: profileColorVar(session.profileId) }}
             />
+          ) : (
+            hasBackgroundJob && (
+              <SquareTerminal aria-label={indicatorLabel} className="size-3 shrink-0 animate-pulse text-muted-foreground" />
+            )
           )}
         </span>
         {(showProfile || lastActive !== null) && (
