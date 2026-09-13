@@ -455,6 +455,18 @@ export const en: Dictionary = {
           tooLarge: "too large for a theme (max. 64 KB)",
           invalidJson: "invalid JSON",
           copyFailed: "couldn't copy",
+          validation: {
+            not_an_object: "Expected a JSON object.",
+            expected_color_map: "Expected an object of colors.",
+            unknown_token: "No such token.",
+            invalid_color: "Not a color — use hex (#rrggbb), rgb()/hsl()/oklch() or transparent.",
+            wrong_version: "Expected version {expected}.",
+            invalid_id: "Not a valid id — lowercase letters, digits and hyphens, up to {maxLength} characters.",
+            reserved_id: "\"{id}\" is the id of a built-in theme.",
+            invalid_name: "A name is required, up to {maxLength} characters.",
+            invalid_appearance: "Expected \"dark\" or \"light\".",
+            missing_colors: "Missing: {missing}.",
+          },
         },
       },
       fontSize: {

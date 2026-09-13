@@ -10,6 +10,7 @@
  * survives any redesign — the verbs on buttons.
  */
 import type { EditMessageErrorCode, PermissionMode, SetCwdErrorCode } from "@/lib/relay-types";
+import type { ThemeValidationCode } from "@/lib/theme";
 
 export interface Dictionary {
   common: {
@@ -87,6 +88,12 @@ export interface Dictionary {
           tooLarge: string;
           invalidJson: string;
           copyFailed: string;
+          /** What's wrong with the file being imported, keyed by the
+           * validator's own codes — which the relay reports too, so an error
+           * found on the host lands in this same list in the same language.
+           * `{expected}`, `{maxLength}`, `{id}` and `{missing}` carry the
+           * detail the sentence needs. */
+          validation: Record<ThemeValidationCode, string>;
         };
       };
       fontSize: {

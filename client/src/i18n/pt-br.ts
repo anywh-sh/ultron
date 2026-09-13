@@ -455,6 +455,18 @@ export const ptBr: Dictionary = {
           tooLarge: "arquivo grande demais para um tema (máx. 64 KB)",
           invalidJson: "JSON inválido",
           copyFailed: "não foi possível copiar",
+          validation: {
+            not_an_object: "Esperava um objeto JSON.",
+            expected_color_map: "Esperava um objeto de cores.",
+            unknown_token: "Esse token não existe.",
+            invalid_color: "Não é uma cor — use hex (#rrggbb), rgb()/hsl()/oklch() ou transparent.",
+            wrong_version: "Esperava a versão {expected}.",
+            invalid_id: "Id inválido — minúsculas, números e hífen, até {maxLength} caracteres.",
+            reserved_id: "\"{id}\" é o id de um tema embutido.",
+            invalid_name: "O nome é obrigatório, até {maxLength} caracteres.",
+            invalid_appearance: "Esperava \"dark\" ou \"light\".",
+            missing_colors: "Faltando: {missing}.",
+          },
         },
       },
       fontSize: {
