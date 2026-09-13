@@ -64,6 +64,12 @@ export const ptBr: Dictionary = {
       confirmAllBody: "Cancelar os {count} jobs em background? Os processos são encerrados imediatamente e isso não pode ser desfeito.",
       confirmOneBody: "Cancelar \"{label}\"? O processo é encerrado imediatamente e isso não pode ser desfeito.",
     },
+    approval: {
+      toolCall: "O modelo quer executar `{tool}`: {detail}. Aprovar?",
+      exitPlanMode: "O modelo quer sair do modo Plan e começar a executar. Aprovar?",
+      approve: "Aprovar",
+      deny: "Recusar",
+    },
     turn: {
       workingWords: [
         "Pensando",

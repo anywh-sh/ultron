@@ -64,6 +64,12 @@ export const en: Dictionary = {
       confirmAllBody: "Cancel all {count} background jobs? The processes end immediately and this can't be undone.",
       confirmOneBody: "Cancel \"{label}\"? The process ends immediately and this can't be undone.",
     },
+    approval: {
+      toolCall: "The model wants to run `{tool}`: {detail}. Approve?",
+      exitPlanMode: "The model wants to leave Plan mode and start executing. Approve?",
+      approve: "Approve",
+      deny: "Deny",
+    },
     turn: {
       workingWords: [
         "Thinking",

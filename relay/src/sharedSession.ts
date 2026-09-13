@@ -78,6 +78,48 @@ function describeToolCall(toolName: string, input: unknown): string {
   }
 }
 
+/** The two answers a permission prompt accepts. Ids, not labels: the label is
+ * whatever the client chose to print, and matching the verdict against it is
+ * what kept this one prompt untranslatable while the rest of the UI moved. */
+export const APPROVE_OPTION_ID = "approve";
+export const DENY_OPTION_ID = "deny";
+
+/**
+ * Builds the yes/no a blocked tool call is waiting on. Two audiences, on
+ * purpose: `approval` and the option ids are for the person — the client
+ * composes the question and the buttons from the parts, in whatever language
+ * is selected — while `question` and the labels are the same thing in English,
+ * for a client too old to know about `approval`.
+ *
+ * Exported so it can be tested: the real path here needs a `claude` child
+ * speaking MCP's Streamable HTTP transport mid-turn, which the fake claude
+ * fixture doesn't implement, so no integration test can reach it.
+ */
+export function buildApprovalQuestion(toolName: string, input: unknown): ChoiceQuestion {
+  const isExitPlanMode = toolName === "ExitPlanMode";
+  const detail = isExitPlanMode ? "" : describeToolCall(toolName, input);
+  return {
+    question: isExitPlanMode
+      ? "The model wants to leave Plan mode and start executing. Approve?"
+      : `The model wants to run \`${toolName}\`: ${detail}. Approve?`,
+    approval: { tool: toolName, detail },
+    options: [
+      { id: APPROVE_OPTION_ID, label: "Approve" },
+      { id: DENY_OPTION_ID, label: "Deny" },
+    ],
+  };
+}
+
+/**
+ * Reads the verdict out of the answer. Anything that isn't an explicit
+ * approval is a refusal — a malformed answer, an empty one, or free text that
+ * matched no option must never be read as "go ahead", since what is waiting
+ * on it is a command about to run on the user's machine.
+ */
+export function isApproved(answers: ChoiceAnswer[]): boolean {
+  return answers[0]?.selected.includes(APPROVE_OPTION_ID) ?? false;
+}
+
 export type BroadcastMessage =
   | { type: "claude_event"; event: ClaudeEvent }
   | { type: "turn_complete"; stopped?: boolean }
@@ -479,12 +521,9 @@ export class SharedSession {
    * — so reusing it needed no new turn-state UI: the mechanism was already
    * generic, only the policy it replaced was narrow. */
   private async checkPermission(toolName: string, input: unknown, _toolUseId: string | undefined): Promise<PermissionDecision> {
+    const answers = await this.presentApprovalChoice([buildApprovalQuestion(toolName, input)]);
+    const approved = isApproved(answers);
     const isExitPlanMode = toolName === "ExitPlanMode";
-    const question = isExitPlanMode
-      ? "O modelo quer sair do modo Plan e continuar a execução. Aprovar?"
-      : `O modelo quer executar \`${toolName}\`: ${describeToolCall(toolName, input)}. Aprovar?`;
-    const answers = await this.presentApprovalChoice([{ question, options: [{ label: "Aprovar" }, { label: "Recusar" }] }]);
-    const approved = answers[0]?.selected.includes("Aprovar") ?? false;
     if (approved) return { behavior: "allow", updatedInput: input };
     return {
       behavior: "deny",

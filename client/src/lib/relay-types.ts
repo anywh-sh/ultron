@@ -238,6 +238,10 @@ export type RelayMessage =
 export interface ChoiceOption {
   label: string;
   description?: string;
+  /** Set only on an option the relay wrote (a permission prompt). The answer
+   * carries this instead of the label whenever it's present, so what the user
+   * reads and what the relay matches on are no longer the same string. */
+  id?: string;
 }
 
 export interface ChoiceQuestion {
@@ -245,6 +249,13 @@ export interface ChoiceQuestion {
   header?: string;
   options: ChoiceOption[];
   multiSelect?: boolean;
+  /** Present only on a permission prompt. The relay sends the parts rather
+   * than only the finished English sentence in `question`, so the card can
+   * ask in the language the user picked. */
+  approval?: {
+    tool: string;
+    detail: string;
+  };
 }
 
 export interface ChoiceAnswer {

@@ -232,6 +232,20 @@ export interface Dictionary {
       /** `{label}` — the single job's name. */
       confirmOneBody: string;
     };
+    /** The permission prompt: a tool call the CLI has paused on, waiting for
+     * a yes or no. The relay sends the tool and what it would do; the words
+     * are written here, and the answer travels back as an id, so translating
+     * any of this can't change which verdict the relay reads. */
+    approval: {
+      /** `{tool}` — the tool's own name, never translated; `{detail}` — the
+       * command, the path, or the raw input, which is data. */
+      toolCall: string;
+      /** Leaving Plan mode is a mode change, not an action, and reads
+       * differently enough to deserve its own sentence. */
+      exitPlanMode: string;
+      approve: string;
+      deny: string;
+    };
     turn: {
       /** One is drawn per turn and held for its whole duration — the Claude
        * Code CLI's own behaviour, which this mirrors: a random verb instead
