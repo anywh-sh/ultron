@@ -5,9 +5,10 @@ stack, faint text, the terminal and syntax palettes, button ink — is derived
 from those six, and any derived token can be overridden individually if you
 disagree with what was derived.
 
-Themes are chosen per profile and stored in the host registry next to the
-profile's label, so picking one on your laptop shows up on your phone the
-next time it syncs.
+Picking a theme is an app-level choice: one selection per installation,
+applied to every profile in that app. It does not sync between devices —
+choosing one on your laptop leaves the app on your phone painting whatever
+it was already using.
 
 ## The minimum viable theme
 
@@ -57,13 +58,17 @@ file. The dialog validates before saving and reports one message per field,
 so a broken theme tells you exactly which key is wrong rather than failing
 as a whole.
 
-Custom themes land in `~/.config/anywh/themes/*.json` on the relay machine
-and are host-wide: a theme added once is selectable from every profile on
-that machine. The built-in theme ships inside the app and always works, even
-with the relay unreachable.
+The theme file itself is stored on the relay machine, under
+`~/.config/anywh/themes/*.json`, and is host-wide: add a theme once and it
+becomes selectable from every profile on that machine — by any app that
+connects to it, each still making its own choice about whether to use it.
+
+The built-in theme ships inside the app and always works, even with the
+relay unreachable.
 
 ## Deleting one
 
-Deleting a theme that a profile is currently using leaves that reference
-dangling on purpose — the profile falls back to the built-in theme rather
-than having its theme silently rewritten to something it never chose.
+Deleting a theme file that an app is currently painting leaves that
+selection dangling on purpose. The app falls back to the built-in theme
+rather than having its choice silently rewritten to something nobody picked,
+and the same happens whenever the relay holding the file is unreachable.

@@ -34,9 +34,9 @@ which is what that dialog calls behind the scenes:
 See [`infra/systemd/README.md`](../infra/systemd/README.md) for the full set
 of flags and how the systemd instance per profile works.
 
-**3. There is no step 3.** Profiles sync automatically. Any other device
-already pointed at the same relay machine picks the new profile up on its
-next sync — nothing to import, nothing to copy between devices.
+That is the whole of it. Profiles sync automatically: any other device
+already pointed at the same relay machine picks the new one up on its next
+sync — nothing to import, nothing to copy between devices.
 
 ## Where it all lives
 
@@ -44,7 +44,7 @@ Everything stays on the relay machine:
 
 | Path | What |
 |---|---|
-| `~/.config/anywh/profiles.json` | The registry: labels, hosts, theme assignment |
+| `~/.config/anywh/profiles.json` | The registry: labels and hosts |
 | `~/.config/anywh/env/<profile>.env` | Per-profile settings — `RELAY_PORT`, `RELAY_HOME_OVERRIDE`, and the rest of [Configuration](./configuration.md) |
 | `~/.config/anywh/themes/*.json` | Custom themes, host-wide — see [Themes](./themes.md) |
 
