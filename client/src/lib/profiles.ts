@@ -310,6 +310,14 @@ export function profileColorClass(profileId: string): string {
   return profileColorClassForIndex(profileColorIndex(profileId));
 }
 
+/** Raw `var(--profile-N)` reference, for a caller that needs the color as an
+ * inline style (the session list's live spinner paints just its top border
+ * this way, matching the design) rather than as a Tailwind background/text
+ * class. */
+export function profileColorVar(profileId: string): string {
+  return `var(--profile-${(profileColorIndex(profileId) % PROFILE_COLOR_CLASSES.length) + 1})`;
+}
+
 // Opaque cousins of `PROFILE_COLOR_CLASSES` (index.css's `--profile-N-soft`/
 // `--profile-N-faint`, mixed toward a fixed literal rather than
 // `transparent`) — a tab always washes its own background in its profile's

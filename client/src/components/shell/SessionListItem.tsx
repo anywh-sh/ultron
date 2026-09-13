@@ -1,8 +1,7 @@
 import { memo } from "react";
-import { Loader2 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useDict, useLocale } from "@/i18n";
-import { profileColorClass } from "@/lib/profiles";
+import { profileColorClass, profileColorVar } from "@/lib/profiles";
 import { formatRelativeTime } from "@/lib/relativeTime";
 import type { MergedSession } from "@/lib/sessionGrouping";
 import { useContextMenu } from "@/hooks/useContextMenu";
@@ -91,11 +90,19 @@ export const SessionListItem = memo(function SessionListItem({
           </span>
           {/* One animated indicator per row at most — a live turn and a
            * background job on the same session would otherwise stack two
-           * infinite spinners in one line. */}
+           * infinite spinners in one line. A ring in the session's own
+           * profile color (design's live-session marker), not a neutral
+           * icon — dimmed rather than swapped for the background-job case,
+           * so the two states stay visually related instead of unrelated
+           * glyphs. */}
           {(running || hasBackgroundJob) && (
-            <Loader2
-              className={cn("size-3 shrink-0 animate-spin", running ? "text-foreground" : "text-muted-foreground")}
+            <span
               aria-label={spinnerLabel}
+              className={cn(
+                "size-[9px] shrink-0 animate-spin rounded-full border-[1.5px] border-border",
+                !running && "opacity-60",
+              )}
+              style={{ borderTopColor: profileColorVar(session.profileId) }}
             />
           )}
         </span>
