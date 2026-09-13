@@ -15,11 +15,22 @@ const SYSTEM_PROMPT =
 // infer a title — truncate to keep the call fast.
 const MAX_PROMPT_CHARS = 2000;
 
-/** Fallback if generation fails or comes back empty — a rough title (but
- * with real content) beats the session never showing up in the list. */
-function fallbackTitle(prompt: string): string {
+/**
+ * Fallback if generation fails or comes back empty — a rough title (but with
+ * real content) beats the session never showing up in the list.
+ *
+ * `null` when the prompt has no text to salvage either (an attachment on its
+ * own, say). It used to be a fixed "Nova sessão", which was the one string
+ * the relay wrote into a user's data in a language the user never chose: a
+ * title is persisted, so it would keep that wording forever, next to the
+ * untitled label the client draws in whatever language is selected. Leaving
+ * it null hands the naming back to the client, which already has that label
+ * for a session the relay hasn't titled yet.
+ */
+export function fallbackTitle(prompt: string): string | null {
   const trimmed = prompt.trim().replace(/\s+/g, " ");
-  return trimmed.length > 60 ? `${trimmed.slice(0, 60)}…` : trimmed || "Nova sessão";
+  if (trimmed.length === 0) return null;
+  return trimmed.length > 60 ? `${trimmed.slice(0, 60)}…` : trimmed;
 }
 
 /**
@@ -32,7 +43,11 @@ function fallbackTitle(prompt: string): string {
  * tries to "help" instead of just titling — tested manually, only the full
  * override works reliably.
  */
-export async function generateTitle(homeOverride: string | undefined, cwd: string, prompt: string): Promise<string> {
+export async function generateTitle(
+  homeOverride: string | undefined,
+  cwd: string,
+  prompt: string,
+): Promise<string | null> {
   const truncated = prompt.length > MAX_PROMPT_CHARS ? prompt.slice(0, MAX_PROMPT_CHARS) : prompt;
 
   const env = { ...process.env };
