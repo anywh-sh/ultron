@@ -247,6 +247,13 @@ export const en: Dictionary = {
       close: "Close",
       reconnecting: "Reconnecting…",
     },
+    statusBar: {
+      changes: "{count} changes",
+      changesOne: "1 change",
+      clean: "clean",
+      detachedHead: "No branch checked out — showing the current commit",
+      appVersion: "anywh {version}",
+    },
     sidebar: {
       label: "Sidebar",
       newConversation: "New conversation",

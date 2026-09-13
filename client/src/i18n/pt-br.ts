@@ -247,6 +247,13 @@ export const ptBr: Dictionary = {
       close: "Fechar",
       reconnecting: "Reconectando…",
     },
+    statusBar: {
+      changes: "{count} alterações",
+      changesOne: "1 alteração",
+      clean: "limpo",
+      detachedHead: "Nenhum branch ativo — mostrando o commit atual",
+      appVersion: "anywh {version}",
+    },
     sidebar: {
       label: "Barra lateral",
       newConversation: "Nova conversa",
