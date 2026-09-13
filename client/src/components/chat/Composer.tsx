@@ -342,7 +342,7 @@ function slashCommandDecorationPlugin() {
  */
 function createSlashCommandExtension(
   activeRef: MutableRefObject<boolean>,
-  commandsRef: MutableRefObject<Dictionary["chat"]["composer"]["commands"]>,
+  commandsRef: MutableRefObject<Dictionary["chat"]["composer"]>,
 ) {
   return Extension.create({
     name: "slashCommand",
@@ -534,8 +534,8 @@ export const Composer = forwardRef<ComposerHandle, ComposerProps>(function Compo
   // The autocomplete's blurbs, reaching Tiptap the same way the suggestion
   // does — the extension is built once, outside React's render cycle, and
   // has no way to read a hook.
-  const slashCopyRef = useRef(copy.commands);
-  slashCopyRef.current = copy.commands;
+  const slashCopyRef = useRef(copy);
+  slashCopyRef.current = copy;
   const [slashCommandExtension] = useState(() => createSlashCommandExtension(slashMenuActiveRef, slashCopyRef));
   // Channel back to the dynamic placeholder (see `createPlaceholderExtension`)
   // and to the `Tab` handler below — both live outside Tiptap's render

@@ -50,7 +50,7 @@ interface ModelButtonProps {
 export function ModelButton({ model, defaultModel, onChange, disabled, locked }: ModelButtonProps) {
   const triggerRef = useRef<HTMLButtonElement>(null);
   const dict = useDict();
-  const label = model ? labelForModel(model) : (defaultModel ?? dict.chat.composer.pending);
+  const label = model ? labelForModel(model, dict.chat.composer.modelAliases) : (defaultModel ?? dict.chat.composer.pending);
   const isDisabled = disabled || locked || label === dict.chat.composer.pending;
   const [open, setOpen] = useState(false);
 
@@ -95,7 +95,7 @@ export function ModelButton({ model, defaultModel, onChange, disabled, locked }:
       <DropdownMenuContent align="start" className="min-w-53">
         {getKnownModels().map((choice) => (
           <DropdownMenuItem key={choice} onSelect={() => onChange(choice)} className="gap-3">
-            <span className="flex-1 truncate text-left">{labelForModel(choice)}</span>
+            <span className="flex-1 truncate text-left">{labelForModel(choice, dict.chat.composer.modelAliases)}</span>
             <Check className={cn("size-3.5 text-primary!", choice !== model && "opacity-0")} />
           </DropdownMenuItem>
         ))}

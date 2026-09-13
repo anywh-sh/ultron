@@ -19,6 +19,7 @@ import {
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
 import { formatDurationLong } from "@/lib/utils";
+import { useDict } from "@/i18n";
 import type { BackgroundJobSummary } from "@/lib/relayClient";
 
 interface BackgroundJobIndicatorProps {
@@ -56,12 +57,14 @@ function ElapsedTime({ startedAt }: { startedAt: number }) {
  * on macOS) + blur the trigger on close.
  */
 export function BackgroundJobIndicator({ jobs, onCancel }: BackgroundJobIndicatorProps) {
+  const dict = useDict();
+  const strings = dict.chat.backgroundJobs;
   const triggerRef = useRef<HTMLButtonElement>(null);
   const [confirmTarget, setConfirmTarget] = useState<BackgroundJobSummary | "all" | null>(null);
 
   if (jobs.length === 0) return null;
 
-  const label = jobs.length === 1 ? jobs[0].label : `${String(jobs.length)} jobs em background`;
+  const label = jobs.length === 1 ? jobs[0].label : strings.running.replace("{count}", String(jobs.length));
 
   return (
     <>
@@ -75,7 +78,7 @@ export function BackgroundJobIndicator({ jobs, onCancel }: BackgroundJobIndicato
           <button
             ref={triggerRef}
             type="button"
-            aria-label={`${String(jobs.length)} job(s) em background`}
+            aria-label={strings.indicator.replace("{count}", String(jobs.length))}
             className="flex h-7 shrink-0 cursor-pointer items-center gap-1.5 border border-border bg-bg-elevated px-2 text-xs text-foreground transition-colors hover:bg-border"
           >
             <Loader2 className="size-3.5 shrink-0 animate-spin text-muted-foreground" />
@@ -85,7 +88,7 @@ export function BackgroundJobIndicator({ jobs, onCancel }: BackgroundJobIndicato
 
         <DropdownMenuContent align="start" className="w-64">
           <div className="flex items-center justify-between gap-2 py-1 pr-2 pl-2">
-            <DropdownMenuLabel className="p-0">Rodando em background</DropdownMenuLabel>
+            <DropdownMenuLabel className="p-0">{strings.heading}</DropdownMenuLabel>
             {jobs.length > 1 ? (
               <button
                 type="button"
@@ -95,7 +98,7 @@ export function BackgroundJobIndicator({ jobs, onCancel }: BackgroundJobIndicato
                 }}
                 className="cursor-pointer text-[11px] text-muted-foreground underline-offset-2 hover:text-destructive hover:underline"
               >
-                Cancelar todos
+                {strings.cancelAll}
               </button>
             ) : null}
           </div>
@@ -110,8 +113,8 @@ export function BackgroundJobIndicator({ jobs, onCancel }: BackgroundJobIndicato
                   <ElapsedTime startedAt={job.startedAt} />
                   <button
                     type="button"
-                    aria-label={`Cancelar ${job.label}`}
-                    title="Cancelar"
+                    aria-label={strings.cancelJob.replace("{label}", job.label)}
+                    title={strings.cancel}
                     onClick={(event) => {
                       event.preventDefault();
                       setConfirmTarget(job);
@@ -126,7 +129,7 @@ export function BackgroundJobIndicator({ jobs, onCancel }: BackgroundJobIndicato
           </div>
           <DropdownMenuSeparator />
           <p className="px-2 py-1.5 text-[11px] text-muted-foreground">
-            Você é avisado automaticamente quando terminar.
+            {strings.notice}
           </p>
         </DropdownMenuContent>
       </DropdownMenu>
@@ -134,17 +137,17 @@ export function BackgroundJobIndicator({ jobs, onCancel }: BackgroundJobIndicato
       <AlertDialog open={confirmTarget !== null} onOpenChange={(open) => !open && setConfirmTarget(null)}>
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>{confirmTarget === "all" ? "Cancelar todos os jobs" : "Cancelar job em background"}</AlertDialogTitle>
+            <AlertDialogTitle>{confirmTarget === "all" ? strings.confirmAllTitle : strings.confirmOneTitle}</AlertDialogTitle>
           </AlertDialogHeader>
           <AlertDialogBody>
             <AlertDialogDescription>
               {confirmTarget === "all"
-                ? `Cancelar os ${String(jobs.length)} jobs em background? Os processos são encerrados imediatamente — essa ação não pode ser desfeita.`
-                : `Cancelar "${confirmTarget?.label}"? O processo é encerrado imediatamente — essa ação não pode ser desfeita.`}
+                ? strings.confirmAllBody.replace("{count}", String(jobs.length))
+                : strings.confirmOneBody.replace("{label}", confirmTarget?.label ?? "")}
             </AlertDialogDescription>
           </AlertDialogBody>
           <AlertDialogFooter>
-            <AlertDialogCancel>Voltar</AlertDialogCancel>
+            <AlertDialogCancel>{dict.common.back}</AlertDialogCancel>
             <AlertDialogAction
               onClick={() => {
                 if (confirmTarget === "all") {
@@ -155,7 +158,7 @@ export function BackgroundJobIndicator({ jobs, onCancel }: BackgroundJobIndicato
                 setConfirmTarget(null);
               }}
             >
-              {confirmTarget === "all" ? "Cancelar todos" : "Cancelar job"}
+              {confirmTarget === "all" ? strings.cancelAll : strings.cancel}
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>

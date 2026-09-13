@@ -3,6 +3,7 @@ import { createPortal } from "react-dom";
 import { getMarkRange, type Editor, type Range } from "@tiptap/core";
 import { Pencil } from "lucide-react";
 import { EditLinkDialog } from "@/components/chat/EditLinkDialog";
+import { useDict } from "@/i18n";
 
 const OPEN_DELAY_MS = 150;
 const CLOSE_DELAY_MS = 150;
@@ -33,6 +34,7 @@ interface ComposerLinkHoverCardProps {
  * (`closest("a.composer-link")` + `posAtDOM` + `getMarkRange`, the same
  * technique MarkView already used on hover). */
 export function ComposerLinkHoverCard({ editor }: ComposerLinkHoverCardProps) {
+  const dict = useDict();
   const [cardOpen, setCardOpen] = useState(false);
   const [anchorRect, setAnchorRect] = useState<DOMRect | null>(null);
   const [dialogOpen, setDialogOpen] = useState(false);
@@ -145,7 +147,7 @@ export function ComposerLinkHoverCard({ editor }: ComposerLinkHoverCardProps) {
                 setCardOpen(false);
                 setDialogOpen(true);
               }}
-              aria-label="Editar link"
+              aria-label={dict.chat.composer.openLinkEditor}
               className="flex shrink-0 cursor-pointer items-center justify-center p-1 text-muted-foreground hover:bg-border hover:text-foreground"
             >
               <Pencil className="size-3" />

@@ -31,6 +31,9 @@ export const ptBr: Dictionary = {
     message: {
       copy: "Copiar mensagem",
       copied: "Copiado",
+      copyFailed: "Não foi possível copiar a mensagem.",
+      editWarning: "Editar essa mensagem recomeça a conversa a partir desse ponto.",
+      cancelEdit: "Cancelar edição",
       copyResponse: "Copiar resposta",
       edit: "Editar mensagem",
       editUnavailable: "Editar mensagem (indisponível)",
@@ -47,6 +50,19 @@ export const ptBr: Dictionary = {
       copied: "Copiado",
       copyFailed: "Não foi possível copiar o código.",
       showMoreLines: "Mostrar mais {count} linhas",
+    },
+    backgroundJobs: {
+      running: "{count} jobs em background",
+      indicator: "{count} job(s) em background",
+      heading: "Rodando em background",
+      notice: "Você é avisado quando terminar.",
+      cancel: "Cancelar",
+      cancelAll: "Cancelar todos",
+      cancelJob: "Cancelar {label}",
+      confirmAllTitle: "Cancelar todos os jobs",
+      confirmOneTitle: "Cancelar job em background",
+      confirmAllBody: "Cancelar os {count} jobs em background? Os processos são encerrados imediatamente e isso não pode ser desfeito.",
+      confirmOneBody: "Cancelar \"{label}\"? O processo é encerrado imediatamente e isso não pode ser desfeito.",
     },
     turn: {
       workingWords: [
@@ -118,6 +134,11 @@ export const ptBr: Dictionary = {
       attach: "Anexar imagem ou vídeo",
       attachmentUploading: "enviando anexo…",
       removeAttachment: "Remover anexo",
+      dropzone: "Solte a imagem ou o vídeo aqui",
+      uploadFailedImage: "Falha ao enviar a imagem: {reason}",
+      uploadFailedVideo: "Falha ao enviar o vídeo: {reason}",
+      droppedFile: "arquivo",
+      openLinkEditor: "Editar link",
       editLink: {
         title: "Editar link",
         description: "Altere o texto exibido ou o endereço do link.",
@@ -154,6 +175,10 @@ export const ptBr: Dictionary = {
           "Permissão de microfone não concedida. Autorize em Ajustes do Sistema > Privacidade e Segurança > Microfone.",
         startFailed: "Não foi possível iniciar a gravação: {reason}",
         transcriptionFailed: "Falha na transcrição: {reason}",
+      },
+      modelAliases: {
+        default: "Padrão",
+        best: "Melhor disponível",
       },
       commands: {
         clear: "Limpa o histórico desta conversa",
@@ -275,6 +300,15 @@ export const ptBr: Dictionary = {
       },
       agentWorking: "Agente trabalhando nesta sessão",
       backgroundJob: "Job em background rodando nesta sessão",
+      sessionMenu: {
+        rename: "Renomear sessão",
+        moveToNewGroup: "Mover para novo grupo",
+        delete: "Excluir sessão",
+        deleteTitle: "Excluir sessão",
+        deleteBody: "Excluir a sessão \"{title}\"? Não dá pra desfazer aqui — a transcrição que o Claude Code guarda por conta própria fica intacta.",
+      },
+      renameFailed: "Não foi possível renomear a sessão.",
+      deleteFailed: "Não foi possível excluir a sessão.",
       groups: {
         today: "hoje",
         yesterday: "ontem",

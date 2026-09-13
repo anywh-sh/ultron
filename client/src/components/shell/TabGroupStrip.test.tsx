@@ -169,7 +169,7 @@ describe("TabGroupStrip", () => {
 
     await user.pointer({ keys: "[MouseRight]", target: screen.getByRole("tab", { name: "Primeira" }) });
 
-    expect(await screen.findByText("Excluir sessão")).toBeInTheDocument();
-    expect(screen.queryByText("Mover para novo grupo")).not.toBeInTheDocument();
+    expect(await screen.findByText(en.shell.sidebar.sessionMenu.delete)).toBeInTheDocument();
+    expect(screen.queryByText(en.shell.sidebar.sessionMenu.moveToNewGroup)).not.toBeInTheDocument();
   });
 });

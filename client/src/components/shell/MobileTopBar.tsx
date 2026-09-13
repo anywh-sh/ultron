@@ -1,6 +1,7 @@
 import { Menu, Plus } from "lucide-react";
 import { useKeyboardInset } from "@/hooks/useKeyboardInset";
 import { cn } from "@/lib/utils";
+import { useDict } from "@/i18n";
 
 interface MobileTopBarProps {
   title: string;
@@ -22,6 +23,7 @@ interface MobileTopBarProps {
  * for real native Swift glass — see `tauri-plugin-native-chrome`.
  */
 export function MobileTopBar({ title, connected, onOpenDrawer, onNewConversation }: MobileTopBarProps) {
+  const dict = useDict();
   // Compensates `offsetTop` (see `useKeyboardInset`) — without this, opening
   // the keyboard visually slides this bar up and off the top of the screen
   // (WebKit pans the visual viewport for keyboard avoidance, but doesn't
@@ -36,7 +38,7 @@ export function MobileTopBar({ title, connected, onOpenDrawer, onNewConversation
         <button
           type="button"
           onClick={onOpenDrawer}
-          aria-label="Abrir sessões"
+          aria-label={dict.shell.titleBar.openSidebar}
           className="flex size-10 shrink-0 cursor-pointer items-center justify-center rounded-full text-foreground transition-colors active:bg-glass-tint/10"
         >
           <Menu className="size-4.5" />
@@ -63,7 +65,7 @@ export function MobileTopBar({ title, connected, onOpenDrawer, onNewConversation
         <button
           type="button"
           onClick={onNewConversation}
-          aria-label="Nova conversa"
+          aria-label={dict.shell.sidebar.newConversation}
           className="flex size-10 shrink-0 cursor-pointer items-center justify-center rounded-full text-foreground transition-colors active:bg-glass-tint/10"
         >
           <Plus className="size-4.5" />

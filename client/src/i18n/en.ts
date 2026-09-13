@@ -31,6 +31,9 @@ export const en: Dictionary = {
     message: {
       copy: "Copy message",
       copied: "Copied",
+      copyFailed: "Couldn't copy the message.",
+      editWarning: "Editing this message restarts the conversation from that point.",
+      cancelEdit: "Cancel editing",
       copyResponse: "Copy response",
       edit: "Edit message",
       editUnavailable: "Edit message (unavailable)",
@@ -47,6 +50,19 @@ export const en: Dictionary = {
       copied: "Copied",
       copyFailed: "Couldn't copy the code.",
       showMoreLines: "Show {count} more lines",
+    },
+    backgroundJobs: {
+      running: "{count} background jobs",
+      indicator: "{count} background job(s)",
+      heading: "Running in the background",
+      notice: "You'll be told when it finishes.",
+      cancel: "Cancel",
+      cancelAll: "Cancel all",
+      cancelJob: "Cancel {label}",
+      confirmAllTitle: "Cancel all jobs",
+      confirmOneTitle: "Cancel background job",
+      confirmAllBody: "Cancel all {count} background jobs? The processes end immediately and this can't be undone.",
+      confirmOneBody: "Cancel \"{label}\"? The process ends immediately and this can't be undone.",
     },
     turn: {
       workingWords: [
@@ -118,6 +134,11 @@ export const en: Dictionary = {
       attach: "Attach image or video",
       attachmentUploading: "uploading attachment…",
       removeAttachment: "Remove attachment",
+      dropzone: "Drop the image or video here",
+      uploadFailedImage: "Couldn't upload the image: {reason}",
+      uploadFailedVideo: "Couldn't upload the video: {reason}",
+      droppedFile: "file",
+      openLinkEditor: "Edit link",
       editLink: {
         title: "Edit link",
         description: "Change the text shown or the address it points to.",
@@ -154,6 +175,10 @@ export const en: Dictionary = {
           "Microphone access wasn't granted. Allow it under System Settings > Privacy & Security > Microphone.",
         startFailed: "Couldn't start recording: {reason}",
         transcriptionFailed: "Transcription failed: {reason}",
+      },
+      modelAliases: {
+        default: "Default",
+        best: "Best available",
       },
       commands: {
         clear: "Clears this conversation's history",
@@ -275,6 +300,15 @@ export const en: Dictionary = {
       },
       agentWorking: "Agent working in this session",
       backgroundJob: "Background job running in this session",
+      sessionMenu: {
+        rename: "Rename session",
+        moveToNewGroup: "Move to new group",
+        delete: "Delete session",
+        deleteTitle: "Delete session",
+        deleteBody: "Delete the session \"{title}\"? This can't be undone here — Claude Code's own transcript is untouched.",
+      },
+      renameFailed: "Couldn't rename the session.",
+      deleteFailed: "Couldn't delete the session.",
       groups: {
         today: "today",
         yesterday: "yesterday",

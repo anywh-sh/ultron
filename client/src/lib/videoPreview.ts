@@ -29,7 +29,7 @@ export function captureVideoFrame(file: File): Promise<string> {
 
     const timeout = window.setTimeout(() => {
       cleanup();
-      reject(new Error("timeout gerando prévia do vídeo"));
+      reject(new Error("timed out generating the video preview"));
     }, 5000);
 
     video.onloadeddata = () => {
@@ -44,7 +44,7 @@ export function captureVideoFrame(file: File): Promise<string> {
       const ctx = canvas.getContext("2d");
       if (!ctx) {
         cleanup();
-        reject(new Error("canvas 2d indisponível"));
+        reject(new Error("no 2d canvas context available"));
         return;
       }
       ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
@@ -52,7 +52,7 @@ export function captureVideoFrame(file: File): Promise<string> {
         (blob) => {
           cleanup();
           if (!blob) {
-            reject(new Error("falha ao gerar prévia do vídeo"));
+            reject(new Error("failed to encode the video preview"));
             return;
           }
           resolve(URL.createObjectURL(blob));
@@ -65,7 +65,7 @@ export function captureVideoFrame(file: File): Promise<string> {
     video.onerror = () => {
       window.clearTimeout(timeout);
       cleanup();
-      reject(new Error("falha ao carregar vídeo pra prévia"));
+      reject(new Error("failed to load the video for a preview"));
     };
   });
 }
