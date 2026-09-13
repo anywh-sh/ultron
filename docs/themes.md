@@ -30,20 +30,39 @@ it was already using.
 ```
 
 `appearance` is `"dark"` or `"light"` and tells the app which direction to
-derive in. The six keys under `colors` are all required.
+derive in. All six keys under `colors` are required, and between them they
+decide almost everything else:
+
+| Key | What it sets |
+|---|---|
+| `background` | The base surface. The whole panel and card stack is derived from it. |
+| `foreground` | Default text, and the text on cards, popovers and secondary surfaces. |
+| `muted-foreground` | Secondary text — labels, timestamps, anything deliberately quieter. |
+| `primary` | The accent: focus rings, selected states, filled buttons, links. |
+| `destructive` | Danger — delete actions and error states. |
+| `border` | Default divider and outline color. |
 
 ## Overriding what was derived
 
 Every color key maps 1:1 to the CSS custom property of the same name —
 `background` becomes `--background` — so adding an optional key to `colors`
-replaces exactly that token and nothing else. There are a few dozen,
-covering surfaces (`bg-sidebar`, `bg-elevated`, `surface-hover`, `card`),
-text (`text-faint`, `primary-ink`), syntax highlighting (`syntax-keyword`,
-`syntax-string`, …) and per-profile accents.
+replaces exactly that token and nothing else. There are thirty, and they
+group by what they touch:
 
-You don't have to look them up. Use **Create copy** on any existing theme to
-get its full JSON with every token spelled out, then edit from there — that
-is the intended way to write a theme, and it's why the dialog exists.
+| Group | Keys | Covers |
+|---|---|---|
+| Surfaces | `bg-sidebar`, `bg-chrome`, `bg-elevated`, `surface-hover`, `card`, `bubble-user` | The panel stack derived from `background`, plus your own chat bubble |
+| Text | `text-faint` | A third tier, quieter still than `muted-foreground` |
+| Accent ink | `primary-soft`, `primary-ink`, `primary-foreground`, `destructive-foreground` | Tinted accent backgrounds, and the label colors that have to stay readable on them |
+| Borders | `border-soft`, `context-ring-warn` | A quieter divider, and the midpoint of the context-usage ring as it runs from `primary` to `destructive` |
+| Depth | `overlay`, `glass-tint`, `media-scrim`, `media-scrim-foreground`, `shadow-color` | Modal backdrops, translucent chrome, the wash over media previews, shadows |
+| Code | `syntax-comment`, `syntax-keyword`, `syntax-string`, `syntax-number`, `syntax-title`, `diff-add` | Highlighting in code blocks, and the added-line tint in diffs |
+| Profiles | `profile-1` … `profile-6` | The accents that tell profiles apart in the switcher |
+
+You don't have to look any of this up to start. Use **Create copy** on an
+existing theme to get its full JSON with every token spelled out at its real
+value, then edit from there — that is the intended way to write a theme, and
+it's why the dialog exists.
 
 One derived token worth knowing about: `primary-foreground`, the label on a
 filled button, is derived from the accent itself rather than defaulting to
