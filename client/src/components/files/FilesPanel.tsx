@@ -324,7 +324,7 @@ export function FilesPanel({ profile, chatSessionId, maximized, fileTabs, onTogg
                 size="icon-sm"
                 onClick={() => setShowHidden((current) => !current)}
                 aria-label={showHidden ? copy.hideHidden : copy.showHidden}
-                className={cn("h-8 shrink-0 rounded-none border-0 border-r border-border-soft hover:border-0 hover:border-r", showHidden && "text-foreground")}
+                className={cn("h-8 shrink-0 border-0 border-r border-border-soft hover:border-0 hover:border-r", showHidden && "text-foreground")}
               >
                 {showHidden ? <Eye className="size-3.5" /> : <EyeOff className="size-3.5" />}
               </Button>

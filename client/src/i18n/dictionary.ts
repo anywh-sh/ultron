@@ -10,6 +10,7 @@
  * survives any redesign — the verbs on buttons.
  */
 import type { EditMessageErrorCode, PermissionMode, SetCwdErrorCode } from "@/lib/relay-types";
+import type { ThemeValidationCode } from "@/lib/theme";
 
 export interface Dictionary {
   common: {
@@ -82,11 +83,22 @@ export interface Dictionary {
           /** `{host}` — the machine whose registry receives the file. */
           hostHint: string;
           chooseFile: string;
+          /** Appended to the name of a theme being duplicated. Only the
+           * name — the id gets a fixed ASCII suffix, since an id is an
+           * identifier and a translated one could carry a character the
+           * validator rejects. */
+          copySuffix: string;
           copied: string;
           saving: string;
           tooLarge: string;
           invalidJson: string;
           copyFailed: string;
+          /** What's wrong with the file being imported, keyed by the
+           * validator's own codes — which the relay reports too, so an error
+           * found on the host lands in this same list in the same language.
+           * `{expected}`, `{maxLength}`, `{id}` and `{missing}` carry the
+           * detail the sentence needs. */
+          validation: Record<ThemeValidationCode, string>;
         };
       };
       fontSize: {
@@ -175,6 +187,14 @@ export interface Dictionary {
     message: {
       copy: string;
       copied: string;
+      /** The clipboard can refuse (no permission, no secure context) and the
+       * button has no other way to say so. */
+      copyFailed: string;
+      /** iOS only: editing there refills the composer instead of turning the
+       * bubble into a textarea, so the consequence has to be stated up front
+       * — sending discards the original reply and everything after it. */
+      editWarning: string;
+      cancelEdit: string;
       copyResponse: string;
       edit: string;
       editUnavailable: string;
@@ -191,6 +211,45 @@ export interface Dictionary {
       copied: string;
       copyFailed: string;
       showMoreLines: string;
+    };
+    /** `anywh-bg` jobs the session has running: the button in the composer
+     * row, the list it opens and the confirmation for killing one (or all).
+     * A job is a real process on the user's machine, so every verb here is
+     * about ending one, and every one of them is irreversible. */
+    backgroundJobs: {
+      /** `{count}` — label of the button itself when more than one is
+       * running; with exactly one, the job's own label is shown instead. */
+      running: string;
+      /** `{count}` — the button's accessible name, which unlike the visible
+       * label always states the number. */
+      indicator: string;
+      heading: string;
+      /** Nothing has to be watched for a job to report back. */
+      notice: string;
+      cancel: string;
+      cancelAll: string;
+      /** `{label}` — the job being cancelled. */
+      cancelJob: string;
+      confirmAllTitle: string;
+      confirmOneTitle: string;
+      /** `{count}` — how many processes end at once. */
+      confirmAllBody: string;
+      /** `{label}` — the single job's name. */
+      confirmOneBody: string;
+    };
+    /** The permission prompt: a tool call the CLI has paused on, waiting for
+     * a yes or no. The relay sends the tool and what it would do; the words
+     * are written here, and the answer travels back as an id, so translating
+     * any of this can't change which verdict the relay reads. */
+    approval: {
+      /** `{tool}` — the tool's own name, never translated; `{detail}` — the
+       * command, the path, or the raw input, which is data. */
+      toolCall: string;
+      /** Leaving Plan mode is a mode change, not an action, and reads
+       * differently enough to deserve its own sentence. */
+      exitPlanMode: string;
+      approve: string;
+      deny: string;
     };
     turn: {
       /** One is drawn per turn and held for its whole duration — the Claude
@@ -240,6 +299,20 @@ export interface Dictionary {
       attach: string;
       attachmentUploading: string;
       removeAttachment: string;
+      /** Shown over the whole conversation while a file is dragged across it. */
+      dropzone: string;
+      /** `{reason}` — whatever the relay or the network said, which is
+       * untranslated by nature. Two keys rather than one with the noun
+       * substituted in: that substitution doesn't survive a language where
+       * the article has to agree with it. */
+      uploadFailedImage: string;
+      uploadFailedVideo: string;
+      /** A dropped path with no basename still has to name the File it
+       * becomes — the attachment chip prints this. */
+      droppedFile: string;
+      /** The card that appears over a link in the composer, offering to edit
+       * its target. */
+      openLinkEditor: string;
       /** Editing a hyperlink created by pasting a URL over a selection. */
       editLink: {
         title: string;
@@ -287,6 +360,14 @@ export interface Dictionary {
         microphonePermission: string;
         startFailed: string;
         transcriptionFailed: string;
+      };
+      /** Two of the CLI's model aliases are words rather than product names,
+       * so only those two are translated — `labelForModel` prints every
+       * other alias (Sonnet, Opus, `sonnet[1m]`) exactly as the CLI reports
+       * it, including ones shipped after this build. */
+      modelAliases: {
+        default: string;
+        best: string;
       };
       /** Blurbs for the autocomplete menu. A model alias the CLI ships later
        * falls back to `modelGeneric`, so it shows up in the menu without a
@@ -370,6 +451,11 @@ export interface Dictionary {
           create: string;
           download: string;
           downloadFolder: string;
+          /** `{failed}` of `{total}` — the folder came down, but not whole.
+           * Distinct from `downloadFolder` (which is the whole thing
+           * failing) because the user has files on disk either way and needs
+           * to know how many are missing. */
+          downloadFolderPartial: string;
           rename: string;
           delete: string;
         };
@@ -453,6 +539,21 @@ export interface Dictionary {
       };
       agentWorking: string;
       backgroundJob: string;
+      /** Right-click on a session, in the list or on its tab. */
+      sessionMenu: {
+        rename: string;
+        moveToNewGroup: string;
+        delete: string;
+        deleteTitle: string;
+        /** `{title}` — the session about to be deleted. Says what is *not*
+         * deleted too: the transcript Claude Code keeps on its own survives,
+         * so "cannot be undone" would otherwise overstate it. */
+        deleteBody: string;
+      };
+      /** The two ways a session action can fail outright. Both used to be a
+       * `window.alert`, which is unreliable in these webviews. */
+      renameFailed: string;
+      deleteFailed: string;
       groups: {
         today: string;
         yesterday: string;

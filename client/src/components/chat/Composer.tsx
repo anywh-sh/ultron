@@ -342,7 +342,7 @@ function slashCommandDecorationPlugin() {
  */
 function createSlashCommandExtension(
   activeRef: MutableRefObject<boolean>,
-  commandsRef: MutableRefObject<Dictionary["chat"]["composer"]["commands"]>,
+  commandsRef: MutableRefObject<Dictionary["chat"]["composer"]>,
 ) {
   return Extension.create({
     name: "slashCommand",
@@ -534,8 +534,8 @@ export const Composer = forwardRef<ComposerHandle, ComposerProps>(function Compo
   // The autocomplete's blurbs, reaching Tiptap the same way the suggestion
   // does — the extension is built once, outside React's render cycle, and
   // has no way to read a hook.
-  const slashCopyRef = useRef(copy.commands);
-  slashCopyRef.current = copy.commands;
+  const slashCopyRef = useRef(copy);
+  slashCopyRef.current = copy;
   const [slashCommandExtension] = useState(() => createSlashCommandExtension(slashMenuActiveRef, slashCopyRef));
   // Channel back to the dynamic placeholder (see `createPlaceholderExtension`)
   // and to the `Tab` handler below — both live outside Tiptap's render
@@ -763,7 +763,10 @@ export const Composer = forwardRef<ComposerHandle, ComposerProps>(function Compo
             // the blur itself was imperceptible (possible WKWebView
             // limitation with backdrop-filter), so opacity dropped a lot
             // more (45%) to guarantee visible contrast behind it even if the
-            // blur doesn't render.
+            // blur doesn't render. The lift under it is Tailwind's own
+            // shadow rather than the app's single `shadow-popover` elevation
+            // (iOS shell, not redesigned) — here the glass chrome floats over
+            // the content instead of sitting in a frame with it.
             "bg-bg-elevated/45 shadow-lg backdrop-blur-lg backdrop-saturate-150"
           : "my-3 bg-bg-elevated",
         focused ? "border-primary" : isIOS() ? "border-glass-tint/8" : "border-border hover:border-text-faint",

@@ -107,17 +107,19 @@ export interface SlashCommandEntry {
   description: string;
 }
 
-type CommandCopy = Dictionary["chat"]["composer"]["commands"];
+/** The composer slice as a whole, not just `commands`: a model entry needs
+ * both its blurb and the label of the model it names. */
+type CommandCopy = Dictionary["chat"]["composer"];
 
 /** Blurbs for the aliases we know about, straight from the dictionary — any
  * other choice (a new alias the CLI ships later) falls back to a generic
  * "Uses X" built from `labelForModel`, so a new model shows up in the menu
  * without a copy change in two languages. */
-function descriptionFor(choice: string, commands: CommandCopy): string {
-  if (choice === "default") return commands.modelDefault;
-  if (choice === "opus") return commands.modelOpus;
-  if (choice === "haiku") return commands.modelHaiku;
-  return commands.modelGeneric.replace("{model}", labelForModel(choice));
+function descriptionFor(choice: string, copy: CommandCopy): string {
+  if (choice === "default") return copy.commands.modelDefault;
+  if (choice === "opus") return copy.commands.modelOpus;
+  if (choice === "haiku") return copy.commands.modelHaiku;
+  return copy.commands.modelGeneric.replace("{model}", labelForModel(choice, copy.modelAliases));
 }
 
 /** Catalog for the autocomplete menu (SlashCommandMenu) — one entry per
@@ -127,11 +129,11 @@ function descriptionFor(choice: string, commands: CommandCopy): string {
  * ready to go. Computed on every call (not a static list) since the model
  * catalog itself is dynamic (`@/lib/modelCatalog`) and the copy follows the
  * selected language. */
-function getSlashCommandEntries(commands: CommandCopy): SlashCommandEntry[] {
+function getSlashCommandEntries(copy: CommandCopy): SlashCommandEntry[] {
   return [
-    { command: "/clear", description: commands.clear },
-    { command: "/model default", description: descriptionFor("default", commands) },
-    ...getKnownModels().map((choice) => ({ command: `/model ${choice}`, description: descriptionFor(choice, commands) })),
+    { command: "/clear", description: copy.commands.clear },
+    { command: "/model default", description: descriptionFor("default", copy) },
+    ...getKnownModels().map((choice) => ({ command: `/model ${choice}`, description: descriptionFor(choice, copy) })),
   ];
 }
 
@@ -141,8 +143,8 @@ function getSlashCommandEntries(commands: CommandCopy): SlashCommandEntry[] {
  * declared. The copy arrives as an argument rather than being read from a
  * hook: this runs inside Tiptap's `Suggestion`, outside React's render
  * cycle (see `Composer.tsx`). */
-export function filterSlashCommands(query: string, commands: CommandCopy): SlashCommandEntry[] {
-  const entries = getSlashCommandEntries(commands);
+export function filterSlashCommands(query: string, copy: CommandCopy): SlashCommandEntry[] {
+  const entries = getSlashCommandEntries(copy);
   const q = query.trim().toLowerCase();
   if (!q) return entries;
   return entries.filter(

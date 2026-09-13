@@ -3,6 +3,7 @@ import { createPortal } from "react-dom";
 import { getMarkRange, type Editor, type Range } from "@tiptap/core";
 import { Pencil } from "lucide-react";
 import { EditLinkDialog } from "@/components/chat/EditLinkDialog";
+import { useDict } from "@/i18n";
 
 const OPEN_DELAY_MS = 150;
 const CLOSE_DELAY_MS = 150;
@@ -33,6 +34,7 @@ interface ComposerLinkHoverCardProps {
  * (`closest("a.composer-link")` + `posAtDOM` + `getMarkRange`, the same
  * technique MarkView already used on hover). */
 export function ComposerLinkHoverCard({ editor }: ComposerLinkHoverCardProps) {
+  const dict = useDict();
   const [cardOpen, setCardOpen] = useState(false);
   const [anchorRect, setAnchorRect] = useState<DOMRect | null>(null);
   const [dialogOpen, setDialogOpen] = useState(false);
@@ -136,7 +138,7 @@ export function ComposerLinkHoverCard({ editor }: ComposerLinkHoverCardProps) {
             onMouseEnter={clearTimer}
             onMouseLeave={scheduleClose}
             style={{ position: "fixed", left: anchorRect.left, top: anchorRect.top - 8, transform: "translateY(-100%)" }}
-            className="z-50 flex w-auto max-w-72 items-center gap-1.5 rounded-md border border-border bg-popover px-2.5 py-1.5 text-popover-foreground shadow-md"
+            className="z-50 flex w-auto max-w-72 items-center gap-1.5 border border-border bg-bg-elevated px-2.5 py-1.5 text-popover-foreground shadow-popover"
           >
             <span className="max-w-56 truncate font-mono text-xs text-muted-foreground">{currentHref}</span>
             <button
@@ -145,8 +147,8 @@ export function ComposerLinkHoverCard({ editor }: ComposerLinkHoverCardProps) {
                 setCardOpen(false);
                 setDialogOpen(true);
               }}
-              aria-label="Editar link"
-              className="flex shrink-0 cursor-pointer items-center justify-center rounded p-1 text-muted-foreground hover:bg-border hover:text-foreground"
+              aria-label={dict.chat.composer.openLinkEditor}
+              className="flex shrink-0 cursor-pointer items-center justify-center p-1 text-muted-foreground hover:bg-border hover:text-foreground"
             >
               <Pencil className="size-3" />
             </button>

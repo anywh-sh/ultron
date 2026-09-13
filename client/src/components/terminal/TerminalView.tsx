@@ -63,7 +63,7 @@ export function TerminalView({ profile, chatSessionId, terminalId, cwd }: Termin
     if (!container) return;
 
     const term = new XTerm({
-      fontFamily: "'JetBrains Mono Variable', ui-monospace, monospace",
+      fontFamily: "'IBM Plex Mono', ui-monospace, monospace",
       fontSize: 13,
       lineHeight: 1.35,
       cursorBlink: true,

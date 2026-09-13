@@ -59,6 +59,18 @@ async function collectFiles(profile: Profile, sessionId: string, dirPath: string
  * live count (`DownloadToasts.tsx`) without this function knowing anything
  * about that UI.
  */
+/** Some of the folder arrived and some didn't. Carries the counts rather than
+ * a finished sentence: the caller has the dictionary, this module doesn't. */
+export class PartialFolderDownloadError extends Error {
+  constructor(
+    readonly failed: number,
+    readonly total: number,
+  ) {
+    super(`failed to download ${String(failed)} of ${String(total)} files in the folder`);
+    this.name = "PartialFolderDownloadError";
+  }
+}
+
 export async function downloadFolder(
   profile: Profile,
   sessionId: string,
@@ -88,5 +100,5 @@ export async function downloadFolder(
     }
     onProgress?.(index + 1, files.length);
   }
-  if (failed > 0) throw new Error(`${String(failed)} de ${String(files.length)} arquivos da pasta não puderam ser baixados.`);
+  if (failed > 0) throw new PartialFolderDownloadError(failed, files.length);
 }

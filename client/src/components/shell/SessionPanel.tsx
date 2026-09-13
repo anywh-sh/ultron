@@ -47,7 +47,7 @@ export function SessionPanel({ maximized, onToggleMaximized, onClose, headerExtr
                 size="icon-sm"
                 onClick={onToggleMaximized}
                 aria-label={maximized ? dict.panels.restore : dict.panels.maximize}
-                className="h-full rounded-none border-0 hover:border-0"
+                className="h-full border-0 hover:border-0"
               >
                 {maximized ? <Minimize2 className="size-3.5" /> : <Maximize2 className="size-3.5" />}
               </Button>
@@ -61,7 +61,7 @@ export function SessionPanel({ maximized, onToggleMaximized, onClose, headerExtr
                 size="icon-sm"
                 onClick={onClose}
                 aria-label={dict.panels.close}
-                className="h-full rounded-none border-0 hover:border-0 hover:text-destructive"
+                className="h-full border-0 hover:border-0 hover:text-destructive"
               >
                 <X className="size-3.5" />
               </Button>

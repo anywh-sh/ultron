@@ -8,9 +8,9 @@
 // trip; the relay validates again because it writes the file to disk and
 // can't trust a body just because some client said it was fine.
 //
-// The validation messages are in Portuguese because they're rendered
-// verbatim in the import UI (the relay's copy travels back in the HTTP
-// error body and lands in the same list) — they're UI text, not log text.
+// The validator reports a CODE, never a sentence: both sides run it, and the
+// relay's copy of an error travels back in the HTTP error body to land in the
+// same list the client's own errors do. See `ThemeValidationError`.
 
 export const THEME_VERSION = 1;
 
@@ -54,6 +54,12 @@ export const OPTIONAL_COLOR_KEYS = [
   "text-faint",
   "primary-soft",
   "primary-ink",
+  // The label on a filled button. Derived from the accent itself
+  // (themeApply.ts) rather than defaulting to `foreground`, which is
+  // unreadable on any mid-tone accent — declarable here only so a theme whose
+  // accent sits near the middle can make the call itself.
+  "primary-foreground",
+  "destructive-foreground",
   "border-soft",
   "context-ring-warn",
   "diff-add",
@@ -123,12 +129,37 @@ export interface Theme {
   updatedAt?: string;
 }
 
-export interface ThemeValidationError {
+/**
+ * A problem with a theme file, as a code rather than a sentence. Same
+ * contract as the relay's other failures (`SetCwdError`, `EditMessageError`):
+ * the side that finds the problem names it, the side with a user writes the
+ * words. That split matters more here than elsewhere — this validator runs
+ * on both sides, and the relay's copy of an error travels back in an HTTP
+ * body and lands in the same list in the import dialog, so a sentence
+ * written here would arrive in whatever language the relay was built in,
+ * next to sentences in the language the user picked.
+ *
+ * Each variant carries what the sentence needs to interpolate, so the copy
+ * never has to parse a string back apart.
+ */
+export type ThemeValidationError = {
   /** Dotted path into the file (`colors.background`), so the UI can point
    * at the offending line instead of saying "invalid theme". */
   path: string;
-  message: string;
-}
+} & (
+  | { code: "not_an_object" }
+  | { code: "expected_color_map" }
+  | { code: "unknown_token" }
+  | { code: "invalid_color" }
+  | { code: "wrong_version"; expected: number }
+  | { code: "invalid_id"; maxLength: number }
+  | { code: "reserved_id"; id: string }
+  | { code: "invalid_name"; maxLength: number }
+  | { code: "invalid_appearance" }
+  | { code: "missing_colors"; missing: string[] }
+);
+
+export type ThemeValidationCode = ThemeValidationError["code"];
 
 export type ThemeValidation =
   | { ok: true; theme: Theme }
@@ -173,7 +204,7 @@ function validateColorMap(
 ): Record<string, string> {
   const result: Record<string, string> = {};
   if (typeof raw !== "object" || raw === null || Array.isArray(raw)) {
-    errors.push({ path, message: "esperava um objeto de cores" });
+    errors.push({ path, code: "expected_color_map" });
     return result;
   }
   for (const [key, value] of Object.entries(raw as Record<string, unknown>)) {
@@ -181,14 +212,11 @@ function validateColorMap(
       // Rejected, not ignored: a typo'd token that silently does nothing is
       // exactly the "my theme file is broken and I can't tell why" case
       // this validator exists to catch.
-      errors.push({ path: `${path}.${key}`, message: "token desconhecido" });
+      errors.push({ path: `${path}.${key}`, code: "unknown_token" });
       continue;
     }
     if (typeof value !== "string" || !isValidColorValue(value)) {
-      errors.push({
-        path: `${path}.${key}`,
-        message: "cor inválida — use hex (#rrggbb), rgb()/hsl()/oklch() ou transparent",
-      });
+      errors.push({ path: `${path}.${key}`, code: "invalid_color" });
       continue;
     }
     result[key] = value.trim();
@@ -205,32 +233,29 @@ export function parseTheme(input: unknown): ThemeValidation {
   const errors: ThemeValidationError[] = [];
 
   if (typeof input !== "object" || input === null || Array.isArray(input)) {
-    return { ok: false, errors: [{ path: "", message: "esperava um objeto JSON" }] };
+    return { ok: false, errors: [{ path: "", code: "not_an_object" }] };
   }
   const raw = input as Record<string, unknown>;
 
   if (raw.version !== THEME_VERSION) {
-    errors.push({ path: "version", message: `esperava ${String(THEME_VERSION)}` });
+    errors.push({ path: "version", code: "wrong_version", expected: THEME_VERSION });
   }
 
   const id = typeof raw.id === "string" ? raw.id.trim() : "";
   if (!isValidThemeId(id)) {
-    errors.push({
-      path: "id",
-      message: "id inválido — minúsculas, números e hífen, até 32 caracteres",
-    });
+    errors.push({ path: "id", code: "invalid_id", maxLength: MAX_ID_LENGTH });
   } else if (RESERVED_THEME_IDS.includes(id)) {
-    errors.push({ path: "id", message: `"${id}" é um id reservado de tema embutido` });
+    errors.push({ path: "id", code: "reserved_id", id });
   }
 
   const name = typeof raw.name === "string" ? raw.name.trim() : "";
   if (name.length === 0 || name.length > MAX_NAME_LENGTH) {
-    errors.push({ path: "name", message: `nome obrigatório, até ${String(MAX_NAME_LENGTH)} caracteres` });
+    errors.push({ path: "name", code: "invalid_name", maxLength: MAX_NAME_LENGTH });
   }
 
   const appearance = raw.appearance;
   if (appearance !== "dark" && appearance !== "light") {
-    errors.push({ path: "appearance", message: 'esperava "dark" ou "light"' });
+    errors.push({ path: "appearance", code: "invalid_appearance" });
   }
 
   const allColorKeys: readonly string[] = [...REQUIRED_COLOR_KEYS, ...OPTIONAL_COLOR_KEYS];
@@ -241,7 +266,7 @@ export function parseTheme(input: unknown): ThemeValidation {
   const declaredKeys = typeof raw.colors === "object" && raw.colors !== null ? Object.keys(raw.colors) : [];
   const missing = REQUIRED_COLOR_KEYS.filter((key) => !declaredKeys.includes(key));
   if (missing.length > 0) {
-    errors.push({ path: "colors", message: `faltando: ${missing.join(", ")}` });
+    errors.push({ path: "colors", code: "missing_colors", missing: [...missing] });
   }
 
   let terminal: Record<string, string> | undefined;
@@ -265,7 +290,34 @@ export function parseTheme(input: unknown): ThemeValidation {
   };
 }
 
-/** One line per problem, for a `console.error` or a compact UI list. */
+/** One line per problem, in English, for a `console.error` on the relay and
+ * for the `Error.message` of a failed save. Not what the import dialog
+ * renders — that one resolves each code through the dictionary, so the user
+ * reads the problem in their own language. */
 export function formatThemeErrors(errors: ThemeValidationError[]): string {
-  return errors.map((error) => (error.path ? `${error.path}: ${error.message}` : error.message)).join("\n");
+  const describe = (error: ThemeValidationError): string => {
+    switch (error.code) {
+      case "not_an_object":
+        return "expected a JSON object";
+      case "expected_color_map":
+        return "expected an object of colors";
+      case "unknown_token":
+        return "unknown token";
+      case "invalid_color":
+        return "invalid color — use hex (#rrggbb), rgb()/hsl()/oklch() or transparent";
+      case "wrong_version":
+        return `expected version ${String(error.expected)}`;
+      case "invalid_id":
+        return `invalid id — lowercase, digits and hyphen, up to ${String(error.maxLength)} characters`;
+      case "reserved_id":
+        return `"${error.id}" is a reserved built-in theme id`;
+      case "invalid_name":
+        return `name is required, up to ${String(error.maxLength)} characters`;
+      case "invalid_appearance":
+        return 'expected "dark" or "light"';
+      case "missing_colors":
+        return `missing: ${error.missing.join(", ")}`;
+    }
+  };
+  return errors.map((error) => (error.path ? `${error.path}: ${describe(error)}` : describe(error))).join("\n");
 }

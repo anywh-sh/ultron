@@ -12,6 +12,11 @@ npm run dev        # Vite dev server (browser preview, no Tauri APIs)
 npm run tauri dev  # full desktop app
 ```
 
+`npm run tauri dev` also needs Go: a `pretauri` hook compiles
+`tailnet-sidecar/` into the name Tauri's `externalBin` expects. It runs on
+every Tauri command, including after a Go change — Tauri would otherwise
+bundle the stale binary already in `src-tauri/binaries/`.
+
 ## iOS
 
 ```bash

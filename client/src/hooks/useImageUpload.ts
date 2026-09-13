@@ -1,6 +1,7 @@
 import { useCallback, useState } from "react";
 import { uploadAttachment } from "@/lib/imageUpload";
 import { captureVideoFrame } from "@/lib/videoPreview";
+import { useDict } from "@/i18n";
 import type { Profile } from "@/lib/profiles";
 
 export interface PendingAttachment {
@@ -31,6 +32,7 @@ export interface UseImageUploadResult {
 }
 
 export function useImageUpload(profile: Profile, onError: (message: string) => void): UseImageUploadResult {
+  const dict = useDict();
   const [pending, setPending] = useState<PendingAttachment[]>([]);
   const [uploading, setUploading] = useState(false);
 
@@ -68,16 +70,15 @@ export function useImageUpload(profile: Profile, onError: (message: string) => v
                 : { kind: "image" as const, path: result.path, previewUrl },
             ]);
           } catch (error) {
-            onError(
-              `Falha ao enviar ${isVideo ? "vídeo" : "imagem"}: ${error instanceof Error ? error.message : String(error)}`,
-            );
+            const template = isVideo ? dict.chat.composer.uploadFailedVideo : dict.chat.composer.uploadFailedImage;
+            onError(template.replace("{reason}", error instanceof Error ? error.message : String(error)));
           }
         }
       } finally {
         setUploading(false);
       }
     },
-    [profile, onError],
+    [profile, onError, dict],
   );
 
   const remove = useCallback((path: string) => {

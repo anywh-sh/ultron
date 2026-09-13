@@ -25,7 +25,7 @@ Profile-specific config (`RELAY_PORT`, `RELAY_HOME_OVERRIDE`, ...) doesn't
 live in the unit at all — it comes from two `EnvironmentFile`s, loaded in
 order so the second wins on conflicts:
 
-1. `relay/.env` — shared across every profile (`CLAUDE_BIN`,
+1. `relay/.env` — shared across every profile (`AGENT_BIN`,
    `EXTRA_PATH_DIRS`, anything that doesn't vary by profile).
 2. `~/.config/anywh/env/<profile>.env` — per-profile overrides.
 
@@ -47,7 +47,7 @@ loginctl enable-linger "$(whoami)"
 
 cd ../../relay
 npm install && npm run build
-cp .env.example .env                  # edit CLAUDE_BIN/EXTRA_PATH_DIRS etc. if needed
+cp .env.example .env                  # edit AGENT_BIN/EXTRA_PATH_DIRS etc. if needed
 
 systemctl --user enable --now anywh-relay@default
 ```

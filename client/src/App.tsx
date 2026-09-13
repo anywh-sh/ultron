@@ -351,7 +351,7 @@ export default function App() {
       })
       .catch((error: unknown) => {
         console.error("[anywh] failed to rename session", error);
-        window.alert("Não foi possível renomear a sessão.");
+        window.alert(dict.shell.sidebar.renameFailed);
       });
   }
 
@@ -374,7 +374,7 @@ export default function App() {
       })
       .catch((error: unknown) => {
         console.error("[anywh] failed to delete session", error);
-        window.alert("Não foi possível excluir a sessão.");
+        window.alert(dict.shell.sidebar.deleteFailed);
       });
   }
 
@@ -874,7 +874,7 @@ export default function App() {
         {isCompact && (
           <Sheet open={drawerOpen} onOpenChange={setDrawerOpen}>
             <SheetContent side="left" className="w-[280px] gap-0 border-r border-border-soft bg-bg-sidebar p-0 sm:max-w-[280px]">
-              <SheetTitle className="sr-only">Barra lateral</SheetTitle>
+              <SheetTitle className="sr-only">{dict.shell.sidebar.label}</SheetTitle>
               <Sidebar {...sidebarProps} />
             </SheetContent>
           </Sheet>
@@ -890,11 +890,11 @@ export default function App() {
             <div className="flex items-center gap-2 p-2">
               <Tooltip>
                 <TooltipTrigger asChild>
-                  <Button variant="ghost" size="icon" onClick={() => setDrawerOpen(true)} aria-label="Abrir barra lateral">
+                  <Button variant="ghost" size="icon" onClick={() => setDrawerOpen(true)} aria-label={dict.shell.titleBar.openSidebar}>
                     <Menu className="size-4" />
                   </Button>
                 </TooltipTrigger>
-                <TooltipContent side="bottom">Abrir barra lateral</TooltipContent>
+                <TooltipContent side="bottom">{dict.shell.titleBar.openSidebar}</TooltipContent>
               </Tooltip>
             </div>
           )}

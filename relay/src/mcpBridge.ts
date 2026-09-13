@@ -15,6 +15,11 @@ import { randomUUID } from "node:crypto";
 export interface ChoiceOption {
   label: string;
   description?: string;
+  /** Stable identifier for an option the *relay* wrote, so the answer can be
+   * matched without comparing the label a client rendered. Absent on every
+   * option the model wrote (`present_choice`), where the label is the answer
+   * — it's what gets fed back to the model. */
+  id?: string;
 }
 
 export interface ChoiceQuestion {
@@ -22,6 +27,19 @@ export interface ChoiceQuestion {
   header?: string;
   options: ChoiceOption[];
   multiSelect?: boolean;
+  /** Present only on a permission prompt, which the relay composes rather
+   * than the model. Carries the parts instead of a finished sentence so the
+   * client can write the question in the user's own language; `question` and
+   * the option labels are still filled in, in English, for any client too old
+   * to know about this field. */
+  approval?: {
+    /** The tool awaiting a verdict. `ExitPlanMode` reads differently from
+     * the rest — it's a mode transition, not an action. */
+    tool: string;
+    /** What the call would do: the command for `Bash`, the path for an edit,
+     * the raw input otherwise. Never translated — it's data. */
+    detail: string;
+  };
 }
 
 export interface ChoiceAnswer {

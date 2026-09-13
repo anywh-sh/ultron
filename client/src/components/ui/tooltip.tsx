@@ -46,7 +46,7 @@ function TooltipContent({
           // `bg-popover`/`bg-elevated` (real finding: the slash commands
           // menu's tooltip was almost invisible next to the listing itself,
           // same color).
-          "z-50 w-fit origin-(--radix-tooltip-content-transform-origin) animate-in border border-border bg-sidebar px-2.5 py-1.5 font-mono text-[11px] text-balance text-popover-foreground shadow-popover fade-in-0 zoom-in-95 data-[side=bottom]:slide-in-from-top-2 data-[side=left]:slide-in-from-right-2 data-[side=right]:slide-in-from-left-2 data-[side=top]:slide-in-from-bottom-2 data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=closed]:zoom-out-95",
+          "z-50 w-fit origin-(--radix-tooltip-content-transform-origin) border border-border bg-sidebar px-2.5 py-1.5 font-mono text-[11px] text-balance text-popover-foreground shadow-popover",
           className
         )}
         {...props}

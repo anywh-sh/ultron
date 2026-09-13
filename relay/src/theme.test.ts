@@ -58,7 +58,9 @@ test("names the missing required colors", () => {
   const result = parseTheme(validTheme({ colors: { background: "#2e3440", primary: "#88c0d0" } }));
   assert.equal(result.ok, false);
   if (result.ok) return;
-  const missing = result.errors.find((error) => error.path === "colors")?.message ?? "";
+  const error = result.errors.find((item) => item.path === "colors");
+  assert.equal(error?.code, "missing_colors");
+  const missing = error?.code === "missing_colors" ? error.missing : [];
   assert.ok(missing.includes("foreground"));
   assert.ok(missing.includes("border"));
 });

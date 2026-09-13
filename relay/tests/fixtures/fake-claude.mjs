@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 // The relay's one sanctioned mock boundary (see .anywh/skills/tests/SKILL.md
 // — "The one sanctioned mock boundary: the `claude` process"). Stands in for
-// the real `claude` binary in integration tests via the `CLAUDE_BIN` env var
+// the real `claude` binary in integration tests via the `AGENT_BIN` env var
 // (relay/src/claudeCliConfig.ts already reads it, no source change needed).
 //
 // Understands the two invocation shapes the relay actually spawns:

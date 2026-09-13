@@ -4,8 +4,9 @@
 # inside WSL2.
 #
 #   curl -fsSL https://anywh.sh/install | sh
+#   curl -fsSL https://anywh.sh/install | sh -s -- --version v0.1.1
 #
-# Always installs the latest release — there's no --version flag yet.
+# Installs the latest release unless --version pins one.
 # Safe to re-run: it replaces relay/ and
 # infra/ under INSTALL_DIR in place, and never touches profile state
 # (~/.config/anywh/env/, tracked separately by infra/lib.sh).
@@ -18,6 +19,40 @@ err() {
   echo "error: $*" >&2
   exit 1
 }
+
+usage() {
+  cat <<EOF
+Usage: install.sh [--version <tag>]
+
+  --version <tag>   Install that release instead of the latest.
+                    Accepts "v0.1.1" or "0.1.1".
+EOF
+}
+
+# Parsed before anything else so a typo costs nothing: no target detection,
+# no prerequisite checks, no network.
+VERSION=""
+while [ $# -gt 0 ]; do
+  case "$1" in
+    --version)
+      [ $# -ge 2 ] || err "--version needs a value, e.g. --version v0.1.1"
+      VERSION="$2"
+      shift 2
+      ;;
+    --version=*)
+      VERSION="${1#--version=}"
+      shift
+      ;;
+    -h | --help)
+      usage
+      exit 0
+      ;;
+    *)
+      usage >&2
+      err "unknown option: $1"
+      ;;
+  esac
+done
 
 # --- 1. detect target -------------------------------------------------
 # Matches the three legs release.yml's build-relay job publishes —
@@ -59,17 +94,28 @@ if ! command -v claude >/dev/null 2>&1; then
 fi
 
 # --- 3. download + verify ------------------------------------------------
-# The unversioned filename always resolves to the latest release via
-# GitHub's own redirect — no API call, no jq dependency.
-asset="anywh-relay-${target}.tar.gz"
-base_url="https://github.com/${REPO}/releases/latest/download"
+# Every release carries the same tarball under two names. The unversioned one
+# resolves to the newest release through GitHub's own
+# `releases/latest/download` redirect — no API call, no jq dependency on a
+# bare box. The versioned one is the only way to address an older release,
+# since that redirect only ever points at the newest.
+if [ -n "$VERSION" ]; then
+  version="${VERSION#v}"
+  asset="anywh-relay-${version}-${target}.tar.gz"
+  base_url="https://github.com/${REPO}/releases/download/v${version}"
+else
+  asset="anywh-relay-${target}.tar.gz"
+  base_url="https://github.com/${REPO}/releases/latest/download"
+fi
 
 tmp="$(mktemp -d)"
 trap 'rm -rf "$tmp"' EXIT
 
 echo "Downloading $asset..."
-curl -fsSL "$base_url/$asset" -o "$tmp/$asset"
-curl -fsSL "$base_url/SHA256SUMS" -o "$tmp/SHA256SUMS"
+curl -fsSL "$base_url/$asset" -o "$tmp/$asset" ||
+  err "couldn't download $asset — check that the release exists and ships an asset for $target: $base_url"
+curl -fsSL "$base_url/SHA256SUMS" -o "$tmp/SHA256SUMS" ||
+  err "couldn't download SHA256SUMS from $base_url"
 
 expected="$(grep " $asset\$" "$tmp/SHA256SUMS" | cut -d' ' -f1)"
 [ -n "$expected" ] || err "checksum for $asset not found in SHA256SUMS — the release may still be publishing, try again shortly"

@@ -153,6 +153,11 @@ export function ChatPanel({
   const toolCallsThisTurn = useMemo(() => countToolCallsInCurrentTurn(log.entries), [log.entries]);
   const logRef = useRef(log);
   logRef.current = log;
+  // Same pattern as `logRef`: the drop handler and the copy callback are
+  // deliberately built once (empty dep arrays), so they can't close over a
+  // dictionary that changes when the language does.
+  const dictRef = useRef(dict);
+  dictRef.current = dict;
   const titleBarSlot = useTitleBarSlot();
   const isActiveTabRef = useRef(isActiveTab);
   isActiveTabRef.current = isActiveTab;
@@ -242,7 +247,7 @@ export function ChatPanel({
             for (const path of paths) {
               try {
                 const buffer = await invoke<ArrayBuffer>("read_dropped_file", { path });
-                const name = path.split(/[\\/]/).pop() ?? "arquivo";
+                const name = path.split(/[\\/]/).pop() ?? dictRef.current.chat.composer.droppedFile;
                 files.push(new File([buffer], name, { type: guessMimeFromExtension(name) }));
               } catch (error) {
                 console.error("[anywh] failed to read dropped file:", path, error);
@@ -505,7 +510,7 @@ export function ChatPanel({
 
   const onCopyMessage = useCallback((text: string) => {
     navigator.clipboard.writeText(text).catch(() => {
-      window.alert("Não foi possível copiar a mensagem.");
+      window.alert(dictRef.current.chat.message.copyFailed);
     });
   }, []);
 
@@ -533,9 +538,9 @@ export function ChatPanel({
   return (
     <div ref={containerRef} className="relative flex h-full flex-col">
       {isDraggingOver && (
-        <div className="pointer-events-none absolute inset-2 z-10 flex items-center justify-center gap-2 rounded-xl border-2 border-dashed border-primary bg-background/90 text-sm text-primary">
+        <div className="pointer-events-none absolute inset-2 z-10 flex items-center justify-center gap-2 border-2 border-dashed border-primary bg-background/90 text-sm text-primary">
           <ImagePlus className="size-4" />
-          Solte a imagem ou o vídeo aqui
+          {dict.chat.composer.dropzone}
         </div>
       )}
 
@@ -622,14 +627,18 @@ export function ChatPanel({
          * in the bubble (see `editingMessageId` above) — fills the normal
          * composer with the original text and shows this warning, since
          * sending from here will discard the original response and
-         * everything that came after it. */}
+         * everything that came after it.
+         *
+         * Rounded on purpose (iOS shell, not redesigned): it sits against the
+         * iOS composer's own rounded glass, so squaring this one alone would
+         * put the only hard corner on that screen. */}
         {isIOS() && editTarget && (
           <div className="flex items-center justify-between gap-2 rounded-xl bg-bg-elevated/80 px-3 py-2 text-xs text-muted-foreground backdrop-blur-lg">
-            <span>Editando essa mensagem vai recomeçar a conversa a partir desse ponto.</span>
+            <span>{dict.chat.message.editWarning}</span>
             <button
               type="button"
               onClick={onCancelEdit}
-              aria-label="Cancelar edição"
+              aria-label={dict.chat.message.cancelEdit}
               className="shrink-0 cursor-pointer text-muted-foreground hover:text-foreground"
             >
               <X className="size-3.5" />

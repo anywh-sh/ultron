@@ -27,12 +27,14 @@ export const DEFAULT_THEME: Theme = {
 
     foreground: "#eceae4",
     "muted-foreground": "#b1aba2",
-    "text-faint": "#98928a",
+    "text-faint": "#9d978f",
 
     primary: "#e0642a",
+    "primary-foreground": "#1b1a18",
     "primary-soft": "rgb(224 100 42 / 0.14)",
     "primary-ink": "#f2c6ac",
-    destructive: "#d4614f",
+    destructive: "#dc6f5c",
+    "destructive-foreground": "#1b1a18",
     "context-ring-warn": "#d6a24e",
     "diff-add": "#74b183",
 
@@ -115,14 +117,16 @@ export const PAPER_THEME: Theme = {
 
     foreground: "#14120f",
     "muted-foreground": "#4d4842",
-    "text-faint": "#8a837b",
+    "text-faint": "#6f6960",
 
     primary: "#c2440f",
+    "primary-foreground": "#fbfaf8",
     "primary-soft": "rgb(194 68 15 / 0.08)",
     "primary-ink": "#8f300a",
     destructive: "#b23b2a",
+    "destructive-foreground": "#fbfaf8",
     "context-ring-warn": "#a1701f",
-    "diff-add": "#3f8a58",
+    "diff-add": "#36784b",
 
     border: "#e0dbd2",
     "border-soft": "#eeebe4",

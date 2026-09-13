@@ -124,7 +124,7 @@ function EdgeDropZone({ id, side }: { id: string; side: "left" | "right" }) {
     <div
       ref={setNodeRef}
       className={cn(
-        "absolute inset-y-0 z-20 w-2/5 border-foreground/50 bg-foreground/20 transition-opacity duration-150",
+        "absolute inset-y-0 z-20 w-2/5 border-foreground/50 bg-foreground/20 transition-opacity",
         side === "left" ? "left-0 border-r-2" : "right-0 border-l-2",
         isOver ? "opacity-100" : "opacity-0",
       )}
