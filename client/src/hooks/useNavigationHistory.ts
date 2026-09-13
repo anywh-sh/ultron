@@ -24,7 +24,26 @@ export function useNavigationHistory(): {
   const stackRef = useRef<NavLocation[]>([]);
   const pointerRef = useRef(-1);
   const skipNextRef = useRef(false);
+  // Only the two booleans below are rendered from any of this — the stack
+  // and the pointer live in refs precisely because nothing draws them. A
+  // push that leaves both unchanged (every tab switch after the first, which
+  // already has somewhere to go back to and nothing to go forward to) has
+  // nothing to show for a render, and this hook lives in `App`, so that
+  // render is the whole app's.
   const [, forceUpdate] = useState(0);
+  const renderedRef = useRef({ canGoBack: false, canGoForward: false });
+
+  /** Recomputes the two booleans from the pointer and re-renders only if one
+   * of them actually moved. Reads and writes nothing but refs, so it is
+   * stable for the life of the hook. */
+  const syncButtons = useCallback(() => {
+    const canGoBack = pointerRef.current > 0;
+    const canGoForward = pointerRef.current < stackRef.current.length - 1;
+    const rendered = renderedRef.current;
+    if (canGoBack === rendered.canGoBack && canGoForward === rendered.canGoForward) return;
+    renderedRef.current = { canGoBack, canGoForward };
+    forceUpdate((n) => n + 1);
+  }, []);
 
   const notifyLocationChanged = useCallback((location: NavLocation) => {
     if (skipNextRef.current) {
@@ -40,30 +59,29 @@ export function useNavigationHistory(): {
     truncated.push(location);
     stackRef.current = truncated;
     pointerRef.current = truncated.length - 1;
-    forceUpdate((n) => n + 1);
-  }, []);
+    syncButtons();
+  }, [syncButtons]);
 
   const goBack = useCallback((): NavLocation | null => {
     if (pointerRef.current <= 0) return null;
     pointerRef.current -= 1;
     skipNextRef.current = true;
-    forceUpdate((n) => n + 1);
+    syncButtons();
     return stackRef.current[pointerRef.current];
-  }, []);
+  }, [syncButtons]);
 
   const goForward = useCallback((): NavLocation | null => {
     if (pointerRef.current >= stackRef.current.length - 1) return null;
     pointerRef.current += 1;
     skipNextRef.current = true;
-    forceUpdate((n) => n + 1);
+    syncButtons();
     return stackRef.current[pointerRef.current];
-  }, []);
+  }, [syncButtons]);
 
   return {
     notifyLocationChanged,
     goBack,
     goForward,
-    canGoBack: pointerRef.current > 0,
-    canGoForward: pointerRef.current < stackRef.current.length - 1,
+    ...renderedRef.current,
   };
 }

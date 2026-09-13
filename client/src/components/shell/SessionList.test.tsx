@@ -167,3 +167,30 @@ describe("SessionList", () => {
     expect(screen.getByText("Home copy")).toBeInTheDocument();
   });
 });
+
+describe("SessionList — windowing", () => {
+  it("renders a bounded number of rows regardless of how long the list is", () => {
+    // A real install reaches the high hundreds of sessions across profiles.
+    // Rendering all of them is what made every sidebar render (one per tab
+    // switch, since the selection lives here) walk the whole history.
+    const many = Array.from({ length: 300 }, (_, index) =>
+      session({ id: `s${index}`, title: `Session ${index}`, lastActiveAt: Date.now() - index * DAY }),
+    );
+    renderList({ sessions: many });
+
+    // By title text, not by role: each row carries a second button (the
+    // per-row menu) whose accessible name also contains the title.
+    const rendered = screen.getAllByText(/^Session \d+$/);
+    expect(rendered.length).toBeGreaterThan(0);
+    // The exact window depends on the viewport the environment reports (see
+    // the offsetHeight stub in tests/setup.ts, which makes it small here) —
+    // what matters is that it is a window at all, not the whole list.
+    expect(rendered.length).toBeLessThan(50);
+  });
+
+  it("still renders every row of a list that fits", () => {
+    renderList({ sessions: [session({ id: "a", title: "Alpha" }), session({ id: "b", title: "Beta" })] });
+    expect(screen.getByText("Alpha")).toBeInTheDocument();
+    expect(screen.getByText("Beta")).toBeInTheDocument();
+  });
+});

@@ -562,14 +562,52 @@ export default function App() {
   // Still only covers sessions open as a tab: a session with no tab has no
   // live WS connection to know whether it's running, the same limitation
   // `isRunning` always had.
-  const runningSessions = new Set(tabsState.tabs.filter((tab) => tab.isRunning).map((tab) => tab.id));
-  const backgroundJobSessions = new Set(tabsState.tabs.filter((tab) => tab.hasBackgroundJob).map((tab) => tab.id));
+  const runningSessions = useMemo(
+    () => new Set(tabsState.tabs.filter((tab) => tab.isRunning).map((tab) => tab.id)),
+    [tabsState.tabs],
+  );
+  const backgroundJobSessions = useMemo(
+    () => new Set(tabsState.tabs.filter((tab) => tab.hasBackgroundJob).map((tab) => tab.id)),
+    [tabsState.tabs],
+  );
+
+  // Stable identities for the sidebar's callbacks. `Sidebar` is memoized and
+  // it renders one row per session across every profile — a few hundred of
+  // them for a real install — so a single prop rebuilt per render is enough
+  // to make that `memo` do nothing at all. The bodies stay plain function
+  // declarations above, closing over whatever they need; the ref is what
+  // keeps this indirection from freezing the first render's copy of them.
+  const sidebarHandlersRef = useRef({
+    handleProfileChange,
+    handleSelectSession,
+    handleNewConversation,
+    handleRenameSession,
+    handleDeleteSession,
+  });
+  sidebarHandlersRef.current = {
+    handleProfileChange,
+    handleSelectSession,
+    handleNewConversation,
+    handleRenameSession,
+    handleDeleteSession,
+  };
+  const onProfileChange = useCallback((profileId: string) => sidebarHandlersRef.current.handleProfileChange(profileId), []);
+  const onSelectSession = useCallback((session: MergedSession) => sidebarHandlersRef.current.handleSelectSession(session), []);
+  const onNewConversation = useCallback(() => sidebarHandlersRef.current.handleNewConversation(), []);
+  const onRenameSessionRow = useCallback(
+    (session: MergedSession, title: string) => sidebarHandlersRef.current.handleRenameSession(session.profileId, session.id, title),
+    [],
+  );
+  const onDeleteSessionRow = useCallback(
+    (session: MergedSession) => sidebarHandlersRef.current.handleDeleteSession(session.profileId, session.id),
+    [],
+  );
 
   const sidebarProps = {
     activeProfile,
     profiles,
     profilesSupported,
-    onProfileChange: handleProfileChange,
+    onProfileChange,
     selectedProfileIds,
     onToggleProfileFilter: toggleProfileFilter,
     onClearProfileFilter: clearProfileFilter,
@@ -580,11 +618,10 @@ export default function App() {
     selectedSession: activeTabId,
     runningSessions,
     backgroundJobSessions,
-    onSelectSession: handleSelectSession,
-    onNewConversation: handleNewConversation,
-    onRenameSession: (session: MergedSession, title: string) =>
-      handleRenameSession(session.profileId, session.id, title),
-    onDeleteSession: (session: MergedSession) => handleDeleteSession(session.profileId, session.id),
+    onSelectSession,
+    onNewConversation,
+    onRenameSession: onRenameSessionRow,
+    onDeleteSession: onDeleteSessionRow,
   };
 
   const activeTab = tabsState.tabs.find((tab) => tab.id === activeTabId);
