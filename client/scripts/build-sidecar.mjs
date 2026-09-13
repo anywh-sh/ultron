@@ -7,7 +7,7 @@
 // flag the stale binary doesn't know makes the sidecar exit before printing
 // LISTENING — which reads like a tailnet failure and is not one.
 import { execFileSync } from "node:child_process";
-import { mkdirSync } from "node:fs";
+import { existsSync, mkdirSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 
@@ -53,6 +53,24 @@ try {
   if (err.code === "ENOENT") {
     // The machine doing the testing doesn't necessarily have a Go toolchain,
     // and the raw spawn failure buries that under a stack trace.
+    //
+    // A binary already sitting at `out` means someone took the documented
+    // route below — cross-built it elsewhere and copied it here. That is a
+    // supported setup, not a failure, and since this script runs from
+    // `pretauri` on every Tauri build now, exiting non-zero would make the
+    // route unusable: the build it is meant to enable could never start.
+    // Warn loudly instead, because the cost of a stale copy is the silent
+    // one this script exists to prevent.
+    if (existsSync(out)) {
+      console.warn(
+        `Go is not installed on this machine, so the sidecar was NOT rebuilt.\n` +
+          `Using the existing binary as-is:\n` +
+          `  ${out}\n` +
+          `If the Go sources changed since that file was copied here, the build ` +
+          `will bundle the stale one and your change will appear to do nothing.`,
+      );
+      process.exit(0);
+    }
     console.error(
       `Go is not installed on this machine, so the sidecar can't be built here.\n` +
         `Build it on a machine that has Go, with the same target:\n` +
