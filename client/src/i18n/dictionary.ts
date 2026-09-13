@@ -83,6 +83,11 @@ export interface Dictionary {
           /** `{host}` — the machine whose registry receives the file. */
           hostHint: string;
           chooseFile: string;
+          /** Appended to the name of a theme being duplicated. Only the
+           * name — the id gets a fixed ASCII suffix, since an id is an
+           * identifier and a translated one could carry a character the
+           * validator rejects. */
+          copySuffix: string;
           copied: string;
           saving: string;
           tooLarge: string;
@@ -446,6 +451,11 @@ export interface Dictionary {
           create: string;
           download: string;
           downloadFolder: string;
+          /** `{failed}` of `{total}` — the folder came down, but not whole.
+           * Distinct from `downloadFolder` (which is the whole thing
+           * failing) because the user has files on disk either way and needs
+           * to know how many are missing. */
+          downloadFolderPartial: string;
           rename: string;
           delete: string;
         };

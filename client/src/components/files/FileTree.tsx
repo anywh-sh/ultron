@@ -29,7 +29,7 @@ import { ContextMenuAnchor, useContextMenu } from "@/hooks/useContextMenu";
 import { detectEditors, type DetectedEditor } from "@/lib/editors";
 import { buildEditorUrl, type EditorId, type EditorLocality } from "@/lib/editorLinks";
 import { finishBatchDownload, notifyFileDownloaded, startBatchDownload, tickBatchDownload } from "@/lib/downloadNotifications";
-import { downloadFile, downloadFolder } from "@/lib/fileDownload";
+import { downloadFile, downloadFolder, PartialFolderDownloadError } from "@/lib/fileDownload";
 import { createFile, deleteFile, getHostInfo, listFiles, renameFile, type FileEntry } from "@/lib/filesClient";
 import { isIOS } from "@/lib/platform";
 import type { Profile } from "@/lib/profiles";
@@ -584,7 +584,13 @@ function FileTreeNode({
       });
     } catch (error) {
       console.error("[anywh] failed to download folder:", error);
-      window.alert(error instanceof Error ? error.message : copy.errors.downloadFolder);
+      window.alert(
+        error instanceof PartialFolderDownloadError
+          ? copy.errors.downloadFolderPartial
+              .replace("{failed}", String(error.failed))
+              .replace("{total}", String(error.total))
+          : copy.errors.downloadFolder,
+      );
     } finally {
       if (jobId !== null) finishBatchDownload(jobId);
     }
