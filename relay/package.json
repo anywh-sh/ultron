@@ -12,7 +12,7 @@
     "build": "tsc",
     "start": "node --env-file-if-exists=.env dist/server.js",
     "start:profile": "node --env-file-if-exists=.env --env-file-if-exists=${ANYWH_ENV_DIR:-$HOME/.config/anywh/env}/$ANYWH_PROFILE.env dist/server.js",
-    "test": "tsx --test src/*.test.ts",
+    "test": "tsx --test --test-timeout=30000 src/*.test.ts",
     "test:integration": "tsx --test --test-timeout=30000 tests/*.test.ts",
     "test:all": "npm run test && npm run test:integration"
   },

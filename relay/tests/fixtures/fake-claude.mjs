@@ -56,6 +56,15 @@ function emit(event) {
   process.stdout.write(`${JSON.stringify(event)}\n`);
 }
 
+/** `emit` + exit, for the one caller that has to exit immediately after
+ * writing: the write callback is what guarantees the line actually left for
+ * the pipe first (see the SIGINT handler below for what this cost). */
+function emitAndExit(event, code = 0) {
+  process.stdout.write(`${JSON.stringify(event)}\n`, () => {
+    process.exit(code);
+  });
+}
+
 function flagValue(name) {
   const index = args.indexOf(name);
   return index >= 0 ? args[index + 1] : undefined;
@@ -111,8 +120,6 @@ if (args[0] === "auth" && args[1] === "status") {
   const errorMessage = process.env.FAKE_CLAUDE_ERROR;
   const model = "claude-fake-5";
 
-  emit({ type: "system", subtype: "init", session_id: sessionId, model });
-
   // Gated on `--output-format stream-json` specifically (real turns only,
   // claudeSession.ts's `sendTurn`), not just "any -p invocation": title
   // generation and next-message suggestion (titleGenerator.ts/
@@ -121,9 +128,23 @@ if (args[0] === "auth" && args[1] === "status") {
   // prompt text but `--output-format text` — without this gate, setting
   // FAKE_CLAUDE_HANG for one turn also hung those unrelated spawns forever,
   // since nothing ever sends them SIGINT.
-  if (process.env.FAKE_CLAUDE_HANG && outputFormat === "stream-json") {
-    // Never resolves on its own — only SIGINT (relay's stopTurn -> ClaudeSession.stop)
-    // moves this forward, same as the real binary's tested interrupt behavior.
+  const hanging = Boolean(process.env.FAKE_CLAUDE_HANG) && outputFormat === "stream-json";
+
+  // Registered BEFORE the `system` event goes out, not alongside the
+  // keep-alive below. `system` is the exact signal the relay waits for
+  // before it is allowed to interrupt (claudeSession.ts's `stop()`), so
+  // announcing readiness first and only then installing the handler leaves a
+  // window where SIGINT lands on Node's default action and kills this
+  // process outright — no `result`, no `session_id`, and a turn that looks
+  // like it was never interrupted cleanly. Measured against this fixture
+  // (2026-09-13): 56 of 80 interrupts under parallel load fell in that
+  // window, which is what made the stop_turn test flaky — and, before the
+  // teardown fix in helpers/testServer.ts, what turned that flake into a
+  // hung CI job rather than a failing one.
+  if (hanging) {
+    // Never resolves on its own — only SIGINT (relay's stopTurn ->
+    // ClaudeSession.stop) moves this forward, same as the real binary's
+    // tested interrupt behavior.
     process.once("SIGINT", () => {
       // `is_error: true` on a clean exit(0) is what the real binary reports
       // for an interrupted turn (confirmed against it, see claudeSession.ts's
@@ -131,7 +152,7 @@ if (args[0] === "auth" && args[1] === "status") {
       // `stopped: true` via the `lastErrorResult` branch, not the exit-code
       // one, so an `is_error: false` reply here (as a genuinely successful
       // turn would send) was silently misreported as `stopped: false`.
-      emit({
+      emitAndExit({
         type: "result",
         session_id: sessionId,
         is_error: true,
@@ -139,8 +160,12 @@ if (args[0] === "auth" && args[1] === "status") {
         errors: ["interrompido pelo usuário"],
         modelUsage: { [model]: { contextWindow: 200000 } },
       });
-      process.exit(0);
     });
+  }
+
+  emit({ type: "system", subtype: "init", session_id: sessionId, model });
+
+  if (hanging) {
     // Keep the process alive indefinitely while waiting for that signal.
     setInterval(() => {}, 1000);
   } else if (process.env.FAKE_CLAUDE_PRESENT_CHOICE && outputFormat === "stream-json") {

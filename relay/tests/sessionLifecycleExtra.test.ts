@@ -1,6 +1,7 @@
 import { test, before, after, beforeEach, afterEach } from "node:test";
 import assert from "node:assert/strict";
 import { startTestServer, type TestServer } from "./helpers/testServer.js";
+import type WebSocket from "ws";
 import { collectUntil, connectSession, connectSessionListWatch, sendUserMessage } from "./helpers/wsClient.js";
 
 // Real integration test (.anywh/skills/tests/SKILL.md), continuing where
@@ -134,41 +135,63 @@ test("/sessions/watch broadcasts a new session's title, and its deletion, to a c
   // exactly that — this watcher never connects to "session-watched-by-other"
   // at all.
   const watcher = await connectSessionListWatch(server.port);
+  let chatSocket: WebSocket | undefined;
 
-  // Attach both collectors BEFORE triggering the action that causes the
-  // broadcast, not after awaiting it — the title-generation broadcast can
-  // arrive before `turn_complete` (they fire from parallel `-p` calls, see
-  // .anywh/skills/tests/SKILL.md), and the delete broadcast happens
-  // synchronously inside the HTTP handler before the response is even sent.
-  // Attaching the listener only after awaiting either would race exactly
-  // like the connection-time-burst trap the skill documents for `open`.
-  const upsertReceived = collectUntil(
-    watcher,
-    (message) => message.type === "session_list_upsert" && message.id === "session-watched-by-other",
-  );
+  try {
+    // Attach both collectors BEFORE triggering the action that causes the
+    // broadcast, not after awaiting it — the title-generation broadcast can
+    // arrive before `turn_complete` (they fire from parallel `-p` calls, see
+    // .anywh/skills/tests/SKILL.md), and the delete broadcast happens
+    // synchronously inside the HTTP handler before the response is even sent.
+    // Attaching the listener only after awaiting either would race exactly
+    // like the connection-time-burst trap the skill documents for `open`.
+    const upsertReceived = collectUntil(
+      watcher,
+      (message) => message.type === "session_list_upsert" && message.id === "session-watched-by-other",
+    );
 
-  const chatSocket = await connectSession(server.port, "session-watched-by-other");
-  sendUserMessage(chatSocket, "hello from another device");
-  await collectUntil(chatSocket, (message) => message.type === "turn_complete");
+    chatSocket = await connectSession(server.port, "session-watched-by-other");
+    sendUserMessage(chatSocket, "hello from another device");
+    await collectUntil(chatSocket, (message) => message.type === "turn_complete");
 
-  const upsert = (await upsertReceived).find((message) => message.type === "session_list_upsert");
-  assert.equal(upsert!.id, "session-watched-by-other");
-  assert.equal(typeof upsert!.title, "string");
+    // Filters by id, not just by type — the same predicate `collectUntil`
+    // stopped on. `/sessions/watch` is a list-wide channel, so what lands in
+    // the collected array is every session's traffic, not this test's: a
+    // late `session_list_upsert` for the PREVIOUS test's session (its title
+    // generation resolves out of band, after that test already passed)
+    // routinely arrives first, and a `.find` that only matched on type
+    // picked that one. That is the flake that hung CI on 2026-09-13 —
+    // 'session-http-lifecycle' where 'session-watched-by-other' was
+    // expected, roughly one run in six under parallel load.
+    const upsert = (await upsertReceived).find(
+      (message) => message.type === "session_list_upsert" && message.id === "session-watched-by-other",
+    );
+    assert.equal(upsert!.id, "session-watched-by-other");
+    assert.equal(typeof upsert!.title, "string");
 
-  const removedReceived = collectUntil(
-    watcher,
-    (message) => message.type === "session_list_removed" && message.id === "session-watched-by-other",
-  );
+    const removedReceived = collectUntil(
+      watcher,
+      (message) => message.type === "session_list_removed" && message.id === "session-watched-by-other",
+    );
 
-  const deleteResponse = await fetch(httpUrl("/sessions/delete"), {
-    method: "POST",
-    body: JSON.stringify({ id: "session-watched-by-other" }),
-  });
-  assert.equal(deleteResponse.status, 200);
+    const deleteResponse = await fetch(httpUrl("/sessions/delete"), {
+      method: "POST",
+      body: JSON.stringify({ id: "session-watched-by-other" }),
+    });
+    assert.equal(deleteResponse.status, 200);
 
-  const removed = (await removedReceived).find((message) => message.type === "session_list_removed");
-  assert.deepEqual(removed, { type: "session_list_removed", id: "session-watched-by-other" });
-
-  chatSocket.close();
-  watcher.close();
+    // Same id filter, same reason: the previous test deletes its own session
+    // on this very channel, so type alone does not identify this one.
+    const removed = (await removedReceived).find(
+      (message) => message.type === "session_list_removed" && message.id === "session-watched-by-other",
+    );
+    assert.deepEqual(removed, { type: "session_list_removed", id: "session-watched-by-other" });
+  } finally {
+    // `finally`, not two calls at the end of the happy path: an assertion
+    // tripping above used to skip both closes, and a WebSocket left open
+    // hangs the `after` hook (see testServer.ts's own `close`). A failing
+    // test has to stay a failing test.
+    chatSocket?.close();
+    watcher.close();
+  }
 });

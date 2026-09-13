@@ -109,7 +109,19 @@ export async function startTestServer(): Promise<TestServer> {
     homeDir,
     envDir,
     close: async () => {
+      // Tears the live connections down explicitly, instead of asking the
+      // servers to close and waiting: a test that fails mid-flight never
+      // reaches its own `socket.close()`, and an upgraded WebSocket keeps
+      // `httpServer.close()`'s callback from ever firing — so this hook
+      // would hang, and with it the whole `node --test` process. Real
+      // incident (2026-09-13): one failing assertion in
+      // sessionLifecycleExtra.test.ts hung CI's relay job for 30 minutes
+      // until it was cancelled by hand, with the reporter never getting to
+      // print WHICH assertion failed. A leaked socket has to stay a normal
+      // test failure, never a hang.
+      for (const client of serverModule.wss.clients) client.terminate();
       await new Promise<void>((resolveClose) => serverModule.wss.close(() => resolveClose()));
+      serverModule.httpServer.closeAllConnections();
       await new Promise<void>((resolveClose) => serverModule.httpServer.close(() => resolveClose()));
       rmSync(workDir, { recursive: true, force: true });
     },

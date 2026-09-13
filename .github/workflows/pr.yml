@@ -21,6 +21,7 @@ jobs:
   changes:
     name: Detect changes
     runs-on: ubuntu-latest
+    timeout-minutes: 5
     outputs:
       relay: ${{ steps.filter.outputs.relay }}
       client: ${{ steps.filter.outputs.client }}
@@ -40,6 +41,15 @@ jobs:
     needs: changes
     if: needs.changes.outputs.relay == 'true'
     runs-on: ubuntu-latest
+    # Real incident (2026-09-13): a single failing assertion left a WebSocket
+    # open, which hung this tier's `after` hook and then the whole
+    # `node --test` process — with no ceiling here, the run sat burning a
+    # runner for 30 minutes and would have gone to GitHub's 6h default, on a
+    # job whose honest runtime is well under a minute. The per-test timeouts
+    # in relay/package.json are the first line of defense; this is the one
+    # that holds even when the test runner itself is what stopped making
+    # progress.
+    timeout-minutes: 10
     steps:
       - uses: actions/checkout@v7
       - uses: actions/setup-node@v7
@@ -68,6 +78,7 @@ jobs:
     needs: changes
     if: needs.changes.outputs.client == 'true'
     runs-on: ubuntu-latest
+    timeout-minutes: 15
     steps:
       - uses: actions/checkout@v7
       - uses: actions/setup-node@v7
@@ -87,6 +98,10 @@ jobs:
     needs: changes
     if: needs.changes.outputs.client == 'true'
     runs-on: ubuntu-latest
+    # The widest ceiling of the four on purpose: this is the only tier that
+    # compiles the Tauri app from scratch, so a cold rust-cache is a
+    # legitimately slow run, not a stuck one.
+    timeout-minutes: 45
     steps:
       - uses: actions/checkout@v7
       - uses: actions/setup-node@v7
@@ -150,6 +165,7 @@ jobs:
     needs: [changes, relay, client-unit, client-e2e]
     if: always()
     runs-on: ubuntu-latest
+    timeout-minutes: 5
     steps:
       - name: Fail if any required job did not succeed
         if: contains(needs.*.result, 'failure') || contains(needs.*.result, 'cancelled')
