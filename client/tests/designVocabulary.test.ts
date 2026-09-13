@@ -153,9 +153,15 @@ describe("color and type", () => {
       hits(
         FILES.filter((file) => !file.path.endsWith(".css")),
         hex,
-        // ThemeImportDialog's placeholder is a sample theme file — the hex in
-        // it is the content being illustrated, not a color being applied.
-        (file) => themeData.has(file.path) || file.path === "components/settings/ThemeImportDialog.tsx",
+        (file) =>
+          themeData.has(file.path) ||
+          // ThemeImportDialog's placeholder is a sample theme file — the hex
+          // in it is the content being illustrated, not a color being applied.
+          file.path === "components/settings/ThemeImportDialog.tsx" ||
+          // The brand mark's two colors are fixed regardless of theme (same
+          // two hexes as the static `assets/logo.svg`) — a token would imply
+          // they're themeable, which is exactly what they must not be.
+          file.path === "components/shell/AnywhLogo.tsx",
       ),
     ).toEqual([]);
   });

@@ -1,8 +1,8 @@
 import { memo } from "react";
-import { Loader2, Pencil } from "lucide-react";
+import { SquareTerminal } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useDict, useLocale } from "@/i18n";
-import { profileColorClass } from "@/lib/profiles";
+import { profileColorClass, profileColorVar } from "@/lib/profiles";
 import { formatRelativeTime } from "@/lib/relativeTime";
 import type { MergedSession } from "@/lib/sessionGrouping";
 import { useContextMenu } from "@/hooks/useContextMenu";
@@ -51,14 +51,14 @@ export const SessionListItem = memo(function SessionListItem({
   const dict = useDict();
   const { locale } = useLocale();
   const menu = useContextMenu();
-  const spinnerLabel = running ? dict.shell.sidebar.agentWorking : dict.shell.sidebar.backgroundJob;
+  const indicatorLabel = running ? dict.shell.sidebar.agentWorking : dict.shell.sidebar.backgroundJob;
   // A relay too old to report when the session was last used leaves the row
   // without a time rather than with a made-up one — the meta line then only
   // exists if the profile name is on it.
   const lastActive = session.lastActiveAt === null ? null : formatRelativeTime(session.lastActiveAt, locale);
 
   return (
-    <div className="group relative flex items-center" onContextMenu={menu.onContextMenu}>
+    <div className="relative flex items-center" onContextMenu={menu.onContextMenu}>
       {/* The profile's colour as a bar down the left edge, not a dot: it is
        * the one piece of per-row chrome that has to survive a long title
        * truncating, and it doubles as the selected-row marker. */}
@@ -74,7 +74,7 @@ export const SessionListItem = memo(function SessionListItem({
         type="button"
         onClick={() => onSelect(session)}
         className={cn(
-          "flex w-full cursor-pointer flex-col gap-0.5 border border-transparent pr-7 pl-3 text-left transition-colors",
+          "flex w-full cursor-pointer flex-col gap-0.5 border border-transparent px-3 text-left transition-colors",
           size === "lg" ? "py-2.5" : "py-2",
           selected ? "border-border bg-bg-elevated" : "hover:bg-surface-hover",
         )}
@@ -89,14 +89,24 @@ export const SessionListItem = memo(function SessionListItem({
           >
             {session.title}
           </span>
-          {/* One animated indicator per row at most — a live turn and a
-           * background job on the same session would otherwise stack two
-           * infinite spinners in one line. */}
-          {(running || hasBackgroundJob) && (
-            <Loader2
-              className={cn("size-3 shrink-0 animate-spin", running ? "text-foreground" : "text-muted-foreground")}
-              aria-label={spinnerLabel}
+          {/* One animated indicator per row at most, `running` first — a
+           * live turn and a background job on the same session would
+           * otherwise stack two. The ring (the design's live-session marker,
+           * tinted in the session's own profile color) is reserved for an
+           * actual turn in flight; the design never modeled a background
+           * job at all, so that case gets its own glyph instead of being
+           * forced into the same language — a pulsing terminal icon, since
+           * that is literally what `anywh-bg` runs. */}
+          {running ? (
+            <span
+              aria-label={indicatorLabel}
+              className="size-[9px] shrink-0 animate-spin rounded-full border-[1.5px] border-border"
+              style={{ borderTopColor: profileColorVar(session.profileId) }}
             />
+          ) : (
+            hasBackgroundJob && (
+              <SquareTerminal aria-label={indicatorLabel} className="size-3 shrink-0 animate-pulse text-muted-foreground" />
+            )
           )}
         </span>
         {(showProfile || lastActive !== null) && (
@@ -107,21 +117,7 @@ export const SessionListItem = memo(function SessionListItem({
           </span>
         )}
       </button>
-      <button
-        type="button"
-        onClick={(event) => {
-          event.stopPropagation();
-          onRename(session);
-        }}
-        aria-label={dict.shell.sidebar.renameSession.replace("{title}", session.title)}
-        className={cn(
-          "absolute top-1.5 right-1.5 cursor-pointer p-0.5 opacity-0 transition-opacity",
-          "hover:bg-bg-elevated group-hover:opacity-100",
-        )}
-      >
-        <Pencil className="size-3" />
-      </button>
-      <SessionDeleteMenu menu={menu} title={session.title} onDelete={() => onDelete(session)} />
+      <SessionDeleteMenu menu={menu} title={session.title} onRename={() => onRename(session)} onDelete={() => onDelete(session)} />
     </div>
   );
 });

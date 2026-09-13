@@ -300,7 +300,6 @@ export const ptBr: Dictionary = {
       noMatchesHint: "Limpe o filtro para ver todos os perfis de novo.",
       syncedAt: "sincronizado {time}",
       neverSynced: "nunca sincronizado",
-      renameSession: "Renomear {title}",
       rename: {
         title: "Renomear sessão",
         description: "Escolha um novo nome pra essa conversa.",

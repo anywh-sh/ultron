@@ -300,7 +300,6 @@ export const en: Dictionary = {
       noMatchesHint: "Clear the filter to see every profile again.",
       syncedAt: "synced {time}",
       neverSynced: "never synced",
-      renameSession: "Rename {title}",
       rename: {
         title: "Rename session",
         description: "Pick a new name for this conversation.",

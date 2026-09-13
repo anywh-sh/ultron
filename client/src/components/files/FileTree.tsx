@@ -349,7 +349,7 @@ export function FileTree({
   }, [changedDir]);
 
   return (
-    <div className="scrollbar-thin h-full overflow-auto py-1 text-xs" onContextMenu={panelMenu.onContextMenu}>
+    <div className="scrollbar-thin h-full overflow-auto bg-bg-chrome py-1 text-xs" onContextMenu={panelMenu.onContextMenu}>
       <FileTreeChildren
         dir={root}
         depth={0}

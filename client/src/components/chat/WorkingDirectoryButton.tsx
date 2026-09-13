@@ -12,7 +12,7 @@ import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip
 import { useRecentFolders } from "@/hooks/useRecentFolders";
 import { useDict } from "@/i18n";
 import { FolderPickerDialog } from "@/components/chat/FolderPickerDialog";
-import type { Profile } from "@/lib/profiles";
+import { profileColorVar, type Profile } from "@/lib/profiles";
 import { cn } from "@/lib/utils";
 
 interface WorkingDirectoryButtonProps {
@@ -113,7 +113,10 @@ export function WorkingDirectoryButton({
                 disabled={!isNewConversation && (!cwd || !connected)}
                 className="flex h-[26px] max-w-full shrink cursor-pointer items-center gap-2 border border-border bg-bg-sidebar px-2.5 font-mono text-[11.5px] text-muted-foreground transition-colors hover:border-text-faint hover:text-foreground disabled:cursor-not-allowed disabled:opacity-50"
               >
-                <Folder className="size-3 shrink-0 text-primary" />
+                {/* The design ties this icon to the tab's own profile color
+                  * (`tabColor`), not the accent — the working directory
+                  * belongs to whichever profile the current tab is on. */}
+                <Folder className="size-3 shrink-0" style={{ color: profileColorVar(profile.id) }} />
                 <span className="truncate">{cwd ? folderName(cwd) : "…"}</span>
               </button>
             </DropdownMenuTrigger>

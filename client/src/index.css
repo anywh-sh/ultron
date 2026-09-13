@@ -144,6 +144,17 @@
   --profile-5-soft: color-mix(in srgb, var(--profile-5) 20%, var(--bg-chrome));
   --profile-6-soft: color-mix(in srgb, var(--profile-6) 20%, var(--bg-chrome));
 
+  /* Resting-state wash for a tab that isn't selected — same opaque-mix trick
+     as `-soft` above (never the alpha modifier, same near-black-smudge risk),
+     just a lighter pass (7%, against `-soft`'s 20%) so the profile color
+     reads at a glance on every tab, not only the active one. */
+  --profile-1-faint: color-mix(in srgb, var(--profile-1) 7%, var(--bg-chrome));
+  --profile-2-faint: color-mix(in srgb, var(--profile-2) 7%, var(--bg-chrome));
+  --profile-3-faint: color-mix(in srgb, var(--profile-3) 7%, var(--bg-chrome));
+  --profile-4-faint: color-mix(in srgb, var(--profile-4) 7%, var(--bg-chrome));
+  --profile-5-faint: color-mix(in srgb, var(--profile-5) 7%, var(--bg-chrome));
+  --profile-6-faint: color-mix(in srgb, var(--profile-6) 7%, var(--bg-chrome));
+
   /* Tab dot for "turn finished, not viewed yet" (TabBar). Deliberately a
      saturated blue with no muted/pastel sibling in the profile palette above
      — every `--profile-*` needs to stay visually distinct from this one, or
@@ -248,6 +259,12 @@
   --color-profile-4-soft: var(--profile-4-soft);
   --color-profile-5-soft: var(--profile-5-soft);
   --color-profile-6-soft: var(--profile-6-soft);
+  --color-profile-1-faint: var(--profile-1-faint);
+  --color-profile-2-faint: var(--profile-2-faint);
+  --color-profile-3-faint: var(--profile-3-faint);
+  --color-profile-4-faint: var(--profile-4-faint);
+  --color-profile-5-faint: var(--profile-5-faint);
+  --color-profile-6-faint: var(--profile-6-faint);
   --color-status-done: var(--status-done);
 
   --color-sidebar: var(--bg-sidebar);
@@ -722,18 +739,18 @@ body {
 /* Embedded terminal — xterm.js's own package CSS forces a solid black
  * viewport background (`.xterm-viewport { background-color: #000 }`,
  * commented there as "needed on OS X for the scrollbar to be opaque").
- * Painted with the same solid color as the panel around it (`--bg-sidebar`,
- * matching `theme.background` in TerminalView.tsx) rather than attempting
- * real transparency — tested in the actual app, chasing transparency through
- * a 2D canvas plus the WebGL addon never closed completely (a visible dark
- * rectangle was left over), and painting the same solid color in both places
- * is simpler and more robust.
+ * Painted with the same solid color as the terminal's own theme
+ * (`theme.background` in TerminalView.tsx, a shade darker than the dock
+ * column around it) rather than attempting real transparency — tested in the
+ * actual app, chasing transparency through a 2D canvas plus the WebGL addon
+ * never closed completely (a visible dark rectangle was left over), and
+ * painting the same solid color in both places is simpler and more robust.
  * `--terminal-bg` is written by TerminalView from the resolved theme (a
- * theme may declare a terminal background of its own); `--bg-sidebar` stands
+ * theme may declare a terminal background of its own); `--bg-chrome` stands
  * in as the fallback for the window before that variable has been
  * written. */
 .xterm .xterm-viewport {
-  background-color: var(--terminal-bg, var(--bg-sidebar)) !important;
+  background-color: var(--terminal-bg, var(--bg-chrome)) !important;
 }
 .xterm {
   user-select: text;

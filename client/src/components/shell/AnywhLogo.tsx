@@ -1,23 +1,27 @@
 /**
  * The mark: a filled accent square with a chevron and a bar cut out of it.
  *
- * `currentColor` is deliberately not used — the square is always the brand
- * accent and the glyph inside it always the ink that reads on it. A mark
+ * Both colors are literal hex, matching `assets/logo.svg` (the static brand
+ * asset) exactly — deliberately not `--primary`/`--primary-foreground`,
+ * which are the *active theme's* accent and vary with it (`--primary` alone
+ * differs between the two built-in themes). The mark is brand identity, not
+ * UI chrome: it stays the same two colors regardless of which theme is on
+ * screen, the same way the mark doesn't take `currentColor` either — a mark
  * that recolored with its surroundings would stop being the mark.
  */
 export function AnywhLogo({ className }: { className?: string }) {
   return (
     <svg viewBox="0 0 32 32" className={className} aria-hidden="true">
-      <rect width="32" height="32" className="fill-primary" />
+      <rect width="32" height="32" fill="#c2440f" />
       <path
         d="M10.6 8.7L18.2 16l-7.6 7.3"
         fill="none"
-        className="stroke-primary-foreground"
+        stroke="#fdf1e8"
         strokeWidth="4.2"
         strokeLinecap="round"
         strokeLinejoin="round"
       />
-      <rect x="22.5" y="11.3" width="4.4" height="9.4" rx="2.2" className="fill-primary-foreground" />
+      <rect x="22.5" y="11.3" width="4.4" height="9.4" rx="2.2" fill="#fdf1e8" />
     </svg>
   );
 }

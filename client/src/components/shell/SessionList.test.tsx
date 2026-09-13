@@ -143,13 +143,27 @@ describe("SessionList", () => {
     expect(screen.queryByLabelText(copy.backgroundJob)).not.toBeInTheDocument();
   });
 
-  it("renders a rename control per row, labelled with the session it renames", async () => {
+  it("marks a background job with its own icon, not the live-turn ring", () => {
+    // The design never modeled a background job at all — reusing the ring
+    // (its live-turn marker) for this would claim a turn is in flight when
+    // the agent is actually idle.
+    renderList({
+      sessions: [session({ id: "s1", title: "Idle but busy" })],
+      running: new Set(),
+      backgroundJobSessions: new Set(["s1"]),
+    });
+    expect(screen.getByLabelText(copy.backgroundJob)).toBeInTheDocument();
+    expect(screen.queryByLabelText(copy.agentWorking)).not.toBeInTheDocument();
+  });
+
+  it("offers rename from the row's context menu", async () => {
     const onRename = vi.fn();
     const target = session({ id: "s1", title: "Rename me" });
     renderList({ sessions: [target], onRename });
 
     const user = userEvent.setup();
-    await user.click(screen.getByRole("button", { name: copy.renameSession.replace("{title}", "Rename me") }));
+    await user.pointer({ keys: "[MouseRight]", target: screen.getByText("Rename me") });
+    await user.click(await screen.findByText(copy.sessionMenu.rename));
     expect(onRename).toHaveBeenCalledWith(target);
   });
 

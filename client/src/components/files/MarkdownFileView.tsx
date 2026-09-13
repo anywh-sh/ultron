@@ -51,7 +51,7 @@ export function MarkdownFileView({ path, content, truncated }: MarkdownFileViewP
         {showRaw ? (
           <CodeFileView path={path} content={content} />
         ) : (
-          <div className="scrollbar-thin prose-chat h-full overflow-auto p-4 text-sm text-foreground">
+          <div className="scrollbar-thin prose-chat h-full overflow-auto bg-bg-chrome p-4 text-sm text-foreground">
             <MarkdownContent text={content} />
           </div>
         )}
