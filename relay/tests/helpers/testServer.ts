@@ -5,7 +5,7 @@ import { dirname, join, resolve as resolvePath } from "node:path";
 import { fileURLToPath } from "node:url";
 
 const HERE = dirname(fileURLToPath(import.meta.url));
-export const FAKE_CLAUDE_BIN = resolvePath(HERE, "../fixtures/fake-claude.mjs");
+export const FAKE_AGENT_BIN = resolvePath(HERE, "../fixtures/fake-claude.mjs");
 export const FAKE_SYSTEMCTL_BIN = resolvePath(HERE, "../fixtures/fake-systemctl.mjs");
 
 /** Asks the OS for a free ephemeral port by binding to port 0, then releases
@@ -67,7 +67,7 @@ export interface TestServer {
 /**
  * Boots the real relay (`server.ts`, imported for its side effects — it has
  * no exported bootstrap function, it's a script) against a throwaway `$HOME`
- * and sessions file, with `CLAUDE_BIN` pointed at the fake `claude` fixture
+ * and sessions file, with `AGENT_BIN` pointed at the fake `claude` fixture
  * (the one sanctioned mock boundary, see .anywh/skills/tests/SKILL.md).
  * Everything else — HTTP, WebSocket, session persistence to disk, profile
  * registry — is the real module, unmocked.
@@ -94,7 +94,7 @@ export async function startTestServer(): Promise<TestServer> {
   process.env.ANYWH_ENV_DIR = envDir;
   process.env.RELAY_SESSIONS_FILE = join(workDir, "sessions.json");
   process.env.RELAY_BACKGROUND_JOBS_FILE = join(workDir, "background-jobs.json");
-  process.env.CLAUDE_BIN = FAKE_CLAUDE_BIN;
+  process.env.AGENT_BIN = FAKE_AGENT_BIN;
   // Real incident (2026-09-07): a test hitting `DELETE /control/profiles/:id`
   // with the real `systemctl` disabled+stopped the operator's actual live
   // `anywh-relay@trabalho` service. Never point this at the real binary in

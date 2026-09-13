@@ -4,7 +4,7 @@ Wrapper multiplataforma para o Claude Code CLI. O `claude` continua rodando numa
 
 ## Arquitetura
 
-- **`relay/`** — servidor Node/TypeScript. Dá spawn em `claude -p ...` por turno, faz streaming dos eventos JSON de volta por WebSocket, e persiste estado de sessão/aba em disco. `ANTHROPIC_API_KEY` é removido do ambiente do filho de propósito, nos quatro pontos de spawn, pra que o uso sempre caia na assinatura e nunca em billing por token.
+- **`relay/`** — servidor Node/TypeScript. Dá spawn em `claude -p ...` por turno, faz streaming dos eventos JSON de volta por WebSocket, e persiste estado de sessão/aba em disco. As credenciais que causam billing por token (`BILLED_CREDENTIAL_VARS` em `claudeCliConfig.ts` — hoje `ANTHROPIC_API_KEY` e `ANTHROPIC_AUTH_TOKEN`) são removidas do ambiente do filho de propósito, nos quatro pontos de spawn, pra que o uso sempre caia na assinatura e nunca em billing por token. A lista é escopada ao provedor do CLI que o relay realmente spawna — ensinar um segundo agente ao relay inclui acrescentar as credenciais dele ali.
 - **`client/`** — React + TypeScript + Tailwind + shadcn/ui, empacotado com Tauri 2.0 pra desktop e iOS a partir de uma codebase só.
 - **`infra/systemd/`** — unit template pra rodar o relay como serviço. Opcional; o caminho normal é `npm start`.
 
@@ -25,15 +25,22 @@ Achados que custaram caro pra descobrir e não são óbvios lendo o código:
 - **Notificação no macOS não funciona via `npm run tauri dev`.** `tauri-plugin-notification`/`notify-rust` usam a API legada `NSUserNotificationCenter`, que só consegue mostrar notificação "emprestando" a identidade de um bundle registrado (o processo de dev não é um `.app` de verdade) — o próprio plugin já faz isso de propósito, usando `com.apple.Terminal` como identidade em dev. No macOS 26 (Tahoe) o daemon `usernoted` passou a negar essa conexão pra qualquer identidade que não bata com a assinatura de código real do processo (`log stream --predicate 'process == "usernoted"'` mostra `Denying message ... LegacyConnection` no momento do disparo) — testado trocar a identidade emprestada pelo identifier real do app instalado (`sh.anywh.client`, via `mdfind`) e a negação persiste, então não é um problema de "qual identidade escolher". Só funciona em build assinado de verdade (`npm run tauri build` → `.app` instalado).
 - **Foco de janela no iOS**: usar `document.visibilityState`, não a API de foco do Tauri — a segunda dispara falso positivo em qualquer interrupção momentânea (Control Center, alerta do sistema), não só background real.
 - **Qualquer boot avulso do relay (`npm run dev`/`npm start` fora do `add-profile.sh`) se auto-registra como perfil `"default"`** (`ensureSelfRegistered`, `relay/src/profileRegistry.ts`) sempre que a porta do processo não bate com nenhum `.env` já existente — mesmo numa máquina que já tem perfis reais (`pessoal`/`trabalho`). Esse `default.env` fica órfão (fora do `profiles.json`, sem serviço systemd) e normalmente reporta `RELAY_HOST=127.0.0.1`, diferente do IP Tailscale dos perfis de verdade. O client deduplicava por `host` em vez de `id` (`syncProfilesForHost`, `client/src/lib/profiles.ts`), então esse "default" fantasma nunca era limpo entre syncs e cada porta nova empilhava mais uma cópia — apareciam vários "Default" no seletor a cada troca de perfil (corrigido 2026-09-07, commit `2eff9a7`). Se reaparecer um `default.env` órfão em `~/.config/anywh/env/`, é sinal de um teste avulso do relay rodando sem passar pelo `add-profile.sh` — é seguro apagar o arquivo se não houver `anywh-relay@default` habilitado.
-- **O binário Go do `tailnet-sidecar` não é reconstruído por `npm run tauri
-  dev`** e `src-tauri/binaries/` é gitignored, então cada máquina constrói o
-  seu. Como o Tauri empacota silenciosamente o binário que já estiver lá, uma
-  mudança no Go parece simplesmente não ter efeito, e uma mudança no Rust que
-  passe uma flag nova faz o binário velho sair com código 2 — o que chega na
-  UI como `tailnet-sidecar exited before printing LISTENING` e se parece com
-  falha de tailnet sem ser. Rodar `npm run build:sidecar` (client) depois de
-  qualquer mudança em `tailnet-sidecar/` ou nas flags que `tailnet_sidecar.rs`
-  monta.
+- **O binário Go do `tailnet-sidecar` não é commitado** (`.gitignore` da raiz
+  cobre `client/src-tauri/binaries/`), então cada máquina constrói o seu. Até
+  2026-09-13 isso era armadilha de esquecimento: o Tauri empacota
+  silenciosamente o binário que já estiver lá, então mudança no Go parecia não
+  ter efeito, e mudança no Rust que passasse flag nova fazia o binário velho
+  sair com código 2 — o que chega na UI como `tailnet-sidecar exited before
+  printing LISTENING` e parece falha de tailnet sem ser. Agora um hook
+  `pretauri` no `client/package.json` roda `npm run build:sidecar` antes de
+  todo comando Tauri, `tauri dev` incluso, e não há mais o que lembrar.
+  **Script novo que invoque o Tauri tem que passar por `npm run tauri -- ...`**
+  (como `ios:device` e os `tauri:build:win:*` já fazem) — chamar o binário
+  `tauri` direto pula o hook e traz a armadilha de volta. Resta um caso vivo:
+  numa máquina sem Go o script avisa e segue com o binário que estiver em
+  disco em vez de falhar, de propósito, pra não inutilizar o cross-build feito
+  noutra máquina — ali o binário velho volta a ser empacotado, e o aviso no
+  stdout do build é o único sinal.
 - **`infra/systemd/restart-profiles.sh` reinicia todos os perfis anywh-relay habilitados de uma vez**, e a sessão do Claude Code que está lendo este arquivo provavelmente está rodando como processo filho de um desses serviços agora mesmo. Rodar esse script (ou qualquer `systemctl --user restart/stop anywh-relay@*`) sem avisar antes derruba essa sessão no meio do turno — confirmado ao vivo mais de uma vez, inclusive rodando o próprio script "só pra testar". **Nunca rodar sem confirmação explícita do usuário na conversa atual**, mesmo em contexto de teste/dev — perguntar antes, não só avisar depois.
 - **Nenhuma derivação de tema é testável no tier unitário.** `themeApply.ts` resolve cor lendo de volta por `getComputedStyle` num elemento sonda (`parseColor`, `client/src/lib/color.ts`) — é assim que suporta `rgb()`/`hsl()`/`oklch()` sem parsear à mão. O happy-dom, onde roda o `npm test` do client, não computa `color`, então `parseColor` devolve `undefined` e **toda** derivação cai silenciosamente no valor embutido do tema escuro: um teste que passe um tema claro custom e confira um token derivado está conferindo a constante do tema escuro e passando por acidente. É a razão de `themeApply.ts` não ter teste próprio. O que dá pra testar é função pura extraída dali (`readableInkOn`), e o resto é trabalho do tier E2E, que tem engine de verdade (`tests/e2e/theme.spec.js`).
 - **As classes de animação do shadcn (`animate-in`, `fade-in-0`, `zoom-in-95`, `slide-in-from-*`) não existem neste projeto.** Elas vêm do `tw-animate-css`, que o scaffold pressupõe e que nunca foi instalado aqui — e no Tailwind v4 utilidade desconhecida simplesmente não gera CSS. Colar um trecho de shadcn traz classe que parece movimento deliberado e não anima nada. Foram todas removidas em 2026-09-13; `client/tests/designVocabulary.test.ts` falha se voltarem.
