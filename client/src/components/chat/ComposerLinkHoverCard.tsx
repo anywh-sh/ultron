@@ -136,7 +136,7 @@ export function ComposerLinkHoverCard({ editor }: ComposerLinkHoverCardProps) {
             onMouseEnter={clearTimer}
             onMouseLeave={scheduleClose}
             style={{ position: "fixed", left: anchorRect.left, top: anchorRect.top - 8, transform: "translateY(-100%)" }}
-            className="z-50 flex w-auto max-w-72 items-center gap-1.5 rounded-md border border-border bg-popover px-2.5 py-1.5 text-popover-foreground shadow-md"
+            className="z-50 flex w-auto max-w-72 items-center gap-1.5 border border-border bg-bg-elevated px-2.5 py-1.5 text-popover-foreground shadow-popover"
           >
             <span className="max-w-56 truncate font-mono text-xs text-muted-foreground">{currentHref}</span>
             <button
@@ -146,7 +146,7 @@ export function ComposerLinkHoverCard({ editor }: ComposerLinkHoverCardProps) {
                 setDialogOpen(true);
               }}
               aria-label="Editar link"
-              className="flex shrink-0 cursor-pointer items-center justify-center rounded p-1 text-muted-foreground hover:bg-border hover:text-foreground"
+              className="flex shrink-0 cursor-pointer items-center justify-center p-1 text-muted-foreground hover:bg-border hover:text-foreground"
             >
               <Pencil className="size-3" />
             </button>

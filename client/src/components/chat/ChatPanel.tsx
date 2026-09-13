@@ -533,7 +533,7 @@ export function ChatPanel({
   return (
     <div ref={containerRef} className="relative flex h-full flex-col">
       {isDraggingOver && (
-        <div className="pointer-events-none absolute inset-2 z-10 flex items-center justify-center gap-2 rounded-xl border-2 border-dashed border-primary bg-background/90 text-sm text-primary">
+        <div className="pointer-events-none absolute inset-2 z-10 flex items-center justify-center gap-2 border-2 border-dashed border-primary bg-background/90 text-sm text-primary">
           <ImagePlus className="size-4" />
           Solte a imagem ou o vídeo aqui
         </div>
@@ -622,7 +622,11 @@ export function ChatPanel({
          * in the bubble (see `editingMessageId` above) — fills the normal
          * composer with the original text and shows this warning, since
          * sending from here will discard the original response and
-         * everything that came after it. */}
+         * everything that came after it.
+         *
+         * Rounded on purpose (iOS shell, not redesigned): it sits against the
+         * iOS composer's own rounded glass, so squaring this one alone would
+         * put the only hard corner on that screen. */}
         {isIOS() && editTarget && (
           <div className="flex items-center justify-between gap-2 rounded-xl bg-bg-elevated/80 px-3 py-2 text-xs text-muted-foreground backdrop-blur-lg">
             <span>Editando essa mensagem vai recomeçar a conversa a partir desse ponto.</span>

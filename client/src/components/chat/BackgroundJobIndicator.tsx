@@ -76,7 +76,7 @@ export function BackgroundJobIndicator({ jobs, onCancel }: BackgroundJobIndicato
             ref={triggerRef}
             type="button"
             aria-label={`${String(jobs.length)} job(s) em background`}
-            className="flex h-7 shrink-0 cursor-pointer items-center gap-1.5 rounded-md border border-border bg-bg-elevated px-2 text-xs text-foreground transition-colors hover:bg-border"
+            className="flex h-7 shrink-0 cursor-pointer items-center gap-1.5 border border-border bg-bg-elevated px-2 text-xs text-foreground transition-colors hover:bg-border"
           >
             <Loader2 className="size-3.5 shrink-0 animate-spin text-muted-foreground" />
             <span className="max-w-40 truncate font-mono">{label}</span>
