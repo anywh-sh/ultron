@@ -23,6 +23,7 @@ import {
   type FilesError,
 } from "./fsFiles.js";
 import { FilesWatchSession } from "./fsWatch.js";
+import { readGitStatus } from "./gitStatus.js";
 import { defaultCwd } from "./paths.js";
 import {
   deleteProfileFiles,
@@ -1081,6 +1082,30 @@ export const httpServer = createServer((req, res) => {
     res.setHeader("Access-Control-Allow-Origin", "*");
     const editor = resolveEditorDescriptor(process.env, req.socket.remoteAddress);
     res.end(JSON.stringify({ hostname: hostname(), platform: process.platform, editor }));
+    return;
+  }
+
+  // The status bar's left half — the branch and change count of whatever
+  // repository the session's cwd happens to sit in. Session-scoped like the
+  // `/files/*` routes above (the client sends an id, never a path), and
+  // deliberately cheap to be wrong about: a cwd outside a repository, a host
+  // without git, or a call that times out all answer `{ repo: false }` with
+  // a 200, because the segment simply disappears (see gitStatus.ts).
+  if (req.method === "GET" && req.url?.startsWith("/git/status")) {
+    const url = new URL(req.url, `http://${req.headers.host ?? "localhost"}`);
+    const sessionId = url.searchParams.get("session")?.trim() || DEFAULT_SESSION;
+    const cwd = sessionStore.getCwdState(sessionId).cwd;
+    res.setHeader("Content-Type", "application/json");
+    res.setHeader("Access-Control-Allow-Origin", "*");
+    readGitStatus(cwd)
+      .then((status) => {
+        res.end(JSON.stringify(status));
+      })
+      .catch(() => {
+        // `readGitStatus` is documented never to reject; this keeps a broken
+        // promise from leaving the request hanging anyway.
+        res.end(JSON.stringify({ repo: false }));
+      });
     return;
   }
 
