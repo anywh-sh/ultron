@@ -42,9 +42,111 @@ export interface Dictionary {
     untitledSession: string;
   };
   settings: {
+    title: string;
+    nav: {
+      /** Eyebrow over the entries that belong to the app itself, not to any
+       * one profile. */
+      app: string;
+      profiles: string;
+      appearance: string;
+    };
+    appearance: {
+      title: string;
+      scope: string;
+      theme: {
+        title: string;
+        description: string;
+        add: string;
+        builtin: string;
+        light: string;
+        dark: string;
+        /** A theme mirrored from a host this device isn't connected to: it
+         * still paints, it just can't be edited or deleted from here. */
+        elsewhere: string;
+        options: string;
+        missing: string;
+        unreadable: string;
+        deleteTitle: string;
+        deleteBody: string;
+        /** The dialog that adds, edits or duplicates one. All three are
+         * the same request to the relay — only the wording differs. */
+        import: {
+          importTitle: string;
+          importSubmit: string;
+          importHint: string;
+          editTitle: string;
+          editHint: string;
+          duplicateTitle: string;
+          duplicateSubmit: string;
+          duplicateHint: string;
+          /** `{host}` — the machine whose registry receives the file. */
+          hostHint: string;
+          chooseFile: string;
+          copied: string;
+          saving: string;
+          tooLarge: string;
+          invalidJson: string;
+          copyFailed: string;
+        };
+      };
+      fontSize: {
+        title: string;
+        description: string;
+        /** Sentence rendered at the chosen size, so the number means
+         * something before it is committed to. */
+        sample: string;
+        reset: string;
+      };
+    };
     language: {
       title: string;
       description: string;
+    };
+    profile: {
+      sections: {
+        general: string;
+        personalization: string;
+      };
+      home: {
+        title: string;
+        description: string;
+        change: string;
+        systemDefault: string;
+        useSystemDefault: string;
+      };
+      model: {
+        title: string;
+        description: string;
+        lastUsed: string;
+        fixed: string;
+      };
+      name: {
+        title: string;
+        description: string;
+        saving: string;
+      };
+      color: {
+        title: string;
+        description: string;
+        swatch: string;
+      };
+    };
+    danger: {
+      heading: string;
+      deleteTitle: string;
+      removeTitle: string;
+      /** Three ways this ends up worded, because the profile itself decides
+       * what deleting even means: a paired device is only ever removed
+       * locally, and deleting one on a host needs another profile there to
+       * run the request. */
+      deleteBody: string;
+      noExecutorBody: string;
+      removeBody: string;
+      delete: string;
+      remove: string;
+      confirmPrompt: string;
+      deleting: string;
+      lastProfile: string;
     };
   };
   /**
@@ -138,6 +240,13 @@ export interface Dictionary {
       attach: string;
       attachmentUploading: string;
       removeAttachment: string;
+      /** Editing a hyperlink created by pasting a URL over a selection. */
+      editLink: {
+        title: string;
+        description: string;
+        text: string;
+        link: string;
+      };
       /** Name shown on an attachment with no visual preview (a file the
        * picker accepted but can't thumbnail) — the image/video case renders
        * the thumbnail itself instead. */
@@ -317,6 +426,11 @@ export interface Dictionary {
       syncedAt: string;
       neverSynced: string;
       renameSession: string;
+      /** The dialog that pencil opens. */
+      rename: {
+        title: string;
+        description: string;
+      };
       agentWorking: string;
       backgroundJob: string;
       groups: {
@@ -334,6 +448,67 @@ export interface Dictionary {
       badgeLocal: string;
       badgeRemote: string;
       badgeRevoked: string;
+      /** Creating a profile on the connected host, and pairing a machine
+       * that isn't reachable yet — the two ways a profile comes into
+       * existence. */
+      add: {
+        title: string;
+        description: string;
+        nameLabel: string;
+        namePlaceholder: string;
+        homeLabel: string;
+        homePlaceholder: string;
+        verify: string;
+        verifying: string;
+        creating: string;
+        /** `{path}` — the config path the command needs. */
+        notLoggedIn: string;
+        /** `{profile}` — the profile already using that path. */
+        collides: string;
+        confirmed: string;
+      };
+      pair: {
+        title: string;
+        description: string;
+        nameLabel: string;
+        namePlaceholder: string;
+        codeLabel: string;
+        codePlaceholder: string;
+        /** `{origin}` — the server the code points at. */
+        willPair: string;
+        format: string;
+        submit: string;
+      };
+      /** The blocking dialog that runs while a paired machine is turned
+       * into a working profile. */
+      setup: {
+        progress: string;
+        steps: {
+          claim: string;
+          connect: string;
+          verify: string;
+        };
+        connectingTitle: string;
+        connectedTitle: string;
+        claimFailedTitle: string;
+        connectFailedTitle: string;
+        verifyFailedTitle: string;
+        claiming: string;
+        joining: string;
+        dialing: string;
+        verifying: string;
+        /** `{count}` — conversations found on the machine. */
+        ready: string;
+        claimFailedBody: string;
+        retryBody: string;
+        /** `{label}` — the profile already pointing at that machine. */
+        duplicate: string;
+        useExisting: string;
+        later: string;
+        continueToProfile: string;
+        /** `{count}` — pairings waiting behind this one. */
+        queued: string;
+      };
     };
     revoked: {
       eyebrow: string;
@@ -357,6 +532,15 @@ export interface Dictionary {
       recent: string;
       noRecent: string;
       browse: string;
+    };
+    /** The picker itself, opened both from the composer's working-directory
+     * button and from a profile's starting-folder setting. */
+    folderPicker: {
+      title: string;
+      go: string;
+      parent: string;
+      empty: string;
+      select: string;
     };
     idle: {
       heading: string;

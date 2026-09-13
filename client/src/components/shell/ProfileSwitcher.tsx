@@ -10,10 +10,11 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { Badge } from "@/components/ui/badge";
 import { cn } from "@/lib/utils";
-import { isTailnetProfile, profileColorClass, type Profile } from "@/lib/profiles";
+import { profileColorClass, type Profile } from "@/lib/profiles";
 import { useProfiles } from "@/hooks/useProfiles";
 import { useRevokedProfiles } from "@/hooks/useProfileRevoked";
-import { useDict, type Dictionary } from "@/i18n";
+import { useDict } from "@/i18n";
+import { profileBadge } from "@/lib/profileBadge";
 import { AddProfileDialog } from "@/components/shell/AddProfileDialog";
 import { AddRemoteMachineDialog } from "@/components/shell/AddRemoteMachineDialog";
 
@@ -23,24 +24,6 @@ interface ProfileSwitcherProps {
    * keep running with this component unmounted (see `App`). */
   supported: boolean;
   onChange: (profileId: string) => void;
-}
-
-/**
- * How this device reaches the profile, as one word.
- *
- * Derived from the transport primitives the app already has, never from
- * anything about who is hosting or paying for it: a profile dialled straight
- * at a host is local, one reached through the tailnet is remote, and one the
- * account owner has disconnected is revoked regardless of either.
- */
-function profileBadge(
-  profile: Profile,
-  revoked: ReadonlySet<string>,
-  dict: Dictionary,
-): { label: string; variant: "outline" | "secondary" | "destructive" } {
-  if (revoked.has(profile.id)) return { label: dict.shell.profiles.badgeRevoked, variant: "destructive" };
-  if (isTailnetProfile(profile)) return { label: dict.shell.profiles.badgeRemote, variant: "secondary" };
-  return { label: dict.shell.profiles.badgeLocal, variant: "outline" };
 }
 
 export function ProfileSwitcher({ activeProfile, supported, onChange }: ProfileSwitcherProps) {

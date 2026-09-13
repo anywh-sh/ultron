@@ -2,12 +2,15 @@ import { useEffect, useState } from "react";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
+  DialogBody,
   DialogContent,
   DialogDescription,
   DialogFooter,
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
+import { Input } from "@/components/ui/input";
+import { useDict } from "@/i18n";
 import { addProfile, type Profile } from "@/lib/profiles";
 import { createProfile, validateProfile } from "@/lib/relayClient";
 
@@ -29,6 +32,8 @@ interface AddProfileDialogProps {
  * see `ProfileSwitcher`.
  */
 export function AddProfileDialog({ open, onOpenChange, activeProfile }: AddProfileDialogProps) {
+  const dict = useDict();
+  const copy = dict.shell.profiles.add;
   const [label, setLabel] = useState("");
   const [homePath, setHomePath] = useState("");
   const [validating, setValidating] = useState(false);
@@ -68,8 +73,8 @@ export function AddProfileDialog({ open, onOpenChange, activeProfile }: AddProfi
         return;
       }
       if (!result.loggedIn) {
-        const homeForCommand = homePath.trim() || "<caminho>";
-        setError(`Não logado. Rode no terminal do host: HOME=${homeForCommand} claude login`);
+        const homeForCommand = homePath.trim() || "<path>";
+        setError(copy.notLoggedIn.replace("{path}", homeForCommand));
         return;
       }
       setValidation({ email: result.email, subscriptionType: result.subscriptionType });
@@ -105,66 +110,62 @@ export function AddProfileDialog({ open, onOpenChange, activeProfile }: AddProfi
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="sm:max-w-md">
         <DialogHeader>
-          <DialogTitle>Adicionar perfil</DialogTitle>
-          <DialogDescription>
-            Garanta que sua sessão do Claude está logada na máquina que hospeda o serviço.
-          </DialogDescription>
+          <DialogTitle>{copy.title}</DialogTitle>
         </DialogHeader>
 
-        <div className="flex flex-col gap-3">
+        <DialogBody>
+          <DialogDescription>{copy.description}</DialogDescription>
+
           <div className="flex flex-col gap-1.5">
-            <label className="text-xs font-medium text-muted-foreground" htmlFor="add-profile-label">
-              Nome
+            <label className="font-mono text-[10.5px] tracking-[0.08em] text-text-faint uppercase" htmlFor="add-profile-label">
+              {copy.nameLabel}
             </label>
-            <input
+            <Input
               id="add-profile-label"
               value={label}
               onChange={(event) => setLabel(event.target.value)}
-              className="rounded-md border border-border bg-transparent px-2.5 py-1.5 text-sm outline-none focus:border-ring"
-              placeholder="Ex.: Cliente X"
+              placeholder={copy.namePlaceholder}
             />
           </div>
 
           <div className="flex flex-col gap-1.5">
-            <label className="text-xs font-medium text-muted-foreground" htmlFor="add-profile-home">
-              Caminho de configuração (opcional — vazio usa a conta padrão da máquina)
+            <label className="font-mono text-[10.5px] tracking-[0.08em] text-text-faint uppercase" htmlFor="add-profile-home">
+              {copy.homeLabel}
             </label>
-            <input
+            <Input
               id="add-profile-home"
               value={homePath}
               onChange={(event) => setHomePath(event.target.value)}
-              className="rounded-md border border-border bg-transparent px-2.5 py-1.5 font-mono text-xs outline-none focus:border-ring"
-              placeholder="/home/user/.anywh-cliente-x-home"
+              placeholder={copy.homePlaceholder}
               spellCheck={false}
             />
           </div>
 
           {error && <p className="text-sm text-destructive">{error}</p>}
           {collidesWith && (
-            <p className="text-sm text-destructive">
-              Esse caminho já está em uso pelo perfil "{collidesWith}" — ele já aparece no seletor de perfis.
-            </p>
+            <p className="text-sm text-destructive">{copy.collides.replace("{profile}", collidesWith)}</p>
           )}
           {validation && (
             <p className="text-sm text-foreground">
-              Conta confirmada{validation.email ? `: ${validation.email}` : ""}
+              {copy.confirmed}
+              {validation.email ? `: ${validation.email}` : ""}
               {validation.subscriptionType ? ` (${validation.subscriptionType})` : ""}
             </p>
           )}
 
           <div className="flex justify-end">
             <Button type="button" size="sm" variant="outline" disabled={validating} onClick={() => void handleVerify()}>
-              {validating ? "Verificando…" : "Verificar"}
+              {validating ? copy.verifying : copy.verify}
             </Button>
           </div>
-        </div>
+        </DialogBody>
 
         <DialogFooter>
           <Button type="button" size="sm" variant="outline" onClick={() => onOpenChange(false)}>
-            Cancelar
+            {dict.common.cancel}
           </Button>
           <Button type="button" size="sm" disabled={!validation || !label.trim() || creating} onClick={() => void handleCreate()}>
-            {creating ? "Criando…" : "Criar"}
+            {creating ? copy.creating : dict.common.create}
           </Button>
         </DialogFooter>
       </DialogContent>

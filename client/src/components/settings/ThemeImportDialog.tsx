@@ -1,7 +1,9 @@
 import { useEffect, useRef, useState } from "react";
 import { Copy, Upload } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { Dialog, DialogBody, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { useDict, type Dictionary } from "@/i18n";
+import { Textarea } from "@/components/ui/input";
 import type { Profile } from "@/lib/profiles";
 import { parseTheme, type Theme, type ThemeValidationError } from "@/lib/theme";
 import { saveTheme, ThemeSaveError } from "@/lib/relayClient";
@@ -29,22 +31,18 @@ interface ThemeImportDialogProps {
 
 export type ThemeDialogIntent = "import" | "edit" | "duplicate";
 
-const COPY: Record<ThemeDialogIntent, { title: string; submit: string; hint: string }> = {
-  import: {
-    title: "Adicionar tema",
-    submit: "Adicionar",
-    hint: "Cole o JSON do tema ou escolha um arquivo.",
-  },
-  edit: {
-    title: "Editar tema",
-    submit: "Salvar",
-    hint: "Edite os valores e salve. Mudar o `id` cria um tema novo em vez de alterar este.",
-  },
-  duplicate: {
-    title: "Duplicar tema",
-    submit: "Criar cópia",
-    hint: "Cópia do tema com todos os tokens escritos. Ajuste o que quiser antes de salvar.",
-  },
+/** Title, submit verb and hint, per intent. Editing borrows the plain
+ * "save" verb from `common`, which is exactly what it does. */
+function copyFor(intent: ThemeDialogIntent, dict: Dictionary): { title: string; submit: string; hint: string } {
+  const copy = dict.settings.appearance.theme.import;
+  switch (intent) {
+    case "import":
+      return { title: copy.importTitle, submit: copy.importSubmit, hint: copy.importHint };
+    case "edit":
+      return { title: copy.editTitle, submit: dict.common.save, hint: copy.editHint };
+    case "duplicate":
+      return { title: copy.duplicateTitle, submit: copy.duplicateSubmit, hint: copy.duplicateHint };
+  }
 }
 
 /**
@@ -65,7 +63,9 @@ export function ThemeImportDialog({
   intent = "import",
   onImported,
 }: ThemeImportDialogProps) {
-  const copy = COPY[intent];
+  const dict = useDict();
+  const copy = copyFor(intent, dict);
+  const strings = dict.settings.appearance.theme.import;
   const [json, setJson] = useState(initialJson ?? "");
   const [errors, setErrors] = useState<ThemeValidationError[]>([]);
   const [saving, setSaving] = useState(false);
@@ -82,7 +82,7 @@ export function ThemeImportDialog({
 
   async function handleFile(file: File): Promise<void> {
     if (file.size > MAX_THEME_BYTES) {
-      setErrors([{ path: "", message: "arquivo grande demais para um tema (máx. 64 KB)" }]);
+      setErrors([{ path: "", message: strings.tooLarge }]);
       return;
     }
     setJson(await file.text());
@@ -94,7 +94,7 @@ export function ThemeImportDialog({
     try {
       parsed = JSON.parse(json);
     } catch (error) {
-      setErrors([{ path: "", message: error instanceof Error ? error.message : "JSON inválido" }]);
+      setErrors([{ path: "", message: error instanceof Error ? error.message : strings.invalidJson }]);
       return;
     }
 
@@ -134,13 +134,12 @@ export function ThemeImportDialog({
           <DialogTitle>{copy.title}</DialogTitle>
         </DialogHeader>
 
-        <div className="flex flex-col gap-3">
+        <DialogBody>
           <p className="text-xs text-muted-foreground">
-            {copy.hint} O tema fica salvo em {profile.host} e pode ser usado por qualquer perfil desse
-            servidor.
+            {copy.hint} {strings.hostHint.replace("{host}", profile.host)}
           </p>
 
-          <textarea
+          <Textarea
             value={json}
             onChange={(event) => {
               setJson(event.target.value);
@@ -149,11 +148,11 @@ export function ThemeImportDialog({
             }}
             spellCheck={false}
             placeholder={'{\n  "version": 1,\n  "id": "meu-tema",\n  "name": "Meu tema",\n  "appearance": "dark",\n  "colors": { "background": "#1e1e1e", … }\n}'}
-            className="h-56 w-full resize-none rounded-md border border-border bg-background px-3 py-2 font-mono text-xs outline-none focus:border-ring"
+            className="h-56 w-full"
           />
 
           {errors.length > 0 && (
-            <ul className="flex flex-col gap-1 rounded-md border border-destructive/40 p-2.5">
+            <ul className="flex flex-col gap-1 border border-destructive/40 p-2.5">
               {errors.map((error, index) => (
                 <li key={`${error.path}-${String(index)}`} className="text-xs text-destructive">
                   {error.path ? <span className="font-mono">{error.path}: </span> : null}
@@ -178,7 +177,7 @@ export function ThemeImportDialog({
             <div className="flex items-center gap-2">
               <Button variant="outline" size="sm" onClick={() => fileInputRef.current?.click()}>
                 <Upload className="size-3.5" />
-                Escolher arquivo
+                {strings.chooseFile}
               </Button>
               {/* Doubles as the export path: opening this dialog from
                   "duplicar" pre-fills it with the whole theme. Clipboard
@@ -192,24 +191,24 @@ export function ThemeImportDialog({
                 onClick={() => {
                   navigator.clipboard.writeText(json).then(
                     () => setCopied(true),
-                    () => setErrors([{ path: "", message: "não foi possível copiar" }]),
+                    () => setErrors([{ path: "", message: strings.copyFailed }]),
                   );
                 }}
               >
                 <Copy className="size-3.5" />
-                {copied ? "Copiado" : "Copiar"}
+                {copied ? strings.copied : dict.common.copy}
               </Button>
             </div>
             <div className="flex items-center gap-2">
               <Button variant="ghost" size="sm" onClick={() => onOpenChange(false)}>
-                Cancelar
+                {dict.common.cancel}
               </Button>
               <Button size="sm" disabled={saving || json.trim().length === 0} onClick={() => void handleSubmit()}>
-                {saving ? "Salvando…" : copy.submit}
+                {saving ? strings.saving : copy.submit}
               </Button>
             </div>
           </div>
-        </div>
+        </DialogBody>
       </DialogContent>
     </Dialog>
   );

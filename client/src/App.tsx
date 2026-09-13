@@ -6,7 +6,7 @@ import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip
 import { Sidebar } from "@/components/shell/Sidebar";
 import { EmptyState } from "@/components/shell/EmptyState";
 import { SessionSearch } from "@/components/shell/SessionSearch";
-import { SettingsDialog } from "@/components/shell/SettingsDialog";
+import { SettingsDialog } from "@/components/settings/SettingsDialog";
 import { TabGroupLayout } from "@/components/shell/TabGroupLayout";
 import { TabPanel, type TabPanelActions } from "@/components/shell/TabPanel";
 import { TitleBar } from "@/components/shell/TitleBar";
@@ -95,22 +95,12 @@ export default function App() {
   // tab (the only other thing that used to acquire one) ever mounts for it.
   useTailnetSidecarOwner(activeProfile);
 
-  // The painted theme tracks its own profile, separate from `activeProfile`:
-  // `activeProfile` also moves when a tab is opened for a session that
-  // belongs to another profile (search, notification click) — that's meant
-  // to update the sidebar/session list, not repaint the whole app out from
-  // under whatever the user is reading. Only an explicit pick in the
-  // bottom-left ProfileSwitcher (`handleProfileChange`) should change the
-  // theme.
-  const [themeProfileId, setThemeProfileId] = useState(activeProfile.id);
-  const themeProfile = findProfile(themeProfileId) ?? activeProfile;
-  useThemeSync(themeProfile);
-  useActiveTheme(themeProfile);
-  // Usually the same profile as `activeProfile` above (and then a no-op
-  // extra reference on the same sidecar entry) — only diverges briefly when
-  // a tab from another profile gets focus (search/notification click) while
-  // the sidebar's own selection hasn't moved yet.
-  useTailnetSidecarOwner(themeProfile);
+  // The theme is one device-wide choice, so nothing here is scoped to a
+  // profile: the catalog the settings dialog offers comes from whichever
+  // host this device is connected to, and what gets painted is what the
+  // person picked, whatever profile they're reading right now.
+  useThemeSync(activeProfile);
+  useActiveTheme();
 
   // A profile added (pairing, setup) joins the view; one removed leaves it,
   // along with its cached rows. Reconciled here rather than at each
@@ -233,7 +223,6 @@ export default function App() {
 
   function handleProfileChange(profileId: string): void {
     setActiveProfileId(profileId);
-    setThemeProfileId(profileId);
     setDrawerOpen(false);
   }
 
@@ -853,7 +842,12 @@ export default function App() {
       <DownloadToasts />
 
       <SessionSearch open={searchOpen} onOpenChange={setSearchOpen} onSelectSession={handleSearchSelectSession} />
-      <SettingsDialog open={settingsOpen} onOpenChange={setSettingsOpen} activeProfile={activeProfile} />
+      <SettingsDialog
+        open={settingsOpen}
+        onOpenChange={setSettingsOpen}
+        activeProfile={activeProfile}
+        profilesSupported={profilesSupported}
+      />
 
       <div className="flex min-h-0 flex-1">
         {!isCompact && (

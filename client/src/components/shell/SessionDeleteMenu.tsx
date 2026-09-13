@@ -5,6 +5,7 @@ import {
   AlertDialog,
   AlertDialogAction,
   AlertDialogCancel,
+  AlertDialogBody,
   AlertDialogContent,
   AlertDialogDescription,
   AlertDialogFooter,
@@ -83,10 +84,12 @@ export function SessionDeleteMenu({ menu, title, onDelete, onRename, onMoveToNew
         <AlertDialogContent>
           <AlertDialogHeader>
             <AlertDialogTitle>Excluir sessão</AlertDialogTitle>
+          </AlertDialogHeader>
+          <AlertDialogBody>
             <AlertDialogDescription>
               Excluir a sessão "{title}"? Essa ação não pode ser desfeita.
             </AlertDialogDescription>
-          </AlertDialogHeader>
+          </AlertDialogBody>
           <AlertDialogFooter>
             <AlertDialogCancel>Cancelar</AlertDialogCancel>
             <AlertDialogAction onClick={onDelete}>Excluir</AlertDialogAction>

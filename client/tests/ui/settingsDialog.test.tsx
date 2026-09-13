@@ -66,17 +66,18 @@ describe("Settings dialog", () => {
     // document.body, not the app's root container.
     await user.click(await within(document.body).findByText(en.shell.titleBar.settings));
 
+    // Opening lands on the active profile's own page — no navigation
+    // needed, which is the point of the rail replacing the profile picker.
     const dialog = await screen.findByRole("dialog");
-    await user.click(within(dialog).getByText("Personalização"));
 
-    // ProfileIdentityRow's label field is a bare, unlabelled native <input>
-    // — the only one in this section, so an implicit "textbox" role query
-    // scoped to the dialog is unambiguous.
+    // The profile name field is a bare, unlabelled native <input> — the only
+    // one on this page, so an implicit "textbox" role query scoped to the
+    // dialog is unambiguous.
     const labelInput = within(dialog).getByRole("textbox");
     await user.clear(labelInput);
     await user.type(labelInput, "Perfil Renomeado");
 
-    const saveButton = within(dialog).getByRole("button", { name: "Salvar" });
+    const saveButton = within(dialog).getByRole("button", { name: en.common.save });
     await vi.waitFor(() => expect(saveButton).toBeEnabled());
     await user.click(saveButton);
 

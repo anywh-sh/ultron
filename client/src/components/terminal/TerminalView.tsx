@@ -4,7 +4,7 @@ import { FitAddon } from "@xterm/addon-fit";
 import { WebglAddon } from "@xterm/addon-webgl";
 import "@xterm/xterm/css/xterm.css";
 import type { Profile } from "@/lib/profiles";
-import { useResolvedProfileTheme } from "@/hooks/useThemes";
+import { useResolvedTheme } from "@/hooks/useThemes";
 import { resolveConnection } from "@/lib/connectionResolver";
 import { BrokerRevokedError } from "@/lib/tailnetBroker";
 import { markProfileRevoked } from "@/lib/profileRevocation";
@@ -54,7 +54,7 @@ export function TerminalView({ profile, chatSessionId, terminalId, cwd }: Termin
   // values. Undeclared entries in a custom theme fall back to the built-in
   // ANSI palette but still adopt that theme's own surface and cursor
   // (see themeApply.ts).
-  const { terminal: terminalTheme } = useResolvedProfileTheme(profile);
+  const { terminal: terminalTheme } = useResolvedTheme();
   const themeRef = useRef(terminalTheme);
   themeRef.current = terminalTheme;
 

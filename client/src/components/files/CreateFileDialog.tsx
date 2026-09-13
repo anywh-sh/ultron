@@ -1,7 +1,16 @@
 import { useEffect, useState, type FormEvent } from "react";
 import { Button } from "@/components/ui/button";
 import { useDict } from "@/i18n";
-import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import {
+  Dialog,
+  DialogBody,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
+import { Input } from "@/components/ui/input";
 
 interface CreateFileDialogProps {
   open: boolean;
@@ -35,16 +44,17 @@ export function CreateFileDialog({ open, onOpenChange, onSave }: CreateFileDialo
       <DialogContent className="sm:max-w-md">
         <DialogHeader>
           <DialogTitle>{copy.title}</DialogTitle>
-          <DialogDescription>{copy.description}</DialogDescription>
         </DialogHeader>
-        <form onSubmit={handleSubmit} className="flex flex-col gap-3">
-          <input
-            value={name}
-            onChange={(event) => setName(event.target.value)}
-            placeholder={copy.placeholder}
-            className="border border-border bg-transparent px-2.5 py-1.5 font-mono text-xs outline-none focus:border-primary"
-            autoFocus
-          />
+        <form onSubmit={handleSubmit} className="flex min-h-0 flex-1 flex-col">
+          <DialogBody>
+            <DialogDescription>{copy.description}</DialogDescription>
+            <Input
+              value={name}
+              onChange={(event) => setName(event.target.value)}
+              placeholder={copy.placeholder}
+              autoFocus
+            />
+          </DialogBody>
           <DialogFooter>
             <Button type="submit" size="sm">
               {dict.common.create}

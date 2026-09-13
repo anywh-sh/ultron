@@ -101,9 +101,9 @@ afterEach(() => {
 async function pairByCode(user: ReturnType<typeof userEvent.setup>): Promise<void> {
   await user.click(await screen.findByRole("button", { name: en.shell.profiles.activeProfile }));
   await user.click(await screen.findByRole("menuitem", { name: en.shell.profiles.addRemoteMachine }));
-  await user.type(await screen.findByLabelText("Nome"), "New machine");
-  await user.type(await screen.findByLabelText("Código de pareamento"), "ABCDEF-GHJKMNPQ@example.test");
-  await user.click(await screen.findByRole("button", { name: "Parear" }));
+  await user.type(await screen.findByLabelText(en.shell.profiles.pair.nameLabel), "New machine");
+  await user.type(await screen.findByLabelText(en.shell.profiles.pair.codeLabel), "ABCDEF-GHJKMNPQ@example.test");
+  await user.click(await screen.findByRole("button", { name: en.shell.profiles.pair.submit }));
 }
 
 describe("profile setup", () => {
@@ -114,16 +114,16 @@ describe("profile setup", () => {
 
     await pairByCode(user);
 
-    await screen.findByText("Máquina conectada");
+    await screen.findByText(en.shell.profiles.setup.connectedTitle);
     // The active profile must not have moved while the dialog was running.
     // Plain text, not getByRole: the open Dialog marks the rest of the page
     // aria-hidden, which getByRole (accessibility-tree-aware) would miss.
     expect(screen.getByText("Home")).toBeInTheDocument();
 
-    await user.click(screen.getByRole("button", { name: "Continuar para novo perfil" }));
+    await user.click(screen.getByRole("button", { name: en.shell.profiles.setup.continueToProfile }));
 
     await vi.waitFor(() => expect(screen.getByRole("button", { name: en.shell.profiles.activeProfile })).toHaveTextContent("New machine"));
-    expect(screen.queryByText("Máquina conectada")).not.toBeInTheDocument();
+    expect(screen.queryByText(en.shell.profiles.setup.connectedTitle)).not.toBeInTheDocument();
   });
 
   it("Esc on the ready screen leaves the active profile untouched", async () => {
@@ -132,11 +132,11 @@ describe("profile setup", () => {
     renderApp();
 
     await pairByCode(user);
-    await screen.findByText("Máquina conectada");
+    await screen.findByText(en.shell.profiles.setup.connectedTitle);
 
     await user.keyboard("{Escape}");
 
-    expect(screen.queryByText("Máquina conectada")).not.toBeInTheDocument();
+    expect(screen.queryByText(en.shell.profiles.setup.connectedTitle)).not.toBeInTheDocument();
     expect(screen.getByRole("button", { name: en.shell.profiles.activeProfile })).toHaveTextContent("Home");
   });
 
@@ -154,10 +154,10 @@ describe("profile setup", () => {
       params: { label: "Remote", claimUrl: "https://broker.test/claim", joinCode: "DEEP-LINK" },
     });
 
-    await screen.findByText("Falha ao conectar");
+    await screen.findByText(en.shell.profiles.setup.connectFailedTitle);
     expect(screen.getByText("Home")).toBeInTheDocument();
 
-    await user.click(screen.getByRole("button", { name: "Tentar novamente" }));
-    await screen.findByText("Máquina conectada");
+    await user.click(screen.getByRole("button", { name: en.common.retry }));
+    await screen.findByText(en.shell.profiles.setup.connectedTitle);
   });
 });

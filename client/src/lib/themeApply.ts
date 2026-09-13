@@ -184,57 +184,52 @@ export function applyTheme(theme: Theme): ResolvedTheme {
 
 // --- Boot cache -----------------------------------------------------------
 //
-// The theme a profile uses lives on the relay (profiles.json), so on a cold
-// start it isn't known until a sync completes — the app would paint in the
-// built-in theme, mount, sync, and repaint, every single launch. Caching the
-// resolved tokens locally lets the first paint already be right.
+// A custom theme's colors live on a relay (the host's theme registry), so on
+// a cold start they aren't known until a sync completes — the app would
+// paint the built-in theme, mount, sync, and repaint, every single launch.
+// Caching the resolved tokens locally lets the first paint already be right.
+// One entry, not one per profile: the choice itself is device-wide (see
+// `lib/themes.ts`), so there is nothing to key it by.
 
 const CACHE_KEY = "anywh:theme-cache";
-/** Owned by `useActiveProfile` — read (never written) here, to know which
- * profile's cached theme to paint before React decides anything. */
-const LAST_PROFILE_KEY = "anywh:last-profile";
 
-type ThemeCache = Record<string, { appearance: ThemeAppearance; colors: ResolvedColors }>;
+interface CachedTheme {
+  appearance: ThemeAppearance;
+  colors: ResolvedColors;
+}
 
-function readCache(): ThemeCache {
+function readCache(): CachedTheme | null {
   try {
     const raw = localStorage.getItem(CACHE_KEY);
     const parsed: unknown = raw ? JSON.parse(raw) : null;
-    return typeof parsed === "object" && parsed !== null ? (parsed as ThemeCache) : {};
+    if (typeof parsed !== "object" || parsed === null) return null;
+    const candidate = parsed as CachedTheme;
+    // Also rejects the per-profile shape this key used to hold, which is
+    // how an upgrade drops it: one extra repaint, once.
+    if (typeof candidate.appearance !== "string" || typeof candidate.colors !== "object" || candidate.colors === null) {
+      return null;
+    }
+    return candidate;
   } catch {
-    return {};
+    return null;
   }
 }
 
-export function cacheResolvedTheme(profileId: string, resolved: ResolvedTheme): void {
-  const cache = readCache();
-  cache[profileId] = { appearance: resolved.appearance, colors: resolved.colors };
+export function cacheResolvedTheme(resolved: ResolvedTheme): void {
   try {
-    localStorage.setItem(CACHE_KEY, JSON.stringify(cache));
+    localStorage.setItem(
+      CACHE_KEY,
+      JSON.stringify({ appearance: resolved.appearance, colors: resolved.colors }),
+    );
   } catch {
     // A full quota isn't worth failing a theme switch over — the app just
     // goes back to repainting once per cold start.
   }
 }
 
-export function forgetCachedTheme(profileId: string): void {
-  const cache = readCache();
-  if (cache[profileId] === undefined) return;
-  delete cache[profileId];
-  localStorage.setItem(CACHE_KEY, JSON.stringify(cache));
-}
-
-/**
- * Called from `main.tsx` before the first render. Deliberately duplicates
- * how `useActiveProfile` picks the initial profile (query override, then
- * last used) instead of importing it: this runs before any store is read,
- * and getting it wrong only costs one repaint once React takes over.
- */
+/** Called from `main.tsx` before the first render. */
 export function applyCachedTheme(): void {
-  const override = new URLSearchParams(window.location.search).get("profile");
-  const profileId = override ?? localStorage.getItem(LAST_PROFILE_KEY);
-  if (!profileId) return;
-  const entry = readCache()[profileId];
+  const entry = readCache();
   if (!entry) return;
   paint(entry.appearance, entry.colors);
 }
