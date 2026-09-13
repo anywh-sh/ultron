@@ -310,17 +310,26 @@ export function profileColorClass(profileId: string): string {
   return profileColorClassForIndex(profileColorIndex(profileId));
 }
 
-// A softened, opaque cousin of `PROFILE_COLOR_CLASSES` (index.css's
-// `--profile-N-soft`, mixed toward a fixed literal rather than
-// `transparent`) — TabGroupStrip's selected tab paints its own background with
-// this instead of the old "selected" indicator bar, so the tint alone
-// carries both "this tab is active" and "this is the profile it belongs
-// to". Deliberately not the `/15` opacity modifier: that composites with
-// whatever's actually behind the element, which on this dark theme read as
-// a near-black smudge instead of a soft version of the color. Written out
+// Opaque cousins of `PROFILE_COLOR_CLASSES` (index.css's `--profile-N-soft`/
+// `--profile-N-faint`, mixed toward a fixed literal rather than
+// `transparent`) — a tab always washes its own background in its profile's
+// color, faint at rest and brighter once selected, so a glance at the strip
+// says which session belongs to which profile without waiting for it to
+// become active. Deliberately not the `/N` opacity modifier: that composites
+// with whatever's actually behind the element, which on this dark theme read
+// as a near-black smudge instead of a soft version of the color. Written out
 // as literal class names (not built with a template string) because
 // Tailwind's scanner needs the full utility name present verbatim in
 // source to generate it.
+const PROFILE_FAINT_BG_CLASSES = [
+  "bg-profile-1-faint",
+  "bg-profile-2-faint",
+  "bg-profile-3-faint",
+  "bg-profile-4-faint",
+  "bg-profile-5-faint",
+  "bg-profile-6-faint",
+];
+
 const PROFILE_ACTIVE_BG_CLASSES = [
   "data-[state=active]:bg-profile-1-soft",
   "data-[state=active]:bg-profile-2-soft",
@@ -330,15 +339,29 @@ const PROFILE_ACTIVE_BG_CLASSES = [
   "data-[state=active]:bg-profile-6-soft",
 ];
 
+// The selected tab's underline — an `inset` shadow rather than a border or an
+// extra element, so it doesn't shift the tab's box or its content by a pixel
+// when it turns on. Toggled purely by the `data-state` attribute (no
+// transition on `box-shadow`, which has no compositor fast path).
+const PROFILE_ACTIVE_UNDERLINE_CLASSES = [
+  "data-[state=active]:shadow-[inset_0_-2px_0_var(--profile-1)]",
+  "data-[state=active]:shadow-[inset_0_-2px_0_var(--profile-2)]",
+  "data-[state=active]:shadow-[inset_0_-2px_0_var(--profile-3)]",
+  "data-[state=active]:shadow-[inset_0_-2px_0_var(--profile-4)]",
+  "data-[state=active]:shadow-[inset_0_-2px_0_var(--profile-5)]",
+  "data-[state=active]:shadow-[inset_0_-2px_0_var(--profile-6)]",
+];
+
 function profileColorIndex(profileId: string): number {
   const index = profiles.findIndex((p) => p.id === profileId);
   const profile = index >= 0 ? profiles[index] : undefined;
   return profile?.colorIndex ?? (index >= 0 ? index : 0);
 }
 
-/** Tinted background for a tab's selected state — same color/index rules as
- * `profileColorClass`, just mapped onto the softened palette above. */
-export function profileActiveBgClass(profileId: string): string {
-  const index = profileColorIndex(profileId);
-  return PROFILE_ACTIVE_BG_CLASSES[index % PROFILE_ACTIVE_BG_CLASSES.length];
+/** A tab's full profile treatment: faint tint at rest, brighter tint plus a
+ * bottom-edge underline once selected — same color/index rules as
+ * `profileColorClass`, just mapped onto the palettes above. */
+export function profileTabClasses(profileId: string): string {
+  const index = profileColorIndex(profileId) % PROFILE_COLOR_CLASSES.length;
+  return `${PROFILE_FAINT_BG_CLASSES[index]} ${PROFILE_ACTIVE_BG_CLASSES[index]} ${PROFILE_ACTIVE_UNDERLINE_CLASSES[index]}`;
 }

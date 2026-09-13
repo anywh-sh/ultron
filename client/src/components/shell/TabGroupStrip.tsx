@@ -7,7 +7,7 @@ import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip
 import { useDict } from "@/i18n";
 import { cn, scrollHorizontallyOnWheel, truncateWords } from "@/lib/utils";
 import type { Tab } from "@/hooks/useTabs";
-import { profileActiveBgClass, profileColorClass } from "@/lib/profiles";
+import { profileColorClass, profileTabClasses } from "@/lib/profiles";
 import { useContextMenu } from "@/hooks/useContextMenu";
 import { SessionDeleteMenu } from "@/components/shell/SessionDeleteMenu";
 import { RenameSessionDialog } from "@/components/shell/RenameSessionDialog";
@@ -68,11 +68,12 @@ interface SortableTabProps {
 // carried over verbatim so nothing broke in the swap; the redesign is where
 // that debt gets paid, since the tab is being restyled anyway. It still sets
 // `data-state`/`aria-selected` itself instead of delegating to Radix, which
-// is what keeps `profileActiveBgClass`'s `data-[state=active]:bg-*` working.
+// is what keeps `profileTabClasses`'s `data-[state=active]:bg-*` working.
 //
-// The hover background is gated on `data-[state=inactive]` on purpose: the
-// active tab's background IS the profile tint, and an ungated `hover:bg-*`
-// would paint over the one thing that marks which tab is selected.
+// The hover background is gated on `data-[state=inactive]` on purpose: an
+// ungated `hover:bg-*` would paint over the profile tint every tab already
+// carries (`profileTabClasses`), brighter on the active one and topped with
+// its own underline.
 const TAB_TRIGGER_CLASS =
   "relative z-10 inline-flex h-full min-w-0 flex-1 cursor-pointer items-center gap-1.5 border-r border-border-soft py-1 pr-7 pl-3 font-mono text-xs whitespace-nowrap text-text-faint transition-colors hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring/60 focus-visible:outline-none data-[state=active]:text-foreground data-[state=inactive]:hover:bg-surface-hover";
 
@@ -136,10 +137,7 @@ function SortableTab({ tab, isActive, canSplit, onSelect, onClose, onRename, onD
             data-tab-id={tab.id}
             tabIndex={isActive ? 0 : -1}
             onClick={() => onSelect(tab.id)}
-            // No more active-tab bar (the "line" look never painted one) —
-            // the selected tab is marked by tinting its own background with
-            // the session's profile color instead.
-            className={cn(TAB_TRIGGER_CLASS, profileActiveBgClass(tab.profileId))}
+            className={cn(TAB_TRIGGER_CLASS, profileTabClasses(tab.profileId))}
           >
             {tab.isRunning ? (
               <Loader2 className="size-3 shrink-0 animate-spin text-foreground" aria-label={dict.chat.tabs.agentWorking} />

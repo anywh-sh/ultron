@@ -144,6 +144,17 @@
   --profile-5-soft: color-mix(in srgb, var(--profile-5) 20%, var(--bg-chrome));
   --profile-6-soft: color-mix(in srgb, var(--profile-6) 20%, var(--bg-chrome));
 
+  /* Resting-state wash for a tab that isn't selected — same opaque-mix trick
+     as `-soft` above (never the alpha modifier, same near-black-smudge risk),
+     just a lighter pass (7%, against `-soft`'s 20%) so the profile color
+     reads at a glance on every tab, not only the active one. */
+  --profile-1-faint: color-mix(in srgb, var(--profile-1) 7%, var(--bg-chrome));
+  --profile-2-faint: color-mix(in srgb, var(--profile-2) 7%, var(--bg-chrome));
+  --profile-3-faint: color-mix(in srgb, var(--profile-3) 7%, var(--bg-chrome));
+  --profile-4-faint: color-mix(in srgb, var(--profile-4) 7%, var(--bg-chrome));
+  --profile-5-faint: color-mix(in srgb, var(--profile-5) 7%, var(--bg-chrome));
+  --profile-6-faint: color-mix(in srgb, var(--profile-6) 7%, var(--bg-chrome));
+
   /* Tab dot for "turn finished, not viewed yet" (TabBar). Deliberately a
      saturated blue with no muted/pastel sibling in the profile palette above
      — every `--profile-*` needs to stay visually distinct from this one, or
@@ -248,6 +259,12 @@
   --color-profile-4-soft: var(--profile-4-soft);
   --color-profile-5-soft: var(--profile-5-soft);
   --color-profile-6-soft: var(--profile-6-soft);
+  --color-profile-1-faint: var(--profile-1-faint);
+  --color-profile-2-faint: var(--profile-2-faint);
+  --color-profile-3-faint: var(--profile-3-faint);
+  --color-profile-4-faint: var(--profile-4-faint);
+  --color-profile-5-faint: var(--profile-5-faint);
+  --color-profile-6-faint: var(--profile-6-faint);
   --color-status-done: var(--status-done);
 
   --color-sidebar: var(--bg-sidebar);
