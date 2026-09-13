@@ -59,22 +59,6 @@ from the relay's own PATH.
 Running it as a service instead of from a shell is covered in
 [`infra/systemd/README.md`](../infra/systemd/README.md).
 
-## Creating your first profile
-
-A relay serves one or more *profiles* — each an isolated agent login. You
-need at least one:
-
-```bash
-~/.local/share/anywh/infra/systemd/add-profile.sh default \
-  --relay-host <the address other devices will reach this machine on>
-```
-
-`--relay-host` is required for the first profile, because there's no
-existing profile to copy a default from. Use the machine's LAN IP, or its
-Tailscale IP if you're going to connect from outside the house — see
-[Remote access](./remote-access.md). Running more than one login on the same
-machine is [Profiles](./profiles.md).
-
 ## Installing the client
 
 ### Prebuilt
@@ -130,6 +114,39 @@ localStorage.setItem("anywh:profiles", JSON.stringify([
 ```
 
 then reload.
+
+## Creating your first profile
+
+A profile is the agent login the relay serves — you need at least one before
+there is anything to talk to.
+
+### In the app
+
+With nothing set up yet, the client opens on a first-run screen that walks
+you through it: reach the relay, confirm the agent login it found, name the
+profile. This is the path to take. Later profiles are added the same way,
+from the profile switcher.
+
+### From the command line
+
+The same provisioning the app performs, if you would rather do it on the
+machine itself — or if you are setting the relay up headless, before any
+client has ever connected to it.
+
+```bash
+~/.local/share/anywh/infra/systemd/add-profile.sh default \
+  --relay-host <the address other devices will reach this machine on>
+```
+
+`--relay-host` is required for the very first profile, because there is no
+existing profile to copy a default from. Use the machine's LAN IP, or its
+Tailscale IP if you will connect from outside the house — see
+[Remote access](./remote-access.md).
+
+Running more than one agent login on the same machine is
+[Profiles](./profiles.md), and
+[`infra/systemd/README.md`](../infra/systemd/README.md) covers the full set
+of flags and the systemd instance behind each profile.
 
 ## iOS
 

@@ -52,15 +52,11 @@ curl -fsSL https://anywh.sh/install | sh
 
 Linux and Apple Silicon macOS — on Windows, run it inside WSL2. The script downloads the latest release, verifies its checksum, and registers a systemd user service that comes back after a reboot. It installs nothing on your behalf: Node.js 20.12+ and an agent CLI you are already logged into have to be there first, and it stops with a clear message if either is missing.
 
-**2. Create your first profile**, pointed at the address your other devices will reach this machine on.
+**2. Install the client** on the device you actually use. [Download the latest release](https://github.com/anywh-sh/anywh/releases/latest) for Windows, macOS or Linux.
 
-```bash
-~/.local/share/anywh/infra/systemd/add-profile.sh default --relay-host <lan-or-tailscale-ip>
-```
+**3. Create your first profile** from the app. With nothing set up yet it opens on a first-run screen that walks you through reaching the relay and creating a profile — the agent login the relay serves. You need at least one; most people never need a second.
 
-**3. Install the client** on the device you actually use. [Download the latest release](https://github.com/anywh-sh/anywh/releases/latest) for Windows, macOS or Linux, open it, and point it at that same address.
-
-Building from source, iOS builds, and every option in between: [Self-hosting](./docs/self-hosting.md).
+Building from source, iOS builds, creating profiles from the command line, and everything in between: [Self-hosting](./docs/self-hosting.md).
 
 ## Security model
 
