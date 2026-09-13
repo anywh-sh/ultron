@@ -40,6 +40,13 @@
   --muted-foreground: #b1aba2;
   --text-faint: #9d978f;
 
+  /* Overwritten on the root element by `lib/fontSize.ts` alongside the named
+     `--text-*` steps — this default only matters before that JS runs (or in
+     a test render without it), so raw-px chrome text (`text-[10.5px]` and
+     friends, scaled via `calc(10.5px*var(--font-scale-ratio))`) still
+     resolves to a plain length instead of `calc(10.5px*)`. */
+  --font-scale-ratio: 1;
+
   --primary: #e0642a;
   /* The label printed on a filled accent button. Measured, not assumed: the
      accent is mid-tone, so `--foreground` on it is 2.9:1 — under the floor

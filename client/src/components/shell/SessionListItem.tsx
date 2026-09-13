@@ -83,7 +83,7 @@ export const SessionListItem = memo(function SessionListItem({
           <span
             className={cn(
               "min-w-0 flex-1 truncate",
-              size === "lg" ? "text-base" : "text-[13px]",
+              size === "lg" ? "text-base" : "text-[length:calc(13px*var(--font-scale-ratio))]",
               selected ? "font-medium text-foreground" : "text-muted-foreground",
             )}
           >
@@ -110,7 +110,7 @@ export const SessionListItem = memo(function SessionListItem({
           )}
         </span>
         {(showProfile || lastActive !== null) && (
-          <span className="flex min-w-0 items-center gap-1.5 font-mono text-[10.5px] text-text-faint">
+          <span className="flex min-w-0 items-center gap-1.5 font-mono text-[length:calc(10.5px*var(--font-scale-ratio))] text-text-faint">
             {showProfile && <span className="max-w-22 shrink-0 truncate">{profileLabel}</span>}
             {showProfile && lastActive !== null && <span aria-hidden="true">·</span>}
             {lastActive !== null && <span className="truncate">{lastActive}</span>}
