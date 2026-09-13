@@ -20,7 +20,7 @@ import {
 import { ThemeImportDialog, type ThemeDialogIntent } from "@/components/settings/ThemeImportDialog";
 import { useThemeCatalog, useThemeSync } from "@/hooks/useThemes";
 import { useDict } from "@/i18n";
-import { isBuiltinTheme } from "@/lib/builtinThemes";
+import { DEFAULT_THEME, isBuiltinTheme } from "@/lib/builtinThemes";
 import { resolveConnection } from "@/lib/connectionResolver";
 import type { Profile } from "@/lib/profiles";
 import { deleteTheme } from "@/lib/relayClient";
@@ -159,9 +159,13 @@ export function ThemeSection({ activeProfile }: { activeProfile: Profile }) {
   const [pendingDelete, setPendingDelete] = useState<Theme | null>(null);
 
   function selectTheme(theme: Theme): void {
-    // The built-in is stored as "no theme" rather than as its id: that's
-    // what makes it the fallback for a selection whose file is gone.
-    setSelectedThemeId(isBuiltinTheme(theme.id) ? null : theme.id);
+    // Only the *dark* built-in is stored as "no theme" — it's the fallback a
+    // selection resolves to when its file is gone, so storing its id would be
+    // storing the absence twice. Every other theme, built-in or not, is
+    // stored by id. Collapsing both built-ins here (which is what this used
+    // to do) made the light one unselectable: picking it wrote `null`, and
+    // `null` resolves to the dark one, so the click appeared to do nothing.
+    setSelectedThemeId(theme.id === DEFAULT_THEME.id ? null : theme.id);
   }
 
   // Editing and duplicating are the same dialog: saving under the same id
@@ -175,8 +179,12 @@ export function ThemeSection({ activeProfile }: { activeProfile: Profile }) {
   }
 
   function duplicate(theme: Theme): void {
-    const id = `${theme.id === "default" ? "meu-tema" : theme.id}-copia`.slice(0, 32);
-    setImportSeed(themeAsJson(theme, id, `${theme.name} (cópia)`));
+    // The id's suffix is fixed ASCII, not dictionary copy: an id is an
+    // identifier, and a translated one could carry a character the validator
+    // rejects (it allows lowercase, digits and hyphen — "cópia" wouldn't
+    // pass). Only the name, which is prose, gets translated.
+    const id = `${theme.id === DEFAULT_THEME.id ? "my-theme" : theme.id}-copy`.slice(0, 32);
+    setImportSeed(themeAsJson(theme, id, `${theme.name} ${copy.import.copySuffix}`));
     setImportIntent("duplicate");
     setImportOpen(true);
   }

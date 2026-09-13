@@ -1,7 +1,7 @@
 import { existsSync, mkdirSync, readdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { ENV_DIR } from "./profileRegistry.js";
-import { formatThemeErrors, isValidThemeId, parseTheme, type Theme } from "./theme.js";
+import { formatThemeErrors, isValidThemeId, parseTheme, type Theme, type ThemeValidationError } from "./theme.js";
 
 // Host-side registry of custom themes — one file per theme, next to
 // `profiles.json`. Machine-wide, not per-profile, for the two reasons the
@@ -24,7 +24,7 @@ const MAX_THEME_BYTES = 64 * 1024;
 export class ThemeValidationFailure extends Error {
   constructor(
     message: string,
-    readonly errors: { path: string; message: string }[],
+    readonly errors: ThemeValidationError[],
   ) {
     super(message);
     this.name = "ThemeValidationFailure";

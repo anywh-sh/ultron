@@ -220,6 +220,11 @@ export class SessionManager {
         if (this.sessionStore.getTitle(id) !== null) return;
         generateTitle(this.homeOverride, session.getCwdState().cwd, text)
           .then((title) => {
+            // Null means the first prompt had no text worth a title and the
+            // model gave nothing back either. The session stays untitled and
+            // the client names it, rather than the relay writing a name in a
+            // language nobody picked.
+            if (title === null) return;
             this.sessionStore.setTitle(id, title);
             session.setTitle(title);
             this.onListChanged?.({ type: "upsert", id, title, lastActiveAt: this.lastActiveAtOf(id) });

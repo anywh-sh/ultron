@@ -4,7 +4,7 @@ import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import { isIOS } from "@/lib/platform";
 import { useDict } from "@/i18n";
-import type { ChoiceAnswer, ChoiceQuestion } from "@/lib/relayClient";
+import type { ChoiceAnswer, ChoiceOption, ChoiceQuestion } from "@/lib/relayClient";
 
 interface ChoiceCardProps {
   promptId: string;
@@ -66,6 +66,34 @@ export function ChoiceCard({ promptId, questions, kind, onAnswer, onClose }: Cho
     setCustomText(customTexts.get(nextIndex) ?? "");
   }
 
+  /** What an answer carries for this option. The relay's own options (a
+   * permission prompt) answer with a stable id, because the label the user
+   * reads is written here and translated; the model's options answer with
+   * the label itself, which is what gets fed back to the model. */
+  function valueOf(option: ChoiceOption): string {
+    return option.id ?? option.label;
+  }
+
+  /** The label to print. An option the relay wrote carries an id this app
+   * already has copy for; an option the model wrote carries only its label,
+   * which is the model's own words and belongs on screen as written. */
+  function labelOf(option: ChoiceOption): string {
+    if (option.id === "approve") return dict.chat.approval.approve;
+    if (option.id === "deny") return dict.chat.approval.deny;
+    return option.label;
+  }
+
+  /** A permission prompt is composed here rather than sent as a sentence, so
+   * it follows the selected language. `question` stays the fallback for a
+   * relay too old to send the parts. */
+  function questionText(current: ChoiceQuestion): string {
+    if (!current.approval) return current.question;
+    if (current.approval.tool === "ExitPlanMode") return dict.chat.approval.exitPlanMode;
+    return dict.chat.approval.toolCall
+      .replace("{tool}", current.approval.tool)
+      .replace("{detail}", current.approval.detail);
+  }
+
   function toggleOption(label: string): void {
     setCustomText("");
     setCustomTexts((current) => {
@@ -113,7 +141,7 @@ export function ChoiceCard({ promptId, questions, kind, onAnswer, onClose }: Cho
       <div className="flex items-start justify-between gap-2">
         <div className="flex flex-col gap-0.5">
           {question.header && <p className="text-xs font-medium tracking-wide text-muted-foreground uppercase">{question.header}</p>}
-          <p className="text-sm font-medium text-foreground">{question.question}</p>
+          <p className="text-sm font-medium text-foreground">{questionText(question)}</p>
         </div>
         <div className="flex shrink-0 items-center gap-1">
           {questions.length > 1 && (
@@ -154,12 +182,13 @@ export function ChoiceCard({ promptId, questions, kind, onAnswer, onClose }: Cho
 
       <div className={cn("flex flex-col divide-y divide-border", customText.trim() && "opacity-40")}>
         {question.options.map((option) => {
-          const isSelected = selected.includes(option.label);
+          const value = valueOf(option);
+          const isSelected = selected.includes(value);
           return (
             <button
               type="button"
-              key={option.label}
-              onClick={() => toggleOption(option.label)}
+              key={value}
+              onClick={() => toggleOption(value)}
               className="flex cursor-pointer items-center gap-2.5 py-2 text-left"
             >
               <span
@@ -171,7 +200,7 @@ export function ChoiceCard({ promptId, questions, kind, onAnswer, onClose }: Cho
                 <Check className={cn("size-3", !isSelected && "opacity-0")} />
               </span>
               <span className="flex flex-col">
-                <span className="text-sm text-foreground">{option.label}</span>
+                <span className="text-sm text-foreground">{labelOf(option)}</span>
                 {option.description && <span className="text-xs text-muted-foreground">{option.description}</span>}
               </span>
             </button>
@@ -181,9 +210,9 @@ export function ChoiceCard({ promptId, questions, kind, onAnswer, onClose }: Cho
 
       {/* Free-text fallback — always the last option, only for `present_choice`/
           plan-marker prompts. Not offered for `kind: "approval"`: that path
-          checks `selected` against the literal "Aprovar"/"Recusar" labels
-          (sharedSession.ts::checkPermission), so free text there would never
-          match and could stall the live blocked tool call. */}
+          resolves a tool call the CLI is blocked on, and it matches the answer
+          against the two option ids it sent — free text matches neither, so
+          offering it here would only ever stall the blocked call. */}
       {kind === "choice" && (
         <input
           type="text"

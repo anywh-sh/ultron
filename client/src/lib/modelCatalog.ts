@@ -9,14 +9,14 @@ const FALLBACK_MODELS: ModelChoice[] = ["sonnet", "opus", "haiku", "fable"];
 
 /** Curated labels for the aliases we know about — anything else (a new
  * alias the CLI ships later, or a full model ID) falls back to showing the
- * raw value as-is instead of needing a code change first. */
+ * raw value as-is instead of needing a code change first. Product names
+ * only: `default` and `best` are words, not names, so they come from the
+ * caller's dictionary instead (see `labelForModel`). */
 const KNOWN_LABELS: Record<string, string> = {
-  default: "Padrão",
   sonnet: "Sonnet",
   opus: "Opus",
   haiku: "Haiku",
   fable: "Fable",
-  best: "Melhor disponível",
   opusplan: "Opus Plan",
   "sonnet[1m]": "Sonnet (1M)",
   "opus[1m]": "Opus (1M)",
@@ -45,6 +45,11 @@ export function getKnownModels(): ModelChoice[] {
   return (cachedModels ?? FALLBACK_MODELS).filter((model) => model !== "default");
 }
 
-export function labelForModel(model: ModelChoice): string {
+/** `aliases` carries the copy for the two aliases that are prose rather than
+ * a product name. Passed in rather than imported so this module stays free of
+ * React — it's read at render time from three different components. */
+export function labelForModel(model: ModelChoice, aliases: { default: string; best: string }): string {
+  if (model === "default") return aliases.default;
+  if (model === "best") return aliases.best;
   return KNOWN_LABELS[model] ?? model;
 }

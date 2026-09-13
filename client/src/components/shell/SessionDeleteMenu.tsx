@@ -12,6 +12,7 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
+import { useDict } from "@/i18n";
 import { ContextMenuAnchor, type ContextMenuState } from "@/hooks/useContextMenu";
 
 interface SessionDeleteMenuProps {
@@ -37,6 +38,8 @@ interface SessionDeleteMenuProps {
  * platforms (same class of problem documented in the backlog for
  * alert/confirm on macOS), so deletion would silently not happen. */
 export function SessionDeleteMenu({ menu, title, onDelete, onRename, onMoveToNewGroup }: SessionDeleteMenuProps) {
+  const dict = useDict();
+  const strings = dict.shell.sidebar.sessionMenu;
   const [confirmOpen, setConfirmOpen] = useState(false);
 
   return (
@@ -53,7 +56,7 @@ export function SessionDeleteMenu({ menu, title, onDelete, onRename, onMoveToNew
               }}
             >
               <Pencil />
-              Renomear sessão
+              {strings.rename}
             </DropdownMenuItem>
           )}
           {onMoveToNewGroup && (
@@ -65,7 +68,7 @@ export function SessionDeleteMenu({ menu, title, onDelete, onRename, onMoveToNew
               }}
             >
               <Columns2 />
-              Mover para novo grupo
+              {strings.moveToNewGroup}
             </DropdownMenuItem>
           )}
           <DropdownMenuItem
@@ -76,23 +79,21 @@ export function SessionDeleteMenu({ menu, title, onDelete, onRename, onMoveToNew
             }}
           >
             <Trash2 />
-            Excluir sessão
+            {strings.delete}
           </DropdownMenuItem>
         </DropdownMenuContent>
       </DropdownMenu>
       <AlertDialog open={confirmOpen} onOpenChange={setConfirmOpen}>
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>Excluir sessão</AlertDialogTitle>
+            <AlertDialogTitle>{strings.deleteTitle}</AlertDialogTitle>
           </AlertDialogHeader>
           <AlertDialogBody>
-            <AlertDialogDescription>
-              Excluir a sessão "{title}"? Essa ação não pode ser desfeita.
-            </AlertDialogDescription>
+            <AlertDialogDescription>{strings.deleteBody.replace("{title}", title)}</AlertDialogDescription>
           </AlertDialogBody>
           <AlertDialogFooter>
-            <AlertDialogCancel>Cancelar</AlertDialogCancel>
-            <AlertDialogAction onClick={onDelete}>Excluir</AlertDialogAction>
+            <AlertDialogCancel>{dict.common.cancel}</AlertDialogCancel>
+            <AlertDialogAction onClick={onDelete}>{dict.common.delete}</AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>

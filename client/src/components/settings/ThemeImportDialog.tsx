@@ -14,6 +14,13 @@ import { setThemesForHost, customThemesForHost, themeStoreKey } from "@/lib/them
  * gets a readable message here instead of a dropped connection there. */
 const MAX_THEME_BYTES = 64 * 1024;
 
+/** One line of the error list: a sentence, plus the dotted path it belongs to
+ * (empty for a failure that isn't about a particular field). */
+interface ErrorRow {
+  path: string;
+  text: string;
+}
+
 interface ThemeImportDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
@@ -67,7 +74,28 @@ export function ThemeImportDialog({
   const copy = copyFor(intent, dict);
   const strings = dict.settings.appearance.theme.import;
   const [json, setJson] = useState(initialJson ?? "");
-  const [errors, setErrors] = useState<ThemeValidationError[]>([]);
+  const [errors, setErrors] = useState<ErrorRow[]>([]);
+
+  /** A validation error resolved to a sentence, next to the path it belongs
+   * to. The two non-validation failures (unparseable JSON, a network or
+   * filesystem error from the relay) arrive as a sentence already and get an
+   * empty path, which is what the list renders without a prefix. */
+  function describe(error: ThemeValidationError): ErrorRow {
+    const text = strings.validation[error.code];
+    switch (error.code) {
+      case "wrong_version":
+        return { path: error.path, text: text.replace("{expected}", String(error.expected)) };
+      case "invalid_id":
+      case "invalid_name":
+        return { path: error.path, text: text.replace("{maxLength}", String(error.maxLength)) };
+      case "reserved_id":
+        return { path: error.path, text: text.replace("{id}", error.id) };
+      case "missing_colors":
+        return { path: error.path, text: text.replace("{missing}", error.missing.join(", ")) };
+      default:
+        return { path: error.path, text };
+    }
+  }
   const [saving, setSaving] = useState(false);
   const [copied, setCopied] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -82,7 +110,7 @@ export function ThemeImportDialog({
 
   async function handleFile(file: File): Promise<void> {
     if (file.size > MAX_THEME_BYTES) {
-      setErrors([{ path: "", message: strings.tooLarge }]);
+      setErrors([{ path: "", text: strings.tooLarge }]);
       return;
     }
     setJson(await file.text());
@@ -94,13 +122,13 @@ export function ThemeImportDialog({
     try {
       parsed = JSON.parse(json);
     } catch (error) {
-      setErrors([{ path: "", message: error instanceof Error ? error.message : strings.invalidJson }]);
+      setErrors([{ path: "", text: error instanceof Error ? error.message : strings.invalidJson }]);
       return;
     }
 
     const result = parseTheme(parsed);
     if (!result.ok) {
-      setErrors(result.errors);
+      setErrors(result.errors.map(describe));
       return;
     }
 
@@ -119,8 +147,8 @@ export function ThemeImportDialog({
     } catch (error) {
       setErrors(
         error instanceof ThemeSaveError && error.errors.length > 0
-          ? error.errors
-          : [{ path: "", message: error instanceof Error ? error.message : String(error) }],
+          ? error.errors.map(describe)
+          : [{ path: "", text: error instanceof Error ? error.message : String(error) }],
       );
     } finally {
       setSaving(false);
@@ -156,7 +184,7 @@ export function ThemeImportDialog({
               {errors.map((error, index) => (
                 <li key={`${error.path}-${String(index)}`} className="text-xs text-destructive">
                   {error.path ? <span className="font-mono">{error.path}: </span> : null}
-                  {error.message}
+                  {error.text}
                 </li>
               ))}
             </ul>
@@ -191,7 +219,7 @@ export function ThemeImportDialog({
                 onClick={() => {
                   navigator.clipboard.writeText(json).then(
                     () => setCopied(true),
-                    () => setErrors([{ path: "", message: strings.copyFailed }]),
+                    () => setErrors([{ path: "", text: strings.copyFailed }]),
                   );
                 }}
               >
