@@ -15,18 +15,22 @@ this file is the short version of everything you need before opening a PR.
 
 ## Getting set up
 
-The [README](./README.md#getting-started-self-host) covers running the relay and
-the client from source. Two things it's worth repeating here:
+[Self-hosting](./docs/self-hosting.md) covers running the relay and the client
+from source. Three things worth repeating here:
 
-- The relay needs the `claude` CLI installed and logged in on the same machine.
+- The relay needs an agent CLI installed and logged in on the same machine.
 - The client needs the [Tauri prerequisites](https://v2.tauri.app/start/prerequisites/)
   for your OS — a Rust toolchain plus platform system deps.
+- The client also needs a Go toolchain, and `npm run build:sidecar` has to run
+  once before any Tauri build. The `tailnet-sidecar` binary isn't committed, so
+  a fresh clone fails in `build.rs` without it, and nothing runs it for you —
+  see [the sidecar step](./docs/self-hosting.md#the-sidecar-step-is-not-optional).
 
 The repo is two independent codebases with no shared code:
 
 | Path | What it is |
 | --- | --- |
-| `relay/` | Node/TypeScript server. Spawns `claude` per turn, streams events over WebSocket, persists session state. |
+| `relay/` | Node/TypeScript server. Spawns the agent CLI per turn, streams events over WebSocket, persists session state. |
 | `client/` | React + TypeScript + Tailwind + shadcn/ui, packaged with Tauri for desktop and iOS. |
 | `infra/systemd/` | Optional unit template for running the relay as a service. |
 

@@ -8,9 +8,17 @@ See the root [README](../README.md) for how this fits into the rest of the proje
 
 ```bash
 npm install
-npm run dev        # Vite dev server (browser preview, no Tauri APIs)
-npm run tauri dev  # full desktop app
+npm run build:sidecar  # required once before any Tauri build — see below
+npm run dev            # Vite dev server (browser preview, no Tauri APIs)
+npm run tauri dev      # full desktop app
 ```
+
+`build:sidecar` compiles `tailnet-sidecar/` (Go) into the name Tauri's
+`externalBin` expects. It isn't committed, so a fresh clone fails in
+`build.rs` without it, and re-running it after a Go change is on you —
+Tauri bundles whatever stale binary is already in `src-tauri/binaries/`.
+Details and cross-building in
+[Self-hosting](../docs/self-hosting.md#the-sidecar-step-is-not-optional).
 
 ## iOS
 
