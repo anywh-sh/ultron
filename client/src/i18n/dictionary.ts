@@ -531,8 +531,7 @@ export interface Dictionary {
       /** `{time}` — a relative moment ("2 hr. ago"). */
       syncedAt: string;
       neverSynced: string;
-      renameSession: string;
-      /** The dialog that pencil opens. */
+      /** The dialog the row's context-menu "rename" item opens. */
       rename: {
         title: string;
         description: string;

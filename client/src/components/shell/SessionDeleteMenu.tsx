@@ -19,9 +19,7 @@ interface SessionDeleteMenuProps {
   menu: ContextMenuState;
   title: string;
   onDelete: () => void;
-  /** Optional: only TabGroupStrip passes this today (SessionList already has a
-   * dedicated pencil button for rename, no need to duplicate it in the menu). */
-  onRename?: () => void;
+  onRename: () => void;
   /** Optional: only TabGroupStrip passes this — one of the three ways to
    * split a tab into its own group (the other two: drag it to the content
    * area's edge, or `Ctrl+\`). No-op (and hidden) when the tab is already
@@ -47,18 +45,16 @@ export function SessionDeleteMenu({ menu, title, onDelete, onRename, onMoveToNew
       <DropdownMenu open={menu.open} onOpenChange={menu.setOpen}>
         <ContextMenuAnchor position={menu.position} />
         <DropdownMenuContent align="start">
-          {onRename && (
-            <DropdownMenuItem
-              onSelect={(event) => {
-                event.preventDefault();
-                menu.setOpen(false);
-                onRename();
-              }}
-            >
-              <Pencil />
-              {strings.rename}
-            </DropdownMenuItem>
-          )}
+          <DropdownMenuItem
+            onSelect={(event) => {
+              event.preventDefault();
+              menu.setOpen(false);
+              onRename();
+            }}
+          >
+            <Pencil />
+            {strings.rename}
+          </DropdownMenuItem>
           {onMoveToNewGroup && (
             <DropdownMenuItem
               onSelect={(event) => {

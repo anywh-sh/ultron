@@ -143,13 +143,14 @@ describe("SessionList", () => {
     expect(screen.queryByLabelText(copy.backgroundJob)).not.toBeInTheDocument();
   });
 
-  it("renders a rename control per row, labelled with the session it renames", async () => {
+  it("offers rename from the row's context menu", async () => {
     const onRename = vi.fn();
     const target = session({ id: "s1", title: "Rename me" });
     renderList({ sessions: [target], onRename });
 
     const user = userEvent.setup();
-    await user.click(screen.getByRole("button", { name: copy.renameSession.replace("{title}", "Rename me") }));
+    await user.pointer({ keys: "[MouseRight]", target: screen.getByText("Rename me") });
+    await user.click(await screen.findByText(copy.sessionMenu.rename));
     expect(onRename).toHaveBeenCalledWith(target);
   });
 

@@ -1,5 +1,5 @@
 import { memo } from "react";
-import { Loader2, Pencil } from "lucide-react";
+import { Loader2 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useDict, useLocale } from "@/i18n";
 import { profileColorClass } from "@/lib/profiles";
@@ -58,7 +58,7 @@ export const SessionListItem = memo(function SessionListItem({
   const lastActive = session.lastActiveAt === null ? null : formatRelativeTime(session.lastActiveAt, locale);
 
   return (
-    <div className="group relative flex items-center" onContextMenu={menu.onContextMenu}>
+    <div className="relative flex items-center" onContextMenu={menu.onContextMenu}>
       {/* The profile's colour as a bar down the left edge, not a dot: it is
        * the one piece of per-row chrome that has to survive a long title
        * truncating, and it doubles as the selected-row marker. */}
@@ -74,7 +74,7 @@ export const SessionListItem = memo(function SessionListItem({
         type="button"
         onClick={() => onSelect(session)}
         className={cn(
-          "flex w-full cursor-pointer flex-col gap-0.5 border border-transparent pr-7 pl-3 text-left transition-colors",
+          "flex w-full cursor-pointer flex-col gap-0.5 border border-transparent px-3 text-left transition-colors",
           size === "lg" ? "py-2.5" : "py-2",
           selected ? "border-border bg-bg-elevated" : "hover:bg-surface-hover",
         )}
@@ -107,21 +107,7 @@ export const SessionListItem = memo(function SessionListItem({
           </span>
         )}
       </button>
-      <button
-        type="button"
-        onClick={(event) => {
-          event.stopPropagation();
-          onRename(session);
-        }}
-        aria-label={dict.shell.sidebar.renameSession.replace("{title}", session.title)}
-        className={cn(
-          "absolute top-1.5 right-1.5 cursor-pointer p-0.5 opacity-0 transition-opacity",
-          "hover:bg-bg-elevated group-hover:opacity-100",
-        )}
-      >
-        <Pencil className="size-3" />
-      </button>
-      <SessionDeleteMenu menu={menu} title={session.title} onDelete={() => onDelete(session)} />
+      <SessionDeleteMenu menu={menu} title={session.title} onRename={() => onRename(session)} onDelete={() => onDelete(session)} />
     </div>
   );
 });
