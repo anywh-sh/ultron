@@ -1,3 +1,4 @@
+import { memo } from "react";
 import { Loader2, Pencil } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useDict, useLocale } from "@/i18n";
@@ -29,7 +30,13 @@ interface SessionListItemProps {
   size?: "default" | "lg";
 }
 
-export function SessionListItem({
+/**
+ * Memoized per row. The list above re-renders for things that concern one
+ * row at most — a turn starting somewhere, a title arriving, the selection
+ * moving — and without this each of those walks every session on screen,
+ * each row carrying a context menu and a relative-time format.
+ */
+export const SessionListItem = memo(function SessionListItem({
   session,
   profileLabel,
   showProfile,
@@ -117,4 +124,4 @@ export function SessionListItem({
       <SessionDeleteMenu menu={menu} title={session.title} onDelete={() => onDelete(session)} />
     </div>
   );
-}
+});

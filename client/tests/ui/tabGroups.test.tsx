@@ -15,12 +15,10 @@ vi.mock("@tauri-apps/api/webview", () => ({
 vi.mock("@tauri-apps/api/core", () => ({ invoke: async () => [] }));
 
 // Counts renders of the real ChatPanel, transparently — everything else
-// about the module (and the component itself) is untouched. ChatPanel isn't
-// memoized (MessageLog.tsx:201-208 documents why: its callback props are
-// fresh closures from App's renderPanel on every App render), so this is the
-// most direct signal for "did something in App re-render while a group
-// resize was in flight" — exactly what the CSS-custom-property drag
-// technique (useGroupSizeDrag) is supposed to avoid.
+// about the module (and the component itself) is untouched. ChatPanel sits
+// under `TabPanel`'s `memo`, so a count that doesn't move means the render
+// either never happened or never reached a conversation — both of which are
+// the point of the CSS-custom-property drag technique (useGroupSizeDrag).
 let chatPanelRenderCount = 0;
 vi.mock("@/components/chat/ChatPanel", async (importOriginal) => {
   const actual = await importOriginal<typeof ChatPanelModule>();
@@ -177,10 +175,22 @@ describe("tab group resize — performance guards", () => {
     expect(chatPanelRenderCount).toBe(afterPointerDown);
 
     fireEvent.pointerUp(window, { pointerId: 1 });
-    // onCommit (setGroupSizes) lands on pointer up, which does re-render
-    // App (and, since ChatPanel isn't memoized, every mounted tab with it) —
-    // proves the counter itself is live, not just trivially stuck at 0.
-    await vi.waitFor(() => expect(chatPanelRenderCount).toBeGreaterThan(beforeDrag));
+    // onCommit (setGroupSizes) lands on pointer up and does re-render `App`.
+    // It used to drag every mounted conversation along with it; `TabPanel`'s
+    // `memo` is what stops that now — a group's width is not something a
+    // conversation renders from. Waiting on the persisted layout (rather
+    // than on a render that should never come) is what makes the assertion
+    // below meaningful: the commit has demonstrably happened by then.
+    await vi.waitFor(() => {
+      const layout = JSON.parse(localStorage.getItem("anywh:tab-layout") ?? "{}") as {
+        groups?: { size: number }[];
+      };
+      expect(layout.groups?.[0].size).not.toBe(1 / 3);
+    });
+    expect(chatPanelRenderCount).toBe(afterPointerDown);
+    // The counter is live, not trivially stuck at zero: mounting the three
+    // conversations above is what moved it in the first place.
+    expect(beforeDrag).toBeGreaterThan(0);
   });
 
   it("writes to localStorage no more than once per resize drag, never per frame", async () => {
@@ -202,5 +212,44 @@ describe("tab group resize — performance guards", () => {
     // anywh:active-tab, anywh:tab-layout) per commit — "once per drag" means
     // this one commit's worth, not literally one `setItem` call total.
     expect(setItemSpy.mock.calls.length).toBeLessThanOrEqual(3);
+  });
+
+  /** Every tab stays mounted for as long as it is open, so "how many
+   * conversations does this interaction re-render" is a number that scales
+   * with how heavily the app is being used. It is supposed to be bounded by
+   * what the interaction actually touches — never by how many tabs happen
+   * to be open. */
+  it("re-renders no conversation when app state unrelated to them changes", async () => {
+    await renderThreeGroupsAndWaitReady();
+    const user = userEvent.setup({ delay: null });
+    const beforeToggle = chatPanelRenderCount;
+    expect(beforeToggle).toBeGreaterThan(0);
+
+    // Collapsing the sidebar is the clearest case: it re-renders `App` (the
+    // sidebar's width lives there) and touches nothing a conversation
+    // renders from.
+    await user.click(
+      screen.getByRole("button", {
+        name: new RegExp(`${en.shell.titleBar.collapseSidebar}|${en.shell.titleBar.expandSidebar}`, "i"),
+      }),
+    );
+    await vi.waitFor(() => expect(screen.queryByRole("button", { name: en.shell.sidebar.newConversation })).toBeNull());
+
+    expect(chatPanelRenderCount).toBe(beforeToggle);
+  });
+
+  it("re-renders only the two conversations involved in a tab switch", async () => {
+    await renderThreeGroupsAndWaitReady();
+    const user = userEvent.setup({ delay: null });
+    const beforeSwitch = chatPanelRenderCount;
+
+    // Three groups, one tab each: clicking another group's tab moves focus
+    // between two of them (`isFocusedTab` flips on each) and leaves the
+    // third alone. Two renders, not one per open tab — and, crucially, not a
+    // number that would grow with a fourth tab.
+    await user.click(screen.getByRole("tab", { name: /Three/ }));
+    await vi.waitFor(() => expect(chatPanelRenderCount).toBeGreaterThan(beforeSwitch));
+
+    expect(chatPanelRenderCount - beforeSwitch).toBeLessThanOrEqual(2);
   });
 });

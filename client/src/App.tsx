@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Menu } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Sheet, SheetContent, SheetTitle } from "@/components/ui/sheet";
@@ -8,15 +8,12 @@ import { EmptyState } from "@/components/shell/EmptyState";
 import { SessionSearch } from "@/components/shell/SessionSearch";
 import { SettingsDialog } from "@/components/settings/SettingsDialog";
 import { TabGroupLayout } from "@/components/shell/TabGroupLayout";
+import { TabPanel, type TabPanelActions } from "@/components/shell/TabPanel";
 import { TitleBar } from "@/components/shell/TitleBar";
 import { MobileShell } from "@/components/shell/MobileShell";
 import { RevokedProfileBanners } from "@/components/shell/RevokedProfileBanner";
 import { ProfileSetupDialog } from "@/components/shell/ProfileSetupDialog";
-import { ChatPanel } from "@/components/chat/ChatPanel";
-import { SessionDock } from "@/components/shell/SessionDock";
 import { DownloadToasts } from "@/components/files/DownloadToasts";
-import { FilesPanelSlot } from "@/components/files/FilesPanelSlot";
-import { TerminalPanelSlot } from "@/components/terminal/TerminalPanelSlot";
 import { useDict } from "@/i18n";
 import { useActiveProfile } from "@/hooks/useActiveProfile";
 import { useNavigationHistory } from "@/hooks/useNavigationHistory";
@@ -52,7 +49,6 @@ import { resolveConnection } from "@/lib/connectionResolver";
 import { ensureNotificationPermission, notifyTurnComplete } from "@/lib/notifications";
 import { deleteSession, renameSession } from "@/lib/relayClient";
 import { isIOS } from "@/lib/platform";
-import { cn } from "@/lib/utils";
 
 /** Optional override via query string (`?profile=&session=`) — only to allow
  * a direct deep-link to a specific state in tests via Playwright. */
@@ -555,14 +551,52 @@ export default function App() {
   // Still only covers sessions open as a tab: a session with no tab has no
   // live WS connection to know whether it's running, the same limitation
   // `isRunning` always had.
-  const runningSessions = new Set(tabsState.tabs.filter((tab) => tab.isRunning).map((tab) => tab.id));
-  const backgroundJobSessions = new Set(tabsState.tabs.filter((tab) => tab.hasBackgroundJob).map((tab) => tab.id));
+  const runningSessions = useMemo(
+    () => new Set(tabsState.tabs.filter((tab) => tab.isRunning).map((tab) => tab.id)),
+    [tabsState.tabs],
+  );
+  const backgroundJobSessions = useMemo(
+    () => new Set(tabsState.tabs.filter((tab) => tab.hasBackgroundJob).map((tab) => tab.id)),
+    [tabsState.tabs],
+  );
+
+  // Stable identities for the sidebar's callbacks. `Sidebar` is memoized and
+  // it renders one row per session across every profile — a few hundred of
+  // them for a real install — so a single prop rebuilt per render is enough
+  // to make that `memo` do nothing at all. The bodies stay plain function
+  // declarations above, closing over whatever they need; the ref is what
+  // keeps this indirection from freezing the first render's copy of them.
+  const sidebarHandlersRef = useRef({
+    handleProfileChange,
+    handleSelectSession,
+    handleNewConversation,
+    handleRenameSession,
+    handleDeleteSession,
+  });
+  sidebarHandlersRef.current = {
+    handleProfileChange,
+    handleSelectSession,
+    handleNewConversation,
+    handleRenameSession,
+    handleDeleteSession,
+  };
+  const onProfileChange = useCallback((profileId: string) => sidebarHandlersRef.current.handleProfileChange(profileId), []);
+  const onSelectSession = useCallback((session: MergedSession) => sidebarHandlersRef.current.handleSelectSession(session), []);
+  const onNewConversation = useCallback(() => sidebarHandlersRef.current.handleNewConversation(), []);
+  const onRenameSessionRow = useCallback(
+    (session: MergedSession, title: string) => sidebarHandlersRef.current.handleRenameSession(session.profileId, session.id, title),
+    [],
+  );
+  const onDeleteSessionRow = useCallback(
+    (session: MergedSession) => sidebarHandlersRef.current.handleDeleteSession(session.profileId, session.id),
+    [],
+  );
 
   const sidebarProps = {
     activeProfile,
     profiles,
     profilesSupported,
-    onProfileChange: handleProfileChange,
+    onProfileChange,
     selectedProfileIds,
     onToggleProfileFilter: toggleProfileFilter,
     onClearProfileFilter: clearProfileFilter,
@@ -573,173 +607,123 @@ export default function App() {
     selectedSession: activeTabId,
     runningSessions,
     backgroundJobSessions,
-    onSelectSession: handleSelectSession,
-    onNewConversation: handleNewConversation,
-    onRenameSession: (session: MergedSession, title: string) =>
-      handleRenameSession(session.profileId, session.id, title),
-    onDeleteSession: (session: MergedSession) => handleDeleteSession(session.profileId, session.id),
+    onSelectSession,
+    onNewConversation,
+    onRenameSession: onRenameSessionRow,
+    onDeleteSession: onDeleteSessionRow,
   };
 
   const activeTab = tabsState.tabs.find((tab) => tab.id === activeTabId);
 
+  // Read by `actions` below at the moment something actually happens (a turn
+  // finishing, a path being opened from chat text), never at the moment the
+  // callback was built — which is what keeps that object stable across
+  // renders without any of it going stale. `handleOpenFilePath` and
+  // `handleOpenTerminalAt` are plain function declarations, re-created every
+  // render; the two values are just state that moves on its own.
+  const activeTabIdRef = useRef(activeTabId);
+  activeTabIdRef.current = activeTabId;
+  const windowFocusedRef = useRef(windowFocused);
+  windowFocusedRef.current = windowFocused;
+  const handleOpenFilePathRef = useRef(handleOpenFilePath);
+  handleOpenFilePathRef.current = handleOpenFilePath;
+  const handleOpenTerminalAtRef = useRef(handleOpenTerminalAt);
+  handleOpenTerminalAtRef.current = handleOpenTerminalAt;
+
+  // Everything a panel calls back into here, built once. Each callback takes
+  // the tab (or profile/path) it acts on as an argument and closes over
+  // nothing that changes between renders — that is what lets `TabPanel` be
+  // `memo`'d, and `App` stop costing one render per open conversation every
+  // time any of its state moves. See the comment on `TabPanelActions`.
+  const actions = useMemo<TabPanelActions>(
+    () => ({
+      onTurnActiveChange: (tabId, active) => tabsState.setRunning(tabId, active),
+      onBackgroundJobsChange: (tabId, jobs) => tabsState.setHasBackgroundJob(tabId, jobs.length > 0),
+      onTurnComplete: (tab, profile, { stopped, lastUserText, lastAssistantText }) => {
+        // Read through refs, not captured: this runs when a turn finishes,
+        // which is arbitrarily long after the render that built this
+        // object, and both values move on their own in the meantime.
+        // Capturing them would mean notifying (or staying silent) based on
+        // where the user was, not where they are.
+        const stillVisible = tab.id === activeTabIdRef.current && windowFocusedRef.current;
+        if (stillVisible) return;
+        tabsState.setUnread(tab.id, true);
+        notifyTurnComplete(tab.id, profile, tab.title ?? dict.common.untitledSession, lastUserText, lastAssistantText, stopped);
+      },
+      onTitle: (tab, title) => {
+        tabsState.setTabTitle(tab.id, title);
+        // Ungated on the active profile, unlike before: with every profile
+        // in one list, a conversation titled in a background tab has to
+        // appear under its own profile whether or not that profile is the
+        // one currently selected.
+        upsertCachedSession(tab.profileId, tab.id, title, Date.now());
+      },
+      onActivity: (tab) => {
+        touchCachedSession(tab.profileId, tab.id);
+      },
+      onDeleted: (tab) => {
+        tabsState.closeTab(tab.id);
+        sessionDock.removeSession(tab.id);
+        terminalTabs.removeSession(tab.id);
+        fileTabs.removeSession(tab.id);
+        removeCachedSession(tab.profileId, tab.id);
+      },
+      onConnectedChange: (tabId, connected) => {
+        setConnectedByTab((prev) => (prev[tabId] === connected ? prev : { ...prev, [tabId]: connected }));
+      },
+      onTogglePane: (tabId, kind) => sessionDock.togglePane(tabId, kind),
+      onClosePane: (tabId, kind) => sessionDock.closePane(tabId, kind),
+      onToggleMaximized: (tabId, kind) => sessionDock.toggleMaximized(tabId, kind),
+      onOpenPath: (profile, tabId, path) => handleOpenFilePathRef.current(profile, tabId, path),
+      onOpenTerminalAt: (tabId, path) => handleOpenTerminalAtRef.current(tabId, path),
+      onDockWidthChange: (tabId, width) => sessionDock.setWidth(tabId, width),
+      onDockSplitRatioChange: (tabId, ratio) => sessionDock.setSplitRatio(tabId, ratio),
+      onDockDragEnd: () => sessionDock.commitDock(),
+    }),
+    [
+      dict,
+      tabsState.setRunning,
+      tabsState.setHasBackgroundJob,
+      tabsState.setUnread,
+      tabsState.setTabTitle,
+      tabsState.closeTab,
+      sessionDock.removeSession,
+      sessionDock.togglePane,
+      sessionDock.closePane,
+      sessionDock.toggleMaximized,
+      sessionDock.setWidth,
+      sessionDock.setSplitRatio,
+      sessionDock.commitDock,
+      terminalTabs.removeSession,
+      fileTabs.removeSession,
+    ],
+  );
+
   // A tab can belong to any profile — each one's `ChatPanel` uses
   // the profile recorded on the tab itself, not the profile currently
   // selected in the sidebar.
-  const renderPanel = (tab: Tab) => {
-    const profile = findProfile(tab.profileId) ?? getProfiles()[0];
-    const dock = sessionDock.getDock(tab.id);
-    // Two different gates, now that a group split can put more than one tab
-    // on screen at once: `isVisible` is "this tab is the active one of its
-    // own group" (drives panel visibility, dock mounting, MessageLog's
-    // scroll re-sync, and the native drag-drop guard below) — up to one per
-    // group can be true simultaneously. `isFocused` narrows that to "...and
-    // that group is also the one the user's actually interacting with right
-    // now" (drives unread-badge clearing, TitleBar.connected, nav history) —
-    // at most one tab in the whole app.
-    const isVisible = tabsState.visibleTabIds.has(tab.id);
-    const chatContent = (
-      <ChatPanel
-        // On iOS (no TabGroupLayout/flat panel layer), `activeTab && renderPanel(activeTab)`
-        // is a single JSX slot whose `sessionId` just changes value — without
-        // a `key` tied to the session, React reuses the same instance when
-        // switching conversations (only updates props), and internal state
-        // (useMessageLog etc.) doesn't reset on its own. `onReconnecting`
-        // doesn't help here: it only fires on a real reconnection of the SAME
-        // RelayClient instance, not when useRelayClient swaps sessionId and
-        // creates a new instance. The result was a real bug: clicking "+"
-        // would open a genuinely new session (connecting,
-        // "Reconnecting"→"Connected") but the screen kept showing the
-        // previous conversation's log. On desktop this didn't happen
-        // (TabGroupLayout's flat panel layer already has `key={tab.id}` on
-        // each tab's panel wrapper) — here it's just made explicit in the
-        // same spot.
-        key={tab.id}
-        profile={profile}
-        sessionId={tab.id}
-        isNewConversation={tab.isNew}
-        onTurnActiveChange={(active) => tabsState.setRunning(tab.id, active)}
-        onBackgroundJobsChange={(jobs) => tabsState.setHasBackgroundJob(tab.id, jobs.length > 0)}
-        onTurnComplete={({ stopped, lastUserText, lastAssistantText }) => {
-          const stillVisible = tab.id === tabsState.activeTabId && windowFocused;
-          if (stillVisible) return;
-          tabsState.setUnread(tab.id, true);
-          notifyTurnComplete(tab.id, profile, tab.title ?? dict.common.untitledSession, lastUserText, lastAssistantText, stopped);
-        }}
-        onTitle={(title) => {
-          tabsState.setTabTitle(tab.id, title);
-          // Ungated on the active profile, unlike before: with every profile
-          // in one list, a conversation titled in a background tab has to
-          // appear under its own profile whether or not that profile is the
-          // one currently selected.
-          upsertCachedSession(tab.profileId, tab.id, title, Date.now());
-        }}
-        onActivity={() => {
-          touchCachedSession(tab.profileId, tab.id);
-        }}
-        onDeleted={() => {
-          tabsState.closeTab(tab.id);
-          sessionDock.removeSession(tab.id);
-          terminalTabs.removeSession(tab.id);
-          fileTabs.removeSession(tab.id);
-          removeCachedSession(tab.profileId, tab.id);
-        }}
-        onConnectedChange={(connected) => {
-          setConnectedByTab((prev) => (prev[tab.id] === connected ? prev : { ...prev, [tab.id]: connected }));
-        }}
-        terminal={
-          isCompact || isIOS()
-            ? undefined
-            : { open: dock.panes.includes("terminal"), onToggle: () => sessionDock.togglePane(tab.id, "terminal") }
-        }
-        files={
-          isCompact || isIOS()
-            ? undefined
-            : { open: dock.panes.includes("files"), onToggle: () => sessionDock.togglePane(tab.id, "files") }
-        }
-        onOpenPath={isCompact || isIOS() ? undefined : (path) => handleOpenFilePath(profile, tab.id, path)}
-        isActiveTab={isVisible}
-        isFocusedTab={tab.id === activeTabId}
-      />
-    );
-
-    if (isCompact || isIOS()) return chatContent;
-
-    // Embedded terminal and files pane, desktop only.
-    // `isVisible` is what implements "switching to another tab in this same
-    // group closes the dock on its own, coming back reopens it the way it
-    // was": `TabGroupLayout` keeps ALL tabs mounted in the background (its
-    // flat panel layer, to keep the chat WS alive — see comment further
-    // below), so without this gate the dock's panes would stay connected for
-    // every backgrounded tab too. Only each group's own visible tab actually
-    // mounts `SessionDock`; the others don't even exist in the DOM, so they
-    // don't open any terminal/watch WS either. With up to 3 groups now, that
-    // means up to 3 live docks at once (up to 3 terminal + 3 watch WS) — not
-    // the single live dock this comment used to promise back when there was
-    // only ever one active tab in the whole app.
-    //
-    // The gate here doesn't include `dock.panes.length === 0` — that's how
-    // the open/close animation (same as the left sidebar's,
-    // useResizableSidebar) works: `SessionDock` stays mounted the whole time
-    // the tab is visible, and IT (internally, lightweight) is what decides
-    // the width (0 closed, animating to `dock.width` when open). Without this
-    // the dock's content only existed in the DOM while open — there was
-    // nothing for the CSS transition to animate, it just popped in/out.
-    const chatHidden = isVisible && dock.maximized !== null;
-
-    // The wrapper (this `div` + the `div` right below wrapping
-    // `chatContent`) is rendered unconditionally, with the SAME shape
-    // always — only the presence of `SessionDock` as a sibling toggles (along
-    // with the tab becoming active/inactive). Before this it was conditional
-    // (`if (!showTerminal) return chatContent` with no wrapper at all), and
-    // opening/closing/switching the terminal tab changed the type of the
-    // child at that position in the tree (from `ChatPanel` directly to
-    // `div`) — React saw that as a different element and unmounted the whole
-    // `ChatPanel` (losing `ready`, closing the WS, reconnecting), which is
-    // exactly the skeleton flash reported when opening/expanding/closing the
-    // panel. Keeping the shape stable avoids that remount.
-    return (
-      <div className="relative flex h-full min-w-0">
-        {/* `invisible absolute inset-0` instead of shrinking to 0 — same
-         * trick (and same reason) as `TabGroupLayout.tsx`'s flat panel layer: `MessageLog`
-         * uses `@tanstack/react-virtual`, whose `ResizeObserver` corrupts the
-         * height cache if the container measures size 0 even briefly (which
-         * is exactly what would happen when maximizing a pane if the chat
-         * were hidden via `display:none`/zero width). */}
-        <div className={cn("min-w-0 flex-1", chatHidden && "invisible absolute inset-0")}>{chatContent}</div>
-        {isVisible && (
-          <SessionDock
-            dock={dock}
-            onWidthChange={(width) => sessionDock.setWidth(tab.id, width)}
-            onSplitRatioChange={(ratio) => sessionDock.setSplitRatio(tab.id, ratio)}
-            onDragEnd={sessionDock.commitDock}
-            panes={{
-              terminal: dock.panes.includes("terminal") ? (
-                <TerminalPanelSlot
-                  profile={profile}
-                  chatSessionId={tab.id}
-                  maximized={dock.maximized === "terminal"}
-                  terminalTabs={terminalTabs}
-                  onToggleMaximized={() => sessionDock.toggleMaximized(tab.id, "terminal")}
-                  onClose={() => sessionDock.closePane(tab.id, "terminal")}
-                />
-              ) : undefined,
-              files: dock.panes.includes("files") ? (
-                <FilesPanelSlot
-                  profile={profile}
-                  chatSessionId={tab.id}
-                  maximized={dock.maximized === "files"}
-                  fileTabs={fileTabs}
-                  onToggleMaximized={() => sessionDock.toggleMaximized(tab.id, "files")}
-                  onClose={() => sessionDock.closePane(tab.id, "files")}
-                  onOpenTerminal={(path) => handleOpenTerminalAt(tab.id, path)}
-                />
-              ) : undefined,
-            }}
-          />
-        )}
-      </div>
-    );
-  };
+  const renderPanel = (tab: Tab) => (
+    <TabPanel
+      key={tab.id}
+      tab={tab}
+      profile={findProfile(tab.profileId) ?? getProfiles()[0]}
+      dock={sessionDock.getDock(tab.id)}
+      // Two different gates, now that a group split can put more than one
+      // tab on screen at once: `isVisible` is "this tab is the active one of
+      // its own group" (drives panel visibility, dock mounting,
+      // MessageLog's scroll re-sync, and the native drag-drop guard) — up to
+      // one per group can be true simultaneously. `isFocusedTab` narrows
+      // that to "...and that group is also the one the user's actually
+      // interacting with right now" (drives unread-badge clearing,
+      // TitleBar.connected, nav history) — at most one tab in the whole app.
+      isVisible={tabsState.visibleTabIds.has(tab.id)}
+      isFocusedTab={tab.id === activeTabId}
+      isCompact={isCompact}
+      terminalTabs={terminalTabs}
+      fileTabs={fileTabs}
+      actions={actions}
+    />
+  );
 
   // Shared between the desktop shell and iOS — what changes between the two
   // is just the surrounding chrome (TitleBar+Sidebar vs. MobileShell), not

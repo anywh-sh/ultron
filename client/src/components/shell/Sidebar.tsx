@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { memo, useState } from "react";
 import { Plus } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Tooltip, TooltipContent, TooltipShortcut, TooltipTrigger } from "@/components/ui/tooltip";
@@ -37,7 +37,20 @@ export interface SidebarProps {
   onDeleteSession: (session: MergedSession) => void;
 }
 
-export function Sidebar({
+/**
+ * Memoized: this renders one row per session across every selected profile
+ * — a few hundred rows on a real install — and it is mounted for the whole
+ * life of the desktop shell, so every state change in `App` used to walk the
+ * entire list. Switching tabs did it two to three times in a row.
+ *
+ * Every prop it takes is either state (`selectedProfileIds`, the loading
+ * flags), a value with a stable identity between real changes (`profiles`
+ * and `activeProfile` come from the profiles store, `sessions` from
+ * `useMergedSessions`' memo, the two `Set`s from a memo on the tab list) or
+ * a callback `App` holds stable on purpose. Handing it anything rebuilt per
+ * render silently undoes all of this.
+ */
+export const Sidebar = memo(function Sidebar({
   activeProfile,
   profiles,
   profilesSupported,
@@ -116,4 +129,4 @@ export function Sidebar({
       />
     </div>
   );
-}
+});

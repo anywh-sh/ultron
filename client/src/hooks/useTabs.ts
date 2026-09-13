@@ -266,6 +266,13 @@ export function useTabs() {
   // `App` runs the restoration effect (which runs after this one, see hook
   // ordering).
   const hydratedRef = useRef(false);
+  // Mirror of the committed state, for the "would this change anything?"
+  // guards in `setActiveTab`/`focusGroup` below. They have to answer that
+  // question BEFORE calling `setState`, which is why reading `state` through
+  // a ref is necessary and reading it inside the updater is not enough — see
+  // the comment on `focusGroup`.
+  const stateRef = useRef(state);
+  stateRef.current = state;
 
   useEffect(() => {
     if (!hydratedRef.current) return;
@@ -328,6 +335,15 @@ export function useTabs() {
   }, []);
 
   const setActiveTab = useCallback((tabId: string) => {
+    // Clicking the tab that is already active in the already-focused group —
+    // the most common click in the app, and one that would otherwise rebuild
+    // the whole state object (a guaranteed re-render of `App`) plus rewrite
+    // all three persistence keys, to end up at exactly the state it started
+    // from. Same reasoning as `focusGroup`'s guard below.
+    const current = stateRef.current;
+    const focused = current.groups.find((group) => group.id === current.focusedGroupId);
+    if (focused?.activeTabId === tabId) return;
+
     setState((prev) => {
       const owner = findGroupOfTab(prev.groups, tabId);
       if (!owner) return prev;
@@ -340,6 +356,21 @@ export function useTabs() {
   }, []);
 
   const focusGroup = useCallback((groupId: string) => {
+    // "Focus follows the pointer" calls this on every single pointerdown
+    // inside a group (TabGroupLayout's `onPointerDownCapture`), so the call
+    // that changes nothing is by far the common one — including the
+    // pointerdown that merely starts a text selection in the log.
+    //
+    // Returning `prev` from the updater is NOT enough to make that free.
+    // React's "same value bails out" only skips the render when it can
+    // resolve the update eagerly, which it can't once the component has
+    // other work pending — and `App` almost always does. Measured (a
+    // Profiler around `<App />`, counting commits): one pointerdown inside a
+    // panel committed a full render of the app, every mounted conversation
+    // included, while the same pointerdown outside any panel committed
+    // none. Answering here, before `setState`, is what actually costs
+    // nothing.
+    if (stateRef.current.focusedGroupId === groupId) return;
     setState((prev) => (prev.groups.some((group) => group.id === groupId) ? { ...prev, focusedGroupId: groupId } : prev));
   }, []);
 
@@ -412,32 +443,37 @@ export function useTabs() {
     });
   }, []);
 
-  const setUnread = useCallback((tabId: string, value: boolean) => {
-    setState((prev) => {
-      const tab = prev.tabs.find((t) => t.id === tabId);
-      // No real change: returns the SAME `prev` reference — React skips the
-      // re-render (bailout), avoiding a loop with the effect that clears the badge
-      // every time the active tab changes.
-      if (!tab || tab.hasUnreadCompletion === value) return prev;
-      return { ...prev, tabs: prev.tabs.map((t) => (t.id === tabId ? { ...t, hasUnreadCompletion: value } : t)) };
-    });
-  }, []);
+  /** The three per-tab flags below share a shape: they are written on every
+   * edge of something that mostly does not change (the badge is cleared on
+   * every tab switch whether or not it was set; a turn's state and its
+   * background jobs are re-asserted from the socket), so the write that
+   * changes nothing is the common one. Each answers that before touching
+   * `setState` — the updater's `return prev` alone still costs a render of
+   * `App`, and `App` is the whole app. Same guard as `focusGroup`. */
+  const setTabFlag = useCallback(
+    <K extends "hasUnreadCompletion" | "isRunning" | "hasBackgroundJob">(tabId: string, key: K, value: boolean) => {
+      const current = stateRef.current.tabs.find((tab) => tab.id === tabId);
+      if (!current || current[key] === value) return;
+      setState((prev) => {
+        const tab = prev.tabs.find((t) => t.id === tabId);
+        if (!tab || tab[key] === value) return prev;
+        return { ...prev, tabs: prev.tabs.map((t) => (t.id === tabId ? { ...t, [key]: value } : t)) };
+      });
+    },
+    [],
+  );
 
-  const setRunning = useCallback((tabId: string, value: boolean) => {
-    setState((prev) => {
-      const tab = prev.tabs.find((t) => t.id === tabId);
-      if (!tab || tab.isRunning === value) return prev;
-      return { ...prev, tabs: prev.tabs.map((t) => (t.id === tabId ? { ...t, isRunning: value } : t)) };
-    });
-  }, []);
+  const setUnread = useCallback(
+    (tabId: string, value: boolean) => setTabFlag(tabId, "hasUnreadCompletion", value),
+    [setTabFlag],
+  );
 
-  const setHasBackgroundJob = useCallback((tabId: string, value: boolean) => {
-    setState((prev) => {
-      const tab = prev.tabs.find((t) => t.id === tabId);
-      if (!tab || tab.hasBackgroundJob === value) return prev;
-      return { ...prev, tabs: prev.tabs.map((t) => (t.id === tabId ? { ...t, hasBackgroundJob: value } : t)) };
-    });
-  }, []);
+  const setRunning = useCallback((tabId: string, value: boolean) => setTabFlag(tabId, "isRunning", value), [setTabFlag]);
+
+  const setHasBackgroundJob = useCallback(
+    (tabId: string, value: boolean) => setTabFlag(tabId, "hasBackgroundJob", value),
+    [setTabFlag],
+  );
 
   /** Called when a session's title comes into existence or changes — either
    * from automatic inference of the first prompt (ChatPanel, live via
@@ -445,6 +481,8 @@ export function useTabs() {
    * open as a tab right now (e.g. rename of a closed session) — the
    * same bailout as `setUnread`/`setRunning` above. */
   const setTabTitle = useCallback((tabId: string, title: string) => {
+    const current = stateRef.current.tabs.find((tab) => tab.id === tabId);
+    if (!current || current.title === title) return;
     setState((prev) => {
       const tab = prev.tabs.find((t) => t.id === tabId);
       if (!tab || tab.title === title) return prev;
