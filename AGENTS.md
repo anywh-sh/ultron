@@ -4,7 +4,7 @@ Wrapper multiplataforma para o Claude Code CLI. O `claude` continua rodando numa
 
 ## Arquitetura
 
-- **`relay/`** — servidor Node/TypeScript. Dá spawn em `claude -p ...` por turno, faz streaming dos eventos JSON de volta por WebSocket, e persiste estado de sessão/aba em disco. `ANTHROPIC_API_KEY` é removido do ambiente do filho de propósito, nos quatro pontos de spawn, pra que o uso sempre caia na assinatura e nunca em billing por token.
+- **`relay/`** — servidor Node/TypeScript. Dá spawn em `claude -p ...` por turno, faz streaming dos eventos JSON de volta por WebSocket, e persiste estado de sessão/aba em disco. As credenciais que causam billing por token (`BILLED_CREDENTIAL_VARS` em `claudeCliConfig.ts` — hoje `ANTHROPIC_API_KEY` e `ANTHROPIC_AUTH_TOKEN`) são removidas do ambiente do filho de propósito, nos quatro pontos de spawn, pra que o uso sempre caia na assinatura e nunca em billing por token. A lista é escopada ao provedor do CLI que o relay realmente spawna — ensinar um segundo agente ao relay inclui acrescentar as credenciais dele ali.
 - **`client/`** — React + TypeScript + Tailwind + shadcn/ui, empacotado com Tauri 2.0 pra desktop e iOS a partir de uma codebase só.
 - **`infra/systemd/`** — unit template pra rodar o relay como serviço. Opcional; o caminho normal é `npm start`.
 

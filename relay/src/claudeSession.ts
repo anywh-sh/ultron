@@ -1,15 +1,16 @@
 import { spawn, type ChildProcessWithoutNullStreams } from "node:child_process";
 import { createInterface } from "node:readline";
-import { AGENT_BIN, EXTRA_PATH_DIRS } from "./claudeCliConfig.js";
+import { AGENT_BIN, EXTRA_PATH_DIRS, stripBilledCredentials } from "./claudeCliConfig.js";
 import { PLAN_MODE_CHOICE_MARKER_PROMPT } from "./planChoiceMarker.js";
 import type { ContextUsage, ModelChoice, PermissionMode } from "./sessionStore.js";
 
 // A turn = a `claude -p` process. Continuity across turns comes from
 // `--resume <session_id>`, not from keeping a process alive.
 //
-// ANTHROPIC_API_KEY is always removed from the child process's environment:
-// it's the project's golden rule — if that env var leaks, Claude
-// Code starts billing via API instead of using the plan.
+// A billed credential is always removed from the child process's environment
+// (`BILLED_CREDENTIAL_VARS`, claudeCliConfig.ts): it's the project's golden
+// rule — if one leaks, the agent starts billing per token via API instead of
+// drawing on the plan its CLI is logged into.
 
 /** Appended to every turn, regardless of the active project's CLAUDE.md — it's
  * a preference of the anywh CLIENT, not of a specific project. Without
@@ -53,12 +54,12 @@ const APPEND_SYSTEM_PROMPT =
 
 /** Env for every relay child process (the `claude -p` turn here, interactive
  * shell in terminalSession.ts) — extracted to one place because the golden
- * rule (never let `ANTHROPIC_API_KEY` leak to the child process)
+ * rule (never let a billed credential leak to the child process)
  * must hold equally for both: a terminal opened by the user is just as
  * capable of running `claude` manually as the turn's own spawn. */
 export function buildChildEnv(homeOverride: string | undefined): NodeJS.ProcessEnv {
   const env = { ...process.env };
-  delete env.ANTHROPIC_API_KEY;
+  stripBilledCredentials(env);
   if (homeOverride) {
     env.HOME = homeOverride;
   }

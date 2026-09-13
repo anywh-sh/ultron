@@ -20,6 +20,26 @@ import { fileURLToPath } from "node:url";
 // chain below is the only place that should ever mention the old one.
 export const AGENT_BIN = process.env.AGENT_BIN ?? process.env.CLAUDE_BIN ?? "claude";
 
+// Credentials that make a spawned agent bill per token instead of drawing on
+// the subscription its CLI is already logged into. Removed from the
+// environment of every child this relay spawns: the turn itself, the one-shot
+// probes, and the interactive terminal — a terminal the user opened can run
+// the agent manually just as well.
+//
+// Scoped to the provider whose CLI this relay actually spawns, not every
+// provider that exists. A blanket `*_API_KEY` sweep would also strip a key a
+// project's own tooling legitimately needs inside a turn, which is not this
+// rule's business. Teaching the relay a second agent CLI means adding that
+// provider's credentials here, alongside it.
+export const BILLED_CREDENTIAL_VARS = ["ANTHROPIC_API_KEY", "ANTHROPIC_AUTH_TOKEN"] as const;
+
+/** Strips every billed credential from `env`, in place. */
+export function stripBilledCredentials(env: NodeJS.ProcessEnv): void {
+  for (const name of BILLED_CREDENTIAL_VARS) {
+    delete env[name];
+  }
+}
+
 const configuredExtraPathDirs = (process.env.EXTRA_PATH_DIRS ?? "")
   .split(":")
   .filter((dir) => dir.length > 0);

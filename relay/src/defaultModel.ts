@@ -1,5 +1,5 @@
 import { spawn } from "node:child_process";
-import { AGENT_BIN, EXTRA_PATH_DIRS } from "./claudeCliConfig.js";
+import { AGENT_BIN, EXTRA_PATH_DIRS, stripBilledCredentials } from "./claudeCliConfig.js";
 
 // Extracts just the model family — "Current model: `Sonnet 5 (default)`" ->
 // "Sonnet", "Current model: `Opus 5 (1M context) (default)`" -> "Opus". The
@@ -58,7 +58,7 @@ export async function detectDefaultModel(
   cwd: string,
 ): Promise<DefaultModelInfo | undefined> {
   const env = { ...process.env };
-  delete env.ANTHROPIC_API_KEY;
+  stripBilledCredentials(env);
   if (homeOverride) env.HOME = homeOverride;
   env.PATH = [...EXTRA_PATH_DIRS, env.PATH ?? ""].join(":");
 

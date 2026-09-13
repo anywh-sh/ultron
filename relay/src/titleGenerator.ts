@@ -1,5 +1,5 @@
 import { spawn } from "node:child_process";
-import { AGENT_BIN, EXTRA_PATH_DIRS } from "./claudeCliConfig.js";
+import { AGENT_BIN, EXTRA_PATH_DIRS, stripBilledCredentials } from "./claudeCliConfig.js";
 
 const SYSTEM_PROMPT =
   "You are a short title generator for a chat session list, like a browser tab title. The user's " +
@@ -51,7 +51,7 @@ export async function generateTitle(
   const truncated = prompt.length > MAX_PROMPT_CHARS ? prompt.slice(0, MAX_PROMPT_CHARS) : prompt;
 
   const env = { ...process.env };
-  delete env.ANTHROPIC_API_KEY;
+  stripBilledCredentials(env);
   if (homeOverride) env.HOME = homeOverride;
   env.PATH = [...EXTRA_PATH_DIRS, env.PATH ?? ""].join(":");
 
