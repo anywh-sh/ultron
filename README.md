@@ -60,7 +60,7 @@ Building from source, iOS builds, creating profiles from the command line, and e
 
 ## Security model
 
-The relay has no authentication and CORS is wide open. The threat model is a trusted network — your LAN, or a personal [Tailscale](https://tailscale.com/)/WireGuard network for remote access — not the public internet. Do not expose the relay's port directly.
+The relay has no authentication and CORS is wide open. The threat model is a trusted network — your LAN, or a private WireGuard network for remote access — not the public internet. Do not expose the relay's port directly.
 
 This matters more than "no authentication" alone suggests: the relay's default permission mode is `bypassPermissions` (`--dangerously-skip-permissions`), so anyone who can reach the port can run arbitrary code as you, not merely read your conversations.
 

@@ -145,8 +145,8 @@ client has ever connected to it.
 ```
 
 `--relay-host` is required for the very first profile, because there is no
-existing profile to copy a default from. Use the machine's LAN IP, or its
-Tailscale IP if you will connect from outside the house — see
+existing profile to copy a default from. Use the machine's LAN IP, or its address on
+your private network if you will connect from outside the house — see
 [Remote access](./remote-access.md).
 
 Running more than one agent login on the same machine is
