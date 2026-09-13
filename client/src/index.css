@@ -437,9 +437,13 @@ body {
  * slides right to uncover the sidebar behind it, instead of an overlay with
  * a scrim on top. The settled state (the `.pushed` class) transitions in
  * CSS; the live drag (useRevealDrawer.ts) writes the same styles directly
- * through a ref, with no re-render per pixel. */
+ * through a ref, with no re-render per pixel.
+ */
 .mobile-canvas {
   border: 1px solid transparent;
+  /* border-radius and box-shadow would normally be banned here as
+   * uncompositable (iOS shell, not redesigned) — affordable only because
+   * this runs once, when the finger lifts, and never per frame. */
   transition:
     transform 0.32s cubic-bezier(0.32, 0.72, 0, 1),
     border-radius 0.32s ease,
