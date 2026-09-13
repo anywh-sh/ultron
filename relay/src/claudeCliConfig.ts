@@ -1,7 +1,7 @@
 import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 
-// Shared by every module that spawns `claude` (the real turn in
+// Shared by every module that spawns the agent CLI (the real turn in
 // claudeSession.ts, plus the one-shot probes in defaultModel.ts,
 // titleGenerator.ts, suggestionGenerator.ts) — same binary, same PATH
 // problem for all of them.
@@ -11,9 +11,14 @@ import { fileURLToPath } from "node:url";
 // so neither the binary nor tools it invokes internally (node, git...) would
 // be found by name alone — same bug class already fixed for tmux.
 // Defaults to the bare command name, which works whenever the relay itself
-// is started from a shell that already has `claude` on PATH (e.g. `npm run
-// dev`); override via env for systemd or any other PATH-less launch.
-export const CLAUDE_BIN = process.env.CLAUDE_BIN ?? "claude";
+// is started from a shell that already has the agent CLI on PATH (e.g. `npm
+// run dev`); override via env for systemd or any other PATH-less launch.
+//
+// `CLAUDE_BIN` is the pre-rename name, still honored so an existing
+// deployment's .env keeps working across an upgrade without being edited.
+// It is deprecated: `AGENT_BIN` is the documented name, and the fallback
+// chain below is the only place that should ever mention the old one.
+export const AGENT_BIN = process.env.AGENT_BIN ?? process.env.CLAUDE_BIN ?? "claude";
 
 const configuredExtraPathDirs = (process.env.EXTRA_PATH_DIRS ?? "")
   .split(":")

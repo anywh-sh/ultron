@@ -1,6 +1,6 @@
 import { spawn, type ChildProcessWithoutNullStreams } from "node:child_process";
 import { createInterface } from "node:readline";
-import { CLAUDE_BIN, EXTRA_PATH_DIRS } from "./claudeCliConfig.js";
+import { AGENT_BIN, EXTRA_PATH_DIRS } from "./claudeCliConfig.js";
 import { PLAN_MODE_CHOICE_MARKER_PROMPT } from "./planChoiceMarker.js";
 import type { ContextUsage, ModelChoice, PermissionMode } from "./sessionStore.js";
 
@@ -400,7 +400,7 @@ export class ClaudeSession {
       args.push("--resume", this.sessionId);
     }
 
-    const child = spawn(CLAUDE_BIN, args, {
+    const child = spawn(AGENT_BIN, args, {
       env: buildChildEnv(this.options.homeOverride),
       cwd,
     });

@@ -1,5 +1,5 @@
 import { spawn } from "node:child_process";
-import { CLAUDE_BIN, EXTRA_PATH_DIRS } from "./claudeCliConfig.js";
+import { AGENT_BIN, EXTRA_PATH_DIRS } from "./claudeCliConfig.js";
 
 const SYSTEM_PROMPT =
   "You are a short title generator for a chat session list, like a browser tab title. The user's " +
@@ -56,7 +56,7 @@ export async function generateTitle(
   env.PATH = [...EXTRA_PATH_DIRS, env.PATH ?? ""].join(":");
 
   const child = spawn(
-    CLAUDE_BIN,
+    AGENT_BIN,
     [
       "-p",
       truncated,

@@ -7,7 +7,7 @@ Wants=network-online.target
 Type=simple
 WorkingDirectory={{WORKING_DIRECTORY}}
 # Loaded in listed order — a later file's values win over an earlier file's
-# on the same key. Put anything shared across every profile (CLAUDE_BIN,
+# on the same key. Put anything shared across every profile (AGENT_BIN,
 # EXTRA_PATH_DIRS) in the first file, and per-profile overrides (RELAY_PORT,
 # RELAY_HOME_OVERRIDE, ...) in the second. The "-" prefix makes both files
 # optional, so a single-profile setup can skip either or both and run on

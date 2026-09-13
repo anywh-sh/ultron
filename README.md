@@ -64,7 +64,7 @@ Setting up your own instance means pointing the client at your relay by hand (be
 ```bash
 cd relay
 npm install
-cp .env.example .env   # edit CLAUDE_BIN / EXTRA_PATH_DIRS if `claude` isn't on PATH
+cp .env.example .env   # edit AGENT_BIN / EXTRA_PATH_DIRS if your agent CLI isn't on PATH
 npm run build
 npm start               # or `npm run dev` during development
 ```

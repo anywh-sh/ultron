@@ -6,7 +6,7 @@ import { dirname, resolve as resolvePath } from "node:path";
 import { fileURLToPath } from "node:url";
 import { WebSocketServer, type WebSocket } from "ws";
 import { buildChildEnv } from "./claudeSession.js";
-import { CLAUDE_BIN } from "./claudeCliConfig.js";
+import { AGENT_BIN } from "./claudeCliConfig.js";
 import { detectDefaultModel, type DefaultModelInfo } from "./defaultModel.js";
 import { listDirectories } from "./fsBrowse.js";
 import type { EditMessageError } from "./sharedSession.js";
@@ -50,13 +50,13 @@ import { MAX_UPLOAD_BYTES, readRawBody, saveUpload } from "./uploads.js";
 // level below `relay/`.
 const ADD_PROFILE_SCRIPT = resolvePath(dirname(fileURLToPath(import.meta.url)), "../../infra/systemd/add-profile.sh");
 
-// Same seam as `CLAUDE_BIN` (claudeCliConfig.ts) — defaults to the bare
+// Same seam as `AGENT_BIN` (claudeCliConfig.ts) — defaults to the bare
 // command name (works wherever `systemctl --user` is genuinely available),
 // overridable so a test never has to shell out to the REAL systemd user
 // session, which has no notion of "this is just a test": a real incident
 // (2026-09-07) had an integration test's `DELETE /control/profiles/:id`
 // call disable+stop the operator's actual live `anywh-relay@trabalho`
-// service, SIGKILLing a real in-flight `claude` conversation. `CLAUDE_BIN`
+// service, SIGKILLing a real in-flight `claude` conversation. `AGENT_BIN`
 // already gets this treatment for the same reason; this route's `spawn`
 // needed the identical override, not a mock of `spawn` itself.
 const SYSTEMCTL_BIN = process.env.SYSTEMCTL_BIN ?? "systemctl";
@@ -357,7 +357,7 @@ interface ClaudeAuthStatus {
  * exists to prevent. */
 function runClaudeAuthStatus(homeOverride: string | undefined): Promise<ClaudeAuthStatus> {
   return new Promise((resolveStatus, rejectStatus) => {
-    const child = spawn(CLAUDE_BIN, ["auth", "status", "--json"], { env: buildChildEnv(homeOverride) });
+    const child = spawn(AGENT_BIN, ["auth", "status", "--json"], { env: buildChildEnv(homeOverride) });
     let stdout = "";
     const timeout = setTimeout(() => {
       child.kill();

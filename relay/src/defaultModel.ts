@@ -1,5 +1,5 @@
 import { spawn } from "node:child_process";
-import { CLAUDE_BIN, EXTRA_PATH_DIRS } from "./claudeCliConfig.js";
+import { AGENT_BIN, EXTRA_PATH_DIRS } from "./claudeCliConfig.js";
 
 // Extracts just the model family — "Current model: `Sonnet 5 (default)`" ->
 // "Sonnet", "Current model: `Opus 5 (1M context) (default)`" -> "Opus". The
@@ -63,7 +63,7 @@ export async function detectDefaultModel(
   env.PATH = [...EXTRA_PATH_DIRS, env.PATH ?? ""].join(":");
 
   const child = spawn(
-    CLAUDE_BIN,
+    AGENT_BIN,
     [
       "-p",
       "/model",

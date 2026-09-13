@@ -9,7 +9,7 @@ import { collectUntil, connectSession, sendUserMessage } from "./helpers/wsClien
 // relay server, talks to it over a real WebSocket, only fakes the `claude`
 // process. Reproduces a real incident (2026-09-08): a tab's working
 // directory was moved/deleted out from under it (repo relocated, `mv` +
-// forgot to update the session), so the next message's `spawn(CLAUDE_BIN,
+// forgot to update the session), so the next message's `spawn(AGENT_BIN,
 // args, { cwd })` fails with ENOENT — and, before the fix, that took the
 // *entire relay process* down (all profiles, all tabs), not just that one
 // turn. `testServer.ts`'s own comment about "nonexistent cwd → ENOENT

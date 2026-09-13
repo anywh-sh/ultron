@@ -1,5 +1,5 @@
 import { spawn } from "node:child_process";
-import { CLAUDE_BIN, EXTRA_PATH_DIRS } from "./claudeCliConfig.js";
+import { AGENT_BIN, EXTRA_PATH_DIRS } from "./claudeCliConfig.js";
 
 const SYSTEM_PROMPT =
   "You suggest the next message the user would likely send in a conversation with a code " +
@@ -45,7 +45,7 @@ export async function generateSuggestion(
   env.PATH = [...EXTRA_PATH_DIRS, env.PATH ?? ""].join(":");
 
   const child = spawn(
-    CLAUDE_BIN,
+    AGENT_BIN,
     [
       "-p",
       prompt,
