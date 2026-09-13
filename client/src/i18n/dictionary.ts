@@ -410,6 +410,26 @@ export interface Dictionary {
       close: string;
       reconnecting: string;
     };
+    /** The strip along the bottom of the window: what the focused session's
+     * folder looks like to git, and which version of the app is running.
+     * Everything here is printed in mono at 10.5px, so the copy has to stay
+     * short enough to survive a narrow window without the two halves
+     * colliding. */
+    statusBar: {
+      /** `{count}` — entries `git status` would list for the session's
+       * folder, untracked files included (relay/src/gitStatus.ts). */
+      changes: string;
+      /** Its own key rather than a plural rule: two languages, one number
+       * that is `1` often enough to be worth reading right. */
+      changesOne: string;
+      clean: string;
+      /** Title of the branch slot when HEAD is on no branch at all — what
+       * the slot then shows is a commit, and nothing else on screen says so. */
+      detachedHead: string;
+      /** `{version}` — title of the version slot, which has room for the
+       * number but not for what the number belongs to. */
+      appVersion: string;
+    };
     sidebar: {
       label: string;
       newConversation: string;
