@@ -54,17 +54,3 @@ protocol, not an integration — the client knows no particular server's API,
 it's handed URLs and calls them, so any self-hoster can implement them and
 their relay becomes pairable by the stock client with no fork on either
 side. See the [pairing protocol](./pairing.md).
-
-## The catch nobody mentions
-
-**The relay machine has to stay powered on and awake.**
-
-Your session lives on that machine. If it sleeps, the app has nothing to
-connect to — there's no cloud copy to fall back to, which is the whole point
-of the design. This is equally true on your own LAN; it just doesn't become
-obvious until you're away from home and the desktop you assumed was awake
-suspended itself three hours ago.
-
-On Linux, `systemd-inhibit` or disabling suspend on the host is the usual
-fix. On macOS, `caffeinate` or the "prevent sleeping" setting in Energy
-Saver.
