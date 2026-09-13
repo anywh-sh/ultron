@@ -60,18 +60,19 @@ export const DEFAULT_THEME: Theme = {
     "profile-5": "#7c93ab",
     "profile-6": "#8fa876",
   },
-  // Mirrors what TerminalView.tsx used to hardcode. `background` is
-  // deliberately `--bg-sidebar` and not `--background`: the terminal paints
-  // the same solid color as the panel it sits in, because chasing real
-  // transparency through xterm's canvas + WebGL addon never closed fully
-  // (see TerminalView.tsx).
+  // `background` is deliberately `--bg-chrome`, not `--background`: the
+  // design paints the terminal's own pane a shade darker than the dock
+  // column around it (same relationship as the file viewer's content area),
+  // and chasing real transparency through xterm's canvas + WebGL addon never
+  // closed fully anyway (see TerminalView.tsx). `black`/`cursorAccent` mirror
+  // it so neither reads as a mismatched patch against the pane.
   terminal: {
-    background: "#222120",
+    background: "#1e1d1b",
     foreground: "#eceae4",
     cursor: "#e0642a",
-    cursorAccent: "#222120",
+    cursorAccent: "#1e1d1b",
     selectionBackground: "rgba(224, 100, 42, 0.35)",
-    black: "#222120",
+    black: "#1e1d1b",
     red: "#d4614f",
     green: "#74b183",
     yellow: "#d6a24e",

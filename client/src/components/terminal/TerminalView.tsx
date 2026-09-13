@@ -74,14 +74,15 @@ export function TerminalView({ profile, chatSessionId, terminalId, cwd }: Termin
       scrollback: 5000,
       allowProposedApi: true,
       // A previous attempt used `theme.background: "transparent"` +
-      // `allowTransparency` to let the panel's background (`SessionPanel`,
-      // `--bg-sidebar`) show through behind the canvas — in practice a
-      // visibly different dark rectangle still remained (tested in the real
-      // app). Simpler and more robust: instead of chasing real transparency
-      // through 2D canvas + WebGL addon + the package's own CSS, paint the
-      // terminal with the SAME solid color as the panel. Read from the
-      // resolved theme (a ref, so a theme change doesn't tear down the
-      // terminal and its pty — the effect below updates it in place).
+      // `allowTransparency` to let whatever sits behind the canvas show
+      // through — in practice a visibly different dark rectangle still
+      // remained (tested in the real app). Simpler and more robust: instead
+      // of chasing real transparency through 2D canvas + WebGL addon + the
+      // package's own CSS, paint the terminal with its own solid color
+      // (`--bg-chrome`, a shade darker than the dock column it sits in).
+      // Read from the resolved theme (a ref, so a theme change doesn't tear
+      // down the terminal and its pty — the effect below updates it in
+      // place).
       // Bonus: without `allowTransparency`, the canvases go back to not
       // needing an alpha channel, slightly cheaper to composite.
       theme: themeRef.current,
@@ -281,8 +282,7 @@ export function TerminalView({ profile, chatSessionId, terminalId, cwd }: Termin
     // `--terminal-bg` feeds the `.xterm-viewport` override in index.css:
     // the package's own CSS forces a solid black viewport behind the
     // canvas, and it has to be the same color the terminal paints, which is
-    // the theme's terminal background rather than `--bg-sidebar` whenever a
-    // theme declares its own.
+    // the theme's own terminal background whenever a theme declares one.
     <div className="relative h-full w-full" style={{ "--terminal-bg": terminalTheme.background } as React.CSSProperties}>
       <div ref={containerRef} className="selectable-content h-full w-full p-2" />
       {reconnecting && (

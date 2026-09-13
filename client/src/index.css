@@ -739,18 +739,18 @@ body {
 /* Embedded terminal — xterm.js's own package CSS forces a solid black
  * viewport background (`.xterm-viewport { background-color: #000 }`,
  * commented there as "needed on OS X for the scrollbar to be opaque").
- * Painted with the same solid color as the panel around it (`--bg-sidebar`,
- * matching `theme.background` in TerminalView.tsx) rather than attempting
- * real transparency — tested in the actual app, chasing transparency through
- * a 2D canvas plus the WebGL addon never closed completely (a visible dark
- * rectangle was left over), and painting the same solid color in both places
- * is simpler and more robust.
+ * Painted with the same solid color as the terminal's own theme
+ * (`theme.background` in TerminalView.tsx, a shade darker than the dock
+ * column around it) rather than attempting real transparency — tested in the
+ * actual app, chasing transparency through a 2D canvas plus the WebGL addon
+ * never closed completely (a visible dark rectangle was left over), and
+ * painting the same solid color in both places is simpler and more robust.
  * `--terminal-bg` is written by TerminalView from the resolved theme (a
- * theme may declare a terminal background of its own); `--bg-sidebar` stands
+ * theme may declare a terminal background of its own); `--bg-chrome` stands
  * in as the fallback for the window before that variable has been
  * written. */
 .xterm .xterm-viewport {
-  background-color: var(--terminal-bg, var(--bg-sidebar)) !important;
+  background-color: var(--terminal-bg, var(--bg-chrome)) !important;
 }
 .xterm {
   user-select: text;
