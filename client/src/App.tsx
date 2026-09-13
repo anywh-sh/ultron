@@ -10,6 +10,7 @@ import { SettingsDialog } from "@/components/settings/SettingsDialog";
 import { TabGroupLayout } from "@/components/shell/TabGroupLayout";
 import { TabPanel, type TabPanelActions } from "@/components/shell/TabPanel";
 import { TitleBar } from "@/components/shell/TitleBar";
+import { StatusBar } from "@/components/shell/StatusBar";
 import { MobileShell } from "@/components/shell/MobileShell";
 import { RevokedProfileBanners } from "@/components/shell/RevokedProfileBanner";
 import { ProfileSetupDialog } from "@/components/shell/ProfileSetupDialog";
@@ -901,6 +902,17 @@ export default function App() {
           {tabsContent}
         </div>
       </div>
+
+      {/* Desktop only, like the title bar it mirrors: iOS has no window
+       * chrome to frame, and the mobile shell is out of the redesign's scope
+       * (decision 1 of the plan). Reads the focused tab straight from `App`'s
+       * own state — see StatusBar.tsx for why this one needs no portal. */}
+      <StatusBar
+        profile={activeTab ? (findProfile(activeTab.profileId) ?? null) : null}
+        sessionId={activeTab?.id ?? null}
+        isRunning={activeTab?.isRunning ?? false}
+        windowFocused={windowFocused}
+      />
     </div>
   );
 }
